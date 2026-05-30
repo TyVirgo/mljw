@@ -1,11 +1,37 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import UserProfileMenu from '../components/UserProfileMenu.vue'
 
-defineEmits(['back-to-admin'])
+const emit = defineEmits(['back-to-admin', 'open-basic-data'])
 
 const searchKeyword = ref('')
 const activeTab = ref('all')
+
+const applications = [
+  {
+    id: 'basic-data',
+    name: 'Basic Data',
+    category: 'basic',
+  },
+]
+
+const filteredApplications = computed(() => {
+  let list = applications
+  if (activeTab.value === 'basic') {
+    list = list.filter((app) => app.category === 'basic')
+  }
+  const keyword = searchKeyword.value.trim().toLowerCase()
+  if (keyword) {
+    list = list.filter((app) => app.name.toLowerCase().includes(keyword))
+  }
+  return list
+})
+
+function openApplication(app) {
+  if (app.id === 'basic-data') {
+    emit('open-basic-data')
+  }
+}
 </script>
 
 <template>
@@ -83,7 +109,13 @@ const activeTab = ref('all')
         </div>
 
         <div class="service-grid">
-          <div class="service-card">
+          <button
+            v-for="app in filteredApplications"
+            :key="app.id"
+            type="button"
+            class="service-card"
+            @click="openApplication(app)"
+          >
             <span class="service-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -92,9 +124,9 @@ const activeTab = ref('all')
                 <rect x="14" y="14" width="7" height="7" rx="1" />
               </svg>
             </span>
-            <span class="service-name">Basic Data</span>
+            <span class="service-name">{{ app.name }}</span>
             <span class="service-deco" aria-hidden="true"></span>
-          </div>
+          </button>
         </div>
       </div>
     </main>
@@ -306,9 +338,21 @@ const activeTab = ref('all')
   gap: 10px;
   padding: 16px;
   border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #fff;
   overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.service-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+}
+
+.service-card:active {
+  border-color: #2563eb;
 }
 
 .service-icon {

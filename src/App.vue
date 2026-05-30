@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import Sidebar from './components/Sidebar.vue'
 import HeaderBar from './components/HeaderBar.vue'
+import PageBreadcrumb from './components/PageBreadcrumb.vue'
 import DashboardView from './views/DashboardView.vue'
 import BlockManagementView from './views/BlockManagementView.vue'
 import ClassroomInfoView from './views/ClassroomInfoView.vue'
@@ -10,12 +11,11 @@ import DepartmentInfoView from './views/DepartmentInfoView.vue'
 import CodeSetManagementView from './views/CodeSetManagementView.vue'
 import UnderConstructionView from './views/UnderConstructionView.vue'
 import AcademicPortalView from './views/AcademicPortalView.vue'
-import { developedPages, findMenuLabel } from './config/menu.js'
+import { developedPages, basicDataModuleName } from './config/menu.js'
 
 const appView = ref('admin')
 const currentPageId = ref('dashboard')
 
-const pageTitle = computed(() => findMenuLabel(currentPageId.value))
 const isDashboard = computed(() => currentPageId.value === 'dashboard')
 const isBlockManagement = computed(() => currentPageId.value === 'block-management')
 const isClassroomInfo = computed(() => currentPageId.value === 'classroom-info')
@@ -39,24 +39,32 @@ function goToPortal() {
 function goToAdmin() {
   appView.value = 'admin'
 }
+
+function openBasicDataAdmin() {
+  appView.value = 'admin'
+  currentPageId.value = 'dashboard'
+}
 </script>
 
 <template>
-  <AcademicPortalView v-if="appView === 'portal'" @back-to-admin="goToAdmin" />
+  <AcademicPortalView v-if="appView === 'portal'" @back-to-admin="goToAdmin" @open-basic-data="openBasicDataAdmin" />
 
   <div v-else class="app-layout">
-    <HeaderBar :title="pageTitle" @back-to-portal="goToPortal" />
+    <HeaderBar :title="basicDataModuleName" @back-to-portal="goToPortal" @go-home="goToPortal" />
     <div class="app-body">
       <Sidebar :active-id="currentPageId" @select="handleSelect" />
-      <main class="main-content">
-        <DashboardView v-if="isDashboard" />
-        <BlockManagementView v-else-if="isBlockManagement" />
-        <ClassroomInfoView v-else-if="isClassroomInfo" />
-        <UniversityInfoView v-else-if="isUniversityInfo" />
-        <DepartmentInfoView v-else-if="isDepartmentInfo" />
-        <CodeSetManagementView v-else-if="isCodeSetManagement" />
-        <UnderConstructionView v-else-if="isUnderConstruction" @back="handleBack" />
-      </main>
+      <div class="content-column">
+        <PageBreadcrumb :page-id="currentPageId" />
+        <main class="main-content">
+          <DashboardView v-if="isDashboard" @navigate="handleSelect" />
+          <BlockManagementView v-else-if="isBlockManagement" />
+          <ClassroomInfoView v-else-if="isClassroomInfo" />
+          <UniversityInfoView v-else-if="isUniversityInfo" />
+          <DepartmentInfoView v-else-if="isDepartmentInfo" />
+          <CodeSetManagementView v-else-if="isCodeSetManagement" />
+          <UnderConstructionView v-else-if="isUnderConstruction" @back="handleBack" />
+        </main>
+      </div>
     </div>
   </div>
 </template>
@@ -74,6 +82,14 @@ function goToAdmin() {
   display: flex;
   min-height: 0;
   overflow: hidden;
+}
+
+.content-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 
 .main-content {

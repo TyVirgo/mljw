@@ -8,12 +8,16 @@ defineProps({
   },
 })
 
-defineEmits(['back-to-portal'])
+const emit = defineEmits(['back-to-portal', 'go-home'])
+
+function handleBrandClick() {
+  emit('go-home')
+}
 </script>
 
 <template>
   <header class="header">
-    <div class="header-brand">
+    <button type="button" class="header-brand" aria-label="Back to portal" @click="handleBrandClick">
       <div class="brand-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
@@ -24,7 +28,7 @@ defineEmits(['back-to-portal'])
         <span class="brand-title">Academic Admin</span>
         <span class="brand-subtitle">Management System</span>
       </div>
-    </div>
+    </button>
 
     <span class="header-divider" aria-hidden="true"></span>
 
@@ -61,6 +65,15 @@ defineEmits(['back-to-portal'])
   gap: 10px;
   padding: 0 16px;
   box-sizing: border-box;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.header-brand:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .brand-icon {

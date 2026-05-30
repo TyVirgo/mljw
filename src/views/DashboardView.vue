@@ -1,4 +1,6 @@
 <script setup>
+const emit = defineEmits(['navigate'])
+
 const stats = [
   {
     label: 'Total Students',
@@ -32,8 +34,25 @@ const stats = [
 
 const quickAccess = [
   {
+    title: 'Code Set Management',
+    description: 'Maintain system code sets and dictionaries.',
+    pageId: 'code-set-management',
+    iconBg: '#e0f2fe',
+    iconColor: '#0284c7',
+    icon: 'grid',
+  },
+  {
+    title: 'University Info',
+    description: 'Manage school and portal branding settings.',
+    pageId: 'university-info',
+    iconBg: '#fce7f3',
+    iconColor: '#db2777',
+    icon: 'school',
+  },
+  {
     title: 'Block Management',
     description: 'Manage campus buildings and floors.',
+    pageId: 'block-management',
     iconBg: '#dbeafe',
     iconColor: '#2563eb',
     icon: 'location',
@@ -41,6 +60,7 @@ const quickAccess = [
   {
     title: 'Programme Info',
     description: 'View and manage academic programmes.',
+    pageId: 'programme-info',
     iconBg: '#dcfce7',
     iconColor: '#16a34a',
     icon: 'database',
@@ -48,6 +68,7 @@ const quickAccess = [
   {
     title: 'Course Info',
     description: 'Manage courses and curriculum.',
+    pageId: 'course-information',
     iconBg: '#fef9c3',
     iconColor: '#ca8a04',
     icon: 'book',
@@ -55,18 +76,23 @@ const quickAccess = [
   {
     title: 'Lecturer Info',
     description: 'View lecturer profiles and assignments.',
+    pageId: 'lecturer-information',
     iconBg: '#ede9fe',
     iconColor: '#7c3aed',
     icon: 'user',
   },
 ]
+
+function openQuickAccess(pageId) {
+  emit('navigate', pageId)
+}
 </script>
 
 <template>
   <div class="dashboard">
     <section class="welcome">
       <h2 class="welcome-title">Welcome back, Admin User</h2>
-      <p class="welcome-subtitle">Here is the system overview.</p>
+      <p class="welcome-subtitle">Basic Data module overview.</p>
     </section>
 
     <section class="stats-grid">
@@ -101,11 +127,27 @@ const quickAccess = [
     </section>
 
     <section class="quick-access">
-      <h3 class="section-title">Quick Access</h3>
+      <h3 class="section-title">Common Operations</h3>
       <div class="quick-grid">
-        <a v-for="item in quickAccess" :key="item.title" href="#" class="quick-card">
+        <button
+          v-for="item in quickAccess"
+          :key="item.title"
+          type="button"
+          class="quick-card"
+          @click="openQuickAccess(item.pageId)"
+        >
           <div class="quick-icon" :style="{ background: item.iconBg, color: item.iconColor }">
-            <svg v-if="item.icon === 'location'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg v-if="item.icon === 'grid'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            <svg v-else-if="item.icon === 'school'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+              <path d="M6 12v5c0 1.1 2.7 2 6 2s6-.9 6-2v-5" />
+            </svg>
+            <svg v-else-if="item.icon === 'location'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
               <circle cx="12" cy="10" r="3" />
             </svg>
@@ -127,7 +169,7 @@ const quickAccess = [
             <h4 class="quick-title">{{ item.title }}</h4>
             <p class="quick-desc">{{ item.description }}</p>
           </div>
-        </a>
+        </button>
       </div>
     </section>
   </div>
@@ -163,7 +205,7 @@ const quickAccess = [
 
 .stat-card {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   border: 1px solid #f3f4f6;
@@ -213,7 +255,7 @@ const quickAccess = [
 
 .quick-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
 
@@ -221,23 +263,27 @@ const quickAccess = [
   display: flex;
   align-items: center;
   gap: 16px;
+  width: 100%;
   background: #fff;
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 20px 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   border: 1px solid #f3f4f6;
-  transition: box-shadow 0.15s, transform 0.15s;
+  cursor: pointer;
+  text-align: left;
+  transition: box-shadow 0.15s, transform 0.15s, border-color 0.15s;
 }
 
 .quick-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: #93c5fd;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
   transform: translateY(-1px);
 }
 
 .quick-icon {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -264,6 +310,12 @@ const quickAccess = [
 
 @media (max-width: 1200px) {
   .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 1024px) {
+  .quick-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }

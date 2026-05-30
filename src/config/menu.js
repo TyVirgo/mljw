@@ -1,3 +1,6 @@
+/** Portal / header title for the admin shell (all pages in this app belong to this module). */
+export const basicDataModuleName = 'Basic Data'
+
 export const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   {
@@ -59,4 +62,19 @@ export function findParentId(id) {
     if (item.children?.some((c) => c.id === id)) return item.id
   }
   return null
+}
+
+/** Breadcrumb labels: module name → parent group (if any) → current page */
+export function buildMenuBreadcrumb(pageId) {
+  const crumbs = [basicDataModuleName]
+  if (pageId === 'dashboard') {
+    crumbs.push(findMenuLabel('dashboard'))
+    return crumbs
+  }
+  const parentId = findParentId(pageId)
+  if (parentId) {
+    crumbs.push(findMenuLabel(parentId))
+  }
+  crumbs.push(findMenuLabel(pageId))
+  return crumbs
 }
