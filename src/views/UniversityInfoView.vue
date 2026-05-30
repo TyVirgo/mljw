@@ -1,6 +1,7 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
+import DatePickerEn from '../components/common/DatePickerEn.vue'
 import {
   universityOperatorOptions,
   defaultImages,
@@ -10,8 +11,6 @@ import {
   loadUniversityInfo,
   saveUniversityInfo,
   validateUniversityForm,
-  toMonthInputValue,
-  fromMonthInputValue,
   readImageFile,
 } from '../data/universityInfo.js'
 
@@ -24,23 +23,24 @@ const pendingDeleteImageKey = ref('')
 const fileInputRef = ref(null)
 const uploadingImageKey = ref('')
 
+function migrateEstablishedFormat() {
+  const value = form.establishedMonthYear?.trim()
+  if (!value) return
+  const legacyMonthYear = value.match(/^(0[1-9]|1[0-2])\/(\d{4})$/)
+  if (legacyMonthYear) {
+    form.establishedMonthYear = `01/${legacyMonthYear[1]}/${legacyMonthYear[2]}`
+    return
+  }
+  const legacyIsoMonth = value.match(/^(\d{4})-(0[1-9]|1[0-2])$/)
+  if (legacyIsoMonth) {
+    form.establishedMonthYear = `01/${legacyIsoMonth[2]}/${legacyIsoMonth[1]}`
+  }
+}
+
 onMounted(() => {
   Object.assign(form, loadUniversityInfo())
+  migrateEstablishedFormat()
 })
-
-const establishedMonthInput = computed({
-  get() {
-    return toMonthInputValue(form.establishedMonthYear)
-  },
-  set(value) {
-    form.establishedMonthYear = fromMonthInputValue(value)
-    clearFieldError('establishedMonthYear')
-  },
-})
-
-function openEstablishedPicker() {
-  document.getElementById('established-month-picker')?.showPicker?.()
-}
 
 function clearFieldError(key) {
   if (errors.value[key]) {
@@ -107,306 +107,309 @@ function getDeleteMessage() {
   <div class="university-page">
     <div class="page-card">
       <form class="uni-form" @submit.prevent="handleSave">
-        <div class="form-grid">
-          <div id="field-moheRegistrationNo" class="form-item" :class="{ 'has-error': errors.moheRegistrationNo }">
-            <label><span class="required">*</span> MOHE Registration Certificate No.:</label>
-            <input
-              v-model="form.moheRegistrationNo"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('moheRegistrationNo')"
-            />
-            <p v-if="errors.moheRegistrationNo" class="error-text">{{ errors.moheRegistrationNo }}</p>
-          </div>
-
-          <div class="form-item">
-            <label>University Operator:</label>
-            <select v-model="form.universityOperator">
-              <option value="">please select</option>
-              <option v-for="opt in universityOperatorOptions" :key="opt" :value="opt">{{ opt }}</option>
-            </select>
-          </div>
-
-          <div id="field-universityName" class="form-item" :class="{ 'has-error': errors.universityName }">
-            <label><span class="required">*</span> University Name:</label>
-            <input
-              v-model="form.universityName"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('universityName')"
-            />
-            <p v-if="errors.universityName" class="error-text">{{ errors.universityName }}</p>
-          </div>
-
-          <div id="field-companyNo" class="form-item" :class="{ 'has-error': errors.companyNo }">
-            <label>Company No.:</label>
-            <input
-              v-model="form.companyNo"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('companyNo')"
-            />
-            <p v-if="errors.companyNo" class="error-text">{{ errors.companyNo }}</p>
-          </div>
-
-          <div id="field-universityNameChinese" class="form-item" :class="{ 'has-error': errors.universityNameChinese }">
-            <label><span class="required">*</span> University Name (Chinese):</label>
-            <input
-              v-model="form.universityNameChinese"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('universityNameChinese')"
-            />
-            <p v-if="errors.universityNameChinese" class="error-text">{{ errors.universityNameChinese }}</p>
-          </div>
-
-          <div id="field-universityNameMal" class="form-item" :class="{ 'has-error': errors.universityNameMal }">
-            <label><span class="required">*</span> University Name (MAL):</label>
-            <input
-              v-model="form.universityNameMal"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('universityNameMal')"
-            />
-            <p v-if="errors.universityNameMal" class="error-text">{{ errors.universityNameMal }}</p>
-          </div>
-
-          <div id="field-contactNo" class="form-item" :class="{ 'has-error': errors.contactNo }">
-            <label>Contact No.:</label>
-            <input
-              v-model="form.contactNo"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('contactNo')"
-            />
-            <p v-if="errors.contactNo" class="error-text">{{ errors.contactNo }}</p>
-          </div>
-
-          <div id="field-postCode" class="form-item" :class="{ 'has-error': errors.postCode }">
-            <label>Post Code:</label>
-            <input
-              v-model="form.postCode"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('postCode')"
-            />
-            <p v-if="errors.postCode" class="error-text">{{ errors.postCode }}</p>
-          </div>
-
-          <div id="field-faxNo" class="form-item" :class="{ 'has-error': errors.faxNo }">
-            <label>Fax No.:</label>
-            <input
-              v-model="form.faxNo"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('faxNo')"
-            />
-            <p v-if="errors.faxNo" class="error-text">{{ errors.faxNo }}</p>
-          </div>
-
-          <div id="field-email" class="form-item" :class="{ 'has-error': errors.email }">
-            <label>Email:</label>
-            <input
-              v-model="form.email"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('email')"
-            />
-            <p v-if="errors.email" class="error-text">{{ errors.email }}</p>
-          </div>
-
-          <div id="field-website" class="form-item" :class="{ 'has-error': errors.website }">
-            <label>Website:</label>
-            <input
-              v-model="form.website"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('website')"
-            />
-            <p v-if="errors.website" class="error-text">{{ errors.website }}</p>
-          </div>
-
-          <div id="field-establishedMonthYear" class="form-item" :class="{ 'has-error': errors.establishedMonthYear }">
-            <label>Established (Month /Year):</label>
-            <div class="date-input">
+        <section class="uni-section-basic">
+          <div class="form-grid-pair">
+            <div id="field-moheRegistrationNo" class="form-item" :class="{ 'has-error': errors.moheRegistrationNo }">
+              <label><span class="required">*</span> MOHE Registration Certificate No.:</label>
               <input
-                id="established-month-picker"
-                v-model="establishedMonthInput"
-                type="month"
-                class="month-picker"
+                v-model="form.moheRegistrationNo"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('moheRegistrationNo')"
               />
-              <button type="button" class="calendar-btn" aria-label="Select date" @click="openEstablishedPicker">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
-              </button>
+              <p v-if="errors.moheRegistrationNo" class="error-text">{{ errors.moheRegistrationNo }}</p>
             </div>
-            <p v-if="errors.establishedMonthYear" class="error-text">{{ errors.establishedMonthYear }}</p>
+
+            <div class="form-item">
+              <label>University Operator:</label>
+              <select v-model="form.universityOperator">
+                <option value="">please select</option>
+                <option v-for="opt in universityOperatorOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+            </div>
+
+            <div id="field-universityName" class="form-item" :class="{ 'has-error': errors.universityName }">
+              <label><span class="required">*</span> University Name:</label>
+              <input
+                v-model="form.universityName"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('universityName')"
+              />
+              <p v-if="errors.universityName" class="error-text">{{ errors.universityName }}</p>
+            </div>
+
+            <div id="field-companyNo" class="form-item" :class="{ 'has-error': errors.companyNo }">
+              <label>Company No.:</label>
+              <input
+                v-model="form.companyNo"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('companyNo')"
+              />
+              <p v-if="errors.companyNo" class="error-text">{{ errors.companyNo }}</p>
+            </div>
+
+            <div id="field-universityNameChinese" class="form-item" :class="{ 'has-error': errors.universityNameChinese }">
+              <label><span class="required">*</span> University Name (Chinese):</label>
+              <input
+                v-model="form.universityNameChinese"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('universityNameChinese')"
+              />
+              <p v-if="errors.universityNameChinese" class="error-text">{{ errors.universityNameChinese }}</p>
+            </div>
+
+            <div id="field-universityNameMal" class="form-item" :class="{ 'has-error': errors.universityNameMal }">
+              <label><span class="required">*</span> University Name (MAL):</label>
+              <input
+                v-model="form.universityNameMal"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('universityNameMal')"
+              />
+              <p v-if="errors.universityNameMal" class="error-text">{{ errors.universityNameMal }}</p>
+            </div>
+
+            <div id="field-postCode" class="form-item" :class="{ 'has-error': errors.postCode }">
+              <label>Post Code:</label>
+              <input
+                v-model="form.postCode"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('postCode')"
+              />
+              <p v-if="errors.postCode" class="error-text">{{ errors.postCode }}</p>
+            </div>
+
+            <div id="field-website" class="form-item" :class="{ 'has-error': errors.website }">
+              <label>Website:</label>
+              <input
+                v-model="form.website"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('website')"
+              />
+              <p v-if="errors.website" class="error-text">{{ errors.website }}</p>
+            </div>
+
+            <div id="field-contactNo" class="form-item" :class="{ 'has-error': errors.contactNo }">
+              <label>Contact No.:</label>
+              <input
+                v-model="form.contactNo"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('contactNo')"
+              />
+              <p v-if="errors.contactNo" class="error-text">{{ errors.contactNo }}</p>
+            </div>
+
+            <div id="field-faxNo" class="form-item" :class="{ 'has-error': errors.faxNo }">
+              <label>Fax No.:</label>
+              <input
+                v-model="form.faxNo"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('faxNo')"
+              />
+              <p v-if="errors.faxNo" class="error-text">{{ errors.faxNo }}</p>
+            </div>
           </div>
 
-          <div class="form-item form-item-empty" aria-hidden="true"></div>
+          <div class="form-rows">
+            <div id="field-email" class="form-item" :class="{ 'has-error': errors.email }">
+              <label>Email:</label>
+              <input
+                v-model="form.email"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('email')"
+              />
+              <p v-if="errors.email" class="error-text">{{ errors.email }}</p>
+            </div>
 
-          <div id="field-universityAddress" class="form-item form-item-full" :class="{ 'has-error': errors.universityAddress }">
-            <label><span class="required">*</span> University Address:</label>
-            <input
-              v-model="form.universityAddress"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('universityAddress')"
-            />
-            <p v-if="errors.universityAddress" class="error-text">{{ errors.universityAddress }}</p>
-          </div>
-        </div>
+            <div id="field-establishedMonthYear" class="form-item" :class="{ 'has-error': errors.establishedMonthYear }">
+              <label>Established (Month/Year):</label>
+              <DatePickerEn
+                v-model="form.establishedMonthYear"
+                class="field-control"
+                :has-error="!!errors.establishedMonthYear"
+                @update:model-value="clearFieldError('establishedMonthYear')"
+              />
+              <p v-if="errors.establishedMonthYear" class="error-text">{{ errors.establishedMonthYear }}</p>
+            </div>
 
-        <div id="field-adminPortalLogo" class="image-field">
-          <label>Admin Portal Logo:</label>
-          <div class="image-content">
-            <button type="button" class="image-preview preview-logo" @click="triggerUpload('adminPortalLogo')">
-              <img :src="form.adminPortalLogo" alt="Admin Portal Logo" />
-            </button>
-            <button
-              type="button"
-              class="delete-link"
-              @click="requestDeleteImage('adminPortalLogo')"
+            <div id="field-universityAddress" class="form-item" :class="{ 'has-error': errors.universityAddress }">
+              <label><span class="required">*</span> University Address:</label>
+              <input
+                v-model="form.universityAddress"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('universityAddress')"
+              />
+              <p v-if="errors.universityAddress" class="error-text">{{ errors.universityAddress }}</p>
+            </div>
+
+            <div id="field-adminPortalLogo" class="image-field">
+              <label>Admin Portal Logo:</label>
+              <div class="image-content">
+                <button type="button" class="image-preview preview-logo" @click="triggerUpload('adminPortalLogo')">
+                  <img :src="form.adminPortalLogo" alt="Admin Portal Logo" />
+                </button>
+                <button type="button" class="delete-link" @click="requestDeleteImage('adminPortalLogo')">
+                  Delete
+                </button>
+                <p class="image-hint">
+                  Displayed on the home page. Recommended image size: 670px (width) × 670px (height).
+                </p>
+              </div>
+            </div>
+
+            <div
+              v-for="item in section2ImageFields.slice(0, 1)"
+              :key="item.key"
+              :id="`field-${item.key}`"
+              class="image-field"
             >
-              Delete
-            </button>
-            <p class="image-hint">
-              Displayed on the home page. Recommended image size: 670px (width) × 670px (height).
-            </p>
+              <label>{{ item.label }}</label>
+              <div class="image-content">
+                <button
+                  type="button"
+                  class="image-preview"
+                  :class="item.previewClass"
+                  @click="triggerUpload(item.key)"
+                >
+                  <img :src="form[item.key]" :alt="item.label" />
+                </button>
+                <button type="button" class="delete-link" @click="requestDeleteImage(item.key)">
+                  Delete
+                </button>
+                <p class="image-hint">{{ item.hint }}</p>
+              </div>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div class="form-stack">
-          <div
-            v-for="item in section2ImageFields.slice(0, 2)"
-            :key="item.key"
-            :id="`field-${item.key}`"
-            class="image-field"
-          >
-            <label>{{ item.label }}</label>
-            <div class="image-content">
-              <button
-                type="button"
-                class="image-preview"
-                :class="item.previewClass"
-                @click="triggerUpload(item.key)"
-              >
-                <img :src="form[item.key]" :alt="item.label" />
-              </button>
-              <button
-                type="button"
-                class="delete-link"
-                @click="requestDeleteImage(item.key)"
-              >
-                Delete
-              </button>
-              <p class="image-hint">{{ item.hint }}</p>
+        <section class="uni-section-branding">
+          <div class="form-rows">
+            <div
+              v-for="item in section2ImageFields.slice(1, 2)"
+              :key="item.key"
+              :id="`field-${item.key}`"
+              class="image-field"
+            >
+              <label>{{ item.label }}</label>
+              <div class="image-content">
+                <button
+                  type="button"
+                  class="image-preview"
+                  :class="item.previewClass"
+                  @click="triggerUpload(item.key)"
+                >
+                  <img :src="form[item.key]" :alt="item.label" />
+                </button>
+                <button type="button" class="delete-link" @click="requestDeleteImage(item.key)">
+                  Delete
+                </button>
+                <p class="image-hint">{{ item.hint }}</p>
+              </div>
+            </div>
+
+            <div id="field-loginPageTitle" class="form-item" :class="{ 'has-error': errors.loginPageTitle }">
+              <label>Login Page Title:</label>
+              <input
+                v-model="form.loginPageTitle"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('loginPageTitle')"
+              />
+              <p v-if="errors.loginPageTitle" class="error-text">{{ errors.loginPageTitle }}</p>
+            </div>
+
+            <div id="field-loginPageTitleUserPortal" class="form-item" :class="{ 'has-error': errors.loginPageTitleUserPortal }">
+              <label>Login Page Title (User Portal):</label>
+              <input
+                v-model="form.loginPageTitleUserPortal"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('loginPageTitleUserPortal')"
+              />
+              <p v-if="errors.loginPageTitleUserPortal" class="error-text">{{ errors.loginPageTitleUserPortal }}</p>
+            </div>
+
+            <div id="field-browserTitle" class="form-item" :class="{ 'has-error': errors.browserTitle }">
+              <label>Browser Tags:</label>
+              <input
+                v-model="form.browserTitle"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('browserTitle')"
+              />
+              <p v-if="errors.browserTitle" class="error-text">{{ errors.browserTitle }}</p>
+            </div>
+
+            <div
+              v-for="item in section2ImageFields.slice(2, 3)"
+              :key="item.key"
+              :id="`field-${item.key}`"
+              class="image-field"
+            >
+              <label>{{ item.label }}</label>
+              <div class="image-content">
+                <button
+                  type="button"
+                  class="image-preview"
+                  :class="item.previewClass"
+                  @click="triggerUpload(item.key)"
+                >
+                  <img :src="form[item.key]" :alt="item.label" />
+                </button>
+                <button type="button" class="delete-link" @click="requestDeleteImage(item.key)">
+                  Delete
+                </button>
+                <p class="image-hint">{{ item.hint }}</p>
+              </div>
+            </div>
+
+            <div
+              v-for="item in section3ImageFields"
+              :key="item.key"
+              :id="`field-${item.key}`"
+              class="image-field"
+            >
+              <label>{{ item.label }}</label>
+              <div class="image-content">
+                <button
+                  type="button"
+                  class="image-preview"
+                  :class="item.previewClass"
+                  @click="triggerUpload(item.key)"
+                >
+                  <img :src="form[item.key]" :alt="item.label" />
+                </button>
+                <button type="button" class="delete-link" @click="requestDeleteImage(item.key)">
+                  Delete
+                </button>
+                <p class="image-hint">{{ item.hint }}</p>
+              </div>
+            </div>
+
+            <div id="field-mobilePortalTitle" class="form-item" :class="{ 'has-error': errors.mobilePortalTitle }">
+              <label>Mobile Portal Title:</label>
+              <input
+                v-model="form.mobilePortalTitle"
+                type="text"
+                placeholder="please input"
+                @input="clearFieldError('mobilePortalTitle')"
+              />
+              <p v-if="errors.mobilePortalTitle" class="error-text">{{ errors.mobilePortalTitle }}</p>
             </div>
           </div>
 
-          <div id="field-loginPageTitle" class="form-item form-item-stack" :class="{ 'has-error': errors.loginPageTitle }">
-            <label>Login Page Title:</label>
-            <input
-              v-model="form.loginPageTitle"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('loginPageTitle')"
-            />
-            <p v-if="errors.loginPageTitle" class="error-text">{{ errors.loginPageTitle }}</p>
-          </div>
-
-          <div id="field-loginPageTitleUserPortal" class="form-item form-item-stack" :class="{ 'has-error': errors.loginPageTitleUserPortal }">
-            <label>Login Page Title (User Portal):</label>
-            <input
-              v-model="form.loginPageTitleUserPortal"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('loginPageTitleUserPortal')"
-            />
-            <p v-if="errors.loginPageTitleUserPortal" class="error-text">{{ errors.loginPageTitleUserPortal }}</p>
-          </div>
-
-          <div id="field-browserTitle" class="form-item form-item-stack" :class="{ 'has-error': errors.browserTitle }">
-            <label>Browser Title:</label>
-            <input
-              v-model="form.browserTitle"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('browserTitle')"
-            />
-            <p v-if="errors.browserTitle" class="error-text">{{ errors.browserTitle }}</p>
-          </div>
-
-          <div
-            v-for="item in section2ImageFields.slice(2, 3)"
-            :key="item.key"
-            :id="`field-${item.key}`"
-            class="image-field"
-          >
-            <label>{{ item.label }}</label>
-            <div class="image-content">
-              <button
-                type="button"
-                class="image-preview"
-                :class="item.previewClass"
-                @click="triggerUpload(item.key)"
-              >
-                <img :src="form[item.key]" :alt="item.label" />
-              </button>
-              <button
-                type="button"
-                class="delete-link"
-                @click="requestDeleteImage(item.key)"
-              >
-                Delete
-              </button>
-              <p class="image-hint">{{ item.hint }}</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="form-stack section-3">
-          <div
-            v-for="item in section3ImageFields"
-            :key="item.key"
-            :id="`field-${item.key}`"
-            class="image-field"
-          >
-            <label>{{ item.label }}</label>
-            <div class="image-content">
-              <button
-                type="button"
-                class="image-preview"
-                :class="item.previewClass"
-                @click="triggerUpload(item.key)"
-              >
-                <img :src="form[item.key]" :alt="item.label" />
-              </button>
-              <button type="button" class="delete-link" @click="requestDeleteImage(item.key)">
-                Delete
-              </button>
-              <p class="image-hint">{{ item.hint }}</p>
-            </div>
-          </div>
-
-          <div id="field-mobilePortalTitle" class="form-item form-item-stack" :class="{ 'has-error': errors.mobilePortalTitle }">
-            <label>Mobile Portal Title:</label>
-            <input
-              v-model="form.mobilePortalTitle"
-              type="text"
-              placeholder="please input"
-              @input="clearFieldError('mobilePortalTitle')"
-            />
-            <p v-if="errors.mobilePortalTitle" class="error-text">{{ errors.mobilePortalTitle }}</p>
-          </div>
-
-          <div class="form-grid form-grid-motto">
+          <div class="form-grid-pair form-grid-pair-tail">
             <div id="field-mottoLeft" class="form-item" :class="{ 'has-error': errors.mottoLeft }">
-              <label>Motto (Left Side):</label>
+              <label>Mobile (Left Side):</label>
               <input
                 v-model="form.mottoLeft"
                 type="text"
@@ -417,7 +420,7 @@ function getDeleteMessage() {
             </div>
 
             <div id="field-mottoRight" class="form-item" :class="{ 'has-error': errors.mottoRight }">
-              <label>Motto (Right Side):</label>
+              <label>Mobile (Right Side):</label>
               <input
                 v-model="form.mottoRight"
                 type="text"
@@ -427,7 +430,7 @@ function getDeleteMessage() {
               <p v-if="errors.mottoRight" class="error-text">{{ errors.mottoRight }}</p>
             </div>
           </div>
-        </div>
+        </section>
 
         <div class="form-actions">
           <p v-if="saveMessage" class="save-message">{{ saveMessage }}</p>
@@ -451,6 +454,7 @@ function getDeleteMessage() {
 
 <style scoped>
 .university-page {
+  --uni-label-width: 240px;
   min-height: calc(100vh - 56px);
   padding: 24px 28px 32px;
   box-sizing: border-box;
@@ -461,39 +465,50 @@ function getDeleteMessage() {
   border-radius: 12px;
   border: 1px solid #f3f4f6;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  padding: 28px 32px 36px;
+  padding: 28px 40px 36px;
 }
 
 .uni-form {
-  max-width: 980px;
+  width: 100%;
+  max-width: 100%;
 }
 
-.form-grid {
+.uni-section-branding {
+  margin-top: 32px;
+}
+
+.form-grid-pair {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px 56px;
-  margin-bottom: 28px;
+  column-gap: 48px;
+  row-gap: 16px;
 }
 
-.form-item {
+.form-grid-pair-tail {
+  margin-top: 8px;
+}
+
+.form-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.form-item,
+.image-field {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: var(--uni-label-width) minmax(0, 1fr);
   align-items: start;
-  gap: 4px 12px;
-}
-
-.form-item-full {
-  grid-column: 1 / -1;
-}
-
-.form-item-empty {
-  visibility: hidden;
+  column-gap: 16px;
+  row-gap: 4px;
 }
 
 .form-item label,
 .image-field label {
   padding-top: 8px;
   font-size: 13px;
+  font-weight: 500;
   color: #374151;
   text-align: right;
   line-height: 1.4;
@@ -506,8 +521,14 @@ function getDeleteMessage() {
 
 .form-item input,
 .form-item select,
-.date-input input {
+.field-control {
+  grid-column: 2;
   width: 100%;
+  min-width: 0;
+}
+
+.form-item input,
+.form-item select {
   height: 36px;
   padding: 0 12px;
   border: 1px solid #d1d5db;
@@ -515,80 +536,21 @@ function getDeleteMessage() {
   font-size: 13px;
   color: #111827;
   background: #fff;
-  grid-column: 2;
 }
 
 .form-item select {
   appearance: auto;
 }
 
-.date-input {
-  position: relative;
-  grid-column: 2;
-  display: flex;
-  align-items: center;
-}
-
-.date-input input,
-.month-picker {
-  width: 100%;
-  height: 36px;
-  padding: 0 40px 0 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #111827;
-  background: #fff;
-}
-
-.month-picker::-webkit-calendar-picker-indicator {
-  opacity: 0;
-  position: absolute;
-  right: 0;
-  width: 36px;
-  height: 100%;
-  cursor: pointer;
-}
-
-.calendar-btn {
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #9ca3af;
-  cursor: pointer;
-}
-
-.month-picker {
-  grid-column: unset;
-}
-
-.date-input:focus-within .calendar-btn {
-  color: #2563eb;
-}
-
-.date-input svg {
-  width: 16px;
-  height: 16px;
-}
-
 .form-item input:focus,
-.form-item select:focus,
-.date-input input:focus,
-.month-picker:focus {
+.form-item select:focus {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
 }
 
 .form-item.has-error input,
-.form-item.has-error select,
-.form-item.has-error .date-input input,
-.form-item.has-error .month-picker {
+.form-item.has-error select {
   border-color: #ef4444;
   box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.12);
 }
@@ -599,30 +561,13 @@ function getDeleteMessage() {
   color: #ef4444;
 }
 
-.image-field {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-  margin-bottom: 24px;
-}
-
-.form-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  margin-top: 8px;
-}
-
-.form-item-stack {
-  margin-bottom: 18px;
-}
-
 .image-content {
+  grid-column: 2;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
+  min-width: 0;
 }
 
 .image-preview {
@@ -651,7 +596,8 @@ function getDeleteMessage() {
 }
 
 .preview-wide {
-  width: 320px;
+  width: 100%;
+  max-width: 480px;
   height: 180px;
 }
 
@@ -687,7 +633,8 @@ function getDeleteMessage() {
 }
 
 .preview-mobile {
-  width: 280px;
+  width: 100%;
+  max-width: 400px;
   height: 48px;
 }
 
@@ -696,17 +643,6 @@ function getDeleteMessage() {
   height: 100%;
   object-fit: contain;
   display: block;
-}
-
-.section-3 {
-  margin-top: 8px;
-}
-
-.form-grid-motto {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px 56px;
-  margin-bottom: 8px;
 }
 
 .delete-link {
@@ -722,15 +658,17 @@ function getDeleteMessage() {
   font-size: 12px;
   color: #ef4444;
   line-height: 1.5;
-  max-width: 520px;
+  max-width: 100%;
 }
 
 .form-actions {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  margin-top: 36px;
+  justify-content: flex-end;
+  gap: 12px 16px;
+  margin-top: 32px;
+  padding-top: 8px;
 }
 
 .save-message {
@@ -756,5 +694,41 @@ function getDeleteMessage() {
 
 .hidden-input {
   display: none;
+}
+
+@media (max-width: 1023px) {
+  .university-page {
+    --uni-label-width: 200px;
+  }
+
+  .form-grid-pair {
+    grid-template-columns: 1fr;
+    column-gap: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .university-page {
+    --uni-label-width: 1fr;
+  }
+
+  .form-item,
+  .image-field {
+    grid-template-columns: 1fr;
+  }
+
+  .form-item label,
+  .image-field label {
+    text-align: left;
+    padding-top: 0;
+  }
+
+  .form-item input,
+  .form-item select,
+  .field-control,
+  .error-text,
+  .image-content {
+    grid-column: 1;
+  }
 }
 </style>

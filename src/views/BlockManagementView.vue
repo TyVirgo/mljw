@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import BlockFormModal from '../components/block/BlockFormModal.vue'
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import ExportModal from '../components/common/ExportModal.vue'
+import TablePagination from '../components/common/TablePagination.vue'
 import { initialBlocks, createBlockId } from '../data/blocks.js'
 import { exportBlocksToExcel, blockExportFields } from '../utils/exportExcel.js'
 
@@ -206,15 +207,8 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   exportModalVisible.value = false
 }
 
-function goToPage(page) {
-  if (page < 1 || page > totalPages.value) return
-  currentPage.value = page
-}
-
-function handlePageSizeChange(event) {
-  pageSize.value = Number(event.target.value)
-  currentPage.value = 1
-  selectedIds.value = []
+function handlePaginationChange({ type }) {
+  if (type === 'pageSize') selectedIds.value = []
 }
 
 function getRowNumber(index) {
@@ -269,7 +263,7 @@ function getRowNumber(index) {
 
       <div class="table-section">
         <div class="table-wrap">
-        <table class="data-table" :style="{ '--page-rows': pageSize }">
+        <table class="data-table">
           <thead>
             <tr>
               <th class="col-check">
@@ -301,36 +295,22 @@ function getRowNumber(index) {
                 <span v-for="floor in block.floors" :key="floor" class="floor-tag">{{ floor }}</span>
               </td>
               <td class="actions-cell">
-                <button type="button" class="link-btn edit" @click="openEditModal(block)">Edit</button>
-                <button type="button" class="link-btn delete" @click="handleRowDelete(block.id)">Delete</button>
+                <div class="actions-inner">
+                  <button type="button" class="link-btn" @click="openEditModal(block)">Edit</button>
+                  <button type="button" class="link-btn delete" @click="handleRowDelete(block.id)">Delete</button>
+                </div>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <div class="pagination">
-        <span class="pagination-total">Total {{ totalCount }}</span>
-        <div class="pagination-controls">
-          <button type="button" class="page-btn" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">
-            ‹
-          </button>
-          <button type="button" class="page-btn active">{{ currentPage }}</button>
-          <button
-            type="button"
-            class="page-btn"
-            :disabled="currentPage === totalPages"
-            @click="goToPage(currentPage + 1)"
-          >
-            ›
-          </button>
-        </div>
-        <select class="page-size" :value="pageSize" @change="handlePageSizeChange">
-          <option :value="10">10 / page</option>
-          <option :value="20">20 / page</option>
-          <option :value="50">50 / page</option>
-        </select>
-      </div>
+      <TablePagination
+        :total="totalCount"
+        v-model="currentPage"
+        v-model:page-size="pageSize"
+        @change="handlePaginationChange"
+      />
       </div>
     </div>
 
@@ -503,18 +483,12 @@ function getRowNumber(index) {
 
 .data-table {
   width: 100%;
-  height: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
+  border-collapse: collapse;
   font-size: 14px;
 }
 
 .data-table thead tr {
   height: 44px;
-}
-
-.data-table tbody tr {
-  height: calc((100% - 44px) / var(--page-rows, 10));
 }
 
 .data-table th,
@@ -557,21 +531,20 @@ function getRowNumber(index) {
   color: #4b5563;
 }
 
-.actions-cell {
+.actions-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
   white-space: nowrap;
 }
 
 .link-btn {
   font-size: 14px;
-  padding: 0 4px;
-}
-
-.link-btn.edit {
+  padding: 0;
   color: #2563eb;
-  margin-right: 12px;
 }
 
-.link-btn.edit:hover {
+.link-btn:hover {
   color: #1d4ed8;
 }
 
@@ -583,62 +556,4 @@ function getRowNumber(index) {
   color: #dc2626;
 }
 
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 16px;
-  margin-top: 12px;
-  padding-top: 12px;
-  flex-shrink: 0;
-  border-top: 1px solid #f3f4f6;
-}
-
-.pagination-total {
-  font-size: 13px;
-  color: #6b7280;
-  margin-right: auto;
-}
-
-.pagination-controls {
-  display: flex;
-  gap: 6px;
-}
-
-.page-btn {
-  min-width: 32px;
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #374151;
-  background: #fff;
-}
-
-.page-btn:hover:not(:disabled):not(.active) {
-  border-color: #2563eb;
-  color: #2563eb;
-}
-
-.page-btn.active {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
-}
-
-.page-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.page-size {
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #374151;
-  background: #fff;
-}
 </style>

@@ -6,6 +6,8 @@ import DashboardView from './views/DashboardView.vue'
 import BlockManagementView from './views/BlockManagementView.vue'
 import ClassroomInfoView from './views/ClassroomInfoView.vue'
 import UniversityInfoView from './views/UniversityInfoView.vue'
+import DepartmentInfoView from './views/DepartmentInfoView.vue'
+import CodeSetManagementView from './views/CodeSetManagementView.vue'
 import UnderConstructionView from './views/UnderConstructionView.vue'
 import AcademicPortalView from './views/AcademicPortalView.vue'
 import { developedPages, findMenuLabel } from './config/menu.js'
@@ -18,6 +20,8 @@ const isDashboard = computed(() => currentPageId.value === 'dashboard')
 const isBlockManagement = computed(() => currentPageId.value === 'block-management')
 const isClassroomInfo = computed(() => currentPageId.value === 'classroom-info')
 const isUniversityInfo = computed(() => currentPageId.value === 'university-info')
+const isDepartmentInfo = computed(() => currentPageId.value === 'department-info')
+const isCodeSetManagement = computed(() => currentPageId.value === 'code-set-management')
 const isUnderConstruction = computed(() => !developedPages.has(currentPageId.value))
 
 function handleSelect(id) {
@@ -49,6 +53,8 @@ function goToAdmin() {
         <BlockManagementView v-else-if="isBlockManagement" />
         <ClassroomInfoView v-else-if="isClassroomInfo" />
         <UniversityInfoView v-else-if="isUniversityInfo" />
+        <DepartmentInfoView v-else-if="isDepartmentInfo" />
+        <CodeSetManagementView v-else-if="isCodeSetManagement" />
         <UnderConstructionView v-else-if="isUnderConstruction" @back="handleBack" />
       </main>
     </div>

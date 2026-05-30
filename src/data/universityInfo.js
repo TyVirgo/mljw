@@ -61,22 +61,37 @@ const mohePattern = /^[A-Za-z0-9-]{3,50}$/
 const companyNoPattern = /^[A-Za-z0-9-]{3,50}$/
 const phonePattern = /^[+]?[\d\s()-]{6,20}$/
 const postCodePattern = /^[A-Za-z0-9\s-]{3,12}$/
-const monthYearPattern = /^(0[1-9]|1[0-2])\/\d{4}$/
+const datePattern = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/
 
-/** MM/YYYY → YYYY-MM（供 type="month" 使用） */
-export function toMonthInputValue(value) {
-  if (!value?.trim()) return ''
-  const match = value.trim().match(/^(0[1-9]|1[0-2])\/(\d{4})$/)
-  if (!match) return ''
-  return `${match[2]}-${match[1]}`
+export function isValidDdMmYyyy(value) {
+  if (!value?.trim()) return false
+  if (!datePattern.test(value.trim())) return false
+  const [, dd, mm, yyyy] = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  const day = Number(dd)
+  const month = Number(mm)
+  const year = Number(yyyy)
+  const date = new Date(year, month - 1, day)
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
 }
 
-/** YYYY-MM → MM/YYYY */
-export function fromMonthInputValue(value) {
-  if (!value?.trim()) return ''
-  const match = value.trim().match(/^(\d{4})-(0[1-9]|1[0-2])$/)
-  if (!match) return ''
-  return `${match[2]}/${match[1]}`
+export function formatDdMmYyyyInput(raw) {
+  const digits = String(raw).replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
+
+export function parseDdMmYyyy(value) {
+  if (!isValidDdMmYyyy(value)) return null
+  const [, dd, mm, yyyy] = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  return new Date(Number(yyyy), Number(mm) - 1, Number(dd))
+}
+
+export function formatDateToDdMmYyyy(date) {
+  const dd = String(date.getDate()).padStart(2, '0')
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const yyyy = date.getFullYear()
+  return `${dd}/${mm}/${yyyy}`
 }
 
 /** 图示1 可见字段校验 */
@@ -131,8 +146,8 @@ export function validateSection1(data) {
     errors.website = 'Invalid Website URL format'
   }
 
-  if (data.establishedMonthYear?.trim() && !monthYearPattern.test(data.establishedMonthYear.trim())) {
-    errors.establishedMonthYear = 'Format must be MM/YYYY'
+  if (data.establishedMonthYear?.trim() && !isValidDdMmYyyy(data.establishedMonthYear)) {
+    errors.establishedMonthYear = 'Format must be dd/mm/yyyy'
   }
 
   if (!data.universityAddress?.trim()) {

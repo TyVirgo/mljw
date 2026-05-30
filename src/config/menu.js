@@ -34,7 +34,14 @@ export const menuItems = [
   { id: 'semester-calendar', label: 'Semester & Calendar', icon: 'database' },
 ]
 
-export const developedPages = new Set(['dashboard', 'block-management', 'classroom-info', 'university-info'])
+export const developedPages = new Set([
+  'dashboard',
+  'block-management',
+  'classroom-info',
+  'university-info',
+  'department-info',
+  'code-set-management',
+])
 
 export function findMenuLabel(id) {
   for (const item of menuItems) {
