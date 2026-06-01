@@ -69,11 +69,6 @@ function handleBrandClick() {
   background: transparent;
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s;
-}
-
-.header-brand:hover {
-  background: rgba(255, 255, 255, 0.12);
 }
 
 .brand-icon {

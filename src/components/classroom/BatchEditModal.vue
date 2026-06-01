@@ -7,6 +7,7 @@ import {
   equipmentOptions,
   softwareOptions,
   departmentOptions,
+  joinMultiSelectValue,
 } from '../../data/classrooms.js'
 
 const props = defineProps({
@@ -45,8 +46,8 @@ const values = ref({
   capacity: '',
   availableSeats: '',
   examSeats: '',
-  classroomEquipment: '',
-  software: '',
+  classroomEquipment: [],
+  software: [],
   activation: true,
   commonArea: false,
   borrowingAvailability: false,
@@ -54,6 +55,8 @@ const values = ref({
 })
 
 const userDeptDropdownOpen = ref(false)
+const equipmentDropdownOpen = ref(false)
+const softwareDropdownOpen = ref(false)
 const error = ref('')
 
 const floorOptions = computed(() => {
@@ -64,6 +67,16 @@ const floorOptions = computed(() => {
 const userDeptLabel = computed(() => {
   if (!values.value.userDepartments.length) return ''
   return values.value.userDepartments.join(', ')
+})
+
+const equipmentLabel = computed(() => {
+  if (!values.value.classroomEquipment.length) return ''
+  return joinMultiSelectValue(values.value.classroomEquipment)
+})
+
+const softwareLabel = computed(() => {
+  if (!values.value.software.length) return ''
+  return joinMultiSelectValue(values.value.software)
 })
 
 function resetForm() {
@@ -78,14 +91,16 @@ function resetForm() {
     capacity: '',
     availableSeats: '',
     examSeats: '',
-    classroomEquipment: '',
-    software: '',
+    classroomEquipment: [],
+    software: [],
     activation: true,
     commonArea: false,
     borrowingAvailability: false,
     userDepartments: [],
   }
   userDeptDropdownOpen.value = false
+  equipmentDropdownOpen.value = false
+  softwareDropdownOpen.value = false
   error.value = ''
 }
 
@@ -111,6 +126,18 @@ function toggleUserDepartment(dept) {
   else values.value.userDepartments.splice(index, 1)
 }
 
+function toggleEquipment(item) {
+  const index = values.value.classroomEquipment.indexOf(item)
+  if (index === -1) values.value.classroomEquipment.push(item)
+  else values.value.classroomEquipment.splice(index, 1)
+}
+
+function toggleSoftware(item) {
+  const index = values.value.software.indexOf(item)
+  if (index === -1) values.value.software.push(item)
+  else values.value.software.splice(index, 1)
+}
+
 function validate() {
   const checkedFields = Object.entries(enabled.value).filter(([, on]) => on)
   if (!checkedFields.length) {
@@ -123,7 +150,15 @@ function validate() {
       error.value = 'Please fill in values for all checked fields.'
       return false
     }
-    if (['block', 'floor', 'classroomType', 'deskChairType', 'classroomEquipment', 'software'].includes(key) && !values.value[key]) {
+    if (key === 'classroomEquipment' && !values.value.classroomEquipment.length) {
+      error.value = 'Please fill in values for all checked fields.'
+      return false
+    }
+    if (key === 'software' && !values.value.software.length) {
+      error.value = 'Please fill in values for all checked fields.'
+      return false
+    }
+    if (['block', 'floor', 'classroomType', 'deskChairType'].includes(key) && !values.value[key]) {
       error.value = 'Please fill in values for all checked fields.'
       return false
     }
@@ -148,8 +183,8 @@ function handleSubmit() {
   if (enabled.value.capacity) updates.capacity = Number(values.value.capacity)
   if (enabled.value.availableSeats) updates.availableSeats = Number(values.value.availableSeats)
   if (enabled.value.examSeats) updates.examSeats = Number(values.value.examSeats)
-  if (enabled.value.classroomEquipment) updates.classroomEquipment = values.value.classroomEquipment
-  if (enabled.value.software) updates.software = values.value.software
+  if (enabled.value.classroomEquipment) updates.classroomEquipment = joinMultiSelectValue(values.value.classroomEquipment)
+  if (enabled.value.software) updates.software = joinMultiSelectValue(values.value.software)
   if (enabled.value.activation) updates.activation = values.value.activation
   if (enabled.value.commonArea) updates.commonArea = values.value.commonArea
   if (enabled.value.borrowingAvailability) updates.borrowingAvailability = values.value.borrowingAvailability
@@ -237,19 +272,45 @@ function handleOverlayClick(event) {
           <div class="field-row">
             <input v-model="enabled.classroomEquipment" type="checkbox" class="field-check" />
             <label class="field-label">Classroom Equipment:</label>
-            <select v-model="values.classroomEquipment" class="field-control" :disabled="!enabled.classroomEquipment">
-              <option value="">Please select</option>
-              <option v-for="opt in equipmentOptions" :key="opt" :value="opt">{{ opt }}</option>
-            </select>
+            <div class="select-wrap">
+              <button
+                type="button"
+                class="field-control select-btn"
+                :disabled="!enabled.classroomEquipment"
+                @click="enabled.classroomEquipment && (equipmentDropdownOpen = !equipmentDropdownOpen)"
+              >
+                <span :class="{ placeholder: !values.classroomEquipment.length }">{{ equipmentLabel || 'Please select' }}</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
+              <div v-if="equipmentDropdownOpen && enabled.classroomEquipment" class="dropdown-panel">
+                <label v-for="opt in equipmentOptions" :key="opt" class="dropdown-option">
+                  <input type="checkbox" :checked="values.classroomEquipment.includes(opt)" @change="toggleEquipment(opt)" />
+                  <span>{{ opt }}</span>
+                </label>
+              </div>
+            </div>
           </div>
 
           <div class="field-row">
             <input v-model="enabled.software" type="checkbox" class="field-check" />
             <label class="field-label">Software:</label>
-            <select v-model="values.software" class="field-control" :disabled="!enabled.software">
-              <option value="">Please select</option>
-              <option v-for="opt in softwareOptions" :key="opt" :value="opt">{{ opt }}</option>
-            </select>
+            <div class="select-wrap">
+              <button
+                type="button"
+                class="field-control select-btn"
+                :disabled="!enabled.software"
+                @click="enabled.software && (softwareDropdownOpen = !softwareDropdownOpen)"
+              >
+                <span :class="{ placeholder: !values.software.length }">{{ softwareLabel || 'Please select' }}</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
+              <div v-if="softwareDropdownOpen && enabled.software" class="dropdown-panel">
+                <label v-for="opt in softwareOptions" :key="opt" class="dropdown-option">
+                  <input type="checkbox" :checked="values.software.includes(opt)" @change="toggleSoftware(opt)" />
+                  <span>{{ opt }}</span>
+                </label>
+              </div>
+            </div>
           </div>
 
           <div class="field-row">

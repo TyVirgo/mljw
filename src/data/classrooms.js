@@ -1,7 +1,7 @@
 export const classroomTypeOptions = ['General Classroom', 'Lab', 'Lecture Hall', 'Seminar Room']
 export const deskChairTypeOptions = ['Fixed desk and chair', 'Movable desk and chair', 'Tiered seating']
-export const equipmentOptions = ['mic, projector', 'projector', 'mic, projector, whiteboard', 'smart board']
-export const softwareOptions = ['Windows', 'Linux', 'macOS', 'Windows, Office']
+export const equipmentOptions = ['mic', 'projector', 'whiteboard', 'smart board']
+export const softwareOptions = ['Windows', 'Linux', 'macOS', 'Office']
 export const departmentOptions = ['Computer Science', 'Engineering', 'Business', 'Arts', 'Science']
 
 export const initialClassrooms = [
@@ -250,4 +250,13 @@ export function getUserDepartments(item) {
 export function setUserDepartments(item, departments) {
   item.userDepartments = [...departments]
   item.userDepartment = departments.join(', ')
+}
+
+export function parseMultiSelectValue(value) {
+  if (!value) return []
+  return String(value).split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+export function joinMultiSelectValue(values) {
+  return values.join(', ')
 }

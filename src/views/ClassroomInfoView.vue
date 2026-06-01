@@ -6,7 +6,6 @@ import UserDepartmentModal from '../components/classroom/UserDepartmentModal.vue
 import BatchEditModal from '../components/classroom/BatchEditModal.vue'
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import ExportModal from '../components/common/ExportModal.vue'
-import NoticeModal from '../components/common/NoticeModal.vue'
 import TablePagination from '../components/common/TablePagination.vue'
 import {
   initialClassrooms,
@@ -40,14 +39,17 @@ const confirmVisible = ref(false)
 const confirmMessage = ref('')
 const pendingDeleteIds = ref([])
 
-const noticeVisible = ref(false)
-
 const userDeptModalVisible = ref(false)
 const userDeptInitial = ref([])
 
 const batchEditVisible = ref(false)
 
 const exportModalVisible = ref(false)
+
+const noticeItems = [
+  'Please note whether the venue is a public one or a borrowable one. If the venue is a public one, the time/number conflict of this venue will no longer be considered during the course scheduling process.',
+  'If the venue is a borrowable one, the usage permission of this venue will no longer be checked during the course scheduling process.',
+]
 
 function createEmptySearch() {
   return {
@@ -451,10 +453,17 @@ function getRowNumber(index) {
           Export
         </button>
         <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="openBatchEditModal">Batch Edit</button>
-        <button type="button" class="btn btn-notice" @click="noticeVisible = true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-          Notice
-        </button>
+        <div class="notice-wrap">
+          <button type="button" class="btn btn-notice">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+            Notice
+          </button>
+          <div class="notice-popover">
+            <div class="notice-tags">
+              <span v-for="(item, index) in noticeItems" :key="index" class="notice-tag">{{ index + 1 }}. {{ item }}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="table-section">
@@ -551,8 +560,6 @@ function getRowNumber(index) {
       @confirm="confirmDelete"
       @cancel="confirmVisible = false"
     />
-
-    <NoticeModal :visible="noticeVisible" @close="noticeVisible = false" />
 
     <UserDepartmentModal
       :visible="userDeptModalVisible"
@@ -771,6 +778,45 @@ function getRowNumber(index) {
   border: none;
   color: #64748b;
   padding: 0 8px;
+}
+
+.notice-wrap {
+  position: relative;
+}
+
+.notice-wrap:hover .notice-popover {
+  display: block;
+}
+
+.notice-popover {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 420px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  z-index: 20;
+}
+
+.notice-tags {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notice-tag {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .btn-notice:hover {

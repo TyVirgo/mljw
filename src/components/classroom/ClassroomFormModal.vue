@@ -8,6 +8,8 @@ import {
   softwareOptions,
   departmentOptions,
   buildClassroomCode,
+  parseMultiSelectValue,
+  joinMultiSelectValue,
 } from '../../data/classrooms.js'
 
 const props = defineProps({
@@ -26,6 +28,8 @@ const emit = defineEmits(['close', 'save'])
 
 const form = ref(createEmptyForm())
 const errors = ref({})
+const equipmentDropdownOpen = ref(false)
+const softwareDropdownOpen = ref(false)
 
 const blockOptions = initialBlocks.map((b) => b.blockNo)
 
@@ -53,8 +57,8 @@ function createEmptyForm() {
     capacity: '',
     availableSeats: '',
     examSeats: '',
-    classroomEquipment: '',
-    software: '',
+    classroomEquipment: [],
+    software: [],
     activation: true,
     commonArea: false,
     borrowingAvailability: false,
@@ -68,6 +72,8 @@ watch(
   (visible) => {
     if (!visible) return
     errors.value = {}
+    equipmentDropdownOpen.value = false
+    softwareDropdownOpen.value = false
     if (props.initialData) {
       form.value = {
         block: props.initialData.block,
@@ -82,8 +88,8 @@ watch(
         capacity: String(props.initialData.capacity),
         availableSeats: String(props.initialData.availableSeats),
         examSeats: String(props.initialData.examSeats),
-        classroomEquipment: props.initialData.classroomEquipment || '',
-        software: props.initialData.software || '',
+        classroomEquipment: parseMultiSelectValue(props.initialData.classroomEquipment),
+        software: parseMultiSelectValue(props.initialData.software),
         activation: props.initialData.activation,
         commonArea: props.initialData.commonArea,
         borrowingAvailability: props.initialData.borrowingAvailability,
@@ -144,8 +150,8 @@ function handleSave() {
     capacity: Number(form.value.capacity),
     availableSeats: Number(form.value.availableSeats),
     examSeats: Number(form.value.examSeats),
-    classroomEquipment: form.value.classroomEquipment,
-    software: form.value.software,
+    classroomEquipment: joinMultiSelectValue(form.value.classroomEquipment),
+    software: joinMultiSelectValue(form.value.software),
     activation: form.value.activation,
     commonArea: form.value.commonArea,
     borrowingAvailability: form.value.borrowingAvailability,
@@ -161,6 +167,21 @@ function handleClose() {
 function handleOverlayClick(event) {
   if (event.target === event.currentTarget) handleClose()
 }
+
+function toggleEquipment(item) {
+  const index = form.value.classroomEquipment.indexOf(item)
+  if (index === -1) form.value.classroomEquipment.push(item)
+  else form.value.classroomEquipment.splice(index, 1)
+}
+
+function toggleSoftware(item) {
+  const index = form.value.software.indexOf(item)
+  if (index === -1) form.value.software.push(item)
+  else form.value.software.splice(index, 1)
+}
+
+const equipmentLabel = computed(() => joinMultiSelectValue(form.value.classroomEquipment))
+const softwareLabel = computed(() => joinMultiSelectValue(form.value.software))
 </script>
 
 <template>
@@ -213,10 +234,18 @@ function handleOverlayClick(event) {
               </div>
               <div class="form-row">
                 <label class="form-label">Classroom Equipment:</label>
-                <select v-model="form.classroomEquipment" class="form-input">
-                  <option value="">Please select</option>
-                  <option v-for="opt in equipmentOptions" :key="opt" :value="opt">{{ opt }}</option>
-                </select>
+                <div class="select-wrap">
+                  <button type="button" class="form-input select-btn" @click="equipmentDropdownOpen = !equipmentDropdownOpen">
+                    <span :class="{ placeholder: !form.classroomEquipment.length }">{{ equipmentLabel || 'Please select' }}</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+                  </button>
+                  <div v-if="equipmentDropdownOpen" class="dropdown-panel">
+                    <label v-for="opt in equipmentOptions" :key="opt" class="dropdown-option">
+                      <input type="checkbox" :checked="form.classroomEquipment.includes(opt)" @change="toggleEquipment(opt)" />
+                      <span>{{ opt }}</span>
+                    </label>
+                  </div>
+                </div>
               </div>
               <div class="form-row">
                 <label class="form-label"><span class="required">*</span> Activation:</label>
@@ -264,10 +293,18 @@ function handleOverlayClick(event) {
               </div>
               <div class="form-row">
                 <label class="form-label">Software:</label>
-                <select v-model="form.software" class="form-input">
-                  <option value="">Please select</option>
-                  <option v-for="opt in softwareOptions" :key="opt" :value="opt">{{ opt }}</option>
-                </select>
+                <div class="select-wrap">
+                  <button type="button" class="form-input select-btn" @click="softwareDropdownOpen = !softwareDropdownOpen">
+                    <span :class="{ placeholder: !form.software.length }">{{ softwareLabel || 'Please select' }}</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+                  </button>
+                  <div v-if="softwareDropdownOpen" class="dropdown-panel">
+                    <label v-for="opt in softwareOptions" :key="opt" class="dropdown-option">
+                      <input type="checkbox" :checked="form.software.includes(opt)" @change="toggleSoftware(opt)" />
+                      <span>{{ opt }}</span>
+                    </label>
+                  </div>
+                </div>
               </div>
               <div class="form-row">
                 <label class="form-label"><span class="required">*</span> Common Area:</label>
@@ -506,5 +543,57 @@ function handleOverlayClick(event) {
   .form-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.select-wrap {
+  position: relative;
+}
+
+.select-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+}
+
+.select-btn .placeholder {
+  color: #9ca3af;
+}
+
+.select-btn svg {
+  width: 16px;
+  height: 16px;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.dropdown-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  padding: 8px 0;
+  z-index: 10;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.dropdown-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.dropdown-option:hover {
+  background: #f9fafb;
 }
 </style>
