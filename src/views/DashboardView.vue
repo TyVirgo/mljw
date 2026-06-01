@@ -42,7 +42,7 @@ const quickAccess = [
     icon: 'grid',
   },
   {
-    title: 'University Info1',
+    title: 'University Info',
     description: 'Manage school and portal branding settings.',
     pageId: 'university-info',
     iconBg: '#fce7f3',

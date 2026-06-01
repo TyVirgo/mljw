@@ -8,7 +8,7 @@ export const menuItems = [
     label: 'Basic Info',
     icon: 'database',
     children: [
-      { id: 'university-info', label: 'University Info1' },
+      { id: 'university-info', label: 'University Info' },
       { id: 'department-info', label: 'Department Info' },
       { id: 'code-set-management', label: 'Code set management' },
     ],
