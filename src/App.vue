@@ -73,12 +73,7 @@ function openBasicDataAdmin() {
           <ProgrammeVersionView v-else-if="isProgrammeVersion" />
           <IntakeSetView v-else-if="isIntakeSet" />
           <ProgrammeIntakeView v-else-if="isProgrammeIntake" />
-<<<<<<< Updated upstream
-          <SemesterInformationView v-else-if="isSemesterInformation" />
-          <CalendarView v-else-if="isCalendar" />
-=======
           <LecturerInformationView v-else-if="isLecturerInformation" />
->>>>>>> Stashed changes
           <UnderConstructionView v-else-if="isUnderConstruction" @back="handleBack" />
         </main>
       </div>
