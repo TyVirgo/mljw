@@ -475,14 +475,19 @@ function fieldError(key) {
                         <input v-model="form.feeStructure.localStudent[col.key]" type="text" class="fee-input" :class="fieldError(`local-${col.key}`)" :placeholder="t('common.pleaseInput')" />
                       </td>
                       <td class="col-check-total">
-                        <label class="tf-switch" :class="{ on: form.feeStructure.localStudent.checkTotal }">
-                          <input v-model="form.feeStructure.localStudent.checkTotal" type="checkbox" class="tf-switch-input" />
+                        <button
+                          type="button"
+                          class="tf-switch"
+                          :class="{ on: form.feeStructure.localStudent.checkTotal }"
+                          :aria-pressed="form.feeStructure.localStudent.checkTotal"
+                          @click="form.feeStructure.localStudent.checkTotal = !form.feeStructure.localStudent.checkTotal"
+                        >
                           <span class="tf-switch-track">
                             <span class="tf-switch-letter tf-switch-letter-t">T</span>
                             <span class="tf-switch-knob"></span>
                             <span class="tf-switch-letter tf-switch-letter-f">F</span>
                           </span>
-                        </label>
+                        </button>
                       </td>
                     </tr>
                   </tbody>
@@ -504,14 +509,22 @@ function fieldError(key) {
                         <input v-model="form.feeStructure.internationalStudent[col.key]" type="text" class="fee-input" :class="fieldError(`intl-${col.key}`)" :placeholder="t('common.pleaseInput')" />
                       </td>
                       <td class="col-check-total">
-                        <label class="tf-switch" :class="{ on: form.feeStructure.internationalStudent.checkTotal }">
-                          <input v-model="form.feeStructure.internationalStudent.checkTotal" type="checkbox" class="tf-switch-input" />
+                        <button
+                          type="button"
+                          class="tf-switch"
+                          :class="{ on: form.feeStructure.internationalStudent.checkTotal }"
+                          :aria-pressed="form.feeStructure.internationalStudent.checkTotal"
+                          @click="
+                            form.feeStructure.internationalStudent.checkTotal =
+                              !form.feeStructure.internationalStudent.checkTotal
+                          "
+                        >
                           <span class="tf-switch-track">
                             <span class="tf-switch-letter tf-switch-letter-t">T</span>
                             <span class="tf-switch-knob"></span>
                             <span class="tf-switch-letter tf-switch-letter-f">F</span>
                           </span>
-                        </label>
+                        </button>
                       </td>
                     </tr>
                   </tbody>
@@ -894,15 +907,16 @@ function fieldError(key) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
   cursor: pointer;
+  line-height: 0;
 }
 
-.tf-switch-input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
+.tf-switch:focus-visible .tf-switch-track {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 
 .tf-switch-track {

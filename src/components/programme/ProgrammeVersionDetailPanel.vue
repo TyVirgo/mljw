@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   createFormSteps,
+  formatCheckTotalDisplay,
   getDepartmentLabel,
   localFeeColumns,
   internationalFeeColumns,
@@ -21,7 +22,7 @@ const props = defineProps({
 
 const emit = defineEmits(['back'])
 
-const { t, tr } = useAppI18n()
+const { t, tr, isZh } = useAppI18n()
 
 const currentStep = ref(1)
 
@@ -37,6 +38,10 @@ const attachments = computed(() => form.value.attachments || [])
 function display(value) {
   if (value === null || value === undefined || value === '') return '--'
   return value
+}
+
+function checkTotalText(value) {
+  return formatCheckTotalDisplay(value, { tr, isZh: isZh.value })
 }
 
 function goToStep(stepId) {
@@ -373,7 +378,7 @@ function getFileIconType(fileName) {
             <thead>
               <tr>
                 <th v-for="col in localFeeColumns" :key="`local-head-${col.key}`">{{ col.label }}</th>
-                <th class="col-check-total">Check Total (Local Student)</th>
+                <th class="col-check-total">{{ tr('Check Total (Local Student)') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -381,15 +386,7 @@ function getFileIconType(fileName) {
                 <td v-for="col in localFeeColumns" :key="`local-${col.key}`">
                   {{ display(fee.localStudent?.[col.key]) }}
                 </td>
-                <td class="col-check-total">
-                  <span class="tf-switch readonly" :class="{ on: fee.localStudent?.checkTotal }">
-                    <span class="tf-switch-track">
-                      <span class="tf-switch-letter tf-switch-letter-t">T</span>
-                      <span class="tf-switch-knob"></span>
-                      <span class="tf-switch-letter tf-switch-letter-f">F</span>
-                    </span>
-                  </span>
-                </td>
+                <td class="col-check-total check-total-value">{{ checkTotalText(fee.localStudent?.checkTotal) }}</td>
               </tr>
             </tbody>
           </table>
@@ -401,7 +398,7 @@ function getFileIconType(fileName) {
             <thead>
               <tr>
                 <th v-for="col in internationalFeeColumns" :key="`intl-head-${col.key}`">{{ col.label }}</th>
-                <th class="col-check-total">Check Total (International Student)</th>
+                <th class="col-check-total">{{ tr('Check Total (International Student)') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -409,15 +406,7 @@ function getFileIconType(fileName) {
                 <td v-for="col in internationalFeeColumns" :key="`intl-${col.key}`">
                   {{ display(fee.internationalStudent?.[col.key]) }}
                 </td>
-                <td class="col-check-total">
-                  <span class="tf-switch readonly" :class="{ on: fee.internationalStudent?.checkTotal }">
-                    <span class="tf-switch-track">
-                      <span class="tf-switch-letter tf-switch-letter-t">T</span>
-                      <span class="tf-switch-knob"></span>
-                      <span class="tf-switch-letter tf-switch-letter-f">F</span>
-                    </span>
-                  </span>
-                </td>
+                <td class="col-check-total check-total-value">{{ checkTotalText(fee.internationalStudent?.checkTotal) }}</td>
               </tr>
             </tbody>
           </table>
@@ -780,70 +769,7 @@ function getFileIconType(fileName) {
   min-width: 96px;
 }
 
-.tf-switch {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.tf-switch.readonly {
-  pointer-events: none;
-}
-
-.tf-switch-track {
-  position: relative;
-  width: 54px;
-  height: 26px;
-  background: #cbd5e1;
-  border-radius: 999px;
-  flex-shrink: 0;
-}
-
-.tf-switch.on .tf-switch-track {
-  background: #2563eb;
-}
-
-.tf-switch-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 22px;
-  height: 22px;
-  background: #fff;
-  border-radius: 50%;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
-  z-index: 2;
-}
-
-.tf-switch.on .tf-switch-knob {
-  left: calc(100% - 24px);
-}
-
-.tf-switch-letter {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  line-height: 1;
-  z-index: 1;
-  user-select: none;
-}
-
-.tf-switch-letter-t {
-  left: 9px;
-}
-
-.tf-switch-letter-f {
-  right: 9px;
-}
-
-.tf-switch:not(.on) .tf-switch-letter-t {
-  opacity: 0;
-}
-
-.tf-switch.on .tf-switch-letter-f {
-  opacity: 0;
+.check-total-value {
+  font-weight: 600;
 }
 </style>

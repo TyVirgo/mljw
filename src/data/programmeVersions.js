@@ -139,6 +139,23 @@ function defaultFeeStructure(localCheckTotal = false, internationalCheckTotal = 
   }
 }
 
+function normalizeFeeStructureCheckTotal(feeStructure) {
+  if (!feeStructure) return
+  if (feeStructure.localStudent) {
+    feeStructure.localStudent.checkTotal = !!feeStructure.localStudent.checkTotal
+  }
+  if (feeStructure.internationalStudent) {
+    feeStructure.internationalStudent.checkTotal = !!feeStructure.internationalStudent.checkTotal
+  }
+}
+
+/** Fee Structure 详情只读：英文 T/F，中文 是/否 */
+export function formatCheckTotalDisplay(value, { tr, isZh }) {
+  if (value === null || value === undefined) return '--'
+  if (isZh) return tr(value ? 'Yes' : 'No')
+  return value ? 'T' : 'F'
+}
+
 function buildApprovalSummary(approval) {
   return {
     mqaCode: approval.mqaCode,
@@ -300,6 +317,7 @@ export function getProgrammeCurrentFormData(programme) {
     if (programme.code) {
       formData.programmeInfo.programmeCode = programme.code
     }
+    normalizeFeeStructureCheckTotal(formData.feeStructure)
     return formData
   }
 
