@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   downloadProgrammeImportTemplate,
   parseProgrammeImportFile,
@@ -16,6 +17,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'imported'])
+
+const { t, tr } = useAppI18n()
 
 const fileInputRef = ref(null)
 const selectedFile = ref(null)
@@ -124,31 +127,31 @@ function handleDownloadErrorReport() {
     <div v-if="visible" class="modal-overlay" @click="handleOverlayClick">
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
-          <h2 class="modal-title">Import</h2>
-          <button type="button" class="modal-close" aria-label="Close" @click="handleClose">×</button>
+          <h2 class="modal-title">{{ t('modal.importTitle') }}</h2>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
         <div class="modal-body">
           <p class="intro-text">
-            Download the standard import template, fill in the data according to the template field requirements, then upload the file. The system will validate and import automatically.
+            {{ tr('Download the standard import template, fill in the data according to the template field requirements, then upload the file. The system will validate and import automatically.') }}
           </p>
 
           <div class="section-card">
-            <h3 class="section-title">Step 1: Download Template</h3>
-            <p class="section-desc">Template columns must exactly match the system fields. Do not modify column headers.</p>
+            <h3 class="section-title">{{ tr('Step 1: Download Template') }}</h3>
+            <p class="section-desc">{{ tr('Template columns must exactly match the system fields. Do not modify column headers.') }}</p>
             <button type="button" class="btn btn-outline" @click="handleDownloadTemplate">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
-              Download Template
+              {{ tr('Download Template') }}
             </button>
           </div>
 
           <div class="section-card">
-            <h3 class="section-title">Step 2: Upload File</h3>
-            <p class="section-desc">Supported format: .xlsx</p>
+            <h3 class="section-title">{{ tr('Step 2: Upload File') }}</h3>
+            <p class="section-desc">{{ tr('Supported format: .xlsx') }}</p>
             <div class="upload-box">
               <input
                 ref="fileInputRef"
@@ -163,30 +166,30 @@ function handleDownloadErrorReport() {
                   <polyline points="17 8 12 3 7 8" />
                   <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
-                Select File
+                {{ tr('Select File') }}
               </button>
               <span v-if="selectedFile" class="file-name">{{ selectedFile.name }}</span>
-              <button v-if="selectedFile" type="button" class="link-btn" @click="clearSelectedFile">Remove</button>
+              <button v-if="selectedFile" type="button" class="link-btn" @click="clearSelectedFile">{{ t('common.remove') }}</button>
             </div>
           </div>
 
           <div v-if="result" class="result-box" :class="result.type">
-            <p class="result-message">{{ result.message }}</p>
+            <p class="result-message">{{ tr(result.message) }}</p>
             <button
               v-if="result.type === 'error' && lastErrorRows.length"
               type="button"
               class="btn btn-outline btn-sm"
               @click="handleDownloadErrorReport"
             >
-              Download Error Report
+              {{ tr('Download Error Report') }}
             </button>
           </div>
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
+          <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
           <button type="button" class="btn btn-primary" :disabled="importing || !selectedFile" @click="handleImport">
-            {{ importing ? 'Importing...' : 'Import' }}
+            {{ importing ? tr('Importing...') : t('common.import') }}
           </button>
         </div>
       </div>

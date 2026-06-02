@@ -1,7 +1,8 @@
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import DatePickerEn from '../components/common/DatePickerEn.vue'
+import { useAppI18n } from '../composables/useAppI18n.js'
 import {
   universityOperatorOptions,
   defaultImages,
@@ -13,6 +14,24 @@ import {
   validateUniversityForm,
   readImageFile,
 } from '../data/universityInfo.js'
+
+const { t, tr } = useAppI18n()
+
+const translatedSection2Fields = computed(() =>
+  section2ImageFields.map((item) => ({
+    ...item,
+    label: tr(item.label),
+    hint: tr(item.hint),
+  })),
+)
+
+const translatedSection3Fields = computed(() =>
+  section3ImageFields.map((item) => ({
+    ...item,
+    label: tr(item.label),
+    hint: tr(item.hint),
+  })),
+)
 
 const form = reactive(loadUniversityInfo())
 const errors = ref({})
@@ -61,7 +80,7 @@ function handleSave() {
   }
   const saved = saveUniversityInfo({ ...form })
   Object.assign(form, saved)
-  saveMessage.value = 'Saved successfully.'
+  saveMessage.value = tr('Saved successfully.')
 }
 
 function triggerUpload(key) {
@@ -98,8 +117,10 @@ function confirmDeleteImage() {
 }
 
 function getDeleteMessage() {
-  const label = imageFieldLabels[pendingDeleteImageKey.value] || 'this image'
-  return `Are you sure you want to delete ${label}? This action cannot be undone. The image will be restored to the system default.`
+  const label = tr(imageFieldLabels[pendingDeleteImageKey.value] || 'this image')
+  return tr(
+    `Are you sure you want to delete ${label}? This action cannot be undone. The image will be restored to the system default.`,
+  )
 }
 </script>
 
@@ -110,164 +131,164 @@ function getDeleteMessage() {
         <section class="uni-section-basic">
           <div class="form-grid-pair">
             <div id="field-moheRegistrationNo" class="form-item" :class="{ 'has-error': errors.moheRegistrationNo }">
-              <label><span class="required">*</span> MOHE Registration Certificate No.:</label>
+              <label><span class="required">*</span> {{ tr('MOHE Registration Certificate No.:') }}</label>
               <input
                 v-model="form.moheRegistrationNo"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('moheRegistrationNo')"
               />
-              <p v-if="errors.moheRegistrationNo" class="error-text">{{ errors.moheRegistrationNo }}</p>
+              <p v-if="errors.moheRegistrationNo" class="error-text">{{ tr(errors.moheRegistrationNo) }}</p>
             </div>
 
             <div class="form-item">
-              <label>University Operator:</label>
+              <label>{{ tr('University Operator:') }}</label>
               <select v-model="form.universityOperator">
-                <option value="">please select</option>
-                <option v-for="opt in universityOperatorOptions" :key="opt" :value="opt">{{ opt }}</option>
+                <option value="">{{ t('common.pleaseSelect') }}</option>
+                <option v-for="opt in universityOperatorOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
               </select>
             </div>
 
             <div id="field-universityName" class="form-item" :class="{ 'has-error': errors.universityName }">
-              <label><span class="required">*</span> University Name:</label>
+              <label><span class="required">*</span> {{ tr('University Name:') }}</label>
               <input
                 v-model="form.universityName"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('universityName')"
               />
-              <p v-if="errors.universityName" class="error-text">{{ errors.universityName }}</p>
+              <p v-if="errors.universityName" class="error-text">{{ tr(errors.universityName) }}</p>
             </div>
 
             <div id="field-companyNo" class="form-item" :class="{ 'has-error': errors.companyNo }">
-              <label>Company No.:</label>
+              <label>{{ tr('Company No.:') }}</label>
               <input
                 v-model="form.companyNo"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('companyNo')"
               />
-              <p v-if="errors.companyNo" class="error-text">{{ errors.companyNo }}</p>
+              <p v-if="errors.companyNo" class="error-text">{{ tr(errors.companyNo) }}</p>
             </div>
 
             <div id="field-universityNameChinese" class="form-item" :class="{ 'has-error': errors.universityNameChinese }">
-              <label><span class="required">*</span> University Name (Chinese):</label>
+              <label><span class="required">*</span> {{ tr('University Name (Chinese):') }}</label>
               <input
                 v-model="form.universityNameChinese"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('universityNameChinese')"
               />
-              <p v-if="errors.universityNameChinese" class="error-text">{{ errors.universityNameChinese }}</p>
+              <p v-if="errors.universityNameChinese" class="error-text">{{ tr(errors.universityNameChinese) }}</p>
             </div>
 
             <div id="field-universityNameMal" class="form-item" :class="{ 'has-error': errors.universityNameMal }">
-              <label><span class="required">*</span> University Name (MAL):</label>
+              <label><span class="required">*</span> {{ tr('University Name (MAL):') }}</label>
               <input
                 v-model="form.universityNameMal"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('universityNameMal')"
               />
-              <p v-if="errors.universityNameMal" class="error-text">{{ errors.universityNameMal }}</p>
+              <p v-if="errors.universityNameMal" class="error-text">{{ tr(errors.universityNameMal) }}</p>
             </div>
 
             <div id="field-postCode" class="form-item" :class="{ 'has-error': errors.postCode }">
-              <label>Post Code:</label>
+              <label>{{ tr('Post Code:') }}</label>
               <input
                 v-model="form.postCode"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('postCode')"
               />
-              <p v-if="errors.postCode" class="error-text">{{ errors.postCode }}</p>
+              <p v-if="errors.postCode" class="error-text">{{ tr(errors.postCode) }}</p>
             </div>
 
             <div id="field-website" class="form-item" :class="{ 'has-error': errors.website }">
-              <label>Website:</label>
+              <label>{{ tr('Website:') }}</label>
               <input
                 v-model="form.website"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('website')"
               />
-              <p v-if="errors.website" class="error-text">{{ errors.website }}</p>
+              <p v-if="errors.website" class="error-text">{{ tr(errors.website) }}</p>
             </div>
 
             <div id="field-contactNo" class="form-item" :class="{ 'has-error': errors.contactNo }">
-              <label>Contact No.:</label>
+              <label>{{ tr('Contact No.:') }}</label>
               <input
                 v-model="form.contactNo"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('contactNo')"
               />
-              <p v-if="errors.contactNo" class="error-text">{{ errors.contactNo }}</p>
+              <p v-if="errors.contactNo" class="error-text">{{ tr(errors.contactNo) }}</p>
             </div>
 
             <div id="field-faxNo" class="form-item" :class="{ 'has-error': errors.faxNo }">
-              <label>Fax No.:</label>
+              <label>{{ tr('Fax No.:') }}</label>
               <input
                 v-model="form.faxNo"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('faxNo')"
               />
-              <p v-if="errors.faxNo" class="error-text">{{ errors.faxNo }}</p>
+              <p v-if="errors.faxNo" class="error-text">{{ tr(errors.faxNo) }}</p>
             </div>
           </div>
 
           <div class="form-rows">
             <div id="field-email" class="form-item" :class="{ 'has-error': errors.email }">
-              <label>Email:</label>
+              <label>{{ tr('Email:') }}</label>
               <input
                 v-model="form.email"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('email')"
               />
-              <p v-if="errors.email" class="error-text">{{ errors.email }}</p>
+              <p v-if="errors.email" class="error-text">{{ tr(errors.email) }}</p>
             </div>
 
             <div id="field-establishedMonthYear" class="form-item" :class="{ 'has-error': errors.establishedMonthYear }">
-              <label>Established (Month/Year):</label>
+              <label>{{ tr('Established (Month/Year):') }}</label>
               <DatePickerEn
                 v-model="form.establishedMonthYear"
                 class="field-control"
                 :has-error="!!errors.establishedMonthYear"
                 @update:model-value="clearFieldError('establishedMonthYear')"
               />
-              <p v-if="errors.establishedMonthYear" class="error-text">{{ errors.establishedMonthYear }}</p>
+              <p v-if="errors.establishedMonthYear" class="error-text">{{ tr(errors.establishedMonthYear) }}</p>
             </div>
 
             <div id="field-universityAddress" class="form-item" :class="{ 'has-error': errors.universityAddress }">
-              <label><span class="required">*</span> University Address:</label>
+              <label><span class="required">*</span> {{ tr('University Address:') }}</label>
               <input
                 v-model="form.universityAddress"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('universityAddress')"
               />
-              <p v-if="errors.universityAddress" class="error-text">{{ errors.universityAddress }}</p>
+              <p v-if="errors.universityAddress" class="error-text">{{ tr(errors.universityAddress) }}</p>
             </div>
 
             <div id="field-adminPortalLogo" class="image-field">
-              <label>Admin Portal Logo:</label>
+              <label>{{ tr('Admin Portal Logo:') }}</label>
               <div class="image-content">
                 <button type="button" class="image-preview preview-logo" @click="triggerUpload('adminPortalLogo')">
                   <img :src="form.adminPortalLogo" alt="Admin Portal Logo" />
                 </button>
                 <button type="button" class="delete-link" @click="requestDeleteImage('adminPortalLogo')">
-                  Delete
+                  {{ t('common.delete') }}
                 </button>
                 <p class="image-hint">
-                  Displayed on the home page. Recommended image size: 670px (width) × 670px (height).
+                  {{ tr('Displayed on the home page. Recommended image size: 670px (width) × 670px (height).') }}
                 </p>
               </div>
             </div>
 
             <div
-              v-for="item in section2ImageFields.slice(0, 1)"
+              v-for="item in translatedSection2Fields.slice(0, 1)"
               :key="item.key"
               :id="`field-${item.key}`"
               class="image-field"
@@ -283,7 +304,7 @@ function getDeleteMessage() {
                   <img :src="form[item.key]" :alt="item.label" />
                 </button>
                 <button type="button" class="delete-link" @click="requestDeleteImage(item.key)">
-                  Delete
+                  {{ t('common.delete') }}
                 </button>
                 <p class="image-hint">{{ item.hint }}</p>
               </div>
@@ -294,7 +315,7 @@ function getDeleteMessage() {
         <section class="uni-section-branding">
           <div class="form-rows">
             <div
-              v-for="item in section2ImageFields.slice(1, 2)"
+              v-for="item in translatedSection2Fields.slice(1, 2)"
               :key="item.key"
               :id="`field-${item.key}`"
               class="image-field"
@@ -310,47 +331,47 @@ function getDeleteMessage() {
                   <img :src="form[item.key]" :alt="item.label" />
                 </button>
                 <button type="button" class="delete-link" @click="requestDeleteImage(item.key)">
-                  Delete
+                  {{ t('common.delete') }}
                 </button>
                 <p class="image-hint">{{ item.hint }}</p>
               </div>
             </div>
 
             <div id="field-loginPageTitle" class="form-item" :class="{ 'has-error': errors.loginPageTitle }">
-              <label>Login Page Title:</label>
+              <label>{{ tr('Login Page Title:') }}</label>
               <input
                 v-model="form.loginPageTitle"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('loginPageTitle')"
               />
-              <p v-if="errors.loginPageTitle" class="error-text">{{ errors.loginPageTitle }}</p>
+              <p v-if="errors.loginPageTitle" class="error-text">{{ tr(errors.loginPageTitle) }}</p>
             </div>
 
             <div id="field-loginPageTitleUserPortal" class="form-item" :class="{ 'has-error': errors.loginPageTitleUserPortal }">
-              <label>Login Page Title (User Portal):</label>
+              <label>{{ tr('Login Page Title (User Portal):') }}</label>
               <input
                 v-model="form.loginPageTitleUserPortal"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('loginPageTitleUserPortal')"
               />
-              <p v-if="errors.loginPageTitleUserPortal" class="error-text">{{ errors.loginPageTitleUserPortal }}</p>
+              <p v-if="errors.loginPageTitleUserPortal" class="error-text">{{ tr(errors.loginPageTitleUserPortal) }}</p>
             </div>
 
             <div id="field-browserTitle" class="form-item" :class="{ 'has-error': errors.browserTitle }">
-              <label>Browser Tags:</label>
+              <label>{{ tr('Browser Tags:') }}</label>
               <input
                 v-model="form.browserTitle"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('browserTitle')"
               />
-              <p v-if="errors.browserTitle" class="error-text">{{ errors.browserTitle }}</p>
+              <p v-if="errors.browserTitle" class="error-text">{{ tr(errors.browserTitle) }}</p>
             </div>
 
             <div
-              v-for="item in section2ImageFields.slice(2, 3)"
+              v-for="item in translatedSection2Fields.slice(2, 3)"
               :key="item.key"
               :id="`field-${item.key}`"
               class="image-field"
@@ -366,14 +387,14 @@ function getDeleteMessage() {
                   <img :src="form[item.key]" :alt="item.label" />
                 </button>
                 <button type="button" class="delete-link" @click="requestDeleteImage(item.key)">
-                  Delete
+                  {{ t('common.delete') }}
                 </button>
                 <p class="image-hint">{{ item.hint }}</p>
               </div>
             </div>
 
             <div
-              v-for="item in section3ImageFields"
+              v-for="item in translatedSection3Fields"
               :key="item.key"
               :id="`field-${item.key}`"
               class="image-field"
@@ -389,52 +410,52 @@ function getDeleteMessage() {
                   <img :src="form[item.key]" :alt="item.label" />
                 </button>
                 <button type="button" class="delete-link" @click="requestDeleteImage(item.key)">
-                  Delete
+                  {{ t('common.delete') }}
                 </button>
                 <p class="image-hint">{{ item.hint }}</p>
               </div>
             </div>
 
             <div id="field-mobilePortalTitle" class="form-item" :class="{ 'has-error': errors.mobilePortalTitle }">
-              <label>Mobile Portal Title:</label>
+              <label>{{ tr('Mobile Portal Title:') }}</label>
               <input
                 v-model="form.mobilePortalTitle"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('mobilePortalTitle')"
               />
-              <p v-if="errors.mobilePortalTitle" class="error-text">{{ errors.mobilePortalTitle }}</p>
+              <p v-if="errors.mobilePortalTitle" class="error-text">{{ tr(errors.mobilePortalTitle) }}</p>
             </div>
           </div>
 
           <div class="form-grid-pair form-grid-pair-tail">
             <div id="field-mottoLeft" class="form-item" :class="{ 'has-error': errors.mottoLeft }">
-              <label>Mobile (Left Side):</label>
+              <label>{{ tr('Mobile (Left Side):') }}</label>
               <input
                 v-model="form.mottoLeft"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('mottoLeft')"
               />
-              <p v-if="errors.mottoLeft" class="error-text">{{ errors.mottoLeft }}</p>
+              <p v-if="errors.mottoLeft" class="error-text">{{ tr(errors.mottoLeft) }}</p>
             </div>
 
             <div id="field-mottoRight" class="form-item" :class="{ 'has-error': errors.mottoRight }">
-              <label>Mobile (Right Side):</label>
+              <label>{{ tr('Mobile (Right Side):') }}</label>
               <input
                 v-model="form.mottoRight"
                 type="text"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
                 @input="clearFieldError('mottoRight')"
               />
-              <p v-if="errors.mottoRight" class="error-text">{{ errors.mottoRight }}</p>
+              <p v-if="errors.mottoRight" class="error-text">{{ tr(errors.mottoRight) }}</p>
             </div>
           </div>
         </section>
 
         <div class="form-actions">
           <p v-if="saveMessage" class="save-message">{{ saveMessage }}</p>
-          <button type="submit" class="btn-save">Save</button>
+          <button type="submit" class="btn-save">{{ t('common.save') }}</button>
         </div>
       </form>
 
@@ -443,9 +464,9 @@ function getDeleteMessage() {
 
     <ConfirmDialog
       :visible="confirmVisible"
-      title="Delete Confirmation"
+      :title="t('common.deleteConfirmation')"
       :message="getDeleteMessage()"
-      confirm-text="Delete"
+      :confirm-text="t('common.delete')"
       @confirm="confirmDeleteImage"
       @cancel="confirmVisible = false"
     />

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   activeOptions,
   getActiveIntakeOptions,
@@ -16,6 +17,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'confirm'])
+
+const { t, tr } = useAppI18n()
 
 const intake = ref('')
 const startingSemester = ref('')
@@ -101,12 +104,12 @@ function handleOverlayClick(event) {
     <div v-if="visible" class="modal-overlay" @click="handleOverlayClick">
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
-          <h2 class="modal-title">Copy</h2>
-          <button type="button" class="modal-close" aria-label="Close" @click="handleClose">×</button>
+          <h2 class="modal-title">{{ tr('Copy Programme Intake') }}</h2>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
         <div class="modal-body">
-          <p class="section-title">Selected Records ({{ sourceRecords.length }})</p>
+          <p class="section-title">{{ t('modal.selectedRecords', { count: sourceRecords.length }) }}</p>
           <div class="table-wrap">
             <table class="data-table">
               <thead>
@@ -136,13 +139,13 @@ function handleOverlayClick(event) {
           <p v-if="errors.sources" class="inline-error">{{ errors.sources }}</p>
 
           <div class="batch-form">
-            <p class="section-title">Batch Information</p>
-            <p class="section-tip">Programme association will be retained. Update batch fields below.</p>
+            <p class="section-title">{{ t('modal.batchInformation') }}</p>
+            <p class="section-tip">{{ t('modal.batchTip') }}</p>
 
             <div class="form-row">
               <label class="form-label"><span class="required">*</span> Intake:</label>
               <select v-model="intake" class="form-input" :class="{ error: errors.intake, 'is-empty': !intake }">
-                <option value="">please select</option>
+                <option value="">{{ t('common.pleaseSelect') }}</option>
                 <option v-for="opt in activeIntakeOptions" :key="opt" :value="opt">{{ opt }}</option>
               </select>
             </div>
@@ -155,7 +158,7 @@ function handleOverlayClick(event) {
                 class="form-input"
                 :class="{ error: errors.startingSemester, 'is-empty': !startingSemester }"
               >
-                <option value="">please select</option>
+                <option value="">{{ t('common.pleaseSelect') }}</option>
                 <option v-for="opt in startingSemesterOptions" :key="opt" :value="opt">{{ opt }}</option>
               </select>
             </div>
@@ -176,8 +179,8 @@ function handleOverlayClick(event) {
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
-          <button type="button" class="btn btn-primary" @click="handleConfirm">Confirm</button>
+          <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
+          <button type="button" class="btn btn-primary" @click="handleConfirm">{{ t('common.confirm') }}</button>
         </div>
       </div>
     </div>

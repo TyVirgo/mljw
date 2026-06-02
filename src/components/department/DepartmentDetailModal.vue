@@ -1,5 +1,8 @@
 <script setup>
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import { formatReportTo, formatEstablished } from '../../data/departments.js'
+
+const { t, tr } = useAppI18n()
 
 defineProps({
   visible: Boolean,
@@ -32,86 +35,86 @@ function handleOverlayClick(event) {
     <div v-if="visible && data" class="modal-overlay" @click="handleOverlayClick">
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
-          <h2 class="modal-title">Details</h2>
-          <button type="button" class="modal-close" aria-label="Close" @click="emit('close')">×</button>
+          <h2 class="modal-title">{{ tr('Details') }}</h2>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="emit('close')">×</button>
         </div>
 
         <div class="detail-body">
           <div class="detail-grid">
             <div class="detail-col">
               <div class="detail-item">
-                <span class="detail-label">ID:</span>
+                <span class="detail-label">{{ tr('ID:') }}</span>
                 <span class="detail-value">{{ data.deptId }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Department Name:</span>
+                <span class="detail-label">{{ tr('Department Name:') }}</span>
                 <span class="detail-value">{{ data.nameEn }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Code:</span>
+                <span class="detail-label">{{ tr('Code:') }}</span>
                 <span class="detail-value">{{ data.code }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Report to:</span>
+                <span class="detail-label">{{ tr('Report to:') }}</span>
                 <span class="detail-value">{{ formatReportTo(data.reportTo) }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Office No.:</span>
+                <span class="detail-label">{{ tr('Office No.:') }}</span>
                 <span class="detail-value">{{ display(data.officeNo) }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Established:</span>
+                <span class="detail-label">{{ tr('Established:') }}</span>
                 <span class="detail-value">{{ formatEstablished(data.established) }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Teaching:</span>
-                <span class="detail-value">{{ data.teaching }}</span>
+                <span class="detail-label">{{ tr('Teaching:') }}</span>
+                <span class="detail-value">{{ tr(data.teaching) }}</span>
               </div>
             </div>
 
             <div class="detail-col">
               <div class="detail-item">
-                <span class="detail-label">Category:</span>
+                <span class="detail-label">{{ tr('Category:') }}</span>
                 <span class="detail-value">{{ data.category }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Department Name (Chinese):</span>
+                <span class="detail-label">{{ tr('Department Name (Chinese):') }}</span>
                 <span class="detail-value">{{ data.nameZh }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Unit Head:</span>
+                <span class="detail-label">{{ tr('Unit Head:') }}</span>
                 <span class="detail-value">{{ display(data.departmentHead) }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Office Extension:</span>
+                <span class="detail-label">{{ tr('Office Extension:') }}</span>
                 <span class="detail-value">{{ display(data.officeExtension) }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Email:</span>
+                <span class="detail-label">{{ tr('Email:') }}</span>
                 <span class="detail-value">{{ display(data.email) }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Active:</span>
-                <span class="detail-value">{{ data.active }}</span>
+                <span class="detail-label">{{ tr('Active:') }}</span>
+                <span class="detail-value">{{ tr(data.active) }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Offering:</span>
-                <span class="detail-value">{{ data.offering }}</span>
+                <span class="detail-label">{{ tr('Offering:') }}</span>
+                <span class="detail-value">{{ tr(data.offering) }}</span>
               </div>
             </div>
 
             <div v-if="data.previousRecords?.length" class="detail-item detail-item-full">
-              <span class="detail-label">Previous Record:</span>
+              <span class="detail-label">{{ tr('Previous Record:') }}</span>
               <ul class="record-list detail-content">
                 <li v-for="(row, index) in data.previousRecords" :key="row.id || index">
-                  <span class="record-year">Year: {{ formatRecordYears(row) }}</span>
+                  <span class="record-year">{{ tr('Year:') }} {{ formatRecordYears(row) }}</span>
                   <span class="record-name">{{ row.departmentName }}</span>
                 </li>
               </ul>
             </div>
 
             <div class="detail-item detail-item-full">
-              <span class="detail-label">Remarks:</span>
+              <span class="detail-label">{{ tr('Remarks:') }}</span>
               <p class="remarks-text detail-content">{{ display(data.remarks) }}</p>
             </div>
           </div>

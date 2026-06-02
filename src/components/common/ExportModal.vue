@@ -1,5 +1,8 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
+
+const { t } = useAppI18n()
 
 const props = defineProps({
   visible: Boolean,
@@ -108,11 +111,11 @@ function handleConfirm() {
     return
   }
   if (!selectedFields.value.length) {
-    window.alert('Please select at least one export field.')
+    window.alert(t('common.selectExportField'))
     return
   }
   if (exportScope.value === 'selectedRows' && !props.hasSelectedRows) {
-    showToast('请先选择导出行')
+    showToast(t('exportModal.selectRowsToast'))
     return
   }
   emit('confirm', {
@@ -133,14 +136,14 @@ function handleConfirm() {
             <circle cx="12" cy="17" r="1" fill="#fff" />
           </svg>
         </span>
-        <span class="export-toast-text">请先选择导出行</span>
+        <span class="export-toast-text">{{ t('exportModal.selectRowsToast') }}</span>
       </div>
     </Transition>
     <div v-if="visible" class="export-overlay" @click="handleOverlayClick">
       <div class="export-panel" :class="{ 'export-panel-scope-only': scopeOnly }" role="dialog" aria-modal="true" aria-labelledby="export-title">
         <div class="export-header">
-          <h2 id="export-title" class="export-title">Export</h2>
-          <button type="button" class="export-close" aria-label="Close" @click="emit('close')">
+          <h2 id="export-title" class="export-title">{{ t('exportModal.title') }}</h2>
+          <button type="button" class="export-close" :aria-label="t('common.close')" @click="emit('close')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
@@ -154,15 +157,15 @@ function handleConfirm() {
               <label class="transfer-check">
                 <input v-model="availableAllChecked" type="checkbox" :disabled="!availableFields.length" />
               </label>
-              <span class="transfer-count">{{ availableChecked.length }} item</span>
-              <span class="transfer-label">Available Fields</span>
+              <span class="transfer-count">{{ availableChecked.length }} {{ t('exportModal.item') }}</span>
+              <span class="transfer-label">{{ t('exportModal.availableFields') }}</span>
             </div>
             <div class="transfer-body">
               <div v-if="!availableFields.length" class="transfer-empty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
-                <span>No Data</span>
+                <span>{{ t('exportModal.noData') }}</span>
               </div>
               <label
                 v-for="item in availableFields"
@@ -197,15 +200,15 @@ function handleConfirm() {
               <label class="transfer-check">
                 <input v-model="selectedAllChecked" type="checkbox" :disabled="!selectedFields.length" />
               </label>
-              <span class="transfer-count">{{ selectedChecked.length }} items</span>
-              <span class="transfer-label">Selected Fields</span>
+              <span class="transfer-count">{{ selectedChecked.length }} {{ t('exportModal.items') }}</span>
+              <span class="transfer-label">{{ t('exportModal.selectedFields') }}</span>
             </div>
             <div class="transfer-body">
               <div v-if="!selectedFields.length" class="transfer-empty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
-                <span>No Data</span>
+                <span>{{ t('exportModal.noData') }}</span>
               </div>
               <label
                 v-for="item in selectedFields"
@@ -224,26 +227,26 @@ function handleConfirm() {
         </div>
 
         <div class="export-setting" :class="{ 'export-setting-scope-only': scopeOnly }">
-          <span class="setting-label"><span class="required">*</span> Export Setting:</span>
+          <span class="setting-label"><span class="required">*</span> {{ t('exportModal.exportSetting') }}</span>
           <div class="setting-options" :class="{ 'setting-options-column': scopeOnly }">
             <label class="setting-option">
               <input v-model="exportScope" type="radio" value="currentPage" />
-              <span>Export Current Page</span>
+              <span>{{ t('exportModal.currentPage') }}</span>
             </label>
             <label class="setting-option">
               <input v-model="exportScope" type="radio" value="allResults" />
-              <span>{{ scopeOnly ? 'Export All Data' : 'Export All Results' }}</span>
+              <span>{{ scopeOnly ? t('exportModal.allData') : t('exportModal.allResults') }}</span>
             </label>
             <label v-if="!scopeOnly" class="setting-option">
               <input v-model="exportScope" type="radio" value="selectedRows" />
-              <span>Export Selected Rows</span>
+              <span>{{ t('exportModal.selectedRows') }}</span>
             </label>
           </div>
         </div>
 
         <div class="export-footer">
-          <button type="button" class="btn btn-default" @click="emit('close')">CANCEL</button>
-          <button type="button" class="btn btn-primary" @click="handleConfirm">CONFIRM</button>
+          <button type="button" class="btn btn-default" @click="emit('close')">{{ t('exportModal.cancel') }}</button>
+          <button type="button" class="btn btn-primary" @click="handleConfirm">{{ t('exportModal.confirm') }}</button>
         </div>
       </div>
     </div>

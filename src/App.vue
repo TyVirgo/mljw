@@ -14,7 +14,7 @@ import IntakeSetView from './views/IntakeSetView.vue'
 import ProgrammeIntakeView from './views/ProgrammeIntakeView.vue'
 import UnderConstructionView from './views/UnderConstructionView.vue'
 import AcademicPortalView from './views/AcademicPortalView.vue'
-import { developedPages, basicDataModuleName } from './config/menu.js'
+import { developedPages, basicDataModuleKey } from './config/menu.js'
 
 const appView = ref('admin')
 const currentPageId = ref('dashboard')
@@ -56,7 +56,7 @@ function openBasicDataAdmin() {
   <AcademicPortalView v-if="appView === 'portal'" @back-to-admin="goToAdmin" @open-basic-data="openBasicDataAdmin" />
 
   <div v-else class="app-layout">
-    <HeaderBar :title="basicDataModuleName" @back-to-portal="goToPortal" @go-home="goToPortal" />
+    <HeaderBar :title-key="basicDataModuleKey" @back-to-portal="goToPortal" @go-home="goToPortal" />
     <div class="app-body">
       <Sidebar :active-id="currentPageId" @select="handleSelect" />
       <div class="content-column">

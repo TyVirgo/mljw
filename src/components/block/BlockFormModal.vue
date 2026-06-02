@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import { floorOptions } from '../../data/blocks.js'
+
+const { t, tr } = useAppI18n()
 
 const props = defineProps({
   visible: Boolean,
@@ -40,7 +43,9 @@ watch(
   },
 )
 
-const modalTitle = computed(() => (props.mode === 'edit' ? 'Edit Block' : 'Create Block'))
+const modalTitle = computed(() =>
+  props.mode === 'edit' ? t('modal.editBlock') : t('modal.createBlock'),
+)
 
 const floorLabel = computed(() => {
   if (!selectedFloors.value.length) return ''
@@ -91,42 +96,42 @@ function handleOverlayClick(event) {
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
           <h2 class="modal-title">{{ modalTitle }}</h2>
-          <button type="button" class="modal-close" aria-label="Close" @click="handleClose">×</button>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
-        <p class="modal-desc">Enter block details. Fields marked with * are required.</p>
+        <p class="modal-desc">{{ t('modal.blockDesc') }}</p>
 
         <div class="modal-form">
           <div class="form-row">
-            <label class="form-label"><span class="required">*</span> Block No.</label>
+            <label class="form-label"><span class="required">*</span> {{ tr('Block No.') }}</label>
             <div class="form-field">
               <input
                 v-model="blockNo"
                 type="text"
                 class="form-input"
                 :class="{ error: errors.blockNo }"
-                placeholder="Block No., e.g. A1"
+                :placeholder="tr('Block No., e.g. A1')"
               />
-              <p v-if="errors.blockNo" class="field-error">{{ errors.blockNo }}</p>
+              <p v-if="errors.blockNo" class="field-error">{{ tr(errors.blockNo) }}</p>
             </div>
           </div>
 
           <div class="form-row">
-            <label class="form-label"><span class="required">*</span> Block Name</label>
+            <label class="form-label"><span class="required">*</span> {{ tr('Block Name') }}</label>
             <div class="form-field">
               <input
                 v-model="blockName"
                 type="text"
                 class="form-input"
                 :class="{ error: errors.blockName }"
-                placeholder="Block Name, e.g. A1 Teaching Building"
+                :placeholder="tr('Block Name, e.g. A1 Teaching Building')"
               />
-              <p v-if="errors.blockName" class="field-error">{{ errors.blockName }}</p>
+              <p v-if="errors.blockName" class="field-error">{{ tr(errors.blockName) }}</p>
             </div>
           </div>
 
           <div class="form-row">
-            <label class="form-label"><span class="required">*</span> Floor</label>
+            <label class="form-label"><span class="required">*</span> {{ tr('Floor') }}</label>
             <div class="form-field">
               <div class="select-wrap">
                 <button
@@ -136,7 +141,7 @@ function handleOverlayClick(event) {
                   @click="floorDropdownOpen = !floorDropdownOpen"
                 >
                   <span :class="{ placeholder: !selectedFloors.length }">
-                    {{ floorLabel || 'Select floor(s)...' }}
+                    {{ floorLabel || t('modal.selectFloors') }}
                   </span>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="6 9 12 15 18 9" />
@@ -157,14 +162,14 @@ function handleOverlayClick(event) {
                   </label>
                 </div>
               </div>
-              <p v-if="errors.floors" class="field-error">{{ errors.floors }}</p>
+              <p v-if="errors.floors" class="field-error">{{ tr(errors.floors) }}</p>
             </div>
           </div>
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
-          <button type="button" class="btn btn-primary" @click="handleSave">Save</button>
+          <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
+          <button type="button" class="btn btn-primary" @click="handleSave">{{ t('common.save') }}</button>
         </div>
       </div>
     </div>

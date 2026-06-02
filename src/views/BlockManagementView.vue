@@ -6,6 +6,9 @@ import ExportModal from '../components/common/ExportModal.vue'
 import TablePagination from '../components/common/TablePagination.vue'
 import { initialBlocks, createBlockId } from '../data/blocks.js'
 import { exportBlocksToExcel, blockExportFields } from '../utils/exportExcel.js'
+import { useListPageI18n } from '../composables/useListPageI18n.js'
+
+const { t, tr, translatedExportFields } = useListPageI18n(blockExportFields)
 
 const blocks = ref(initialBlocks.map((item) => ({ ...item, floors: [...item.floors] })))
 
@@ -22,7 +25,6 @@ const modalMode = ref('create')
 const editingBlock = ref(null)
 
 const confirmVisible = ref(false)
-const confirmTitle = ref('Delete Confirmation')
 const confirmMessage = ref('')
 const pendingDeleteIds = ref([])
 
@@ -128,7 +130,7 @@ function handleSave(formData) {
       (item) => item.blockNo.toLowerCase() === formData.blockNo.toLowerCase(),
     )
     if (duplicate) {
-      window.alert('Block No. already exists.')
+      window.alert(tr('Block No. already exists.'))
       return
     }
     blocks.value.push({
@@ -145,13 +147,11 @@ function requestDelete(ids) {
   const uniqueIds = [...new Set(ids)]
   if (!uniqueIds.length) return
 
-  const count = uniqueIds.length
   pendingDeleteIds.value = uniqueIds
-  confirmTitle.value = 'Delete Confirmation'
   confirmMessage.value =
-    count === 1
-      ? 'Are you sure you want to delete this block? This action cannot be undone.'
-      : `Are you sure you want to delete ${count} selected blocks? This action cannot be undone.`
+    uniqueIds.length === 1
+      ? t('pages.block.deleteOne')
+      : t('pages.block.deleteMany', { count: uniqueIds.length })
   confirmVisible.value = true
 }
 
@@ -181,7 +181,7 @@ function cancelDelete() {
 
 function openExportModal() {
   if (!filteredBlocks.value.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
   exportModalVisible.value = true
@@ -198,7 +198,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   }
 
   if (!data.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
 
@@ -222,12 +222,12 @@ function getRowNumber(index) {
       <div class="search-bar">
         <div class="search-row">
           <div class="search-item">
-            <label>Block No.:</label>
-            <input v-model="searchBlockNo" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+            <label>{{ tr('Block No.:') }}</label>
+            <input v-model="searchBlockNo" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
           </div>
           <div class="search-item">
-            <label>Block Name:</label>
-            <input v-model="searchBlockName" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+            <label>{{ tr('Block Name:') }}</label>
+            <input v-model="searchBlockName" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
           </div>
           <div class="search-actions">
             <button type="button" class="btn btn-primary" @click="handleSearch">
@@ -235,30 +235,30 @@ function getRowNumber(index) {
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
-              Search
+              {{ t('common.search') }}
             </button>
             <button type="button" class="btn btn-default" @click="handleReset">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="23 4 23 10 17 10" />
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
               </svg>
-              Reset
+              {{ t('common.reset') }}
             </button>
           </div>
         </div>
       </div>
 
       <div class="toolbar">
-        <button type="button" class="btn btn-primary" @click="openCreateModal">+ Create</button>
+        <button type="button" class="btn btn-primary" @click="openCreateModal">{{ t('common.create') }}</button>
         <button
           type="button"
           class="btn btn-default"
           :disabled="!hasSelection"
           @click="handleBatchDelete"
         >
-          Delete
+          {{ t('common.delete') }}
         </button>
-        <button type="button" class="btn btn-default" @click="openExportModal">Export</button>
+        <button type="button" class="btn btn-default" @click="openExportModal">{{ t('common.export') }}</button>
       </div>
 
       <div class="table-section">
@@ -269,16 +269,16 @@ function getRowNumber(index) {
               <th class="col-check">
                 <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
               </th>
-              <th>No.</th>
-              <th>Block No.</th>
-              <th>Block Name</th>
-              <th>Floor</th>
-              <th>Actions</th>
+              <th>{{ t('common.serialNo') }}</th>
+              <th>{{ tr('Block No.') }}</th>
+              <th>{{ tr('Block Name') }}</th>
+              <th>{{ tr('Floor') }}</th>
+              <th>{{ t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!paginatedBlocks.length">
-              <td colspan="6" class="empty-cell">No data found</td>
+              <td colspan="6" class="empty-cell">{{ t('common.noData') }}</td>
             </tr>
             <tr v-for="(block, index) in paginatedBlocks" :key="block.id">
               <td class="col-check">
@@ -296,8 +296,8 @@ function getRowNumber(index) {
               </td>
               <td class="actions-cell">
                 <div class="actions-inner">
-                  <button type="button" class="link-btn" @click="openEditModal(block)">Edit</button>
-                  <button type="button" class="link-btn delete" @click="handleRowDelete(block.id)">Delete</button>
+                  <button type="button" class="link-btn" @click="openEditModal(block)">{{ t('common.edit') }}</button>
+                  <button type="button" class="link-btn delete" @click="handleRowDelete(block.id)">{{ t('common.delete') }}</button>
                 </div>
               </td>
             </tr>
@@ -324,16 +324,16 @@ function getRowNumber(index) {
 
     <ConfirmDialog
       :visible="confirmVisible"
-      :title="confirmTitle"
+      :title="t('common.deleteConfirmation')"
       :message="confirmMessage"
-      confirm-text="Delete"
+      :confirm-text="t('common.delete')"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     />
 
     <ExportModal
       :visible="exportModalVisible"
-      :fields="blockExportFields"
+      :fields="translatedExportFields"
       :has-selected-rows="hasSelection"
       @close="exportModalVisible = false"
       @confirm="handleExportConfirm"

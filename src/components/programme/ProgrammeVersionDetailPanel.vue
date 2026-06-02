@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   createFormSteps,
   getDepartmentLabel,
@@ -19,6 +20,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['back'])
+
+const { t, tr } = useAppI18n()
 
 const currentStep = ref(1)
 
@@ -56,14 +59,14 @@ function getFileIconType(fileName) {
 <template>
   <div class="detail-panel">
     <div class="detail-header">
-      <button type="button" class="back-btn" aria-label="Back" @click="emit('back')">
+      <button type="button" class="back-btn" :aria-label="t('common.back')" @click="emit('back')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="15 18 9 12 15 6" />
         </svg>
       </button>
       <h2 class="detail-title">{{ programme.name }}</h2>
       <span class="version-tag" :class="version.isCurrent ? 'current' : 'history'">
-        {{ version.isCurrent ? 'Current Version' : 'Historical Version' }}
+        {{ version.isCurrent ? tr('Current Version') : tr('Historical Version') }}
       </span>
     </div>
 
@@ -71,7 +74,7 @@ function getFileIconType(fileName) {
       <template v-for="(step, index) in createFormSteps" :key="step.id">
         <button type="button" class="step-item" :class="stepClass(step.id)" @click="goToStep(step.id)">
           <span class="step-circle">{{ step.id }}</span>
-          <span class="step-label">{{ step.title }}</span>
+          <span class="step-label">{{ tr(step.title) }}</span>
         </button>
         <div v-if="index < createFormSteps.length - 1" class="step-line" :class="{ completed: step.id < currentStep }" />
       </template>

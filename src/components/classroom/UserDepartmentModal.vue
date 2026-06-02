@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import { departmentOptions } from '../../data/classrooms.js'
+
+const { t, tr } = useAppI18n()
 
 const props = defineProps({
   visible: Boolean,
@@ -73,15 +76,15 @@ function handleOverlayClick(event) {
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
           <div>
-            <h2 class="modal-title">User Department</h2>
-            <p class="modal-desc">Set usage department permissions for {{ selectedCount }} selected classroom(s).</p>
+            <h2 class="modal-title">{{ t('common.userDepartment') }}</h2>
+            <p class="modal-desc">{{ tr('Set usage department permissions for') }} {{ selectedCount }} {{ tr('selected classroom(s).') }}</p>
           </div>
-          <button type="button" class="modal-close" aria-label="Close" @click="handleClose">×</button>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
         <div class="modal-form">
           <div class="form-row">
-            <label class="form-label">User Department:</label>
+            <label class="form-label">{{ tr('User Department:') }}</label>
             <div class="select-field">
               <button
                 type="button"
@@ -90,7 +93,7 @@ function handleOverlayClick(event) {
                 @click="dropdownOpen = !dropdownOpen"
               >
                 <span :class="{ placeholder: !selectedDepartments.length }">
-                  {{ displayLabel || 'Please select' }}
+                  {{ displayLabel || t('common.pleaseSelect') }}
                 </span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="6 9 12 15 18 9" />
@@ -115,14 +118,14 @@ function handleOverlayClick(event) {
                 </span>
               </div>
 
-              <p v-if="error" class="field-error">{{ error }}</p>
+              <p v-if="error" class="field-error">{{ tr(error) }}</p>
             </div>
           </div>
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
-          <button type="button" class="btn btn-primary" @click="handleSubmit">Confirm</button>
+          <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
+          <button type="button" class="btn btn-primary" @click="handleSubmit">{{ t('common.confirm') }}</button>
         </div>
       </div>
     </div>

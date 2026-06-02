@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 
 const props = defineProps({
   total: { type: Number, default: 0 },
@@ -13,6 +14,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'update:pageSize', 'change'])
 
+const { t } = useAppI18n()
 const jumpPage = ref(props.modelValue)
 
 const totalPages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)))
@@ -51,23 +53,25 @@ function applyJumpPage() {
 
 <template>
   <div class="table-pagination">
-    <span class="table-pagination-total">Total {{ total }} records</span>
+    <span class="table-pagination-total">{{ t('pagination.total', { total }) }}</span>
     <div class="table-pagination-controls">
-      <button type="button" class="page-link" :disabled="modelValue <= 1" @click="goToPage(1)">Home</button>
+      <button type="button" class="page-link" :disabled="modelValue <= 1" @click="goToPage(1)">{{ t('pagination.home') }}</button>
       <button type="button" class="page-btn" :disabled="modelValue <= 1" @click="goToPage(modelValue - 1)">‹</button>
       <button type="button" class="page-btn active">{{ modelValue }}</button>
       <button type="button" class="page-btn" :disabled="modelValue >= totalPages" @click="goToPage(modelValue + 1)">
         ›
       </button>
       <button type="button" class="page-link" :disabled="modelValue >= totalPages" @click="goToPage(totalPages)">
-        End
+        {{ t('pagination.end') }}
       </button>
     </div>
     <select class="page-size" :value="pageSize" @change="handlePageSizeChange">
-      <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }} records/page</option>
+      <option v-for="size in pageSizeOptions" :key="size" :value="size">
+        {{ t('pagination.recordsPerPage', { size }) }}
+      </option>
     </select>
     <div class="jump-wrap">
-      <span class="jump-label">Jump to</span>
+      <span class="jump-label">{{ t('pagination.jumpTo') }}</span>
       <input
         v-model.number="jumpPage"
         type="number"
@@ -76,7 +80,7 @@ function applyJumpPage() {
         :max="totalPages"
         @keyup.enter="applyJumpPage"
       />
-      <span class="jump-label">page</span>
+      <span class="jump-label">{{ t('pagination.page') }}</span>
     </div>
   </div>
 </template>

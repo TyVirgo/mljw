@@ -1,12 +1,16 @@
 <script setup>
 import UserProfileMenu from './UserProfileMenu.vue'
+import LanguageSwitcher from './LanguageSwitcher.vue'
+import { useAppI18n } from '../composables/useAppI18n.js'
 
 defineProps({
-  title: {
+  titleKey: {
     type: String,
-    default: 'Dashboard',
+    default: 'menu.basicData',
   },
 })
+
+const { t } = useAppI18n()
 
 const emit = defineEmits(['back-to-portal', 'go-home'])
 
@@ -17,7 +21,7 @@ function handleBrandClick() {
 
 <template>
   <header class="header">
-    <button type="button" class="header-brand" aria-label="Back to portal" @click="handleBrandClick">
+    <button type="button" class="header-brand" :aria-label="t('header.backToPortal')" @click="handleBrandClick">
       <div class="brand-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
@@ -25,17 +29,18 @@ function handleBrandClick() {
         </svg>
       </div>
       <div class="brand-text">
-        <span class="brand-title">Academic Admin</span>
-        <span class="brand-subtitle">Management System</span>
+        <span class="brand-title">{{ t('header.brandTitle') }}</span>
+        <span class="brand-subtitle">{{ t('header.brandSubtitle') }}</span>
       </div>
     </button>
 
     <span class="header-divider" aria-hidden="true"></span>
 
-    <h1 class="header-title">{{ title }}</h1>
+    <h1 class="header-title">{{ t(titleKey) }}</h1>
 
     <div class="header-actions">
-      <button class="notification-btn" aria-label="Notifications">
+      <LanguageSwitcher />
+      <button class="notification-btn" :aria-label="t('header.notifications')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />

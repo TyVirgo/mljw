@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import { initialBlocks } from '../../data/blocks.js'
+
+const { t, tr } = useAppI18n()
 import {
   classroomTypeOptions,
   deskChairTypeOptions,
@@ -38,10 +41,7 @@ const floorOptions = computed(() => {
   return block ? block.floors : []
 })
 
-const modalTitle = computed(() => {
-  if (props.mode === 'edit') return 'Edit'
-  return 'Create'
-})
+const modalTitle = computed(() => (props.mode === 'edit' ? t('common.edit') : t('common.create')))
 
 function createEmptyForm() {
   return {
@@ -191,52 +191,52 @@ const softwareLabel = computed(() => joinMultiSelectValue(form.value.software))
         <div class="modal-header">
           <div>
             <h2 class="modal-title">{{ modalTitle }}</h2>
-            <p class="modal-desc">Fill in the classroom information below. Fields marked with * are required.</p>
+            <p class="modal-desc">{{ t('modal.classroomDesc') }}</p>
           </div>
-          <button type="button" class="modal-close" aria-label="Close" @click="handleClose">×</button>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
         <div class="modal-form">
           <div class="form-grid">
             <div class="form-col">
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Block:</label>
+                <label class="form-label"><span class="required">*</span> {{ tr('Block') }}:</label>
                 <select v-model="form.block" class="form-input" :class="{ error: errors.block }">
-                  <option value="">Please select</option>
+                  <option value="">{{ t('common.pleaseSelect') }}</option>
                   <option v-for="opt in blockOptions" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Classroom Name:</label>
-                <input v-model="form.classroomName" type="text" class="form-input" :class="{ error: errors.classroomName }" placeholder="Please enter" />
+                <label class="form-label"><span class="required">*</span> {{ tr('Classroom Name:') }}</label>
+                <input v-model="form.classroomName" type="text" class="form-input" :class="{ error: errors.classroomName }" :placeholder="t('common.pleaseInput')" />
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Classroom Name (Chinese):</label>
-                <input v-model="form.classroomNameEn" type="text" class="form-input" :class="{ error: errors.classroomNameEn }" placeholder="Please enter" />
+                <label class="form-label"><span class="required">*</span> {{ tr('Classroom Name (Chinese):') }}</label>
+                <input v-model="form.classroomNameEn" type="text" class="form-input" :class="{ error: errors.classroomNameEn }" :placeholder="t('common.pleaseInput')" />
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Floor:</label>
+                <label class="form-label"><span class="required">*</span> {{ tr('Floor') }}:</label>
                 <select v-model="form.floor" class="form-input" :class="{ error: errors.floor }">
-                  <option value="">Please select</option>
+                  <option value="">{{ t('common.pleaseSelect') }}</option>
                   <option v-for="opt in floorOptions" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Desk/Chair Type:</label>
+                <label class="form-label"><span class="required">*</span> {{ tr('Desk/Chair Type:') }}</label>
                 <select v-model="form.deskChairType" class="form-input" :class="{ error: errors.deskChairType }">
-                  <option value="">Please select</option>
+                  <option value="">{{ t('common.pleaseSelect') }}</option>
                   <option v-for="opt in deskChairTypeOptions" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Available Seats:</label>
-                <input v-model="form.availableSeats" type="number" class="form-input" :class="{ error: errors.availableSeats }" placeholder="Please enter" />
+                <label class="form-label"><span class="required">*</span> {{ tr('Available Seats:') }}</label>
+                <input v-model="form.availableSeats" type="number" class="form-input" :class="{ error: errors.availableSeats }" :placeholder="t('common.pleaseInput')" />
               </div>
               <div class="form-row">
-                <label class="form-label">Classroom Equipment:</label>
+                <label class="form-label">{{ tr('Classroom Equipment') }}:</label>
                 <div class="select-wrap">
                   <button type="button" class="form-input select-btn" @click="equipmentDropdownOpen = !equipmentDropdownOpen">
-                    <span :class="{ placeholder: !form.classroomEquipment.length }">{{ equipmentLabel || 'Please select' }}</span>
+                    <span :class="{ placeholder: !form.classroomEquipment.length }">{{ equipmentLabel || t('common.pleaseSelect') }}</span>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
                   </button>
                   <div v-if="equipmentDropdownOpen" class="dropdown-panel">
@@ -248,54 +248,54 @@ const softwareLabel = computed(() => joinMultiSelectValue(form.value.software))
                 </div>
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Activation:</label>
+                <label class="form-label"><span class="required">*</span> {{ tr('Activation:') }}</label>
                 <div class="radio-group">
-                  <label><input v-model="form.activation" type="radio" :value="true" /> Yes</label>
-                  <label><input v-model="form.activation" type="radio" :value="false" /> No</label>
+                  <label><input v-model="form.activation" type="radio" :value="true" /> {{ tr('Yes') }}</label>
+                  <label><input v-model="form.activation" type="radio" :value="false" /> {{ tr('No') }}</label>
                 </div>
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Borrowing Availability:</label>
+                <label class="form-label"><span class="required">*</span> {{ tr('Borrowing Availability:') }}</label>
                 <div class="radio-group">
-                  <label><input v-model="form.borrowingAvailability" type="radio" :value="true" /> Yes</label>
-                  <label><input v-model="form.borrowingAvailability" type="radio" :value="false" /> No</label>
+                  <label><input v-model="form.borrowingAvailability" type="radio" :value="true" /> {{ tr('Yes') }}</label>
+                  <label><input v-model="form.borrowingAvailability" type="radio" :value="false" /> {{ tr('No') }}</label>
                 </div>
               </div>
             </div>
 
             <div class="form-col">
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Classroom No.:</label>
-                <input v-model="form.classroomNo" type="text" class="form-input" :class="{ error: errors.classroomNo }" placeholder="Please enter" />
+                <label class="form-label"><span class="required">*</span> {{ tr('Classroom No.:') }}</label>
+                <input v-model="form.classroomNo" type="text" class="form-input" :class="{ error: errors.classroomNo }" :placeholder="t('common.pleaseInput')" />
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Classroom:</label>
-                <input v-model="form.classroom" type="text" class="form-input readonly" :class="{ error: errors.classroom }" placeholder="Auto-generated from block..." readonly />
+                <label class="form-label"><span class="required">*</span> {{ tr('Classroom:') }}</label>
+                <input v-model="form.classroom" type="text" class="form-input readonly" :class="{ error: errors.classroom }" :placeholder="tr('Auto-generated from block...')" readonly />
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Classroom Name (MAL):</label>
-                <input v-model="form.classroomNameMal" type="text" class="form-input" :class="{ error: errors.classroomNameMal }" placeholder="Please enter" />
+                <label class="form-label"><span class="required">*</span> {{ tr('Classroom Name (MAL):') }}</label>
+                <input v-model="form.classroomNameMal" type="text" class="form-input" :class="{ error: errors.classroomNameMal }" :placeholder="t('common.pleaseInput')" />
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Classroom Type:</label>
+                <label class="form-label"><span class="required">*</span> {{ tr('Classroom Type:') }}</label>
                 <select v-model="form.classroomType" class="form-input" :class="{ error: errors.classroomType }">
-                  <option value="">Please select</option>
+                  <option value="">{{ t('common.pleaseSelect') }}</option>
                   <option v-for="opt in classroomTypeOptions" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Capacity:</label>
-                <input v-model="form.capacity" type="number" class="form-input" :class="{ error: errors.capacity }" placeholder="Please enter" />
+                <label class="form-label"><span class="required">*</span> {{ tr('Capacity:') }}</label>
+                <input v-model="form.capacity" type="number" class="form-input" :class="{ error: errors.capacity }" :placeholder="t('common.pleaseInput')" />
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Exam Seats:</label>
-                <input v-model="form.examSeats" type="number" class="form-input" :class="{ error: errors.examSeats }" placeholder="Please enter" />
+                <label class="form-label"><span class="required">*</span> {{ tr('Exam Seats:') }}</label>
+                <input v-model="form.examSeats" type="number" class="form-input" :class="{ error: errors.examSeats }" :placeholder="t('common.pleaseInput')" />
               </div>
               <div class="form-row">
-                <label class="form-label">Software:</label>
+                <label class="form-label">{{ tr('Software') }}:</label>
                 <div class="select-wrap">
                   <button type="button" class="form-input select-btn" @click="softwareDropdownOpen = !softwareDropdownOpen">
-                    <span :class="{ placeholder: !form.software.length }">{{ softwareLabel || 'Please select' }}</span>
+                    <span :class="{ placeholder: !form.software.length }">{{ softwareLabel || t('common.pleaseSelect') }}</span>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
                   </button>
                   <div v-if="softwareDropdownOpen" class="dropdown-panel">
@@ -307,35 +307,35 @@ const softwareLabel = computed(() => joinMultiSelectValue(form.value.software))
                 </div>
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Common Area:</label>
+                <label class="form-label"><span class="required">*</span> {{ tr('Common Area:') }}</label>
                 <div class="radio-group">
-                  <label><input v-model="form.commonArea" type="radio" :value="true" /> Yes</label>
-                  <label><input v-model="form.commonArea" type="radio" :value="false" /> No</label>
+                  <label><input v-model="form.commonArea" type="radio" :value="true" /> {{ tr('Yes') }}</label>
+                  <label><input v-model="form.commonArea" type="radio" :value="false" /> {{ tr('No') }}</label>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="form-row full">
-            <label class="form-label">User Department:</label>
+            <label class="form-label">{{ tr('User Department:') }}</label>
             <select v-model="form.userDepartment" class="form-input">
-              <option value="">Please select</option>
+              <option value="">{{ t('common.pleaseSelect') }}</option>
               <option v-for="opt in departmentOptions" :key="opt" :value="opt">{{ opt }}</option>
             </select>
           </div>
 
           <div class="form-row full textarea-row">
-            <label class="form-label">Remark:</label>
+            <label class="form-label">{{ tr('Remark:') }}</label>
             <div class="textarea-wrap">
-              <textarea v-model="form.remark" class="form-textarea" maxlength="100" placeholder="Please enter" />
+              <textarea v-model="form.remark" class="form-textarea" maxlength="100" :placeholder="t('common.pleaseInput')" />
               <span class="char-count">{{ form.remark.length }}/100</span>
             </div>
           </div>
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
-          <button type="button" class="btn btn-primary" @click="handleSave">Confirm</button>
+          <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
+          <button type="button" class="btn btn-primary" @click="handleSave">{{ t('common.confirm') }}</button>
         </div>
       </div>
     </div>

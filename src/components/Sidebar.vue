@@ -1,6 +1,9 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { menuItems, findParentId } from '../config/menu.js'
+import { useAppI18n } from '../composables/useAppI18n.js'
+
+const { t } = useAppI18n()
 
 const props = defineProps({
   activeId: {
@@ -86,7 +89,7 @@ function isChildActive(item) {
                 <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
               </svg>
             </span>
-            <span class="nav-label">{{ item.label }}</span>
+            <span class="nav-label">{{ t(item.labelKey) }}</span>
             <svg
               class="nav-chevron"
               :class="{ expanded: isExpanded(item.id) }"
@@ -108,7 +111,7 @@ function isChildActive(item) {
               :class="{ active: isActive(child.id) }"
               @click="selectItem(child.id)"
             >
-              {{ child.label }}
+              {{ t(child.labelKey) }}
             </button>
           </div>
         </div>
@@ -133,7 +136,7 @@ function isChildActive(item) {
               <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
             </svg>
           </span>
-          <span class="nav-label">{{ item.label }}</span>
+          <span class="nav-label">{{ t(item.labelKey) }}</span>
         </button>
       </template>
     </nav>

@@ -10,6 +10,9 @@ import {
   createIntakeSetId,
 } from '../data/intakeSets.js'
 import { exportIntakeSetsToExcel, intakeSetExportFields } from '../utils/exportIntakeSetExcel.js'
+import { useListPageI18n } from '../composables/useListPageI18n.js'
+
+const { t, tr, translatedExportFields } = useListPageI18n(intakeSetExportFields)
 
 const intakeSets = ref(initialIntakeSets.map((item) => ({ ...item })))
 
@@ -118,8 +121,8 @@ function requestDelete(ids) {
   pendingDeleteIds.value = uniqueIds
   confirmMessage.value =
     uniqueIds.length === 1
-      ? 'Are you sure you want to delete this intake set?'
-      : `Are you sure you want to delete ${uniqueIds.length} selected intake sets?`
+      ? t('pages.intake.deleteOne')
+      : t('pages.intake.deleteMany', { count: uniqueIds.length })
   confirmVisible.value = true
 }
 
@@ -138,7 +141,7 @@ function cancelDelete() {
 
 function openExportModal() {
   if (!filteredIntakeSets.value.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
   exportModalVisible.value = true
@@ -155,7 +158,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   }
 
   if (!data.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
 
@@ -180,9 +183,9 @@ function getRowNumber(index) {
         <div class="search-row">
           <div class="search-fields">
             <div class="search-item">
-              <label>Intake :</label>
+              <label>{{ tr('Intake :') }}</label>
               <select v-model="searchIntake" class="search-select" :class="{ 'is-empty': !searchIntake }">
-                <option value="">please select</option>
+                <option value="">{{ t('common.pleaseSelect') }}</option>
                 <option v-for="opt in intakeOptions" :key="opt" :value="opt">{{ opt }}</option>
               </select>
             </div>
@@ -193,25 +196,25 @@ function getRowNumber(index) {
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
-              Search
+              {{ t('common.search') }}
             </button>
             <button type="button" class="btn btn-default" @click="handleReset">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="23 4 23 10 17 10" />
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
               </svg>
-              Reset
+              {{ t('common.reset') }}
             </button>
           </div>
         </div>
       </div>
 
       <div class="toolbar">
-        <button type="button" class="btn btn-primary" @click="openCreateModal">Create</button>
+        <button type="button" class="btn btn-primary" @click="openCreateModal">{{ t('common.create') }}</button>
         <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">
-          Delete
+          {{ t('common.delete') }}
         </button>
-        <button type="button" class="btn btn-default" @click="openExportModal">Export</button>
+        <button type="button" class="btn btn-default" @click="openExportModal">{{ t('common.export') }}</button>
       </div>
 
       <div class="table-section">
@@ -222,16 +225,16 @@ function getRowNumber(index) {
                 <th class="col-check">
                   <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
                 </th>
-                <th>No.</th>
-                <th>Code</th>
-                <th>Intake</th>
-                <th>Active</th>
-                <th>Actions</th>
+                <th>{{ t('common.serialNo') }}</th>
+                <th>{{ tr('Code') }}</th>
+                <th>{{ tr('Intake') }}</th>
+                <th>{{ tr('Active') }}</th>
+                <th>{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!paginatedIntakeSets.length">
-                <td colspan="6" class="empty-cell">No data found</td>
+                <td colspan="6" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedIntakeSets" :key="item.id">
                 <td class="col-check">
@@ -243,8 +246,8 @@ function getRowNumber(index) {
                 <td>{{ item.active }}</td>
                 <td class="actions-cell">
                   <div class="actions-inner">
-                    <button type="button" class="link-btn" @click="openEditModal(item)">Edit</button>
-                    <button type="button" class="link-btn delete" @click="requestDelete([item.id])">Delete</button>
+                    <button type="button" class="link-btn" @click="openEditModal(item)">{{ t('common.edit') }}</button>
+                    <button type="button" class="link-btn delete" @click="requestDelete([item.id])">{{ t('common.delete') }}</button>
                   </div>
                 </td>
               </tr>
@@ -272,16 +275,16 @@ function getRowNumber(index) {
 
     <ConfirmDialog
       :visible="confirmVisible"
-      title="Delete Confirmation"
+      :title="t('common.deleteConfirmation')"
       :message="confirmMessage"
-      confirm-text="Delete"
+      :confirm-text="t('common.delete')"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     />
 
     <ExportModal
       :visible="exportModalVisible"
-      :fields="intakeSetExportFields"
+      :fields="translatedExportFields"
       :has-selected-rows="hasSelection"
       @close="exportModalVisible = false"
       @confirm="handleExportConfirm"

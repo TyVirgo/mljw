@@ -17,6 +17,9 @@ import {
   setUserDepartments,
 } from '../data/classrooms.js'
 import { exportClassroomsToExcel, classroomExportFields } from '../utils/exportClassroomExcel.js'
+import { useListPageI18n } from '../composables/useListPageI18n.js'
+
+const { t, tr, translatedExportFields } = useListPageI18n(classroomExportFields)
 
 const classrooms = ref(initialClassrooms.map((item) => ({ ...item })))
 
@@ -208,7 +211,7 @@ function handleSave(formData) {
       (item) => item.classroomNo.toLowerCase() === formData.classroomNo.toLowerCase(),
     )
     if (duplicate) {
-      window.alert('Classroom No. already exists.')
+      window.alert(tr('Classroom No. already exists.'))
       return
     }
     classrooms.value.push(applyFormData({ id: createClassroomId() }))
@@ -222,8 +225,8 @@ function requestDelete(ids) {
   pendingDeleteIds.value = uniqueIds
   confirmMessage.value =
     uniqueIds.length === 1
-      ? 'Are you sure you want to delete this classroom? This action cannot be undone.'
-      : `Are you sure you want to delete ${uniqueIds.length} selected classrooms? This action cannot be undone.`
+      ? t('pages.classroom.deleteOne')
+      : t('pages.classroom.deleteMany', { count: uniqueIds.length })
   confirmVisible.value = true
 }
 
@@ -241,7 +244,7 @@ function confirmDelete() {
 
 function openExportModal() {
   if (!filteredClassrooms.value.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
   exportModalVisible.value = true
@@ -258,7 +261,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   }
 
   if (!data.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
 
@@ -337,31 +340,31 @@ function getRowNumber(index) {
         <div class="search-grid">
           <div class="search-row search-row-main">
             <div class="search-item">
-              <label>Classroom No.:</label>
-              <input v-model="searchForm.classroomNo" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+              <label>{{ tr('Classroom No.:') }}</label>
+              <input v-model="searchForm.classroomNo" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
             </div>
             <div class="search-item">
-              <label>Classroom:</label>
-              <input v-model="searchForm.classroom" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+              <label>{{ tr('Classroom:') }}</label>
+              <input v-model="searchForm.classroom" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
             </div>
             <div class="search-item">
-              <label>Classroom Type:</label>
+              <label>{{ tr('Classroom Type:') }}</label>
               <select v-model="searchForm.classroomType">
-                <option value="">All</option>
+                <option value="">{{ t('common.all') }}</option>
                 <option v-for="opt in classroomTypeOptions" :key="opt" :value="opt">{{ opt }}</option>
               </select>
             </div>
             <div class="search-actions">
               <button type="button" class="btn btn-primary" @click="handleSearch">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                Search
+                {{ t('common.search') }}
               </button>
               <button type="button" class="btn btn-default" @click="handleReset">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-                Reset
+                {{ t('common.reset') }}
               </button>
               <button type="button" class="toggle-link" @click="toggleSearchExpanded">
-                {{ searchExpanded ? 'Collapse' : 'More' }}
+                {{ searchExpanded ? t('common.collapse') : t('common.more') }}
                 <svg :class="{ up: searchExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
               </button>
             </div>
@@ -370,69 +373,69 @@ function getRowNumber(index) {
           <template v-if="searchExpanded">
             <div class="search-row">
               <div class="search-item">
-                <label>Desk/Chair Type:</label>
+                <label>{{ tr('Desk/Chair Type:') }}</label>
                 <select v-model="searchForm.deskChairType">
-                  <option value="">All</option>
+                  <option value="">{{ t('common.all') }}</option>
                   <option v-for="opt in deskChairTypeOptions" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
               </div>
               <div class="search-item">
-                <label>Capacity:</label>
+                <label>{{ tr('Capacity:') }}</label>
                 <div class="range-inputs">
                   <input v-model="searchForm.capacityFrom" type="number" placeholder="" />
-                  <span class="range-sep">to</span>
+                  <span class="range-sep">{{ t('common.to') }}</span>
                   <input v-model="searchForm.capacityTo" type="number" placeholder="" />
                 </div>
               </div>
               <div class="search-item">
-                <label>Available Seats:</label>
+                <label>{{ tr('Available Seats:') }}</label>
                 <div class="range-inputs">
                   <input v-model="searchForm.availableSeatsFrom" type="number" placeholder="" />
-                  <span class="range-sep">to</span>
+                  <span class="range-sep">{{ t('common.to') }}</span>
                   <input v-model="searchForm.availableSeatsTo" type="number" placeholder="" />
                 </div>
               </div>
             </div>
             <div class="search-row">
               <div class="search-item">
-                <label>Exam Seats:</label>
+                <label>{{ tr('Exam Seats:') }}</label>
                 <div class="range-inputs">
                   <input v-model="searchForm.examSeatsFrom" type="number" placeholder="" />
-                  <span class="range-sep">to</span>
+                  <span class="range-sep">{{ t('common.to') }}</span>
                   <input v-model="searchForm.examSeatsTo" type="number" placeholder="" />
                 </div>
               </div>
               <div class="search-item">
-                <label>Activation:</label>
+                <label>{{ tr('Activation:') }}</label>
                 <select v-model="searchForm.activation">
-                  <option value="">All</option>
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
+                  <option value="">{{ t('common.all') }}</option>
+                  <option value="true">{{ t('common.yes') }}</option>
+                  <option value="false">{{ t('common.no') }}</option>
                 </select>
               </div>
               <div class="search-item">
-                <label>Common Area:</label>
+                <label>{{ tr('Common Area:') }}</label>
                 <select v-model="searchForm.commonArea">
-                  <option value="">All</option>
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
+                  <option value="">{{ t('common.all') }}</option>
+                  <option value="true">{{ t('common.yes') }}</option>
+                  <option value="false">{{ t('common.no') }}</option>
                 </select>
               </div>
             </div>
             <div class="search-row search-row-2">
               <div class="search-item">
-                <label>User Department:</label>
+                <label>{{ tr('User Department:') }}</label>
                 <select v-model="searchForm.userDepartment">
-                  <option value="">All</option>
+                  <option value="">{{ t('common.all') }}</option>
                   <option v-for="opt in departmentOptions" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
               </div>
               <div class="search-item">
-                <label>Borrowing Availability:</label>
+                <label>{{ tr('Borrowing Availability:') }}</label>
                 <select v-model="searchForm.borrowingAvailability">
-                  <option value="">All</option>
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
+                  <option value="">{{ t('common.all') }}</option>
+                  <option value="true">{{ t('common.yes') }}</option>
+                  <option value="false">{{ t('common.no') }}</option>
                 </select>
               </div>
             </div>
@@ -441,22 +444,22 @@ function getRowNumber(index) {
       </div>
 
       <div class="toolbar">
-        <button type="button" class="btn btn-primary" @click="openCreateModal">+ Create</button>
-        <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">Delete</button>
-        <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="openUserDepartmentModal">User Department</button>
+        <button type="button" class="btn btn-primary" @click="openCreateModal">{{ t('common.create') }}</button>
+        <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">{{ t('common.delete') }}</button>
+        <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="openUserDepartmentModal">{{ t('common.userDepartment') }}</button>
         <button type="button" class="btn btn-default" @click="openExportModal">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-          Export
+          {{ t('common.export') }}
         </button>
-        <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="openBatchEditModal">Batch Edit</button>
+        <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="openBatchEditModal">{{ t('common.batchEdit') }}</button>
         <div class="notice-wrap">
           <button type="button" class="btn btn-notice">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-            Notice
+            {{ t('common.notice') }}
           </button>
           <div class="notice-popover">
             <div class="notice-tags">
@@ -472,30 +475,30 @@ function getRowNumber(index) {
           <thead>
             <tr>
               <th class="col-check"><input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" /></th>
-              <th>No.</th>
-              <th>Block</th>
-              <th>Floor</th>
-              <th>Classroom No.</th>
-              <th>Classroom</th>
-              <th>Classroom Name</th>
-              <th>Classroom Name (Chinese)</th>
-              <th>Classroom Name (MAL)</th>
-              <th>Classroom Type</th>
-              <th>Desk/Chair Type</th>
-              <th>Capacity</th>
-              <th>Available Seats</th>
-              <th>Exam Seats</th>
-              <th>Classroom Equipment</th>
-              <th>Software</th>
-              <th>Activation</th>
-              <th>Common Area</th>
-              <th>Borrowing Availability</th>
-              <th class="col-sticky-right">Actions</th>
+              <th>{{ t('common.serialNo') }}</th>
+              <th>{{ tr('Block') }}</th>
+              <th>{{ tr('Floor') }}</th>
+              <th>{{ tr('Classroom No.') }}</th>
+              <th>{{ tr('Classroom') }}</th>
+              <th>{{ tr('Classroom Name') }}</th>
+              <th>{{ tr('Classroom Name (Chinese)') }}</th>
+              <th>{{ tr('Classroom Name (MAL)') }}</th>
+              <th>{{ tr('Classroom Type') }}</th>
+              <th>{{ tr('Desk/Chair Type') }}</th>
+              <th>{{ tr('Capacity') }}</th>
+              <th>{{ tr('Available Seats') }}</th>
+              <th>{{ tr('Exam Seats') }}</th>
+              <th>{{ tr('Classroom Equipment') }}</th>
+              <th>{{ tr('Software') }}</th>
+              <th>{{ tr('Activation') }}</th>
+              <th>{{ tr('Common Area') }}</th>
+              <th>{{ tr('Borrowing Availability') }}</th>
+              <th class="col-sticky-right">{{ t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!paginatedClassrooms.length">
-              <td colspan="20" class="empty-cell">No data found</td>
+              <td colspan="20" class="empty-cell">{{ t('common.noData') }}</td>
             </tr>
             <tr v-for="(item, index) in paginatedClassrooms" :key="item.id">
               <td class="col-check"><input type="checkbox" :checked="selectedIds.includes(item.id)" @change="toggleSelect(item.id)" /></td>
@@ -514,14 +517,14 @@ function getRowNumber(index) {
               <td>{{ item.examSeats }}</td>
               <td>{{ item.classroomEquipment }}</td>
               <td>{{ item.software }}</td>
-              <td><span class="tag" :class="item.activation ? 'yes' : 'no'">{{ item.activation ? 'Yes' : 'No' }}</span></td>
-              <td><span class="tag" :class="item.commonArea ? 'yes' : 'no'">{{ item.commonArea ? 'Yes' : 'No' }}</span></td>
-              <td>{{ item.borrowingAvailability ? 'Yes' : 'No' }}</td>
+              <td><span class="tag" :class="item.activation ? 'yes' : 'no'">{{ item.activation ? t('common.yes') : t('common.no') }}</span></td>
+              <td><span class="tag" :class="item.commonArea ? 'yes' : 'no'">{{ item.commonArea ? t('common.yes') : t('common.no') }}</span></td>
+              <td>{{ item.borrowingAvailability ? t('common.yes') : t('common.no') }}</td>
               <td class="actions-cell col-sticky-right">
                 <div class="actions-inner">
-                  <button type="button" class="link-btn" @click="openEditModal(item)">Edit</button>
-                  <button type="button" class="link-btn" @click="openDetailModal(item)">Details</button>
-                  <button type="button" class="link-btn delete" @click="requestDelete([item.id])">Delete</button>
+                  <button type="button" class="link-btn" @click="openEditModal(item)">{{ t('common.edit') }}</button>
+                  <button type="button" class="link-btn" @click="openDetailModal(item)">{{ tr('Details') }}</button>
+                  <button type="button" class="link-btn delete" @click="requestDelete([item.id])">{{ t('common.delete') }}</button>
                 </div>
               </td>
             </tr>
@@ -554,9 +557,9 @@ function getRowNumber(index) {
 
     <ConfirmDialog
       :visible="confirmVisible"
-      title="Delete Confirmation"
+      :title="t('common.deleteConfirmation')"
       :message="confirmMessage"
-      confirm-text="Delete"
+      :confirm-text="t('common.delete')"
       @confirm="confirmDelete"
       @cancel="confirmVisible = false"
     />
@@ -578,7 +581,7 @@ function getRowNumber(index) {
 
     <ExportModal
       :visible="exportModalVisible"
-      :fields="classroomExportFields"
+      :fields="translatedExportFields"
       :has-selected-rows="hasSelection"
       @close="exportModalVisible = false"
       @confirm="handleExportConfirm"

@@ -1,65 +1,65 @@
 /** Portal / header title for the admin shell (all pages in this app belong to this module). */
-export const basicDataModuleName = 'Basic Data'
+export const basicDataModuleKey = 'menu.basicData'
 
 export const menuItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { id: 'dashboard', labelKey: 'menu.dashboard', icon: 'dashboard' },
   {
     id: 'basic-info',
-    label: 'Basic Info',
+    labelKey: 'menu.basicInfo',
     icon: 'database',
     children: [
-      { id: 'university-info', label: 'University Info' },
-      { id: 'department-info', label: 'Department Info' },
-      { id: 'code-set-management', label: 'Code set management' },
+      { id: 'university-info', labelKey: 'menu.universityInfo' },
+      { id: 'department-info', labelKey: 'menu.departmentInfo' },
+      { id: 'code-set-management', labelKey: 'menu.codeSetManagement' },
     ],
   },
   {
     id: 'programme-info',
-    label: 'Programme Info',
+    labelKey: 'menu.programmeInfo',
     icon: 'database',
     children: [
-      { id: 'programme-version', label: 'Programme Version' },
-      { id: 'intake-set', label: 'Intake Set' },
-      { id: 'programme-intake', label: 'Programme Intake' },
+      { id: 'programme-version', labelKey: 'menu.programmeVersion' },
+      { id: 'intake-set', labelKey: 'menu.intakeSet' },
+      { id: 'programme-intake', labelKey: 'menu.programmeIntake' },
     ],
   },
   {
     id: 'site-resources',
-    label: 'Site Resources',
+    labelKey: 'menu.siteResources',
     icon: 'location',
     children: [
-      { id: 'block-management', label: 'Block Management' },
-      { id: 'classroom-info', label: 'Classroom Info' },
+      { id: 'block-management', labelKey: 'menu.blockManagement' },
+      { id: 'classroom-info', labelKey: 'menu.classroomInfo' },
     ],
   },
   {
     id: 'course-info',
-    label: 'Course Info',
+    labelKey: 'menu.courseInfo',
     icon: 'book',
     children: [
-      { id: 'course-information', label: 'Course Info' },
-      { id: 'course-application', label: 'Course Application' },
-      { id: 'course-approval-process', label: 'Course Approval Process' },
-      { id: 'course-change-application', label: 'Course Change Application' },
-      { id: 'course-change-review', label: 'Course Change Review' },
+      { id: 'course-information', labelKey: 'menu.courseInformation' },
+      { id: 'course-application', labelKey: 'menu.courseApplication' },
+      { id: 'course-approval-process', labelKey: 'menu.courseApprovalProcess' },
+      { id: 'course-change-application', labelKey: 'menu.courseChangeApplication' },
+      { id: 'course-change-review', labelKey: 'menu.courseChangeReview' },
     ],
   },
   {
     id: 'lecturer-info',
-    label: 'Lecturer Info',
+    labelKey: 'menu.lecturerInfo',
     icon: 'database',
     children: [
-      { id: 'lecturer-information', label: 'Lecturer Information' },
-      { id: 'evaluation-settings', label: 'Evaluation Settings' },
+      { id: 'lecturer-information', labelKey: 'menu.lecturerInformation' },
+      { id: 'evaluation-settings', labelKey: 'menu.evaluationSettings' },
     ],
   },
   {
     id: 'semester-calendar',
-    label: 'Semester & Calendar',
+    labelKey: 'menu.semesterCalendar',
     icon: 'calendar',
     children: [
-      { id: 'semester-information', label: 'Semester Information' },
-      { id: 'calendar', label: 'Calendar' },
+      { id: 'semester-information', labelKey: 'menu.semesterInformation' },
+      { id: 'calendar', labelKey: 'menu.calendar' },
     ],
   },
 ]
@@ -76,15 +76,15 @@ export const developedPages = new Set([
   'programme-intake',
 ])
 
-export function findMenuLabel(id) {
+export function findMenuLabelKey(id) {
   for (const item of menuItems) {
-    if (item.id === id) return item.label
+    if (item.id === id) return item.labelKey
     if (item.children) {
       const child = item.children.find((c) => c.id === id)
-      if (child) return child.label
+      if (child) return child.labelKey
     }
   }
-  return 'Dashboard'
+  return 'menu.dashboard'
 }
 
 export function findParentId(id) {
@@ -94,17 +94,17 @@ export function findParentId(id) {
   return null
 }
 
-/** Breadcrumb labels: module name → parent group (if any) → current page */
-export function buildMenuBreadcrumb(pageId) {
-  const crumbs = [basicDataModuleName]
+/** Breadcrumb i18n keys: module → parent group (if any) → current page */
+export function buildMenuBreadcrumbKeys(pageId) {
+  const keys = [basicDataModuleKey]
   if (pageId === 'dashboard') {
-    crumbs.push(findMenuLabel('dashboard'))
-    return crumbs
+    keys.push(findMenuLabelKey('dashboard'))
+    return keys
   }
   const parentId = findParentId(pageId)
   if (parentId) {
-    crumbs.push(findMenuLabel(parentId))
+    keys.push(findMenuLabelKey(parentId))
   }
-  crumbs.push(findMenuLabel(pageId))
-  return crumbs
+  keys.push(findMenuLabelKey(pageId))
+  return keys
 }

@@ -1,5 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useAppI18n } from '../composables/useAppI18n.js'
+import { translateExportFields } from '../i18n/index.js'
 import DepartmentFormModal from '../components/department/DepartmentFormModal.vue'
 import DepartmentDetailModal from '../components/department/DepartmentDetailModal.vue'
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
@@ -15,9 +17,12 @@ import {
 } from '../data/departments.js'
 import { exportDepartmentsToExcel, departmentExportFields } from '../utils/exportDepartmentExcel.js'
 
+const { t, tr } = useAppI18n()
+const translatedExportFields = computed(() => translateExportFields(departmentExportFields))
+
 const departments = ref(initialDepartments.map((item) => normalizeDepartment({ ...item })))
 
-const searchExpanded = ref(true)
+const searchExpanded = ref(false)
 const searchForm = ref(createEmptySearch())
 const appliedSearch = ref(createEmptySearch())
 
@@ -162,7 +167,7 @@ function handleSave(formData) {
           item.code.toLowerCase() === formData.code.toLowerCase()),
     )
     if (duplicate) {
-      window.alert('ID or Code already exists.')
+      window.alert(tr('ID or Code already exists.'))
       return
     }
     const index = departments.value.findIndex((item) => item.id === editingItem.value.id)
@@ -179,7 +184,7 @@ function handleSave(formData) {
         item.code.toLowerCase() === formData.code.toLowerCase(),
     )
     if (duplicate) {
-      window.alert('ID or Code already exists.')
+      window.alert(tr('ID or Code already exists.'))
       return
     }
     departments.value.push(normalizeDepartment({ id: createDepartmentId(), ...formData }))
@@ -193,8 +198,8 @@ function requestDelete(ids) {
   pendingDeleteIds.value = uniqueIds
   confirmMessage.value =
     uniqueIds.length === 1
-      ? 'Are you sure you want to delete this department? This action cannot be undone.'
-      : `Are you sure you want to delete ${uniqueIds.length} selected departments? This action cannot be undone.`
+      ? t('pages.department.deleteOne')
+      : t('pages.department.deleteMany', { count: uniqueIds.length })
   confirmVisible.value = true
 }
 
@@ -212,7 +217,7 @@ function confirmDelete() {
 
 function openExportModal() {
   if (!filteredDepartments.value.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
   exportModalVisible.value = true
@@ -225,7 +230,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   else data = filteredDepartments.value.filter((item) => selectedIds.value.includes(item.id))
 
   if (!data.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
   const timestamp = new Date().toISOString().slice(0, 10)
@@ -249,21 +254,21 @@ function getRowNumber(index) {
         <div class="search-grid">
           <div class="search-row search-row-main">
             <div class="search-item">
-              <label>ID:</label>
-              <input v-model="searchForm.deptId" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+              <label>{{ tr('ID:') }}</label>
+              <input v-model="searchForm.deptId" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
             </div>
             <div class="search-item">
-              <label>Code:</label>
-              <input v-model="searchForm.code" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+              <label>{{ tr('Code:') }}</label>
+              <input v-model="searchForm.code" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
             </div>
             <div class="search-item">
-              <label>Category:</label>
-              <input v-model="searchForm.category" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+              <label>{{ tr('Category:') }}</label>
+              <input v-model="searchForm.category" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
             </div>
             <div class="search-item">
-              <label>Report to:</label>
+              <label>{{ tr('Report to:') }}</label>
               <select v-model="searchForm.reportTo">
-                <option value="all">all</option>
+                <option value="all">{{ t('common.allLower') }}</option>
                 <option value="--">--</option>
                 <option v-for="opt in reportToFilterOptions" :key="opt" :value="opt">{{ opt }}</option>
               </select>
@@ -271,14 +276,14 @@ function getRowNumber(index) {
             <div class="search-actions">
               <button type="button" class="btn btn-primary" @click="handleSearch">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                Search
+                {{ t('common.search') }}
               </button>
               <button type="button" class="btn btn-default" @click="handleReset">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-                Reset
+                {{ t('common.reset') }}
               </button>
               <button type="button" class="toggle-link" @click="toggleSearchExpanded">
-                {{ searchExpanded ? 'Less' : 'More' }}
+                {{ searchExpanded ? t('common.collapse') : t('common.more') }}
                 <svg :class="{ up: searchExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
               </button>
             </div>
@@ -286,24 +291,24 @@ function getRowNumber(index) {
 
           <div v-if="searchExpanded" class="search-row search-row-2">
             <div class="search-item">
-              <label>Offering:</label>
+              <label>{{ tr('Offering:') }}</label>
               <select v-model="searchForm.offering">
-                <option value="">All</option>
-                <option v-for="opt in yesNoOptions" :key="`o-${opt}`" :value="opt">{{ opt }}</option>
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in yesNoOptions" :key="`o-${opt}`" :value="opt">{{ tr(opt) }}</option>
               </select>
             </div>
             <div class="search-item">
-              <label>Teaching:</label>
+              <label>{{ tr('Teaching:') }}</label>
               <select v-model="searchForm.teaching">
-                <option value="">All</option>
-                <option v-for="opt in yesNoOptions" :key="`t-${opt}`" :value="opt">{{ opt }}</option>
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in yesNoOptions" :key="`t-${opt}`" :value="opt">{{ tr(opt) }}</option>
               </select>
             </div>
             <div class="search-item">
-              <label>Active:</label>
+              <label>{{ tr('Active:') }}</label>
               <select v-model="searchForm.active">
-                <option value="">All</option>
-                <option v-for="opt in yesNoOptions" :key="`a-${opt}`" :value="opt">{{ opt }}</option>
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in yesNoOptions" :key="`a-${opt}`" :value="opt">{{ tr(opt) }}</option>
               </select>
             </div>
           </div>
@@ -311,9 +316,9 @@ function getRowNumber(index) {
       </div>
 
       <div class="toolbar">
-        <button type="button" class="btn btn-primary" @click="openCreateModal">Create</button>
-        <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">Delete</button>
-        <button type="button" class="btn btn-default" @click="openExportModal">Export</button>
+        <button type="button" class="btn btn-primary" @click="openCreateModal">{{ t('common.create') }}</button>
+        <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">{{ t('common.delete') }}</button>
+        <button type="button" class="btn btn-default" @click="openExportModal">{{ t('common.export') }}</button>
       </div>
 
       <div class="table-section">
@@ -322,22 +327,22 @@ function getRowNumber(index) {
             <thead>
               <tr>
                 <th class="col-check"><input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" /></th>
-                <th>No.</th>
+                <th>{{ t('common.serialNo') }}</th>
                 <th>ID</th>
-                <th>Code</th>
-                <th>Department Name</th>
-                <th>Department Name (Chinese)</th>
-                <th>Category</th>
-                <th>Report to</th>
-                <th>Offering</th>
-                <th>Teaching</th>
-                <th>Active</th>
-                <th>Actions</th>
+                <th>{{ tr('Code') }}</th>
+                <th>{{ tr('Department Name') }}</th>
+                <th>{{ tr('Department Name (Chinese)') }}</th>
+                <th>{{ tr('Category') }}</th>
+                <th>{{ tr('Report to') }}</th>
+                <th>{{ tr('Offering') }}</th>
+                <th>{{ tr('Teaching') }}</th>
+                <th>{{ tr('Active') }}</th>
+                <th>{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!paginatedDepartments.length">
-                <td colspan="12" class="empty-cell">No data found</td>
+                <td colspan="12" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedDepartments" :key="item.id">
                 <td class="col-check">
@@ -355,9 +360,9 @@ function getRowNumber(index) {
                 <td>{{ item.active }}</td>
                 <td class="actions-cell">
                   <div class="actions-inner">
-                    <button type="button" class="link-btn" @click="openEditModal(item)">Edit</button>
-                    <button type="button" class="link-btn" @click="openDetailModal(item)">Details</button>
-                    <button type="button" class="link-btn delete" @click="requestDelete([item.id])">Delete</button>
+                    <button type="button" class="link-btn" @click="openEditModal(item)">{{ t('common.edit') }}</button>
+                    <button type="button" class="link-btn" @click="openDetailModal(item)">{{ tr('Details') }}</button>
+                    <button type="button" class="link-btn delete" @click="requestDelete([item.id])">{{ t('common.delete') }}</button>
                   </div>
                 </td>
               </tr>
@@ -387,16 +392,16 @@ function getRowNumber(index) {
 
     <ConfirmDialog
       :visible="confirmVisible"
-      title="Delete Confirmation"
+      :title="t('common.deleteConfirmation')"
       :message="confirmMessage"
-      confirm-text="Delete"
+      :confirm-text="t('common.delete')"
       @confirm="confirmDelete"
       @cancel="confirmVisible = false"
     />
 
     <ExportModal
       :visible="exportModalVisible"
-      :fields="departmentExportFields"
+      :fields="translatedExportFields"
       :has-selected-rows="hasSelection"
       @close="exportModalVisible = false"
       @confirm="handleExportConfirm"

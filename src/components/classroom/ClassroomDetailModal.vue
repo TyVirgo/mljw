@@ -1,6 +1,9 @@
 <script setup>
 import { ref, watch } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import { getUserDepartments } from '../../data/classrooms.js'
+
+const { t, tr } = useAppI18n()
 
 const props = defineProps({
   visible: Boolean,
@@ -22,7 +25,7 @@ watch(
 )
 
 function yesNo(value) {
-  return value ? 'Yes' : 'No'
+  return value ? tr('Yes') : tr('No')
 }
 
 function displayValue(value) {
@@ -79,8 +82,8 @@ function handleOverlayClick(event) {
     <div v-if="visible && data" class="modal-overlay" @click="handleOverlayClick">
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
-          <h2 class="modal-title">Details</h2>
-          <button type="button" class="modal-close" aria-label="Close" @click="emit('close')">×</button>
+          <h2 class="modal-title">{{ tr('Details') }}</h2>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="emit('close')">×</button>
         </div>
 
         <div class="tab-bar">
@@ -90,7 +93,7 @@ function handleOverlayClick(event) {
             :class="{ active: activeTab === 'info' }"
             @click="activeTab = 'info'"
           >
-            Classroom Info
+            {{ tr('Classroom Info') }}
           </button>
           <button
             type="button"
@@ -98,7 +101,7 @@ function handleOverlayClick(event) {
             :class="{ active: activeTab === 'changes' }"
             @click="activeTab = 'changes'"
           >
-            Changes Record
+            {{ tr('Changes Record') }}
           </button>
         </div>
 
@@ -106,15 +109,15 @@ function handleOverlayClick(event) {
           <div class="detail-columns">
             <div class="detail-col">
               <div class="detail-row">
-                <span class="label">Classroom No.</span>
+                <span class="label">{{ tr('Classroom No.') }}</span>
                 <span class="value">{{ data.classroomNo }}</span>
               </div>
               <div class="detail-row">
-                <span class="label">Classroom Name</span>
+                <span class="label">{{ tr('Classroom Name') }}</span>
                 <span class="value">{{ data.classroomName }}</span>
               </div>
               <div class="detail-row">
-                <span class="label">Classroom Name (MAL)</span>
+                <span class="label">{{ tr('Classroom Name (MAL)') }}</span>
                 <span class="value">{{ data.classroomNameMal }}</span>
               </div>
               <div class="detail-row">

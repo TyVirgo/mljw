@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import { initialBlocks } from '../../data/blocks.js'
+
+const { t, tr } = useAppI18n()
 import {
   classroomTypeOptions,
   deskChairTypeOptions,
@@ -208,10 +211,10 @@ function handleOverlayClick(event) {
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
           <div>
-            <h2 class="modal-title">Batch Edit</h2>
+            <h2 class="modal-title">{{ t('modal.batchEdit') }}</h2>
             <p class="modal-desc">Select fields to update for {{ selectedCount }} selected classroom(s).</p>
           </div>
-          <button type="button" class="modal-close" aria-label="Close" @click="handleClose">×</button>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
         <div class="field-list">
@@ -219,7 +222,7 @@ function handleOverlayClick(event) {
             <input v-model="enabled.block" type="checkbox" class="field-check" />
             <label class="field-label">Block:</label>
             <select v-model="values.block" class="field-control" :disabled="!enabled.block">
-              <option value="">Please select</option>
+              <option value="">{{ t('common.pleaseSelect') }}</option>
               <option v-for="opt in blockOptions" :key="opt" :value="opt">{{ opt }}</option>
             </select>
           </div>
@@ -228,7 +231,7 @@ function handleOverlayClick(event) {
             <input v-model="enabled.floor" type="checkbox" class="field-check" />
             <label class="field-label">Floor:</label>
             <select v-model="values.floor" class="field-control" :disabled="!enabled.floor">
-              <option value="">Please select</option>
+              <option value="">{{ t('common.pleaseSelect') }}</option>
               <option v-for="opt in floorOptions" :key="opt" :value="opt">{{ opt }}</option>
             </select>
           </div>
@@ -237,7 +240,7 @@ function handleOverlayClick(event) {
             <input v-model="enabled.classroomType" type="checkbox" class="field-check" />
             <label class="field-label">Classroom Type:</label>
             <select v-model="values.classroomType" class="field-control" :disabled="!enabled.classroomType">
-              <option value="">Please select</option>
+              <option value="">{{ t('common.pleaseSelect') }}</option>
               <option v-for="opt in classroomTypeOptions" :key="opt" :value="opt">{{ opt }}</option>
             </select>
           </div>
@@ -246,7 +249,7 @@ function handleOverlayClick(event) {
             <input v-model="enabled.deskChairType" type="checkbox" class="field-check" />
             <label class="field-label">Desk/Chair Type:</label>
             <select v-model="values.deskChairType" class="field-control" :disabled="!enabled.deskChairType">
-              <option value="">Please select</option>
+              <option value="">{{ t('common.pleaseSelect') }}</option>
               <option v-for="opt in deskChairTypeOptions" :key="opt" :value="opt">{{ opt }}</option>
             </select>
           </div>
@@ -254,19 +257,19 @@ function handleOverlayClick(event) {
           <div class="field-row">
             <input v-model="enabled.capacity" type="checkbox" class="field-check" />
             <label class="field-label">Capacity:</label>
-            <input v-model="values.capacity" type="number" class="field-control" :disabled="!enabled.capacity" placeholder="Please enter" />
+            <input v-model="values.capacity" type="number" class="field-control" :disabled="!enabled.capacity" :placeholder="t('common.pleaseInput')" />
           </div>
 
           <div class="field-row">
             <input v-model="enabled.availableSeats" type="checkbox" class="field-check" />
             <label class="field-label">Available Seats:</label>
-            <input v-model="values.availableSeats" type="number" class="field-control" :disabled="!enabled.availableSeats" placeholder="Please enter" />
+            <input v-model="values.availableSeats" type="number" class="field-control" :disabled="!enabled.availableSeats" :placeholder="t('common.pleaseInput')" />
           </div>
 
           <div class="field-row">
             <input v-model="enabled.examSeats" type="checkbox" class="field-check" />
             <label class="field-label">Exam Seats:</label>
-            <input v-model="values.examSeats" type="number" class="field-control" :disabled="!enabled.examSeats" placeholder="Please enter" />
+            <input v-model="values.examSeats" type="number" class="field-control" :disabled="!enabled.examSeats" :placeholder="t('common.pleaseInput')" />
           </div>
 
           <div class="field-row">
@@ -279,7 +282,7 @@ function handleOverlayClick(event) {
                 :disabled="!enabled.classroomEquipment"
                 @click="enabled.classroomEquipment && (equipmentDropdownOpen = !equipmentDropdownOpen)"
               >
-                <span :class="{ placeholder: !values.classroomEquipment.length }">{{ equipmentLabel || 'Please select' }}</span>
+                <span :class="{ placeholder: !values.classroomEquipment.length }">{{ equipmentLabel || t('common.pleaseSelect') }}</span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
               </button>
               <div v-if="equipmentDropdownOpen && enabled.classroomEquipment" class="dropdown-panel">
@@ -301,7 +304,7 @@ function handleOverlayClick(event) {
                 :disabled="!enabled.software"
                 @click="enabled.software && (softwareDropdownOpen = !softwareDropdownOpen)"
               >
-                <span :class="{ placeholder: !values.software.length }">{{ softwareLabel || 'Please select' }}</span>
+                <span :class="{ placeholder: !values.software.length }">{{ softwareLabel || t('common.pleaseSelect') }}</span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
               </button>
               <div v-if="softwareDropdownOpen && enabled.software" class="dropdown-panel">
@@ -350,7 +353,7 @@ function handleOverlayClick(event) {
                 :disabled="!enabled.userDepartment"
                 @click="enabled.userDepartment && (userDeptDropdownOpen = !userDeptDropdownOpen)"
               >
-                <span :class="{ placeholder: !values.userDepartments.length }">{{ userDeptLabel || 'Please select' }}</span>
+                <span :class="{ placeholder: !values.userDepartments.length }">{{ userDeptLabel || t('common.pleaseSelect') }}</span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
               </button>
               <div v-if="userDeptDropdownOpen && enabled.userDepartment" class="dropdown-panel">
@@ -363,11 +366,11 @@ function handleOverlayClick(event) {
           </div>
         </div>
 
-        <p v-if="error" class="form-error">{{ error }}</p>
+        <p v-if="error" class="form-error">{{ tr(error) }}</p>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
-          <button type="button" class="btn btn-primary" @click="handleSubmit">Confirm</button>
+          <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
+          <button type="button" class="btn btn-primary" @click="handleSubmit">{{ t('common.confirm') }}</button>
         </div>
       </div>
     </div>

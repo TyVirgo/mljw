@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
-import { buildMenuBreadcrumb } from '../config/menu.js'
+import { buildMenuBreadcrumbKeys } from '../config/menu.js'
+import { useAppI18n } from '../composables/useAppI18n.js'
 
 const props = defineProps({
   pageId: {
@@ -9,7 +10,9 @@ const props = defineProps({
   },
 })
 
-const crumbs = computed(() => buildMenuBreadcrumb(props.pageId))
+const { t } = useAppI18n()
+
+const crumbs = computed(() => buildMenuBreadcrumbKeys(props.pageId).map((key) => t(key)))
 </script>
 
 <template>

@@ -1,0 +1,108 @@
+import { ref } from 'vue'
+import en from './locales/en.js'
+import zh from './locales/zh.js'
+import { zhFlat } from './zh-flat.js'
+
+const LOCALE_STORAGE_KEY = 'jw-locale'
+const messages = { en, zh }
+
+function getInitialLocale() {
+  try {
+    const saved = localStorage.getItem(LOCALE_STORAGE_KEY)
+    if (saved === 'zh' || saved === 'en') return saved
+  } catch {
+    // ignore
+  }
+  return 'en'
+}
+
+export const locale = ref(getInitialLocale())
+
+function getByPath(source, path) {
+  return path.split('.').reduce((acc, key) => (acc == null ? undefined : acc[key]), source)
+}
+
+function interpolate(text, params) {
+  if (!params || typeof text !== 'string') return text
+  return text.replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))
+}
+
+export function t(key, params) {
+  const message =
+    getByPath(messages[locale.value], key) ?? getByPath(messages.en, key) ?? key
+  return interpolate(message, params)
+}
+
+function translateFlatText(text) {
+  if (zhFlat[text]) return zhFlat[text]
+
+  let match = text.match(/^(.+) is required$/)
+  if (match) return `${tr(match[1])}为必填项`
+
+  match = text.match(/^(.+) must be within (\d+) characters$/)
+  if (match) return `${tr(match[1])}不能超过 ${match[2]} 个字符`
+
+  match = text.match(/^Code already exists in this code set$/)
+  if (match) return '该代码集内编码已存在'
+
+  match = text.match(/^Code already exists and must be globally unique$/)
+  if (match) return '编码已存在，须全局唯一'
+
+  match = text.match(/^Programme Intake already exists and must be globally unique$/)
+  if (match) return '培养方案入学已存在，须全局唯一'
+
+  match = text.match(/^Programme Intake already exists: (.+)$/)
+  if (match) return `培养方案入学已存在：${match[1]}`
+
+  match = text.match(/^Skipped duplicate Programme Intake code\(s\): (.+)$/)
+  if (match) return `已跳过重复的培养方案入学编码：${match[1]}`
+
+  match = text.match(/^Are you sure you want to delete (.+)\? This action cannot be undone\. The image will be restored to the system default\.$/)
+  if (match) return `确定要删除${tr(match[1])}吗？此操作无法撤销，图片将恢复为系统默认。`
+
+  match = text.match(/^please input department name$/)
+  if (match) return '请输入院系名称'
+
+  return text
+}
+
+/**
+ * 翻译：优先 i18n key（含 .），否则扁平英文映射。
+ * 新页面可写 tr('Your English label') 并在 zh-flat.js 补中文。
+ */
+export function tr(text, params) {
+  if (!text) return ''
+  if (typeof text === 'string' && text.includes('.')) {
+    return t(text, params)
+  }
+  if (locale.value === 'zh' && typeof text === 'string') {
+    return translateFlatText(text)
+  }
+  return text
+}
+
+export function setLocale(nextLocale) {
+  if (nextLocale !== 'en' && nextLocale !== 'zh') return
+  locale.value = nextLocale
+  try {
+    localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale)
+  } catch {
+    // ignore
+  }
+  document.documentElement.lang = nextLocale === 'zh' ? 'zh-CN' : 'en'
+}
+
+export function getLocale() {
+  return locale.value
+}
+
+export function translateExportFields(fields) {
+  return fields.map((field) => ({
+    ...field,
+    label: field.labelKey ? t(field.labelKey) : tr(field.label),
+  }))
+}
+
+setLocale(locale.value)
+
+export { LOCALE_STORAGE_KEY }

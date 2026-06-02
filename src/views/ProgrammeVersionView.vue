@@ -21,6 +21,9 @@ import {
   exportProgrammeVersionsToExcel,
   programmeVersionExportFields,
 } from '../utils/exportProgrammeVersionExcel.js'
+import { useListPageI18n } from '../composables/useListPageI18n.js'
+
+const { t, tr, translatedExportFields } = useListPageI18n(programmeVersionExportFields)
 
 const programmes = ref(initialProgrammes.map((item) => ({ ...item, versions: [...item.versions] })))
 
@@ -256,8 +259,8 @@ function requestDelete(ids) {
   deleteTarget.value = { type: 'programme', ids: uniqueIds }
   confirmMessage.value =
     uniqueIds.length === 1
-      ? 'Are you sure you want to delete this programme?'
-      : `Are you sure you want to delete ${uniqueIds.length} selected programmes?`
+      ? t('pages.programmeVersion.deleteOne')
+      : t('pages.programmeVersion.deleteMany', { count: uniqueIds.length })
   confirmVisible.value = true
 }
 
@@ -267,7 +270,7 @@ function requestDeleteVersion(programme, version) {
     programmeId: programme.id,
     versionId: version.id,
   }
-  confirmMessage.value = 'Are you sure you want to delete this version?'
+  confirmMessage.value = t('pages.programmeVersion.deleteVersionOne')
   confirmVisible.value = true
 }
 
@@ -471,7 +474,7 @@ function handleImportSuccess(importedProgrammes) {
 
 function openExportModal() {
   if (!filteredProgrammes.value.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
   exportModalVisible.value = true
@@ -488,7 +491,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   }
 
   if (!data.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
 
@@ -504,7 +507,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
       <div class="programme-layout">
         <aside class="tree-panel">
           <div class="tree-search">
-            <input v-model="treeKeyword" type="text" placeholder="please input the keywords" />
+            <input v-model="treeKeyword" type="text" :placeholder="tr('please input the keywords')" />
             <button type="button" class="tree-search-btn" aria-label="Search tree">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="11" cy="11" r="8" />
@@ -559,21 +562,21 @@ function handleExportConfirm({ selectedFields, exportScope }) {
             <div class="search-row">
               <div class="search-fields">
                 <div class="search-item">
-                  <label>Keywords:</label>
-                  <input v-model="searchForm.keyword" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+                  <label>{{ tr('Keywords:') }}</label>
+                  <input v-model="searchForm.keyword" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
                 </div>
                 <div class="search-item">
-                  <label>Programme Code:</label>
-                  <input v-model="searchForm.code" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+                  <label>{{ tr('Programme Code:') }}</label>
+                  <input v-model="searchForm.code" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
                 </div>
                 <div class="search-item search-item-name">
-                  <label>Programme Name:</label>
-                  <input v-model="searchForm.name" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+                  <label>{{ tr('Programme Name:') }}</label>
+                  <input v-model="searchForm.name" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
                 </div>
                 <div class="search-item search-item-level">
-                  <label>Programme Level:</label>
+                  <label>{{ tr('Programme Level:') }}</label>
                   <select v-model="searchForm.level">
-                    <option value="">All</option>
+                    <option value="">{{ t('common.all') }}</option>
                     <option v-for="level in programmeLevelOptions" :key="level" :value="level">{{ level }}</option>
                   </select>
                 </div>
@@ -584,35 +587,35 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                     <circle cx="11" cy="11" r="8" />
                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
                   </svg>
-                  Search
+                  {{ t('common.search') }}
                 </button>
                 <button type="button" class="btn btn-default" @click="handleReset">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="23 4 23 10 17 10" />
                     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
                   </svg>
-                  Reset
+                  {{ t('common.reset') }}
                 </button>
               </div>
             </div>
             <p v-if="hasActiveSearch" class="search-result-tip">
-              Found <strong>{{ totalCount }}</strong> matching record(s). Matched text is highlighted below.
+              {{ t('common.foundRecords', { count: totalCount }) }}
             </p>
           </div>
 
           <div class="toolbar">
-            <button type="button" class="btn btn-primary" @click="openCreateModal">Create</button>
+            <button type="button" class="btn btn-primary" @click="openCreateModal">{{ t('common.create') }}</button>
             <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">
-              Delete
+              {{ t('common.delete') }}
             </button>
-            <button type="button" class="btn btn-outline" @click="openImportModal">Import</button>
+            <button type="button" class="btn btn-outline" @click="openImportModal">{{ t('common.import') }}</button>
             <button type="button" class="btn btn-default" @click="openExportModal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
-              Export
+              {{ t('common.export') }}
             </button>
           </div>
 
@@ -623,17 +626,17 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                   <tr>
                     <th class="col-check"><input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" /></th>
                     <th class="col-expand"></th>
-                    <th>No.</th>
-                    <th>Programme Code</th>
-                    <th>Programme Name</th>
-                    <th>Programme Level</th>
-                    <th>Years</th>
-                    <th>Actions</th>
+                    <th>{{ t('common.serialNo') }}</th>
+                    <th>{{ tr('Programme Code') }}</th>
+                    <th>{{ tr('Programme Name') }}</th>
+                    <th>{{ tr('Programme Level') }}</th>
+                    <th>{{ tr('Years') }}</th>
+                    <th>{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="!paginatedProgrammes.length">
-                    <td colspan="8" class="empty-cell">No data found</td>
+                    <td colspan="8" class="empty-cell">{{ t('common.noData') }}</td>
                   </tr>
                   <template v-for="(item, index) in paginatedProgrammes" :key="item.id">
                     <tr :class="{ 'search-result-row': hasActiveSearch }">
@@ -645,7 +648,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                           type="button"
                           class="expand-btn"
                           :aria-expanded="isProgrammeExpanded(item.id)"
-                          :aria-label="isProgrammeExpanded(item.id) ? 'Collapse row' : 'Expand row'"
+                          :aria-label="isProgrammeExpanded(item.id) ? tr('Collapse row') : tr('Expand row')"
                           @click="toggleProgrammeExpand(item.id)"
                         >
                           {{ isProgrammeExpanded(item.id) ? '−' : '+' }}
@@ -667,10 +670,10 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                       <td>{{ item.years }}</td>
                       <td class="actions-cell">
                         <div class="actions-inner">
-                          <button type="button" class="link-btn" @click="openProgrammeDetails(item)">ProgrammeDetails</button>
-                          <button type="button" class="link-btn" @click="openEditModal(item)">Edit</button>
-                          <button type="button" class="link-btn" @click="openCreateVersionModal(item)">CreateVersion</button>
-                          <button type="button" class="link-btn delete" @click="requestDelete([item.id])">Delete</button>
+                          <button type="button" class="link-btn" @click="openProgrammeDetails(item)">{{ tr('ProgrammeDetails') }}</button>
+                          <button type="button" class="link-btn" @click="openEditModal(item)">{{ t('common.edit') }}</button>
+                          <button type="button" class="link-btn" @click="openCreateVersionModal(item)">{{ tr('CreateVersion') }}</button>
+                          <button type="button" class="link-btn delete" @click="requestDelete([item.id])">{{ t('common.delete') }}</button>
                         </div>
                       </td>
                     </tr>
@@ -679,14 +682,14 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                         <table v-if="item.versions.length" class="nested-table">
                           <thead>
                             <tr>
-                              <th>MQA Code</th>
-                              <th>MQA Validity Start Date</th>
-                              <th>MQA Validity Expiry Date</th>
-                              <th>MOHE Code</th>
-                              <th>Approval Date</th>
-                              <th>MOHE Validity Start Date</th>
-                              <th>MOHE Validity Expiry Date</th>
-                              <th>Actions</th>
+                              <th>{{ tr('MQA Code') }}</th>
+                              <th>{{ tr('MQA Validity Start Date') }}</th>
+                              <th>{{ tr('MQA Validity Expiry Date') }}</th>
+                              <th>{{ tr('MOHE Code') }}</th>
+                              <th>{{ tr('Approval Date') }}</th>
+                              <th>{{ tr('MOHE Validity Start Date') }}</th>
+                              <th>{{ tr('MOHE Validity Expiry Date') }}</th>
+                              <th>{{ t('common.actions') }}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -700,15 +703,15 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                               <td>{{ version.moheValidityExpiry }}</td>
                               <td class="actions-cell">
                                 <div class="actions-inner">
-                                  <button type="button" class="link-btn" @click="openVersionDetail(item, version)">VersionDetail</button>
-                                  <button type="button" class="link-btn" @click="openEditVersionModal(item, version)">Edit</button>
-                                  <button type="button" class="link-btn delete" @click="requestDeleteVersion(item, version)">Delete</button>
+                                  <button type="button" class="link-btn" @click="openVersionDetail(item, version)">{{ tr('VersionDetail') }}</button>
+                                  <button type="button" class="link-btn" @click="openEditVersionModal(item, version)">{{ t('common.edit') }}</button>
+                                  <button type="button" class="link-btn delete" @click="requestDeleteVersion(item, version)">{{ t('common.delete') }}</button>
                                 </div>
                               </td>
                             </tr>
                           </tbody>
                         </table>
-                        <div v-else class="nested-empty">No version data</div>
+                        <div v-else class="nested-empty">{{ tr('No version data') }}</div>
                       </td>
                     </tr>
                   </template>
@@ -730,9 +733,9 @@ function handleExportConfirm({ selectedFields, exportScope }) {
 
     <ConfirmDialog
       :visible="confirmVisible"
-      title="Delete Confirmation"
+      :title="t('common.deleteConfirmation')"
       :message="confirmMessage"
-      confirm-text="Delete"
+      :confirm-text="t('common.delete')"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     />
@@ -766,7 +769,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
 
     <ExportModal
       :visible="exportModalVisible"
-      :fields="programmeVersionExportFields"
+      :fields="translatedExportFields"
       :has-selected-rows="hasSelection"
       @close="exportModalVisible = false"
       @confirm="handleExportConfirm"

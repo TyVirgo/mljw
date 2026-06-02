@@ -1,9 +1,13 @@
 <script setup>
+import { useAppI18n } from '../../composables/useAppI18n.js'
+
 defineProps({
   visible: Boolean,
 })
 
 const emit = defineEmits(['close'])
+
+const { t } = useAppI18n()
 
 function handleOverlayClick(event) {
   if (event.target === event.currentTarget) {
@@ -17,23 +21,17 @@ function handleOverlayClick(event) {
     <div v-if="visible" class="notice-overlay" @click="handleOverlayClick">
       <div class="notice-panel" role="dialog" aria-modal="true">
         <div class="notice-header">
-          <h2 class="notice-title">Notice</h2>
-          <button type="button" class="notice-close" aria-label="Close" @click="emit('close')">×</button>
+          <h2 class="notice-title">{{ t('common.notice') }}</h2>
+          <button type="button" class="notice-close" :aria-label="t('common.close')" @click="emit('close')">×</button>
         </div>
 
         <div class="notice-body">
-          <p>
-            1. Please note whether the venue is a public one or a borrowable one. If the venue is a public one,
-            the time/number conflict of this venue will no longer be considered during the course scheduling process;
-          </p>
-          <p>
-            2. If the venue is a borrowable one, the usage permission of this venue will no longer be checked
-            during the course scheduling process.
-          </p>
+          <p>{{ t('modal.noticeLine1') }}</p>
+          <p>{{ t('modal.noticeLine2') }}</p>
         </div>
 
         <div class="notice-footer">
-          <button type="button" class="btn-ok" @click="emit('close')">OK</button>
+          <button type="button" class="btn-ok" @click="emit('close')">{{ t('common.ok') }}</button>
         </div>
       </div>
     </div>

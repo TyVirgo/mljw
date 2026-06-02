@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   categoryOptions,
   yesNoOptions,
@@ -16,10 +17,12 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'save'])
 
+const { t, tr } = useAppI18n()
+
 const form = ref(createEmptyForm())
 const errors = ref({})
 
-const modalTitle = computed(() => (props.mode === 'edit' ? 'Edit' : 'Create'))
+const modalTitle = computed(() => (props.mode === 'edit' ? t('common.edit') : t('common.create')))
 
 const parentOptions = computed(() => {
   const exclude = props.mode === 'edit' && props.initialData ? props.initialData.code : ''
@@ -164,44 +167,47 @@ function handleOverlayClick(event) {
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
           <h2 class="modal-title">{{ modalTitle }}</h2>
-          <button type="button" class="modal-close" aria-label="Close" @click="handleClose">×</button>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
         <div class="modal-form">
           <div class="form-grid">
             <div class="form-col">
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> ID:</label>
-                <input v-model="form.deptId" type="text" class="form-input" :class="{ error: errors.deptId }" placeholder="please input" />
+                <label class="form-label"><span class="required">*</span> {{ tr('ID:') }}</label>
+                <input v-model="form.deptId" type="text" class="form-input" :class="{ error: errors.deptId }" :placeholder="t('common.pleaseInput')" />
+                <p v-if="errors.deptId" class="field-error">{{ tr(errors.deptId) }}</p>
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Department Name:</label>
-                <input v-model="form.nameEn" type="text" class="form-input" :class="{ error: errors.nameEn }" placeholder="please input" />
+                <label class="form-label"><span class="required">*</span> {{ tr('Department Name:') }}</label>
+                <input v-model="form.nameEn" type="text" class="form-input" :class="{ error: errors.nameEn }" :placeholder="t('common.pleaseInput')" />
+                <p v-if="errors.nameEn" class="field-error">{{ tr(errors.nameEn) }}</p>
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Code:</label>
-                <input v-model="form.code" type="text" class="form-input" :class="{ error: errors.code }" placeholder="please input" />
+                <label class="form-label"><span class="required">*</span> {{ tr('Code:') }}</label>
+                <input v-model="form.code" type="text" class="form-input" :class="{ error: errors.code }" :placeholder="t('common.pleaseInput')" />
+                <p v-if="errors.code" class="field-error">{{ tr(errors.code) }}</p>
               </div>
               <div class="form-row">
-                <label class="form-label">Report to:</label>
+                <label class="form-label">{{ tr('Report to:') }}</label>
                 <select v-model="form.reportTo" class="form-input">
-                  <option value="">please select</option>
+                  <option value="">{{ t('common.pleaseSelect') }}</option>
                   <option v-for="opt in parentOptions" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
               </div>
               <div class="form-row">
-                <label class="form-label">Office No.:</label>
-                <input v-model="form.officeNo" type="text" class="form-input" placeholder="please input" />
+                <label class="form-label">{{ tr('Office No.:') }}</label>
+                <input v-model="form.officeNo" type="text" class="form-input" :placeholder="t('common.pleaseInput')" />
               </div>
               <div class="form-row">
-                <label class="form-label">Established:</label>
-                <input v-model="form.established" type="text" class="form-input" placeholder="please select date" />
+                <label class="form-label">{{ tr('Established:') }}</label>
+                <input v-model="form.established" type="text" class="form-input" :placeholder="t('common.pleaseSelectDate')" />
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Teaching:</label>
+                <label class="form-label"><span class="required">*</span> {{ tr('Teaching:') }}</label>
                 <div class="radio-group">
                   <label v-for="opt in yesNoOptions" :key="`t-${opt}`">
-                    <input v-model="form.teaching" type="radio" :value="opt" /> {{ opt }}
+                    <input v-model="form.teaching" type="radio" :value="opt" /> {{ tr(opt) }}
                   </label>
                 </div>
               </div>
@@ -209,51 +215,53 @@ function handleOverlayClick(event) {
 
             <div class="form-col">
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Category:</label>
+                <label class="form-label"><span class="required">*</span> {{ tr('Category:') }}</label>
                 <select v-model="form.category" class="form-input" :class="{ error: errors.category }">
-                  <option value="">please select</option>
-                  <option v-for="opt in categoryOptions" :key="opt" :value="opt">{{ opt }}</option>
+                  <option value="">{{ t('common.pleaseSelect') }}</option>
+                  <option v-for="opt in categoryOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
                 </select>
+                <p v-if="errors.category" class="field-error">{{ tr(errors.category) }}</p>
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Department Name (Chinese):</label>
-                <input v-model="form.nameZh" type="text" class="form-input" :class="{ error: errors.nameZh }" placeholder="please input" />
+                <label class="form-label"><span class="required">*</span> {{ tr('Department Name (Chinese):') }}</label>
+                <input v-model="form.nameZh" type="text" class="form-input" :class="{ error: errors.nameZh }" :placeholder="t('common.pleaseInput')" />
+                <p v-if="errors.nameZh" class="field-error">{{ tr(errors.nameZh) }}</p>
               </div>
               <div class="form-row">
-                <label class="form-label">Department Head:</label>
-                <input v-model="form.departmentHead" type="text" class="form-input" placeholder="please input" />
+                <label class="form-label">{{ tr('Department Head:') }}</label>
+                <input v-model="form.departmentHead" type="text" class="form-input" :placeholder="t('common.pleaseInput')" />
               </div>
               <div class="form-row">
-                <label class="form-label">Office Extension:</label>
-                <input v-model="form.officeExtension" type="text" class="form-input" placeholder="please input" />
+                <label class="form-label">{{ tr('Office Extension:') }}</label>
+                <input v-model="form.officeExtension" type="text" class="form-input" :placeholder="t('common.pleaseInput')" />
               </div>
               <div class="form-row">
-                <label class="form-label">Email:</label>
-                <input v-model="form.email" type="text" class="form-input" placeholder="please input" />
+                <label class="form-label">{{ tr('Email:') }}</label>
+                <input v-model="form.email" type="text" class="form-input" :placeholder="t('common.pleaseInput')" />
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Active:</label>
+                <label class="form-label"><span class="required">*</span> {{ tr('Active:') }}</label>
                 <div class="radio-group">
                   <label v-for="opt in yesNoOptions" :key="`a-${opt}`">
-                    <input v-model="form.active" type="radio" :value="opt" /> {{ opt }}
+                    <input v-model="form.active" type="radio" :value="opt" /> {{ tr(opt) }}
                   </label>
                 </div>
               </div>
               <div class="form-row">
-                <label class="form-label"><span class="required">*</span> Offering:</label>
+                <label class="form-label"><span class="required">*</span> {{ tr('Offering:') }}</label>
                 <div class="radio-group">
                   <label v-for="opt in yesNoOptions" :key="`o-${opt}`">
-                    <input v-model="form.offering" type="radio" :value="opt" /> {{ opt }}
+                    <input v-model="form.offering" type="radio" :value="opt" /> {{ tr(opt) }}
                   </label>
                 </div>
               </div>
             </div>
 
             <div class="form-row full previous-section">
-              <label class="form-label">Previous Record:</label>
+              <label class="form-label">{{ tr('Previous Record:') }}</label>
               <div class="previous-wrap">
                 <div v-for="row in form.previousRecords" :key="row.id" class="previous-row">
-                  <span class="previous-label">Year:</span>
+                  <span class="previous-label">{{ tr('Year:') }}</span>
                   <select v-model="row.yearFrom" class="year-select" @change="onYearFromChange(row)">
                     <option value=""></option>
                     <option v-for="y in yearOptions" :key="`f-${row.id}-${y}`" :value="y">{{ y }}</option>
@@ -263,22 +271,22 @@ function handleOverlayClick(event) {
                     <option value=""></option>
                     <option v-for="y in getYearToOptions(row.yearFrom)" :key="`t-${row.id}-${y}`" :value="y">{{ y }}</option>
                   </select>
-                  <input v-model="row.departmentName" type="text" class="previous-name" placeholder="please input department name" />
-                  <button type="button" class="row-remove" aria-label="Remove" @click="removePreviousRecord(row.id)">
+                  <input v-model="row.departmentName" type="text" class="previous-name" :placeholder="tr('please input department name')" />
+                  <button type="button" class="row-remove" :aria-label="t('common.remove')" @click="removePreviousRecord(row.id)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6" />
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                     </svg>
                   </button>
                 </div>
-                <button type="button" class="add-record-btn" @click="addPreviousRecord">+ Add Record</button>
+                <button type="button" class="add-record-btn" @click="addPreviousRecord">{{ t('common.addRecord') }}</button>
               </div>
             </div>
 
             <div class="form-row full textarea-row">
-              <label class="form-label">Remarks:</label>
+              <label class="form-label">{{ tr('Remarks:') }}</label>
               <div class="textarea-wrap">
-                <textarea v-model="form.remarks" class="form-textarea" maxlength="100" placeholder="please input" />
+                <textarea v-model="form.remarks" class="form-textarea" maxlength="100" :placeholder="t('common.pleaseInput')" />
                 <span class="char-count">{{ form.remarks.length }}/100</span>
               </div>
             </div>
@@ -286,8 +294,8 @@ function handleOverlayClick(event) {
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
-          <button type="button" class="btn btn-primary" @click="handleSave">Confirm</button>
+          <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
+          <button type="button" class="btn btn-primary" @click="handleSave">{{ t('common.confirm') }}</button>
         </div>
       </div>
     </div>

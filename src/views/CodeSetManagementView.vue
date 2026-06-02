@@ -12,6 +12,9 @@ import {
   formatParentCode,
 } from '../data/codeSets.js'
 import { exportCodeSetsToExcel, codeSetExportFields } from '../utils/exportCodeSetExcel.js'
+import { useListPageI18n } from '../composables/useListPageI18n.js'
+
+const { t, tr, translatedExportFields } = useListPageI18n(codeSetExportFields)
 
 const entries = ref(loadCodeEntries())
 
@@ -180,8 +183,8 @@ function requestDelete(ids) {
   pendingDeleteIds.value = uniqueIds
   confirmMessage.value =
     uniqueIds.length === 1
-      ? 'Are you sure you want to delete this code entry?'
-      : `Are you sure you want to delete ${uniqueIds.length} selected entries?`
+      ? t('pages.codeSet.deleteOne')
+      : t('pages.codeSet.deleteMany', { count: uniqueIds.length })
   confirmVisible.value = true
 }
 
@@ -195,7 +198,7 @@ function confirmDelete() {
 
 function openExportModal() {
   if (!filteredEntries.value.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
   exportModalVisible.value = true
@@ -208,7 +211,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   else data = filteredEntries.value.filter((row) => selectedIds.value.includes(row.id))
 
   if (!data.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
   const timestamp = new Date().toISOString().slice(0, 10)
@@ -218,7 +221,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
 
 function handleSyncCache() {
   persist()
-  syncMessage.value = 'Cache synced successfully.'
+  syncMessage.value = tr('Cache synced successfully.')
   setTimeout(() => {
     syncMessage.value = ''
   }, 2500)
@@ -239,7 +242,7 @@ function getRowNumber(index) {
       <div class="codeset-layout">
         <aside class="tree-panel">
           <div class="tree-search">
-            <input v-model="treeKeyword" type="text" placeholder="Please enter keywords" />
+            <input v-model="treeKeyword" type="text" :placeholder="tr('Please enter keywords')" />
             <button type="button" class="tree-search-btn" aria-label="Search tree">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="11" cy="11" r="8" />
@@ -282,27 +285,27 @@ function getRowNumber(index) {
           <div class="search-bar">
             <div class="search-row">
               <div class="search-item">
-                <label>Node Code/Name:</label>
-                <input v-model="searchNode" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+                <label>{{ tr('Node Code/Name:') }}</label>
+                <input v-model="searchNode" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
               </div>
               <div class="search-item">
-                <label>Code Name:</label>
-                <input v-model="searchCodeName" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+                <label>{{ tr('Code Name:') }}</label>
+                <input v-model="searchCodeName" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
               </div>
               <div class="search-actions">
-                <button type="button" class="btn btn-primary" @click="handleSearch">Search</button>
-                <button type="button" class="btn btn-default" @click="handleReset">Reset</button>
+                <button type="button" class="btn btn-primary" @click="handleSearch">{{ t('common.search') }}</button>
+                <button type="button" class="btn btn-default" @click="handleReset">{{ t('common.reset') }}</button>
               </div>
             </div>
           </div>
 
           <div class="toolbar">
-            <button type="button" class="btn btn-primary" @click="openCreateModal">Create</button>
+            <button type="button" class="btn btn-primary" @click="openCreateModal">{{ t('common.create') }}</button>
             <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">
-              Delete
+              {{ t('common.delete') }}
             </button>
-            <button type="button" class="btn btn-outline" @click="openExportModal">Export</button>
-            <button type="button" class="btn btn-outline" @click="handleSyncCache">Sync Cache</button>
+            <button type="button" class="btn btn-outline" @click="openExportModal">{{ t('common.export') }}</button>
+            <button type="button" class="btn btn-outline" @click="handleSyncCache">{{ t('common.syncCache') }}</button>
           </div>
 
           <div class="table-section">
@@ -311,18 +314,18 @@ function getRowNumber(index) {
                 <thead>
                   <tr>
                     <th class="col-check"><input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" /></th>
-                    <th>No.</th>
-                    <th>Node Code</th>
-                    <th>Node Name</th>
-                    <th>Code</th>
-                    <th>Code Name</th>
-                    <th>Parent Code</th>
-                    <th>Actions</th>
+                    <th>{{ t('common.serialNo') }}</th>
+                    <th>{{ tr('Node Code') }}</th>
+                    <th>{{ tr('Node Name') }}</th>
+                    <th>{{ t('common.code') }}</th>
+                    <th>{{ tr('Code Name') }}</th>
+                    <th>{{ tr('Parent Code') }}</th>
+                    <th>{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="!paginatedEntries.length">
-                    <td colspan="8" class="empty-cell">No data found</td>
+                    <td colspan="8" class="empty-cell">{{ t('common.noData') }}</td>
                   </tr>
                   <tr v-for="(item, index) in paginatedEntries" :key="item.id">
                     <td class="col-check">
@@ -336,8 +339,8 @@ function getRowNumber(index) {
                     <td>{{ formatParentCode(item.parentCode) }}</td>
                     <td class="actions-cell">
                       <div class="actions-inner">
-                        <button type="button" class="link-btn" @click="openEditModal(item)">Edit</button>
-                        <button type="button" class="link-btn delete" @click="requestDelete([item.id])">Delete</button>
+                        <button type="button" class="link-btn" @click="openEditModal(item)">{{ t('common.edit') }}</button>
+                        <button type="button" class="link-btn delete" @click="requestDelete([item.id])">{{ t('common.delete') }}</button>
                       </div>
                     </td>
                   </tr>
@@ -369,16 +372,16 @@ function getRowNumber(index) {
 
     <ConfirmDialog
       :visible="confirmVisible"
-      title="Delete Confirmation"
+      :title="t('common.deleteConfirmation')"
       :message="confirmMessage"
-      confirm-text="Delete"
+      :confirm-text="t('common.delete')"
       @confirm="confirmDelete"
       @cancel="confirmVisible = false"
     />
 
     <ExportModal
       :visible="exportModalVisible"
-      :fields="codeSetExportFields"
+      :fields="translatedExportFields"
       :has-selected-rows="hasSelection"
       @close="exportModalVisible = false"
       @confirm="handleExportConfirm"

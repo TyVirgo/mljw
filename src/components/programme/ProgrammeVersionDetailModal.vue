@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   createVersionFormSteps,
   localFeeColumns,
@@ -13,6 +14,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close'])
+
+const { t, tr } = useAppI18n()
 
 const currentStep = ref(1)
 
@@ -58,17 +61,17 @@ function handleOverlayClick(event) {
     <div v-if="visible && version" class="modal-overlay" @click="handleOverlayClick">
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
-          <h2 class="modal-title">Version Details</h2>
-          <button type="button" class="modal-close" aria-label="Close" @click="handleClose">×</button>
+          <h2 class="modal-title">{{ t('modal.versionDetails') }}</h2>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
-        <p class="programme-name">Programme: {{ programmeName }}</p>
+        <p class="programme-name">{{ tr('Programme:') }} {{ programmeName }}</p>
 
         <div class="stepper">
           <template v-for="(step, index) in createVersionFormSteps" :key="step.id">
             <button type="button" class="step-item" :class="stepClass(step.id)" @click="goToStep(step.id)">
               <span class="step-circle">{{ step.id }}</span>
-              <span class="step-label">{{ step.title }}</span>
+              <span class="step-label">{{ tr(step.title) }}</span>
             </button>
             <div v-if="index < createVersionFormSteps.length - 1" class="step-line" :class="{ completed: step.id < currentStep }" />
           </template>
@@ -77,7 +80,7 @@ function handleOverlayClick(event) {
         <div class="modal-body">
           <!-- Step 1: Approval Details -->
           <section v-show="currentStep === 1">
-            <h3 class="section-title"><span class="section-bar"></span>MQA Info</h3>
+            <h3 class="section-title"><span class="section-bar"></span>{{ tr('MQA Info') }}</h3>
             <div class="detail-grid">
               <div class="detail-row">
                 <span class="detail-label">MQA Code:</span>

@@ -1,5 +1,8 @@
 <script setup>
-defineProps({
+import { computed } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
+
+const props = defineProps({
   visible: Boolean,
   title: {
     type: String,
@@ -21,6 +24,13 @@ defineProps({
 
 const emit = defineEmits(['confirm', 'cancel'])
 
+const { tr } = useAppI18n()
+
+const displayTitle = computed(() => tr(props.title))
+const displayMessage = computed(() => tr(props.message))
+const displayConfirmText = computed(() => tr(props.confirmText))
+const displayCancelText = computed(() => tr(props.cancelText))
+
 function handleOverlayClick(event) {
   if (event.target === event.currentTarget) {
     emit('cancel')
@@ -32,11 +42,11 @@ function handleOverlayClick(event) {
   <Teleport to="body">
     <div v-if="visible" class="confirm-overlay" @click="handleOverlayClick">
       <div class="confirm-panel" role="alertdialog" aria-modal="true">
-        <h3 class="confirm-title">{{ title }}</h3>
-        <p class="confirm-message">{{ message }}</p>
+        <h3 class="confirm-title">{{ displayTitle }}</h3>
+        <p class="confirm-message">{{ displayMessage }}</p>
         <div class="confirm-footer">
-          <button type="button" class="btn btn-default" @click="emit('cancel')">{{ cancelText }}</button>
-          <button type="button" class="btn btn-danger" @click="emit('confirm')">{{ confirmText }}</button>
+          <button type="button" class="btn btn-default" @click="emit('cancel')">{{ displayCancelText }}</button>
+          <button type="button" class="btn btn-danger" @click="emit('confirm')">{{ displayConfirmText }}</button>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import TablePagination from '../common/TablePagination.vue'
 import {
   programmeCatalogue,
@@ -16,6 +17,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'confirm'])
+
+const { t, tr } = useAppI18n()
 
 const schoolId = ref('')
 const programmeCodeFilter = ref('')
@@ -144,8 +147,8 @@ function handleOverlayClick(event) {
     <div v-if="visible" class="modal-overlay" @click="handleOverlayClick">
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
-          <h2 class="modal-title">Create</h2>
-          <button type="button" class="modal-close" aria-label="Close" @click="handleClose">×</button>
+          <h2 class="modal-title">{{ t('modal.newProgrammeIntake') }}</h2>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
         <div class="modal-body">
@@ -153,7 +156,7 @@ function handleOverlayClick(event) {
             <div class="filter-item">
               <label><span class="required">*</span> School:</label>
               <select v-model="schoolId" class="filter-input" :class="{ error: errors.schoolId, 'is-empty': !schoolId }">
-                <option value="">please select</option>
+                <option value="">{{ t('common.pleaseSelect') }}</option>
                 <option v-for="school in programmeIntakeSchools" :key="school.id" :value="school.id">
                   {{ school.label }}
                 </option>
@@ -167,7 +170,7 @@ function handleOverlayClick(event) {
                 class="filter-input"
                 :class="{ error: errors.programmeCodeFilter }"
                 maxlength="20"
-                placeholder="please input"
+                :placeholder="t('common.pleaseInput')"
               />
             </div>
           </div>
@@ -229,7 +232,7 @@ function handleOverlayClick(event) {
             <div class="form-row">
               <label class="form-label"><span class="required">*</span> Intake:</label>
               <select v-model="intake" class="form-input" :class="{ error: errors.intake, 'is-empty': !intake }">
-                <option value="">please select</option>
+                <option value="">{{ t('common.pleaseSelect') }}</option>
                 <option v-for="opt in activeIntakeOptions" :key="opt" :value="opt">{{ opt }}</option>
               </select>
             </div>
@@ -242,7 +245,7 @@ function handleOverlayClick(event) {
                 class="form-input"
                 :class="{ error: errors.startingSemester, 'is-empty': !startingSemester }"
               >
-                <option value="">please select</option>
+                <option value="">{{ t('common.pleaseSelect') }}</option>
                 <option v-for="opt in startingSemesterOptions" :key="opt" :value="opt">{{ opt }}</option>
               </select>
             </div>
@@ -252,8 +255,8 @@ function handleOverlayClick(event) {
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
-          <button type="button" class="btn btn-primary" @click="handleConfirm">Confirm</button>
+          <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
+          <button type="button" class="btn btn-primary" @click="handleConfirm">{{ t('common.confirm') }}</button>
         </div>
       </div>
     </div>

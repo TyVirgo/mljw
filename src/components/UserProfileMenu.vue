@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useAppI18n } from '../composables/useAppI18n.js'
 
 defineProps({
   variant: {
@@ -11,6 +12,7 @@ defineProps({
 
 const emit = defineEmits(['back-to-portal', 'back-to-admin'])
 
+const { t } = useAppI18n()
 const open = ref(false)
 const menuRef = ref(null)
 
@@ -46,7 +48,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
   <div ref="menuRef" class="user-menu">
     <button type="button" class="user-trigger" @click.stop="toggleMenu">
       <div class="user-avatar">A</div>
-      <span class="user-name">{{ variant === 'portal' ? 'ADMIN USER' : 'Admin User' }}</span>
+      <span class="user-name">{{ variant === 'portal' ? t('user.adminUserUpper') : t('user.adminUser') }}</span>
     </button>
 
     <div v-if="open" class="dropdown-panel">
@@ -55,7 +57,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
           <circle cx="12" cy="7" r="4" />
         </svg>
-        User Role
+        {{ t('user.userRole') }}
       </button>
 
       <button
@@ -70,7 +72,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
           <polyline points="7 23 3 19 7 15" />
           <path d="M21 13v2a4 4 0 0 1-4 4H3" />
         </svg>
-        Back to Portal
+        {{ t('user.backToPortal') }}
       </button>
 
       <button
@@ -85,7 +87,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
           <polyline points="7 23 3 19 7 15" />
           <path d="M21 13v2a4 4 0 0 1-4 4H3" />
         </svg>
-        Back to Admin
+        {{ t('user.backToAdmin') }}
       </button>
 
       <button type="button" class="menu-item menu-item-danger" @click="closeMenu">
@@ -94,7 +96,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
           <polyline points="16 17 21 12 16 7" />
           <line x1="21" y1="12" x2="9" y2="12" />
         </svg>
-        Logout
+        {{ t('user.logout') }}
       </button>
     </div>
   </div>

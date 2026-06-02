@@ -1,5 +1,8 @@
 <script setup>
 import { computed } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
+
+const { t, tr } = useAppI18n()
 
 const props = defineProps({
   programme: {
@@ -27,7 +30,7 @@ function handleSelect(version) {
 <template>
   <div class="history-panel">
     <div class="history-header">
-      <button type="button" class="back-btn" aria-label="Back" @click="emit('back')">
+      <button type="button" class="back-btn" :aria-label="t('common.back')" @click="emit('back')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="15 18 9 12 15 6" />
         </svg>
@@ -35,20 +38,20 @@ function handleSelect(version) {
       <h2 class="history-title">{{ programme.name }}</h2>
     </div>
 
-    <div v-if="!sortedVersions.length" class="history-empty">No version data</div>
+    <div v-if="!sortedVersions.length" class="history-empty">{{ tr('No version data') }}</div>
 
     <ul v-else class="version-list">
       <li v-for="version in sortedVersions" :key="version.id">
         <button type="button" class="version-item" @click="handleSelect(version)">
           <span class="version-badge" :class="version.isCurrent ? 'current' : 'history'">
-            {{ version.isCurrent ? 'Current Version' : 'Historical Version' }}
+            {{ version.isCurrent ? tr('Current Version') : tr('Historical Version') }}
           </span>
           <div class="version-main">
             <p class="version-time">{{ version.updatedAt || '--' }}</p>
             <p class="version-meta">
-              <span>Updated By: {{ version.updatedBy || '--' }}</span>
-              <span>Employee ID: {{ version.employeeId || '--' }}</span>
-              <span>Department: {{ version.department || '--' }}</span>
+              <span>{{ tr('Updated By:') }} {{ version.updatedBy || '--' }}</span>
+              <span>{{ tr('Employee ID:') }} {{ version.employeeId || '--' }}</span>
+              <span>{{ tr('Department:') }} {{ version.department || '--' }}</span>
             </p>
           </div>
           <span class="version-arrow" aria-hidden="true">

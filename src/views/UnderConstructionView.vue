@@ -1,5 +1,8 @@
 <script setup>
+import { useAppI18n } from '../composables/useAppI18n.js'
+
 defineEmits(['back'])
+const { t } = useAppI18n()
 </script>
 
 <template>
@@ -10,7 +13,7 @@ defineEmits(['back'])
           <line x1="19" y1="12" x2="5" y2="12" />
           <polyline points="12 19 5 12 12 5" />
         </svg>
-        Back
+        {{ t('common.back') }}
       </button>
 
       <div class="construction-content">
@@ -24,8 +27,8 @@ defineEmits(['back'])
             <line x1="50" y1="32" x2="46" y2="36" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round" />
           </svg>
         </div>
-        <p class="construction-title">This page is under construction.</p>
-        <p class="construction-subtitle">Please check back later.</p>
+        <p class="construction-title">{{ t('underConstruction.title') }}</p>
+        <p class="construction-subtitle">{{ t('underConstruction.subtitle') }}</p>
       </div>
     </div>
   </div>

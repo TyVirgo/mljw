@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import DatePickerEn from '../common/DatePickerEn.vue'
 import {
   createVersionFormSteps,
@@ -20,12 +21,14 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'save', 'publish'])
 
+const { t, tr } = useAppI18n()
+
 const currentStep = ref(1)
 const form = ref(createEmptyVersionForm())
 const errors = ref({})
 
 const isEditMode = computed(() => props.mode === 'edit')
-const modalTitle = computed(() => (isEditMode.value ? 'Edit' : 'Create Version'))
+const modalTitle = computed(() => (isEditMode.value ? t('common.edit') : tr('Create Version')))
 const isLastStep = computed(() => currentStep.value === createVersionFormSteps.length)
 
 watch(
@@ -259,7 +262,7 @@ function fieldError(key) {
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
           <h2 class="modal-title">{{ modalTitle }}</h2>
-          <button type="button" class="modal-close" aria-label="Close" @click="handleClose">×</button>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
         <p class="programme-name">Programme: {{ programmeName }}</p>
@@ -271,7 +274,7 @@ function fieldError(key) {
           <template v-for="(step, index) in createVersionFormSteps" :key="step.id">
             <div class="step-item" :class="stepClass(step.id)">
               <span class="step-circle">{{ step.id }}</span>
-              <span class="step-label">{{ step.title }}</span>
+              <span class="step-label">{{ tr(step.title) }}</span>
             </div>
             <div v-if="index < createVersionFormSteps.length - 1" class="step-line" :class="{ completed: step.id < currentStep }" />
           </template>
@@ -281,80 +284,80 @@ function fieldError(key) {
           <!-- Step 1: Approval Details -->
           <section v-show="currentStep === 1" class="approval-details-section">
             <div class="programme-info-form approval-details-form">
-              <h3 class="section-title"><span class="section-bar"></span>MQA Info</h3>
+              <h3 class="section-title"><span class="section-bar"></span>{{ tr('MQA Info') }}</h3>
 
               <div class="pi-row">
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> MQA Code:</label>
-                  <input v-model="form.approvalDetails.mqaCode" type="text" class="pi-input" :class="fieldError('mqaCode')" maxlength="50" placeholder="please input" />
+                  <label class="pi-label"><span class="required">*</span> {{ tr('MQA Code:') }}</label>
+                  <input v-model="form.approvalDetails.mqaCode" type="text" class="pi-input" :class="fieldError('mqaCode')" maxlength="50" :placeholder="t('common.pleaseInput')" />
                 </div>
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> Start Date (MQA):</label>
-                  <DatePickerEn v-model="form.approvalDetails.mqaStartDate" placeholder="please select date" :has-error="!!errors.mqaStartDate" />
+                  <label class="pi-label"><span class="required">*</span> {{ tr('Start Date (MQA):') }}</label>
+                  <DatePickerEn v-model="form.approvalDetails.mqaStartDate" :placeholder="t('common.pleaseSelectDate')" :has-error="!!errors.mqaStartDate" />
                 </div>
               </div>
 
               <div class="pi-row">
                 <div class="pi-field">
-                  <label class="pi-label">Expiry Date (MQA):</label>
-                  <DatePickerEn v-model="form.approvalDetails.mqaExpiryDate" placeholder="please select date" />
+                  <label class="pi-label">{{ tr('Expiry Date (MQA):') }}</label>
+                  <DatePickerEn v-model="form.approvalDetails.mqaExpiryDate" :placeholder="t('common.pleaseSelectDate')" />
                 </div>
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> Syor Date(PA):</label>
-                  <DatePickerEn v-model="form.approvalDetails.mqaSyorDatePa" placeholder="please select date" :has-error="!!errors.mqaSyorDatePa" />
-                </div>
-              </div>
-
-              <div class="pi-row">
-                <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> Syor Reference (PA):</label>
-                  <input v-model="form.approvalDetails.mqaSyorReferencePa" type="text" class="pi-input" :class="fieldError('mqaSyorReferencePa')" maxlength="50" placeholder="please input" />
-                </div>
-                <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> Syor Date(FA):</label>
-                  <DatePickerEn v-model="form.approvalDetails.mqaSyorDateFa" placeholder="please select date" :has-error="!!errors.mqaSyorDateFa" />
+                  <label class="pi-label"><span class="required">*</span> {{ tr('Syor Date(PA):') }}</label>
+                  <DatePickerEn v-model="form.approvalDetails.mqaSyorDatePa" :placeholder="t('common.pleaseSelectDate')" :has-error="!!errors.mqaSyorDatePa" />
                 </div>
               </div>
 
               <div class="pi-row">
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> Syor Reference (FA):</label>
-                  <input v-model="form.approvalDetails.mqaSyorReferenceFa" type="text" class="pi-input" :class="fieldError('mqaSyorReferenceFa')" maxlength="50" placeholder="please input" />
+                  <label class="pi-label"><span class="required">*</span> {{ tr('Syor Reference (PA):') }}</label>
+                  <input v-model="form.approvalDetails.mqaSyorReferencePa" type="text" class="pi-input" :class="fieldError('mqaSyorReferencePa')" maxlength="50" :placeholder="t('common.pleaseInput')" />
                 </div>
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> First intake duration as in approval:</label>
-                  <input v-model="form.approvalDetails.mqaFirstIntakeDuration" type="text" class="pi-input" :class="fieldError('mqaFirstIntakeDuration')" maxlength="2" placeholder="please input" />
-                </div>
-              </div>
-
-              <h3 class="section-title section-title-spaced"><span class="section-bar"></span>MOHE Info</h3>
-
-              <div class="pi-row">
-                <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> MOHE Code:</label>
-                  <input v-model="form.approvalDetails.moheCode" type="text" class="pi-input" :class="fieldError('moheCode')" maxlength="50" placeholder="please input" />
-                </div>
-                <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> MOHE Approval Reference No.:</label>
-                  <input v-model="form.approvalDetails.moheApprovalReferenceNo" type="text" class="pi-input" :class="fieldError('moheApprovalReferenceNo')" maxlength="50" placeholder="please input" />
+                  <label class="pi-label"><span class="required">*</span> {{ tr('Syor Date(FA):') }}</label>
+                  <DatePickerEn v-model="form.approvalDetails.mqaSyorDateFa" :placeholder="t('common.pleaseSelectDate')" :has-error="!!errors.mqaSyorDateFa" />
                 </div>
               </div>
 
               <div class="pi-row">
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> Approval Date (MOHE):</label>
-                  <DatePickerEn v-model="form.approvalDetails.moheApprovalDate" placeholder="please select date" :has-error="!!errors.moheApprovalDate" />
+                  <label class="pi-label"><span class="required">*</span> {{ tr('Syor Reference (FA):') }}</label>
+                  <input v-model="form.approvalDetails.mqaSyorReferenceFa" type="text" class="pi-input" :class="fieldError('mqaSyorReferenceFa')" maxlength="50" :placeholder="t('common.pleaseInput')" />
                 </div>
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> Start Date (MOHE):</label>
-                  <DatePickerEn v-model="form.approvalDetails.moheStartDate" placeholder="please select date" :has-error="!!errors.moheStartDate" />
+                  <label class="pi-label"><span class="required">*</span> {{ tr('First intake duration as in approval:') }}</label>
+                  <input v-model="form.approvalDetails.mqaFirstIntakeDuration" type="text" class="pi-input" :class="fieldError('mqaFirstIntakeDuration')" maxlength="2" :placeholder="t('common.pleaseInput')" />
+                </div>
+              </div>
+
+              <h3 class="section-title section-title-spaced"><span class="section-bar"></span>{{ tr('MOHE Info') }}</h3>
+
+              <div class="pi-row">
+                <div class="pi-field">
+                  <label class="pi-label"><span class="required">*</span> {{ tr('MOHE Code:') }}</label>
+                  <input v-model="form.approvalDetails.moheCode" type="text" class="pi-input" :class="fieldError('moheCode')" maxlength="50" :placeholder="t('common.pleaseInput')" />
+                </div>
+                <div class="pi-field">
+                  <label class="pi-label"><span class="required">*</span> {{ tr('MOHE Approval Reference No.:') }}</label>
+                  <input v-model="form.approvalDetails.moheApprovalReferenceNo" type="text" class="pi-input" :class="fieldError('moheApprovalReferenceNo')" maxlength="50" :placeholder="t('common.pleaseInput')" />
                 </div>
               </div>
 
               <div class="pi-row">
                 <div class="pi-field">
-                  <label class="pi-label">Expiry Date (MOHE):</label>
-                  <DatePickerEn v-model="form.approvalDetails.moheExpiryDate" placeholder="please select date" />
+                  <label class="pi-label"><span class="required">*</span> {{ tr('Approval Date (MOHE):') }}</label>
+                  <DatePickerEn v-model="form.approvalDetails.moheApprovalDate" :placeholder="t('common.pleaseSelectDate')" :has-error="!!errors.moheApprovalDate" />
+                </div>
+                <div class="pi-field">
+                  <label class="pi-label"><span class="required">*</span> {{ tr('Start Date (MOHE):') }}</label>
+                  <DatePickerEn v-model="form.approvalDetails.moheStartDate" :placeholder="t('common.pleaseSelectDate')" :has-error="!!errors.moheStartDate" />
+                </div>
+              </div>
+
+              <div class="pi-row">
+                <div class="pi-field">
+                  <label class="pi-label">{{ tr('Expiry Date (MOHE):') }}</label>
+                  <DatePickerEn v-model="form.approvalDetails.moheExpiryDate" :placeholder="t('common.pleaseSelectDate')" />
                 </div>
                 <div class="pi-field pi-field-empty"></div>
               </div>
@@ -363,46 +366,46 @@ function fieldError(key) {
 
           <!-- Step 2: Entry Requirements -->
           <section v-show="currentStep === 2" class="entry-requirements-section">
-            <h3 class="section-title"><span class="section-bar"></span>Entry Requirements</h3>
+            <h3 class="section-title"><span class="section-bar"></span>{{ tr('Entry Requirements') }}</h3>
             <div class="programme-info-form">
               <div class="pi-row">
                 <div class="pi-field">
-                  <label class="pi-label">MUET:</label>
-                  <input v-model="form.entryRequirements.muet" type="text" class="pi-input" :class="fieldError('muet')" placeholder="please input" />
+                  <label class="pi-label">{{ tr('MUET:') }}</label>
+                  <input v-model="form.entryRequirements.muet" type="text" class="pi-input" :class="fieldError('muet')" :placeholder="t('common.pleaseInput')" />
                 </div>
                 <div class="pi-field">
-                  <label class="pi-label">IELTS:</label>
-                  <input v-model="form.entryRequirements.elts" type="text" class="pi-input" :class="fieldError('elts')" placeholder="please input" />
-                </div>
-              </div>
-              <div class="pi-row">
-                <div class="pi-field">
-                  <label class="pi-label">TOEFL IBT:</label>
-                  <input v-model="form.entryRequirements.toeflIbt" type="text" class="pi-input" :class="fieldError('toeflIbt')" placeholder="please input" />
-                </div>
-                <div class="pi-field">
-                  <label class="pi-label">TOEFL Essentials (Online):</label>
-                  <input v-model="form.entryRequirements.toeflEssentials" type="text" class="pi-input" :class="fieldError('toeflEssentials')" placeholder="please input" />
+                  <label class="pi-label">{{ tr('IELTS:') }}</label>
+                  <input v-model="form.entryRequirements.elts" type="text" class="pi-input" :class="fieldError('elts')" :placeholder="t('common.pleaseInput')" />
                 </div>
               </div>
               <div class="pi-row">
                 <div class="pi-field">
-                  <label class="pi-label">PEARSON TEST OF ENGLISH:</label>
-                  <input v-model="form.entryRequirements.pearsonTestOfEnglish" type="text" class="pi-input" :class="fieldError('pearsonTestOfEnglish')" placeholder="please input" />
+                  <label class="pi-label">{{ tr('TOEFL IBT:') }}</label>
+                  <input v-model="form.entryRequirements.toeflIbt" type="text" class="pi-input" :class="fieldError('toeflIbt')" :placeholder="t('common.pleaseInput')" />
                 </div>
                 <div class="pi-field">
-                  <label class="pi-label">CAMBRIDGE ENGLISH(i/ii):</label>
-                  <input v-model="form.entryRequirements.cambridgeEnglishIi" type="text" class="pi-input" :class="fieldError('cambridgeEnglishIi')" placeholder="please input" />
+                  <label class="pi-label">{{ tr('TOEFL Essentials (Online):') }}</label>
+                  <input v-model="form.entryRequirements.toeflEssentials" type="text" class="pi-input" :class="fieldError('toeflEssentials')" :placeholder="t('common.pleaseInput')" />
                 </div>
               </div>
               <div class="pi-row">
                 <div class="pi-field">
-                  <label class="pi-label">CAMBRIDGE ENGLISH(iii):</label>
-                  <input v-model="form.entryRequirements.cambridgeEnglishIii" type="text" class="pi-input" :class="fieldError('cambridgeEnglishIii')" placeholder="please input" />
+                  <label class="pi-label">{{ tr('PEARSON TEST OF ENGLISH:') }}</label>
+                  <input v-model="form.entryRequirements.pearsonTestOfEnglish" type="text" class="pi-input" :class="fieldError('pearsonTestOfEnglish')" :placeholder="t('common.pleaseInput')" />
                 </div>
                 <div class="pi-field">
-                  <label class="pi-label">ELS:</label>
-                  <input v-model="form.entryRequirements.els" type="text" class="pi-input" :class="fieldError('els')" placeholder="please input" />
+                  <label class="pi-label">{{ tr('CAMBRIDGE ENGLISH(i/ii):') }}</label>
+                  <input v-model="form.entryRequirements.cambridgeEnglishIi" type="text" class="pi-input" :class="fieldError('cambridgeEnglishIi')" :placeholder="t('common.pleaseInput')" />
+                </div>
+              </div>
+              <div class="pi-row">
+                <div class="pi-field">
+                  <label class="pi-label">{{ tr('CAMBRIDGE ENGLISH(iii):') }}</label>
+                  <input v-model="form.entryRequirements.cambridgeEnglishIii" type="text" class="pi-input" :class="fieldError('cambridgeEnglishIii')" :placeholder="t('common.pleaseInput')" />
+                </div>
+                <div class="pi-field">
+                  <label class="pi-label">{{ tr('ELS:') }}</label>
+                  <input v-model="form.entryRequirements.els" type="text" class="pi-input" :class="fieldError('els')" :placeholder="t('common.pleaseInput')" />
                 </div>
               </div>
             </div>
@@ -410,7 +413,7 @@ function fieldError(key) {
 
           <!-- Step 3: Threshold Marks -->
           <section v-show="currentStep === 3" class="threshold-marks-section">
-            <h3 class="section-title"><span class="section-bar"></span>Threshold Marks</h3>
+            <h3 class="section-title"><span class="section-bar"></span>{{ tr('Threshold Marks') }}</h3>
             <div class="programme-info-form">
               <div class="threshold-table-wrap">
                 <table class="threshold-table">
@@ -424,13 +427,13 @@ function fieldError(key) {
                   <tbody>
                     <tr>
                       <td>
-                        <input v-model="form.thresholdMarks.totalContinuousAssessment" type="text" class="threshold-input" :class="fieldError('totalContinuousAssessment')" maxlength="3" placeholder="please input" />
+                        <input v-model="form.thresholdMarks.totalContinuousAssessment" type="text" class="threshold-input" :class="fieldError('totalContinuousAssessment')" maxlength="3" :placeholder="t('common.pleaseInput')" />
                       </td>
                       <td>
-                        <input v-model="form.thresholdMarks.totalFinalAssessment" type="text" class="threshold-input" :class="fieldError('totalFinalAssessment')" maxlength="3" placeholder="please input" />
+                        <input v-model="form.thresholdMarks.totalFinalAssessment" type="text" class="threshold-input" :class="fieldError('totalFinalAssessment')" maxlength="3" :placeholder="t('common.pleaseInput')" />
                       </td>
                       <td>
-                        <input v-model="form.thresholdMarks.overallScore" type="text" class="threshold-input" :class="fieldError('overallScore')" maxlength="3" placeholder="please input" />
+                        <input v-model="form.thresholdMarks.overallScore" type="text" class="threshold-input" :class="fieldError('overallScore')" maxlength="3" :placeholder="t('common.pleaseInput')" />
                       </td>
                     </tr>
                   </tbody>
@@ -441,15 +444,15 @@ function fieldError(key) {
 
           <!-- Step 4: Fee Structure -->
           <section v-show="currentStep === 4" class="fee-structure-section">
-            <h3 class="section-title"><span class="section-bar"></span>Fee Structure</h3>
+            <h3 class="section-title"><span class="section-bar"></span>{{ tr('Fee Structure') }}</h3>
             <div class="programme-info-form fee-structure-form">
               <div class="pi-row">
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> Duration (Min. Year):</label>
-                  <input v-model="form.feeStructure.durationMinYear" type="text" class="pi-input" :class="fieldError('durationMinYear')" maxlength="2" placeholder="please input" />
+                  <label class="pi-label"><span class="required">*</span> {{ tr('Duration (Min. Year):') }}</label>
+                  <input v-model="form.feeStructure.durationMinYear" type="text" class="pi-input" :class="fieldError('durationMinYear')" maxlength="2" :placeholder="t('common.pleaseInput')" />
                 </div>
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> Type of Approval:</label>
+                  <label class="pi-label"><span class="required">*</span> {{ tr('Type of Approval:') }}</label>
                   <select v-model="form.feeStructure.typeOfApproval" class="pi-input pi-select" :class="fieldError('typeOfApproval')">
                     <option value="">please select</option>
                     <option v-for="opt in typeOfApprovalOptions" :key="opt" :value="opt">{{ opt }}</option>
@@ -457,7 +460,7 @@ function fieldError(key) {
                 </div>
               </div>
 
-              <h3 class="section-title section-title-spaced"><span class="section-bar"></span>Local Student (RM)</h3>
+              <h3 class="section-title section-title-spaced"><span class="section-bar"></span>{{ tr('Local Student (RM)') }}</h3>
               <div class="fee-table-wrap">
                 <table class="fee-table">
                   <thead>
@@ -469,7 +472,7 @@ function fieldError(key) {
                   <tbody>
                     <tr>
                       <td v-for="col in localFeeColumns" :key="`local-${col.key}`">
-                        <input v-model="form.feeStructure.localStudent[col.key]" type="text" class="fee-input" :class="fieldError(`local-${col.key}`)" placeholder="please input" />
+                        <input v-model="form.feeStructure.localStudent[col.key]" type="text" class="fee-input" :class="fieldError(`local-${col.key}`)" :placeholder="t('common.pleaseInput')" />
                       </td>
                       <td class="col-check-total">
                         <label class="tf-switch" :class="{ on: form.feeStructure.localStudent.checkTotal }">
@@ -486,7 +489,7 @@ function fieldError(key) {
                 </table>
               </div>
 
-              <h3 class="section-title section-title-spaced"><span class="section-bar"></span>International Student (RM)</h3>
+              <h3 class="section-title section-title-spaced"><span class="section-bar"></span>{{ tr('International Student (RM)') }}</h3>
               <div class="fee-table-wrap">
                 <table class="fee-table">
                   <thead>
@@ -498,7 +501,7 @@ function fieldError(key) {
                   <tbody>
                     <tr>
                       <td v-for="col in internationalFeeColumns" :key="`intl-${col.key}`">
-                        <input v-model="form.feeStructure.internationalStudent[col.key]" type="text" class="fee-input" :class="fieldError(`intl-${col.key}`)" placeholder="please input" />
+                        <input v-model="form.feeStructure.internationalStudent[col.key]" type="text" class="fee-input" :class="fieldError(`intl-${col.key}`)" :placeholder="t('common.pleaseInput')" />
                       </td>
                       <td class="col-check-total">
                         <label class="tf-switch" :class="{ on: form.feeStructure.internationalStudent.checkTotal }">
@@ -526,7 +529,7 @@ function fieldError(key) {
               class="btn btn-outline publish-btn"
               @click="handlePublish"
             >
-              Publish
+              {{ tr('Publish') }}
               <span class="info-tip-wrap">
                 <span class="info-icon" aria-hidden="true">i</span>
                 <span class="info-tooltip">{{ programmePublishTooltip }}</span>
@@ -534,10 +537,10 @@ function fieldError(key) {
             </button>
           </div>
           <div class="modal-footer-right">
-            <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
-            <button v-if="currentStep > 1" type="button" class="btn btn-default" @click="handlePrevious">Previous</button>
-            <button v-if="currentStep < createVersionFormSteps.length" type="button" class="btn btn-primary" @click="handleNext">Next</button>
-            <button v-else type="button" class="btn btn-primary" @click="handleSubmit">Confirm</button>
+            <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
+            <button v-if="currentStep > 1" type="button" class="btn btn-default" @click="handlePrevious">{{ tr('Previous') }}</button>
+            <button v-if="currentStep < createVersionFormSteps.length" type="button" class="btn btn-primary" @click="handleNext">{{ tr('Next') }}</button>
+            <button v-else type="button" class="btn btn-primary" @click="handleSubmit">{{ t('common.confirm') }}</button>
           </div>
         </div>
       </div>

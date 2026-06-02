@@ -1,6 +1,9 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import { activeOptions, validateIntakeSetForm } from '../../data/intakeSets.js'
+
+const { t, tr } = useAppI18n()
 
 const props = defineProps({
   visible: Boolean,
@@ -19,7 +22,7 @@ const form = ref({
 const errors = ref({})
 
 const isEditMode = computed(() => props.mode === 'edit')
-const modalTitle = computed(() => (isEditMode.value ? 'Edit' : 'Create'))
+const modalTitle = computed(() => (isEditMode.value ? t('common.edit') : t('common.create')))
 
 watch(
   () => [props.visible, props.mode, props.initialData],
@@ -81,53 +84,53 @@ function handleOverlayClick(event) {
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
           <h2 class="modal-title">{{ modalTitle }}</h2>
-          <button type="button" class="modal-close" aria-label="Close" @click="handleClose">×</button>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
         <div class="modal-form">
           <div class="form-row">
-            <label class="form-label"><span class="required">*</span> Code:</label>
+            <label class="form-label"><span class="required">*</span> {{ tr('Code:') }}</label>
             <input
               v-model="form.code"
               type="text"
               class="form-input"
               :class="{ error: errors.code, 'form-input-readonly': isEditMode }"
               maxlength="2"
-              placeholder="please input"
+              :placeholder="t('common.pleaseInput')"
               :disabled="isEditMode"
               :readonly="isEditMode"
             />
           </div>
-          <p v-if="errors.code" class="field-error">{{ errors.code }}</p>
+          <p v-if="errors.code" class="field-error">{{ tr(errors.code) }}</p>
 
           <div class="form-row">
-            <label class="form-label"><span class="required">*</span> Intake:</label>
+            <label class="form-label"><span class="required">*</span> {{ tr('Intake:') }}</label>
             <input
               v-model="form.intake"
               type="text"
               class="form-input"
               :class="{ error: errors.intake }"
               maxlength="6"
-              placeholder="please input"
+              :placeholder="t('common.pleaseInput')"
             />
           </div>
-          <p v-if="errors.intake" class="field-error">{{ errors.intake }}</p>
+          <p v-if="errors.intake" class="field-error">{{ tr(errors.intake) }}</p>
 
           <div class="form-row">
-            <label class="form-label"><span class="required">*</span> Active:</label>
+            <label class="form-label"><span class="required">*</span> {{ tr('Active:') }}</label>
             <div class="radio-group" :class="{ error: errors.active }">
               <label v-for="opt in activeOptions" :key="opt" class="radio-option">
                 <input v-model="form.active" type="radio" :value="opt" />
-                {{ opt }}
+                {{ tr(opt) }}
               </label>
             </div>
           </div>
-          <p v-if="errors.active" class="field-error">{{ errors.active }}</p>
+          <p v-if="errors.active" class="field-error">{{ tr(errors.active) }}</p>
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
-          <button type="button" class="btn btn-primary" @click="handleSave">Submit</button>
+          <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
+          <button type="button" class="btn btn-primary" @click="handleSave">{{ t('common.submit') }}</button>
         </div>
       </div>
     </div>

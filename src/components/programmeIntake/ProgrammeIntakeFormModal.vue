@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   activeOptions,
   programmeIntakeSchools,
@@ -14,6 +15,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'save'])
+
+const { t, tr } = useAppI18n()
 
 const startingSemester = ref('')
 const active = ref('Yes')
@@ -71,18 +74,18 @@ function handleOverlayClick(event) {
     <div v-if="visible && initialData" class="modal-overlay" @click="handleOverlayClick">
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
-          <h2 class="modal-title">Edit</h2>
-          <button type="button" class="modal-close" aria-label="Close" @click="handleClose">×</button>
+          <h2 class="modal-title">{{ t('common.edit') }}</h2>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
         <div class="modal-body">
           <div class="filter-row">
             <div class="filter-item">
-              <label>School:</label>
+              <label>{{ tr('School:') }}</label>
               <input type="text" class="filter-input filter-input-readonly" :value="schoolLabel" readonly disabled />
             </div>
             <div class="filter-item">
-              <label>Programme:</label>
+              <label>{{ tr('Programme:') }}</label>
               <input
                 type="text"
                 class="filter-input filter-input-readonly"
@@ -97,12 +100,12 @@ function handleOverlayClick(event) {
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>No.</th>
-                  <th>Programme Intake</th>
-                  <th>Programme Code</th>
-                  <th>Programme</th>
-                  <th>Years</th>
-                  <th>School</th>
+                  <th>{{ t('common.serialNo') }}</th>
+                  <th>{{ tr('Programme Intake') }}</th>
+                  <th>{{ tr('Programme Code') }}</th>
+                  <th>{{ tr('Programme') }}</th>
+                  <th>{{ tr('Years') }}</th>
+                  <th>{{ tr('School') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -120,7 +123,7 @@ function handleOverlayClick(event) {
 
           <div class="bottom-form">
             <div class="form-row">
-              <label class="form-label"><span class="required">*</span> Intake:</label>
+              <label class="form-label"><span class="required">*</span> {{ tr('Intake:') }}</label>
               <input
                 type="text"
                 class="form-input form-input-readonly"
@@ -131,41 +134,37 @@ function handleOverlayClick(event) {
             </div>
 
             <div class="form-row">
-              <label class="form-label"><span class="required">*</span> Starting Semester:</label>
+              <label class="form-label"><span class="required">*</span> {{ tr('Starting Semester:') }}</label>
               <select
                 v-model="startingSemester"
                 class="form-input"
                 :class="{ error: errors.startingSemester, 'is-empty': !startingSemester }"
               >
-                <option value="">please select</option>
+                <option value="">{{ t('common.pleaseSelect') }}</option>
                 <option v-for="opt in startingSemesterOptions" :key="opt" :value="opt">{{ opt }}</option>
               </select>
             </div>
-            <p v-if="errors.startingSemester" class="field-error">{{ errors.startingSemester }}</p>
-            <p class="form-note">Note: Data is taken from the academic year and semester information table.</p>
+            <p v-if="errors.startingSemester" class="field-error">{{ tr(errors.startingSemester) }}</p>
+            <p class="form-note">{{ t('modal.intakeFormNote') }}</p>
 
             <div class="form-row">
-              <label class="form-label"><span class="required">*</span> Active:</label>
+              <label class="form-label"><span class="required">*</span> {{ tr('Active:') }}</label>
               <div class="radio-group" :class="{ error: errors.active }">
                 <label v-for="opt in activeOptions" :key="opt" class="radio-option">
                   <input v-model="active" type="radio" :value="opt" />
-                  {{ opt }}
+                  {{ tr(opt) }}
                 </label>
               </div>
             </div>
-            <p v-if="errors.active" class="field-error">{{ errors.active }}</p>
+            <p v-if="errors.active" class="field-error">{{ tr(errors.active) }}</p>
 
-            <p class="remark-note">
-              Note: The core association between programme and intake batch cannot be modified. Changing Active status
-              affects downstream business access; only enabled batches can be used for enrollment, scheduling, and
-              other operations.
-            </p>
+            <p class="remark-note">{{ t('modal.intakeEditNote') }}</p>
           </div>
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
-          <button type="button" class="btn btn-primary" @click="handleSave">Confirm</button>
+          <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
+          <button type="button" class="btn btn-primary" @click="handleSave">{{ t('common.confirm') }}</button>
         </div>
       </div>
     </div>
