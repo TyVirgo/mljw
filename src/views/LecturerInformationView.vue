@@ -18,8 +18,11 @@ import {
   getDepartmentOptions,
 } from '../data/lecturers.js'
 import { exportLecturersToExcel, lecturerExportFields } from '../utils/exportLecturerExcel.js'
+import { mergeEvaluationOverrides } from '../data/evaluationSettings.js'
 
-const lecturers = ref(initialLecturers.map((item) => normalizeLecturer({ ...item })))
+const lecturers = ref(
+  initialLecturers.map((item) => mergeEvaluationOverrides(normalizeLecturer({ ...item }))),
+)
 
 const searchExpanded = ref(false)
 const searchForm = ref(createEmptySearch())
@@ -106,7 +109,7 @@ const hasSelection = computed(() => selectedIds.value.length > 0)
 const evaluationFilterActive = computed(() => appliedSearch.value.requiresEvaluationOnly)
 
 function showEvalTag(item) {
-  return evaluationFilterActive.value && item.requiresEvaluation
+  return item.requiresEvaluation
 }
 
 function handleSearch() {
@@ -375,10 +378,10 @@ function getRowNumber(index) {
             <thead>
               <tr>
                 <th class="col-check"><input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" /></th>
-                <th>No.</th>
-                <th>Staff ID</th>
+                <th class="col-no">No.</th>
+                <th class="col-staff-id">Staff ID</th>
                 <th class="col-name">Name</th>
-                <th>Gender</th>
+                <th class="col-gender">Gender</th>
                 <th>Category</th>
                 <th>Department</th>
                 <th>Academic Qualification (Highest)</th>
@@ -398,8 +401,8 @@ function getRowNumber(index) {
                 <td class="col-check">
                   <input type="checkbox" :checked="selectedIds.includes(item.id)" @change="toggleSelect(item.id)" />
                 </td>
-                <td>{{ getRowNumber(index) }}</td>
-                <td>{{ item.staffId }}</td>
+                <td class="col-no">{{ getRowNumber(index) }}</td>
+                <td class="col-staff-id">{{ item.staffId }}</td>
                 <td class="col-name">
                   <div class="name-cell">
                     <span class="name-text">{{ item.name }}</span>
@@ -409,7 +412,7 @@ function getRowNumber(index) {
                     </span>
                   </div>
                 </td>
-                <td>{{ item.gender }}</td>
+                <td class="col-gender">{{ item.gender }}</td>
                 <td>{{ item.category }}</td>
                 <td>{{ item.department }}</td>
                 <td>{{ item.academicQualificationHighest }}</td>
@@ -768,11 +771,28 @@ function getRowNumber(index) {
 
 .data-table tbody tr:hover { background: #fafafa; }
 
-.col-check { width: 48px; }
+.col-check { width: 48px; min-width: 48px; }
+
+.col-no { width: 56px; min-width: 56px; }
+
+.col-staff-id { width: 96px; min-width: 96px; }
 
 .col-name {
-  min-width: 280px;
+  min-width: 140px;
 }
+
+.name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.name-text {
+  white-space: nowrap;
+}
+
+.col-gender { width: 72px; min-width: 72px; }
 
 .actions-inner {
   display: inline-flex;
@@ -799,17 +819,6 @@ function getRowNumber(index) {
   background: #fafafa;
 }
 
-.name-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: nowrap;
-}
-
-.name-text {
-  flex-shrink: 0;
-}
-
 .empty-cell {
   text-align: center;
   color: #9ca3af;
@@ -821,6 +830,7 @@ function getRowNumber(index) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 11px;
@@ -829,7 +839,7 @@ function getRowNumber(index) {
   background: #22c55e;
   color: #fff;
   white-space: nowrap;
-  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .eval-tag-line {

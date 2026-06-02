@@ -1,12 +1,16 @@
+/** Intake month codes: Feb/Apr short semesters, Sep long semester. */
+export const VALID_INTAKE_MONTHS = ['02', '04', '09']
+
 export const intakeOptions = [
   '202509',
   '202504',
-  '202503',
-  '202410',
+  '202502',
   '202409',
   '202404',
-  '202403',
+  '202402',
   '202309',
+  '202304',
+  '202302',
 ]
 
 export const activeOptions = ['Yes', 'No']
@@ -14,13 +18,20 @@ export const activeOptions = ['Yes', 'No']
 export const initialIntakeSets = [
   { id: 1, code: '01', intake: '202509', active: 'Yes' },
   { id: 2, code: '02', intake: '202504', active: 'Yes' },
-  { id: 3, code: '03', intake: '202503', active: 'Yes' },
-  { id: 4, code: '04', intake: '202410', active: 'Yes' },
-  { id: 5, code: '05', intake: '202409', active: 'Yes' },
-  { id: 6, code: '06', intake: '202404', active: 'Yes' },
+  { id: 3, code: '03', intake: '202502', active: 'Yes' },
+  { id: 4, code: '04', intake: '202409', active: 'Yes' },
+  { id: 5, code: '05', intake: '202404', active: 'Yes' },
+  { id: 6, code: '06', intake: '202402', active: 'Yes' },
 ]
 
 let intakeSeq = initialIntakeSets.length
+
+export function isValidIntakeBatch(intake) {
+  const value = String(intake || '').trim()
+  if (!/^\d{6}$/.test(value)) return false
+  if (!/^(19|20)\d{2}(0[1-9]|1[0-2])$/.test(value)) return false
+  return VALID_INTAKE_MONTHS.includes(value.slice(4, 6))
+}
 
 export function createIntakeSetId() {
   intakeSeq += 1
@@ -45,10 +56,8 @@ export function validateIntakeSetForm(form, allItems, excludeId = null) {
 
   if (!intake) {
     errors.intake = 'Intake is required'
-  } else if (!/^\d{6}$/.test(intake)) {
-    errors.intake = 'Intake must be 6 digits in Year+Month format (e.g. 202509)'
-  } else if (!/^(19|20)\d{2}(0[1-9]|1[0-2])$/.test(intake)) {
-    errors.intake = 'Intake must follow Year+Month format (e.g. 202509)'
+  } else if (!isValidIntakeBatch(intake)) {
+    errors.intake = 'Intake must be Year+Month in 02, 04 or 09 format (e.g. 202409)'
   }
 
   if (!form.active) {

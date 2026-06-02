@@ -1,4 +1,4 @@
-import { intakeOptions, initialIntakeSets } from './intakeSets.js'
+import { intakeOptions, initialIntakeSets, isValidIntakeBatch } from './intakeSets.js'
 import { initialProgrammes } from './programmeVersions.js'
 
 export { intakeOptions }
@@ -6,10 +6,13 @@ export { intakeOptions }
 export const startingSemesterOptions = [
   '2025/2026 Semester 1',
   '2025/2026 Semester 2',
+  '2025/2026 Semester 3',
   '2024/2025 Semester 1',
   '2024/2025 Semester 2',
+  '2024/2025 Semester 3',
   '2023/2024 Semester 1',
   '2023/2024 Semester 2',
+  '2023/2024 Semester 3',
 ]
 
 export function getActiveIntakeOptions() {
@@ -74,6 +77,7 @@ export const initialProgrammeIntakes = [
     programmeName: 'Bachelor of Management in International Business (Honours)',
     schoolId: 'sob',
     school: 'School of Business',
+    startingSemester: '2025/2026 Semester 3',
     active: 'Yes',
   },
   {
@@ -85,51 +89,55 @@ export const initialProgrammeIntakes = [
     programmeName: 'Bachelor of Management in International Business (Honours)',
     schoolId: 'sob',
     school: 'School of Business',
+    startingSemester: '2025/2026 Semester 2',
     active: 'Yes',
   },
   {
     id: 3,
-    programmeIntake: '202204MCT',
-    intake: '202204',
+    programmeIntake: '202502MCT',
+    intake: '202502',
     years: 4,
     programmeCode: 'MCT',
     programmeName: 'Bachelor of Traditional Chinese Medicine (Honours)',
     schoolId: 'stcm',
     school: 'School of Traditional Chinese Medicine',
+    startingSemester: '2025/2026 Semester 1',
     active: 'Yes',
   },
   {
     id: 4,
-    programmeIntake: '202204EGE',
-    intake: '202204',
+    programmeIntake: '202409EGE',
+    intake: '202409',
     years: 5,
     programmeCode: 'EGE',
     programmeName: 'Bachelor of Electronic and Electrical Engineering (Honours)',
     schoolId: 'some',
     school: 'School of Mechanical Engineering',
+    startingSemester: '2024/2025 Semester 3',
     active: 'No',
   },
   {
     id: 5,
-    programmeIntake: '202403MCT',
-    intake: '202403',
+    programmeIntake: '202404MCT',
+    intake: '202404',
     years: 4,
     programmeCode: 'MCT',
     programmeName: 'Bachelor of Traditional Chinese Medicine (Honours)',
     schoolId: 'stcm',
     school: 'School of Traditional Chinese Medicine',
+    startingSemester: '2024/2025 Semester 2',
     active: 'Yes',
   },
   {
     id: 6,
-    programmeIntake: '202309IBU',
-    intake: '202309',
+    programmeIntake: '202402IBU',
+    intake: '202402',
     years: 3,
     programmeCode: 'IBU',
     programmeName: 'Bachelor of Management in International Business (Honours)',
     schoolId: 'soc',
     school: 'School of Communication',
-    startingSemester: '2023/2024 Semester 1',
+    startingSemester: '2024/2025 Semester 1',
     active: 'No',
   },
 ]
@@ -232,8 +240,8 @@ export function validateProgrammeIntakeForm(form, allItems, excludeId = null) {
 
   if (!intake) {
     errors.intake = 'Intake is required'
-  } else if (!/^\d{6}$/.test(intake)) {
-    errors.intake = 'Intake must be 6 digits in Year+Month format (e.g. 202509)'
+  } else if (!isValidIntakeBatch(intake)) {
+    errors.intake = 'Intake must be Year+Month in 02, 04 or 09 format (e.g. 202409)'
   }
 
   if (!form.years) errors.years = 'Years is required'

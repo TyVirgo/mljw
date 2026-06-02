@@ -440,23 +440,25 @@ function getRowNumber(index) {
 
 .search-grid {
   --search-label-w: 92px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
-  column-gap: 32px;
-  row-gap: 14px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
 }
 
 .search-row {
-  display: contents;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 32px;
 }
 
 .search-item {
   display: grid;
-  grid-template-columns: var(--search-label-w) minmax(0, 1fr);
+  grid-template-columns: var(--search-label-w) 148px;
   gap: 8px;
   align-items: center;
-  min-width: 0;
+  flex-shrink: 0;
 }
 
 .search-item label {
@@ -468,7 +470,7 @@ function getRowNumber(index) {
 
 .search-item input,
 .search-item select {
-  width: 100%;
+  width: 148px;
   min-width: 0;
   height: 32px;
   padding: 0 10px;
@@ -478,12 +480,10 @@ function getRowNumber(index) {
 }
 
 .search-actions {
-  grid-column: 5;
-  grid-row: 1;
   display: flex;
   align-items: center;
   gap: 8px;
-  justify-self: end;
+  flex-shrink: 0;
   white-space: nowrap;
 }
 
