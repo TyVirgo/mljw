@@ -23,7 +23,6 @@ export const menuItems = [
       { id: 'programme-intake', label: 'Programme Intake' },
     ],
   },
-  { id: 'panel-info', label: 'Panel Info', icon: 'database' },
   {
     id: 'site-resources',
     label: 'Site Resources',
@@ -33,7 +32,18 @@ export const menuItems = [
       { id: 'classroom-info', label: 'Classroom Info' },
     ],
   },
-  { id: 'course-information', label: 'Course Information', icon: 'database' },
+  {
+    id: 'course-info',
+    label: 'Course Info',
+    icon: 'book',
+    children: [
+      { id: 'course-information', label: 'Course Info' },
+      { id: 'course-application', label: 'Course Application' },
+      { id: 'course-approval-process', label: 'Course Approval Process' },
+      { id: 'course-change-application', label: 'Course Change Application' },
+      { id: 'course-change-review', label: 'Course Change Review' },
+    ],
+  },
   {
     id: 'lecturer-info',
     label: 'Lecturer Info',
@@ -43,7 +53,15 @@ export const menuItems = [
       { id: 'evaluation-settings', label: 'Evaluation Settings' },
     ],
   },
-  { id: 'semester-calendar', label: 'Semester & Calendar', icon: 'database' },
+  {
+    id: 'semester-calendar',
+    label: 'Semester & Calendar',
+    icon: 'calendar',
+    children: [
+      { id: 'semester-information', label: 'Semester Information' },
+      { id: 'calendar', label: 'Calendar' },
+    ],
+  },
 ]
 
 export const developedPages = new Set([

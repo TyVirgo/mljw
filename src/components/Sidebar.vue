@@ -11,7 +11,7 @@ const props = defineProps({
 
 const emit = defineEmits(['select'])
 
-const expandedGroups = ref(['basic-info', 'programme-info', 'site-resources', 'lecturer-info'])
+const expandedGroups = ref(['basic-info', 'programme-info', 'site-resources', 'course-info', 'lecturer-info', 'semester-calendar'])
 
 watch(
   () => props.activeId,
@@ -69,6 +69,16 @@ function isChildActive(item) {
               <svg v-if="item.icon === 'location'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                 <circle cx="12" cy="10" r="3" />
+              </svg>
+              <svg v-else-if="item.icon === 'book'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+              <svg v-else-if="item.icon === 'calendar'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
               <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <ellipse cx="12" cy="5" rx="9" ry="3" />
@@ -211,18 +221,22 @@ function isChildActive(item) {
 }
 
 .submenu {
-  padding-left: 12px;
+  padding: 2px 0 4px 12px;
   margin-bottom: 4px;
 }
 
 .submenu-item {
   display: block;
   width: 100%;
-  padding: 9px 12px 9px 28px;
+  padding: 8px 12px 8px 28px;
   border-radius: 8px;
   font-size: 14px;
+  line-height: 1.4;
   color: #6b7280;
   text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: background 0.15s, color 0.15s;
 }
 
