@@ -20,6 +20,9 @@ export const advertisementCodeOptions = ['ADV-001', 'ADV-002', 'ADV-003']
 export const accStatusOptions = ['PA', 'FA']
 export const typeOfApprovalOptions = ['PA', 'FA', 'New Programme']
 
+export const FEE_AMOUNT_PATTERN = /^\d+(\.\d{1,2})?$/
+export const FEE_AMOUNT_VALIDATION_MESSAGE = 'must be numeric with at most 2 decimal places'
+
 export const localFeeColumns = [
   { key: 'tuitionFee', label: 'Tuition Fee' },
   { key: 'applicationFee', label: 'Application Fee (Non-Refundable)' },
@@ -190,7 +193,7 @@ function buildProgrammeFormData(programme, approvalOverrides = {}, infoOverrides
         mqaStartDate: '17.05.2018',
         mqaSyorDatePa: '09.01.2015',
         mqaSyorDateFa: '28.12.2018',
-        mqaFirstIntakeDuration: '2 years',
+        mqaFirstIntakeDuration: '2',
         moheCode: 'N/345/6/0756',
         moheApprovalDate: '26.05.2015',
         moheExpiryDate: '04.05.2020',
@@ -239,7 +242,7 @@ function buildProgrammeFormData(programme, approvalOverrides = {}, infoOverrides
       mqaStartDate: '01.01.2020',
       mqaSyorDatePa: '01.06.2019',
       mqaSyorDateFa: '01.12.2019',
-      mqaFirstIntakeDuration: '3 years',
+      mqaFirstIntakeDuration: '3',
       moheCode: 'N/000/6/0000',
       moheApprovalDate: '01.01.2020',
       moheExpiryDate: '31.12.2024',
@@ -285,6 +288,52 @@ export function buildVersionFromSave(formData, meta = {}) {
   }
 }
 
+export function getProgrammeCurrentVersion(programme) {
+  if (!programme?.versions?.length) return null
+  return programme.versions.find((item) => item.isCurrent) || programme.versions[0]
+}
+
+export function getProgrammeCurrentFormData(programme) {
+  const version = getProgrammeCurrentVersion(programme)
+  if (version?.formData) {
+    const formData = JSON.parse(JSON.stringify(version.formData))
+    if (programme.code) {
+      formData.programmeInfo.programmeCode = programme.code
+    }
+    return formData
+  }
+
+  const stub = {
+    id: programme.id,
+    code: programme.code,
+    name: programme.name,
+    level: programme.level,
+    years: programme.years,
+    schoolId: programme.schoolId,
+  }
+  const approvalOverrides = version
+    ? {
+        mqaCode: version.mqaCode,
+        mqaStartDate: version.mqaValidityStart,
+        mqaExpiryDate: version.mqaValidityExpiry,
+        moheCode: version.moheCode,
+        moheApprovalDate: version.approvalDate,
+        moheStartDate: version.moheValidityStart,
+        moheExpiryDate: version.moheValidityExpiry,
+      }
+    : {}
+
+  return buildProgrammeFormData(stub, approvalOverrides, {
+    programmeName: programme.name,
+    programmeNameEn: programme.name,
+    programmeNameMal: programme.name,
+    programmeCode: programme.code,
+    level: programme.level,
+    years: String(programme.years),
+    department: programme.schoolId,
+  })
+}
+
 export function createSampleAttachment() {
   return {
     id: 'sample-attachment-1',
@@ -302,6 +351,7 @@ export function createInitialAttachments() {
 }
 
 export function createEmptyProgrammeForm() {
+  // Step 1 Programme Info: 30 fields; Step 2 Approval: 13; Step 3 Entry: 8; Step 4 Threshold: 3; Step 5 Fee: 21 fields
   return {
     programmeInfo: {
       programmeName: '',
@@ -399,6 +449,20 @@ export function mergeVersionFormWithProgramme(baseFormData, versionForm) {
     feeStructure: JSON.parse(JSON.stringify(versionForm.feeStructure)),
   }
 }
+
+export function extractVersionFormFromFormData(formData) {
+  const empty = createEmptyVersionForm()
+  if (!formData) return empty
+  return {
+    approvalDetails: JSON.parse(JSON.stringify(formData.approvalDetails || empty.approvalDetails)),
+    entryRequirements: JSON.parse(JSON.stringify(formData.entryRequirements || empty.entryRequirements)),
+    thresholdMarks: JSON.parse(JSON.stringify(formData.thresholdMarks || empty.thresholdMarks)),
+    feeStructure: JSON.parse(JSON.stringify(formData.feeStructure || empty.feeStructure)),
+  }
+}
+
+export const programmePublishTooltip =
+  'Click to send the Approval letter for the update of professional information to the relevant personnel.'
 
 let attachmentSeq = 1
 

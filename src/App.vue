@@ -11,6 +11,7 @@ import DepartmentInfoView from './views/DepartmentInfoView.vue'
 import CodeSetManagementView from './views/CodeSetManagementView.vue'
 import ProgrammeVersionView from './views/ProgrammeVersionView.vue'
 import IntakeSetView from './views/IntakeSetView.vue'
+import ProgrammeIntakeView from './views/ProgrammeIntakeView.vue'
 import UnderConstructionView from './views/UnderConstructionView.vue'
 import AcademicPortalView from './views/AcademicPortalView.vue'
 import { developedPages, basicDataModuleName } from './config/menu.js'
@@ -26,6 +27,7 @@ const isDepartmentInfo = computed(() => currentPageId.value === 'department-info
 const isCodeSetManagement = computed(() => currentPageId.value === 'code-set-management')
 const isProgrammeVersion = computed(() => currentPageId.value === 'programme-version')
 const isIntakeSet = computed(() => currentPageId.value === 'intake-set')
+const isProgrammeIntake = computed(() => currentPageId.value === 'programme-intake')
 const isUnderConstruction = computed(() => !developedPages.has(currentPageId.value))
 
 function handleSelect(id) {
@@ -68,6 +70,7 @@ function openBasicDataAdmin() {
           <CodeSetManagementView v-else-if="isCodeSetManagement" />
           <ProgrammeVersionView v-else-if="isProgrammeVersion" />
           <IntakeSetView v-else-if="isIntakeSet" />
+          <ProgrammeIntakeView v-else-if="isProgrammeIntake" />
           <UnderConstructionView v-else-if="isUnderConstruction" @back="handleBack" />
         </main>
       </div>

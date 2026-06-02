@@ -11,6 +11,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  scopeOnly: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['close', 'confirm'])
@@ -96,6 +100,13 @@ function handleOverlayClick(event) {
 }
 
 function handleConfirm() {
+  if (props.scopeOnly) {
+    emit('confirm', {
+      selectedFields: props.fields.map((item) => item.key),
+      exportScope: exportScope.value,
+    })
+    return
+  }
   if (!selectedFields.value.length) {
     window.alert('Please select at least one export field.')
     return
@@ -126,7 +137,7 @@ function handleConfirm() {
       </div>
     </Transition>
     <div v-if="visible" class="export-overlay" @click="handleOverlayClick">
-      <div class="export-panel" role="dialog" aria-modal="true" aria-labelledby="export-title">
+      <div class="export-panel" :class="{ 'export-panel-scope-only': scopeOnly }" role="dialog" aria-modal="true" aria-labelledby="export-title">
         <div class="export-header">
           <h2 id="export-title" class="export-title">Export</h2>
           <button type="button" class="export-close" aria-label="Close" @click="emit('close')">
@@ -137,7 +148,7 @@ function handleConfirm() {
           </button>
         </div>
 
-        <div class="transfer-wrap">
+        <div v-if="!scopeOnly" class="transfer-wrap">
           <div class="transfer-panel">
             <div class="transfer-head">
               <label class="transfer-check">
@@ -212,18 +223,18 @@ function handleConfirm() {
           </div>
         </div>
 
-        <div class="export-setting">
+        <div class="export-setting" :class="{ 'export-setting-scope-only': scopeOnly }">
           <span class="setting-label"><span class="required">*</span> Export Setting:</span>
-          <div class="setting-options">
+          <div class="setting-options" :class="{ 'setting-options-column': scopeOnly }">
             <label class="setting-option">
               <input v-model="exportScope" type="radio" value="currentPage" />
               <span>Export Current Page</span>
             </label>
             <label class="setting-option">
               <input v-model="exportScope" type="radio" value="allResults" />
-              <span>Export All Results</span>
+              <span>{{ scopeOnly ? 'Export All Data' : 'Export All Results' }}</span>
             </label>
-            <label class="setting-option">
+            <label v-if="!scopeOnly" class="setting-option">
               <input v-model="exportScope" type="radio" value="selectedRows" />
               <span>Export Selected Rows</span>
             </label>
@@ -258,6 +269,20 @@ function handleConfirm() {
   border-radius: 12px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
   padding: 20px 24px 24px;
+}
+
+.export-panel-scope-only {
+  max-width: 520px;
+}
+
+.export-setting-scope-only {
+  margin-bottom: 8px;
+}
+
+.setting-options-column {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .export-header {

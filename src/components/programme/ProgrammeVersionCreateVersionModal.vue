@@ -1,9 +1,11 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import DatePickerEn from '../common/DatePickerEn.vue'
 import {
   createVersionFormSteps,
   createEmptyVersionForm,
+  extractVersionFormFromFormData,
+  programmePublishTooltip,
   typeOfApprovalOptions,
   localFeeColumns,
   internationalFeeColumns,
@@ -11,22 +13,32 @@ import {
 
 const props = defineProps({
   visible: Boolean,
+  mode: { type: String, default: 'create' },
   programmeName: { type: String, default: '' },
+  version: { type: Object, default: null },
 })
 
-const emit = defineEmits(['close', 'save'])
+const emit = defineEmits(['close', 'save', 'publish'])
 
 const currentStep = ref(1)
 const form = ref(createEmptyVersionForm())
 const errors = ref({})
 
+const isEditMode = computed(() => props.mode === 'edit')
+const modalTitle = computed(() => (isEditMode.value ? 'Edit' : 'Create Version'))
+const isLastStep = computed(() => currentStep.value === createVersionFormSteps.length)
+
 watch(
-  () => props.visible,
-  (visible) => {
-    if (!visible) return
+  () => [props.visible, props.mode, props.version],
+  () => {
+    if (!props.visible) return
     currentStep.value = 1
     errors.value = {}
-    form.value = createEmptyVersionForm()
+    if (isEditMode.value && props.version?.formData) {
+      form.value = extractVersionFormFromFormData(props.version.formData)
+    } else {
+      form.value = createEmptyVersionForm()
+    }
   },
 )
 
@@ -53,22 +65,49 @@ function requireSelect(value, key, label) {
   return true
 }
 
+function requireTextMaxLen(value, key, label, maxLength) {
+  const text = String(value || '').trim()
+  if (!text) {
+    setError(key, `${label} is required`)
+    return false
+  }
+  if (text.length > maxLength) {
+    setError(key, `${label} must be at most ${maxLength} characters`)
+    return false
+  }
+  setError(key, '')
+  return true
+}
+
+function requireNumericMaxDigits(value, key, label, maxDigits = 2) {
+  const text = String(value || '').trim()
+  if (!text) {
+    setError(key, `${label} is required`)
+    return false
+  }
+  if (!new RegExp(`^\\d{1,${maxDigits}}$`).test(text)) {
+    setError(key, `${label} must be numeric with at most ${maxDigits} digits`)
+    return false
+  }
+  setError(key, '')
+  return true
+}
+
 function validateStep1() {
   const approval = form.value.approvalDetails
   let valid = true
   const checks = [
-    () => requireText(approval.mqaCode, 'mqaCode', 'MQA Code'),
-    () => requireText(approval.mqaSyorReferencePa, 'mqaSyorReferencePa', 'Syor Reference (PA)'),
-    () => requireText(approval.mqaSyorReferenceFa, 'mqaSyorReferenceFa', 'Syor Reference (FA)'),
-    () => requireText(approval.mqaStartDate, 'mqaStartDate', 'Start Date'),
+    () => requireTextMaxLen(approval.mqaCode, 'mqaCode', 'MQA Code', 50),
+    () => requireText(approval.mqaStartDate, 'mqaStartDate', 'Start Date (MQA)'),
     () => requireText(approval.mqaSyorDatePa, 'mqaSyorDatePa', 'Syor Date(PA)'),
+    () => requireTextMaxLen(approval.mqaSyorReferencePa, 'mqaSyorReferencePa', 'Syor Reference (PA)', 50),
     () => requireText(approval.mqaSyorDateFa, 'mqaSyorDateFa', 'Syor Date(FA)'),
-    () => requireText(approval.mqaFirstIntakeDuration, 'mqaFirstIntakeDuration', 'First intake duration as in approval'),
-    () => requireText(approval.moheCode, 'moheCode', 'MOHE Code'),
-    () => requireText(approval.moheApprovalDate, 'moheApprovalDate', 'Approval Date'),
-    () => requireText(approval.moheExpiryDate, 'moheExpiryDate', 'Expiry Date'),
-    () => requireText(approval.moheApprovalReferenceNo, 'moheApprovalReferenceNo', 'MOHE Approval Reference No.'),
-    () => requireText(approval.moheStartDate, 'moheStartDate', 'Start Date'),
+    () => requireTextMaxLen(approval.mqaSyorReferenceFa, 'mqaSyorReferenceFa', 'Syor Reference (FA)', 50),
+    () => requireNumericMaxDigits(approval.mqaFirstIntakeDuration, 'mqaFirstIntakeDuration', 'First intake duration as in approval'),
+    () => requireTextMaxLen(approval.moheCode, 'moheCode', 'MOHE Code', 50),
+    () => requireTextMaxLen(approval.moheApprovalReferenceNo, 'moheApprovalReferenceNo', 'MOHE Approval Reference No.', 50),
+    () => requireText(approval.moheApprovalDate, 'moheApprovalDate', 'Approval Date (MOHE)'),
+    () => requireText(approval.moheStartDate, 'moheStartDate', 'Start Date (MOHE)'),
   ]
   checks.forEach((check) => {
     if (!check()) valid = false
@@ -76,21 +115,83 @@ function validateStep1() {
   return valid
 }
 
-function validateStep2() {
+function optionalNumericPattern(value, key, label, pattern, message) {
+  const text = String(value ?? '').trim()
+  if (!text) {
+    setError(key, '')
+    return true
+  }
+  if (!pattern.test(text)) {
+    setError(key, `${label} ${message}`)
+    return false
+  }
+  setError(key, '')
   return true
 }
 
+function validateStep2() {
+  const entry = form.value.entryRequirements
+  let valid = true
+  const checks = [
+    () => optionalNumericPattern(entry.muet, 'muet', 'MUET', /^\d+(\.\d{1,3})?$/, 'must be numeric with at most 3 decimal places'),
+    () => optionalNumericPattern(entry.elts, 'elts', 'IELTS', /^\d+(\.\d{1})?$/, 'must be numeric with at most 1 decimal place'),
+    () => optionalNumericPattern(entry.toeflIbt, 'toeflIbt', 'TOEFL IBT', /^\d{1,3}$/, 'must be numeric with at most 3 digits'),
+    () => optionalNumericPattern(entry.toeflEssentials, 'toeflEssentials', 'TOEFL Essentials (Online)', /^\d{1,3}$/, 'must be numeric with at most 3 digits'),
+    () => optionalNumericPattern(entry.pearsonTestOfEnglish, 'pearsonTestOfEnglish', 'PEARSON TEST OF ENGLISH', /^\d+(\.\d{1})?$/, 'must be numeric with at most 1 decimal place'),
+    () => optionalNumericPattern(entry.cambridgeEnglishIi, 'cambridgeEnglishIi', 'CAMBRIDGE ENGLISH(i/ii)', /^\d+(\.\d{1})?$/, 'must be numeric with at most 1 decimal place'),
+    () => optionalNumericPattern(entry.cambridgeEnglishIii, 'cambridgeEnglishIii', 'CAMBRIDGE ENGLISH(iii)', /^\d+(\.\d{1})?$/, 'must be numeric with at most 1 decimal place'),
+    () => optionalNumericPattern(entry.els, 'els', 'ELS', /^\d{1,3}$/, 'must be numeric with at most 3 digits'),
+  ]
+  checks.forEach((check) => {
+    if (!check()) valid = false
+  })
+  return valid
+}
+
 function validateStep3() {
-  return true
+  const threshold = form.value.thresholdMarks
+  let valid = true
+  const checks = [
+    () => optionalNumericPattern(threshold.totalContinuousAssessment, 'totalContinuousAssessment', 'Total Continuous Assessment', /^\d{1,3}$/, 'must be numeric with at most 3 digits'),
+    () => optionalNumericPattern(threshold.totalFinalAssessment, 'totalFinalAssessment', 'Total Final Assessment', /^\d{1,3}$/, 'must be numeric with at most 3 digits'),
+    () => optionalNumericPattern(threshold.overallScore, 'overallScore', 'Overall Score', /^\d{1,3}$/, 'must be numeric with at most 3 digits'),
+  ]
+  checks.forEach((check) => {
+    if (!check()) valid = false
+  })
+  return valid
 }
 
 function validateStep4() {
   const fee = form.value.feeStructure
   let valid = true
-  ;[
-    () => requireText(fee.durationMinYear, 'durationMinYear', 'Duration (Min. Year)'),
+  const checks = [
+    () => requireNumericMaxDigits(fee.durationMinYear, 'durationMinYear', 'Duration (Min. Year)'),
     () => requireSelect(fee.typeOfApproval, 'typeOfApproval', 'Type of Approval'),
-  ].forEach((check) => {
+  ]
+  localFeeColumns.forEach((col) => {
+    checks.push(() =>
+      optionalNumericPattern(
+        fee.localStudent?.[col.key],
+        `local-${col.key}`,
+        col.label,
+        /^\d+(\.\d{1,2})?$/,
+        'must be numeric with at most 2 decimal places',
+      ),
+    )
+  })
+  internationalFeeColumns.forEach((col) => {
+    checks.push(() =>
+      optionalNumericPattern(
+        fee.internationalStudent?.[col.key],
+        `intl-${col.key}`,
+        col.label,
+        /^\d+(\.\d{1,2})?$/,
+        'must be numeric with at most 2 decimal places',
+      ),
+    )
+  })
+  checks.forEach((check) => {
     if (!check()) valid = false
   })
   return valid
@@ -128,6 +229,11 @@ function handleSubmit() {
   emit('save', JSON.parse(JSON.stringify(form.value)))
 }
 
+function handlePublish() {
+  if (!validateCurrentStep()) return
+  emit('publish', JSON.parse(JSON.stringify(form.value)))
+}
+
 function handleClose() {
   emit('close')
 }
@@ -152,11 +258,14 @@ function fieldError(key) {
     <div v-if="visible" class="modal-overlay" @click="handleOverlayClick">
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
-          <h2 class="modal-title">Create Version</h2>
+          <h2 class="modal-title">{{ modalTitle }}</h2>
           <button type="button" class="modal-close" aria-label="Close" @click="handleClose">×</button>
         </div>
 
         <p class="programme-name">Programme: {{ programmeName }}</p>
+        <p v-if="isEditMode" class="modal-subtitle">
+          Edit version information. Saving will create a new version; view change history via ProgrammeDetails.
+        </p>
 
         <div class="stepper">
           <template v-for="(step, index) in createVersionFormSteps" :key="step.id">
@@ -177,17 +286,17 @@ function fieldError(key) {
               <div class="pi-row">
                 <div class="pi-field">
                   <label class="pi-label"><span class="required">*</span> MQA Code:</label>
-                  <input v-model="form.approvalDetails.mqaCode" type="text" class="pi-input" :class="fieldError('mqaCode')" placeholder="please input" />
+                  <input v-model="form.approvalDetails.mqaCode" type="text" class="pi-input" :class="fieldError('mqaCode')" maxlength="50" placeholder="please input" />
                 </div>
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> Start Date:</label>
+                  <label class="pi-label"><span class="required">*</span> Start Date (MQA):</label>
                   <DatePickerEn v-model="form.approvalDetails.mqaStartDate" placeholder="please select date" :has-error="!!errors.mqaStartDate" />
                 </div>
               </div>
 
               <div class="pi-row">
                 <div class="pi-field">
-                  <label class="pi-label">Expiry Date:</label>
+                  <label class="pi-label">Expiry Date (MQA):</label>
                   <DatePickerEn v-model="form.approvalDetails.mqaExpiryDate" placeholder="please select date" />
                 </div>
                 <div class="pi-field">
@@ -199,7 +308,7 @@ function fieldError(key) {
               <div class="pi-row">
                 <div class="pi-field">
                   <label class="pi-label"><span class="required">*</span> Syor Reference (PA):</label>
-                  <DatePickerEn v-model="form.approvalDetails.mqaSyorReferencePa" placeholder="please select date" :has-error="!!errors.mqaSyorReferencePa" />
+                  <input v-model="form.approvalDetails.mqaSyorReferencePa" type="text" class="pi-input" :class="fieldError('mqaSyorReferencePa')" maxlength="50" placeholder="please input" />
                 </div>
                 <div class="pi-field">
                   <label class="pi-label"><span class="required">*</span> Syor Date(FA):</label>
@@ -210,11 +319,11 @@ function fieldError(key) {
               <div class="pi-row">
                 <div class="pi-field">
                   <label class="pi-label"><span class="required">*</span> Syor Reference (FA):</label>
-                  <DatePickerEn v-model="form.approvalDetails.mqaSyorReferenceFa" placeholder="please select date" :has-error="!!errors.mqaSyorReferenceFa" />
+                  <input v-model="form.approvalDetails.mqaSyorReferenceFa" type="text" class="pi-input" :class="fieldError('mqaSyorReferenceFa')" maxlength="50" placeholder="please input" />
                 </div>
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> First intake duration as in approval :</label>
-                  <input v-model="form.approvalDetails.mqaFirstIntakeDuration" type="text" class="pi-input" :class="fieldError('mqaFirstIntakeDuration')" placeholder="please input" />
+                  <label class="pi-label"><span class="required">*</span> First intake duration as in approval:</label>
+                  <input v-model="form.approvalDetails.mqaFirstIntakeDuration" type="text" class="pi-input" :class="fieldError('mqaFirstIntakeDuration')" maxlength="2" placeholder="please input" />
                 </div>
               </div>
 
@@ -223,29 +332,29 @@ function fieldError(key) {
               <div class="pi-row">
                 <div class="pi-field">
                   <label class="pi-label"><span class="required">*</span> MOHE Code:</label>
-                  <input v-model="form.approvalDetails.moheCode" type="text" class="pi-input" :class="fieldError('moheCode')" placeholder="please input" />
+                  <input v-model="form.approvalDetails.moheCode" type="text" class="pi-input" :class="fieldError('moheCode')" maxlength="50" placeholder="please input" />
                 </div>
                 <div class="pi-field">
                   <label class="pi-label"><span class="required">*</span> MOHE Approval Reference No.:</label>
-                  <input v-model="form.approvalDetails.moheApprovalReferenceNo" type="text" class="pi-input" :class="fieldError('moheApprovalReferenceNo')" placeholder="please input" />
+                  <input v-model="form.approvalDetails.moheApprovalReferenceNo" type="text" class="pi-input" :class="fieldError('moheApprovalReferenceNo')" maxlength="50" placeholder="please input" />
                 </div>
               </div>
 
               <div class="pi-row">
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> Approval Date:</label>
+                  <label class="pi-label"><span class="required">*</span> Approval Date (MOHE):</label>
                   <DatePickerEn v-model="form.approvalDetails.moheApprovalDate" placeholder="please select date" :has-error="!!errors.moheApprovalDate" />
                 </div>
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> Start Date:</label>
+                  <label class="pi-label"><span class="required">*</span> Start Date (MOHE):</label>
                   <DatePickerEn v-model="form.approvalDetails.moheStartDate" placeholder="please select date" :has-error="!!errors.moheStartDate" />
                 </div>
               </div>
 
               <div class="pi-row">
                 <div class="pi-field">
-                  <label class="pi-label"><span class="required">*</span> Expiry Date:</label>
-                  <DatePickerEn v-model="form.approvalDetails.moheExpiryDate" placeholder="please select date" :has-error="!!errors.moheExpiryDate" />
+                  <label class="pi-label">Expiry Date (MOHE):</label>
+                  <DatePickerEn v-model="form.approvalDetails.moheExpiryDate" placeholder="please select date" />
                 </div>
                 <div class="pi-field pi-field-empty"></div>
               </div>
@@ -254,45 +363,46 @@ function fieldError(key) {
 
           <!-- Step 2: Entry Requirements -->
           <section v-show="currentStep === 2" class="entry-requirements-section">
+            <h3 class="section-title"><span class="section-bar"></span>Entry Requirements</h3>
             <div class="programme-info-form">
               <div class="pi-row">
                 <div class="pi-field">
                   <label class="pi-label">MUET:</label>
-                  <input v-model="form.entryRequirements.muet" type="text" class="pi-input" placeholder="please input" />
+                  <input v-model="form.entryRequirements.muet" type="text" class="pi-input" :class="fieldError('muet')" placeholder="please input" />
                 </div>
                 <div class="pi-field">
-                  <label class="pi-label">ELTS:</label>
-                  <input v-model="form.entryRequirements.elts" type="text" class="pi-input" placeholder="please input" />
+                  <label class="pi-label">IELTS:</label>
+                  <input v-model="form.entryRequirements.elts" type="text" class="pi-input" :class="fieldError('elts')" placeholder="please input" />
                 </div>
               </div>
               <div class="pi-row">
                 <div class="pi-field">
                   <label class="pi-label">TOEFL IBT:</label>
-                  <input v-model="form.entryRequirements.toeflIbt" type="text" class="pi-input" placeholder="please input" />
+                  <input v-model="form.entryRequirements.toeflIbt" type="text" class="pi-input" :class="fieldError('toeflIbt')" placeholder="please input" />
                 </div>
                 <div class="pi-field">
                   <label class="pi-label">TOEFL Essentials (Online):</label>
-                  <input v-model="form.entryRequirements.toeflEssentials" type="text" class="pi-input" placeholder="please input" />
+                  <input v-model="form.entryRequirements.toeflEssentials" type="text" class="pi-input" :class="fieldError('toeflEssentials')" placeholder="please input" />
                 </div>
               </div>
               <div class="pi-row">
                 <div class="pi-field">
                   <label class="pi-label">PEARSON TEST OF ENGLISH:</label>
-                  <input v-model="form.entryRequirements.pearsonTestOfEnglish" type="text" class="pi-input" placeholder="please input" />
+                  <input v-model="form.entryRequirements.pearsonTestOfEnglish" type="text" class="pi-input" :class="fieldError('pearsonTestOfEnglish')" placeholder="please input" />
                 </div>
                 <div class="pi-field">
                   <label class="pi-label">CAMBRIDGE ENGLISH(i/ii):</label>
-                  <input v-model="form.entryRequirements.cambridgeEnglishIi" type="text" class="pi-input" placeholder="please input" />
+                  <input v-model="form.entryRequirements.cambridgeEnglishIi" type="text" class="pi-input" :class="fieldError('cambridgeEnglishIi')" placeholder="please input" />
                 </div>
               </div>
               <div class="pi-row">
                 <div class="pi-field">
                   <label class="pi-label">CAMBRIDGE ENGLISH(iii):</label>
-                  <input v-model="form.entryRequirements.cambridgeEnglishIii" type="text" class="pi-input" placeholder="please input" />
+                  <input v-model="form.entryRequirements.cambridgeEnglishIii" type="text" class="pi-input" :class="fieldError('cambridgeEnglishIii')" placeholder="please input" />
                 </div>
                 <div class="pi-field">
                   <label class="pi-label">ELS:</label>
-                  <input v-model="form.entryRequirements.els" type="text" class="pi-input" placeholder="please input" />
+                  <input v-model="form.entryRequirements.els" type="text" class="pi-input" :class="fieldError('els')" placeholder="please input" />
                 </div>
               </div>
             </div>
@@ -300,6 +410,7 @@ function fieldError(key) {
 
           <!-- Step 3: Threshold Marks -->
           <section v-show="currentStep === 3" class="threshold-marks-section">
+            <h3 class="section-title"><span class="section-bar"></span>Threshold Marks</h3>
             <div class="programme-info-form">
               <div class="threshold-table-wrap">
                 <table class="threshold-table">
@@ -313,13 +424,13 @@ function fieldError(key) {
                   <tbody>
                     <tr>
                       <td>
-                        <input v-model="form.thresholdMarks.totalContinuousAssessment" type="text" class="threshold-input" placeholder="please input" />
+                        <input v-model="form.thresholdMarks.totalContinuousAssessment" type="text" class="threshold-input" :class="fieldError('totalContinuousAssessment')" maxlength="3" placeholder="please input" />
                       </td>
                       <td>
-                        <input v-model="form.thresholdMarks.totalFinalAssessment" type="text" class="threshold-input" placeholder="please input" />
+                        <input v-model="form.thresholdMarks.totalFinalAssessment" type="text" class="threshold-input" :class="fieldError('totalFinalAssessment')" maxlength="3" placeholder="please input" />
                       </td>
                       <td>
-                        <input v-model="form.thresholdMarks.overallScore" type="text" class="threshold-input" placeholder="please input" />
+                        <input v-model="form.thresholdMarks.overallScore" type="text" class="threshold-input" :class="fieldError('overallScore')" maxlength="3" placeholder="please input" />
                       </td>
                     </tr>
                   </tbody>
@@ -330,11 +441,12 @@ function fieldError(key) {
 
           <!-- Step 4: Fee Structure -->
           <section v-show="currentStep === 4" class="fee-structure-section">
+            <h3 class="section-title"><span class="section-bar"></span>Fee Structure</h3>
             <div class="programme-info-form fee-structure-form">
               <div class="pi-row">
                 <div class="pi-field">
                   <label class="pi-label"><span class="required">*</span> Duration (Min. Year):</label>
-                  <input v-model="form.feeStructure.durationMinYear" type="text" class="pi-input" :class="fieldError('durationMinYear')" placeholder="please input" />
+                  <input v-model="form.feeStructure.durationMinYear" type="text" class="pi-input" :class="fieldError('durationMinYear')" maxlength="2" placeholder="please input" />
                 </div>
                 <div class="pi-field">
                   <label class="pi-label"><span class="required">*</span> Type of Approval:</label>
@@ -351,13 +463,13 @@ function fieldError(key) {
                   <thead>
                     <tr>
                       <th v-for="col in localFeeColumns" :key="`local-head-${col.key}`">{{ col.label }}</th>
-                      <th class="col-check-total">Check Total</th>
+                      <th class="col-check-total">Check Total (Local Student)</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
                       <td v-for="col in localFeeColumns" :key="`local-${col.key}`">
-                        <input v-model="form.feeStructure.localStudent[col.key]" type="text" class="fee-input" placeholder="please input" />
+                        <input v-model="form.feeStructure.localStudent[col.key]" type="text" class="fee-input" :class="fieldError(`local-${col.key}`)" placeholder="please input" />
                       </td>
                       <td class="col-check-total">
                         <label class="tf-switch" :class="{ on: form.feeStructure.localStudent.checkTotal }">
@@ -380,13 +492,13 @@ function fieldError(key) {
                   <thead>
                     <tr>
                       <th v-for="col in internationalFeeColumns" :key="`intl-head-${col.key}`">{{ col.label }}</th>
-                      <th class="col-check-total">Check Total</th>
+                      <th class="col-check-total">Check Total (International Student)</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
                       <td v-for="col in internationalFeeColumns" :key="`intl-${col.key}`">
-                        <input v-model="form.feeStructure.internationalStudent[col.key]" type="text" class="fee-input" placeholder="please input" />
+                        <input v-model="form.feeStructure.internationalStudent[col.key]" type="text" class="fee-input" :class="fieldError(`intl-${col.key}`)" placeholder="please input" />
                       </td>
                       <td class="col-check-total">
                         <label class="tf-switch" :class="{ on: form.feeStructure.internationalStudent.checkTotal }">
@@ -407,10 +519,26 @@ function fieldError(key) {
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
-          <button v-if="currentStep > 1" type="button" class="btn btn-default" @click="handlePrevious">Previous</button>
-          <button v-if="currentStep < createVersionFormSteps.length" type="button" class="btn btn-primary" @click="handleNext">Next</button>
-          <button v-else type="button" class="btn btn-primary" @click="handleSubmit">Confirm</button>
+          <div class="modal-footer-left">
+            <button
+              v-if="isLastStep"
+              type="button"
+              class="btn btn-outline publish-btn"
+              @click="handlePublish"
+            >
+              Publish
+              <span class="info-tip-wrap">
+                <span class="info-icon" aria-hidden="true">i</span>
+                <span class="info-tooltip">{{ programmePublishTooltip }}</span>
+              </span>
+            </button>
+          </div>
+          <div class="modal-footer-right">
+            <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
+            <button v-if="currentStep > 1" type="button" class="btn btn-default" @click="handlePrevious">Previous</button>
+            <button v-if="currentStep < createVersionFormSteps.length" type="button" class="btn btn-primary" @click="handleNext">Next</button>
+            <button v-else type="button" class="btn btn-primary" @click="handleSubmit">Confirm</button>
+          </div>
         </div>
       </div>
     </div>
@@ -478,6 +606,15 @@ function fieldError(key) {
   padding: 12px var(--modal-pad-x) 0;
   font-size: 14px;
   color: #374151;
+  flex-shrink: 0;
+}
+
+.modal-subtitle {
+  margin: 0;
+  padding: 8px var(--modal-pad-x) 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6b7280;
   flex-shrink: 0;
 }
 
@@ -695,6 +832,10 @@ function fieldError(key) {
   box-sizing: border-box;
 }
 
+.threshold-input.error {
+  border-color: #ef4444;
+}
+
 .fee-table-wrap {
   overflow-x: auto;
   border: 1px solid #e5e7eb;
@@ -734,6 +875,10 @@ function fieldError(key) {
   border-radius: 6px;
   font-size: 12px;
   box-sizing: border-box;
+}
+
+.fee-input.error {
+  border-color: #ef4444;
 }
 
 .col-check-total {
@@ -816,19 +961,108 @@ function fieldError(key) {
 
 .modal-footer {
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 12px var(--modal-pad-x);
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px var(--modal-pad-x) 20px;
   border-top: 1px solid #f0f0f0;
   flex-shrink: 0;
 }
 
+.modal-footer-left,
+.modal-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-footer-left {
+  min-width: 0;
+}
+
+.modal-footer-right {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .btn {
-  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  height: 38px;
   padding: 0 16px;
-  border-radius: 6px;
-  font-size: 13px;
+  border-radius: 8px;
+  font-size: 14px;
   font-weight: 500;
+}
+
+.btn-outline {
+  background: #fff;
+  border: 1px solid #2563eb;
+  color: #2563eb;
+}
+
+.btn-outline:hover {
+  background: #eff6ff;
+}
+
+.publish-btn {
+  gap: 8px;
+  min-width: auto;
+  padding: 0 14px;
+}
+
+.info-tip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.info-icon {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #2563eb;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #2563eb;
+  cursor: help;
+}
+
+.info-tooltip {
+  position: absolute;
+  left: calc(100% + 8px);
+  bottom: calc(100% + 8px);
+  width: 280px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #374151;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 2;
+}
+
+.info-tip-wrap:hover .info-tooltip,
+.info-tip-wrap:focus-within .info-tooltip {
+  opacity: 1;
+  visibility: visible;
 }
 
 .btn-default {

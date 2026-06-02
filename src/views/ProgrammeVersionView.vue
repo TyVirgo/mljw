@@ -40,9 +40,13 @@ const confirmVisible = ref(false)
 const confirmMessage = ref('')
 const deleteTarget = ref(null)
 
-const createModalVisible = ref(false)
-const createVersionModalVisible = ref(false)
-const createVersionProgramme = ref(null)
+const programmeFormModalVisible = ref(false)
+const programmeFormModalMode = ref('create')
+const editingProgramme = ref(null)
+const versionFormModalVisible = ref(false)
+const versionFormModalMode = ref('create')
+const versionFormProgramme = ref(null)
+const versionFormEditingVersion = ref(null)
 
 const versionDetailVisible = ref(false)
 const versionDetailProgramme = ref(null)
@@ -307,7 +311,28 @@ function getRowNumber(index) {
 }
 
 function openCreateModal() {
-  createModalVisible.value = true
+  programmeFormModalMode.value = 'create'
+  editingProgramme.value = null
+  programmeFormModalVisible.value = true
+}
+
+function openEditModal(programme) {
+  programmeFormModalMode.value = 'edit'
+  editingProgramme.value = programme
+  programmeFormModalVisible.value = true
+}
+
+function closeProgrammeFormModal() {
+  programmeFormModalVisible.value = false
+  editingProgramme.value = null
+}
+
+function handleProgrammeFormSave(formData) {
+  if (programmeFormModalMode.value === 'edit') {
+    handleEditSave(formData)
+  } else {
+    handleCreateSave(formData)
+  }
 }
 
 function handleCreateSave(formData) {
@@ -321,8 +346,26 @@ function handleCreateSave(formData) {
     years: Number(info.years) || info.years,
     versions: [buildVersionFromSave(formData)],
   })
-  createModalVisible.value = false
+  closeProgrammeFormModal()
   currentPage.value = 1
+}
+
+function handleEditSave(formData) {
+  const programme = programmes.value.find((item) => item.id === editingProgramme.value?.id)
+  if (!programme) return
+
+  const info = formData.programmeInfo
+  programme.schoolId = info.department || programme.schoolId
+  programme.name = info.programmeName.trim()
+  programme.level = info.level
+  programme.years = Number(info.years) || info.years
+
+  programme.versions.forEach((item) => {
+    item.isCurrent = false
+  })
+  programme.versions.unshift(buildVersionFromSave(formData, { isCurrent: true }))
+
+  closeProgrammeFormModal()
 }
 
 function openProgrammeDetails(programme) {
@@ -348,13 +391,23 @@ function closeProgrammeDetails() {
 }
 
 function openCreateVersionModal(programme) {
-  createVersionProgramme.value = programme
-  createVersionModalVisible.value = true
+  versionFormModalMode.value = 'create'
+  versionFormProgramme.value = programme
+  versionFormEditingVersion.value = null
+  versionFormModalVisible.value = true
 }
 
-function closeCreateVersionModal() {
-  createVersionModalVisible.value = false
-  createVersionProgramme.value = null
+function openEditVersionModal(programme, version) {
+  versionFormModalMode.value = 'edit'
+  versionFormProgramme.value = programme
+  versionFormEditingVersion.value = version
+  versionFormModalVisible.value = true
+}
+
+function closeVersionFormModal() {
+  versionFormModalVisible.value = false
+  versionFormProgramme.value = null
+  versionFormEditingVersion.value = null
 }
 
 function openVersionDetail(programme, version) {
@@ -369,24 +422,31 @@ function closeVersionDetail() {
   versionDetailVersion.value = null
 }
 
-function handleCreateVersionSave(versionForm) {
-  const programme = programmes.value.find((item) => item.id === createVersionProgramme.value?.id)
+function handleVersionFormSave(versionForm) {
+  const programme = programmes.value.find((item) => item.id === versionFormProgramme.value?.id)
   if (!programme) return
 
-  const currentVersion = programme.versions.find((item) => item.isCurrent) || programme.versions[0]
-  const fullFormData = mergeVersionFormWithProgramme(currentVersion?.formData, versionForm)
+  const baseVersion =
+    versionFormModalMode.value === 'edit'
+      ? versionFormEditingVersion.value
+      : programme.versions.find((item) => item.isCurrent) || programme.versions[0]
+
+  const fullFormData = mergeVersionFormWithProgramme(baseVersion?.formData, versionForm)
 
   programme.versions.forEach((item) => {
     item.isCurrent = false
   })
   programme.versions.unshift(buildVersionFromSave(fullFormData, { isCurrent: true }))
 
-  createVersionModalVisible.value = false
-  createVersionProgramme.value = null
+  closeVersionFormModal()
 }
 
-function showComingSoon(action) {
-  window.alert(`${action} is under development.`)
+function handleProgrammePublish() {
+  window.alert('The Approval letter for the update of professional information has been sent to the relevant personnel.')
+}
+
+function handleVersionPublish() {
+  window.alert('The Approval letter for the update of professional information has been sent to the relevant personnel.')
 }
 
 function openImportModal() {
@@ -497,24 +557,26 @@ function handleExportConfirm({ selectedFields, exportScope }) {
           <template v-else>
           <div class="search-bar">
             <div class="search-row">
-              <div class="search-item">
-                <label>Keywords:</label>
-                <input v-model="searchForm.keyword" type="text" placeholder="please input" @keyup.enter="handleSearch" />
-              </div>
-              <div class="search-item">
-                <label>Programme Code:</label>
-                <input v-model="searchForm.code" type="text" placeholder="please input" @keyup.enter="handleSearch" />
-              </div>
-              <div class="search-item">
-                <label>Programme Name:</label>
-                <input v-model="searchForm.name" type="text" placeholder="please input" @keyup.enter="handleSearch" />
-              </div>
-              <div class="search-item">
-                <label>Programme Level:</label>
-                <select v-model="searchForm.level">
-                  <option value="">All</option>
-                  <option v-for="level in programmeLevelOptions" :key="level" :value="level">{{ level }}</option>
-                </select>
+              <div class="search-fields">
+                <div class="search-item">
+                  <label>Keywords:</label>
+                  <input v-model="searchForm.keyword" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+                </div>
+                <div class="search-item">
+                  <label>Programme Code:</label>
+                  <input v-model="searchForm.code" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+                </div>
+                <div class="search-item search-item-name">
+                  <label>Programme Name:</label>
+                  <input v-model="searchForm.name" type="text" placeholder="please input" @keyup.enter="handleSearch" />
+                </div>
+                <div class="search-item search-item-level">
+                  <label>Programme Level:</label>
+                  <select v-model="searchForm.level">
+                    <option value="">All</option>
+                    <option v-for="level in programmeLevelOptions" :key="level" :value="level">{{ level }}</option>
+                  </select>
+                </div>
               </div>
               <div class="search-actions">
                 <button type="button" class="btn btn-primary" @click="handleSearch">
@@ -606,7 +668,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                       <td class="actions-cell">
                         <div class="actions-inner">
                           <button type="button" class="link-btn" @click="openProgrammeDetails(item)">ProgrammeDetails</button>
-                          <button type="button" class="link-btn" @click="showComingSoon('Edit')">Edit</button>
+                          <button type="button" class="link-btn" @click="openEditModal(item)">Edit</button>
                           <button type="button" class="link-btn" @click="openCreateVersionModal(item)">CreateVersion</button>
                           <button type="button" class="link-btn delete" @click="requestDelete([item.id])">Delete</button>
                         </div>
@@ -639,7 +701,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                               <td class="actions-cell">
                                 <div class="actions-inner">
                                   <button type="button" class="link-btn" @click="openVersionDetail(item, version)">VersionDetail</button>
-                                  <button type="button" class="link-btn" @click="showComingSoon('Edit')">Edit</button>
+                                  <button type="button" class="link-btn" @click="openEditVersionModal(item, version)">Edit</button>
                                   <button type="button" class="link-btn delete" @click="requestDeleteVersion(item, version)">Delete</button>
                                 </div>
                               </td>
@@ -676,17 +738,23 @@ function handleExportConfirm({ selectedFields, exportScope }) {
     />
 
     <ProgrammeVersionCreateModal
-      :visible="createModalVisible"
+      :visible="programmeFormModalVisible"
+      :mode="programmeFormModalMode"
+      :programme="editingProgramme"
       :default-department-id="selectedSchoolId"
-      @close="createModalVisible = false"
-      @save="handleCreateSave"
+      @close="closeProgrammeFormModal"
+      @save="handleProgrammeFormSave"
+      @publish="handleProgrammePublish"
     />
 
     <ProgrammeVersionCreateVersionModal
-      :visible="createVersionModalVisible"
-      :programme-name="createVersionProgramme?.name || ''"
-      @close="closeCreateVersionModal"
-      @save="handleCreateVersionSave"
+      :visible="versionFormModalVisible"
+      :mode="versionFormModalMode"
+      :programme-name="versionFormProgramme?.name || ''"
+      :version="versionFormEditingVersion"
+      @close="closeVersionFormModal"
+      @save="handleVersionFormSave"
+      @publish="handleVersionPublish"
     />
 
     <ProgrammeVersionImportModal
@@ -871,11 +939,18 @@ function handleExportConfirm({ selectedFields, exportScope }) {
 
 .search-row {
   display: flex;
-  flex-wrap: nowrap;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.search-fields {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
   gap: 8px 10px;
   min-width: 0;
-  overflow-x: auto;
 }
 
 .search-item {
@@ -905,12 +980,12 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   box-sizing: border-box;
 }
 
-.search-item:nth-child(3) input {
+.search-item-name input {
   width: 128px;
   min-width: 100px;
 }
 
-.search-item:nth-child(4) select {
+.search-item-level select {
   width: 118px;
   min-width: 96px;
 }
@@ -919,7 +994,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
-  margin-left: 4px;
+  margin-left: auto;
 }
 
 .search-actions .btn {

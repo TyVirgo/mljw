@@ -55,6 +55,7 @@ export const developedPages = new Set([
   'code-set-management',
   'programme-version',
   'intake-set',
+  'programme-intake',
 ])
 
 export function findMenuLabel(id) {

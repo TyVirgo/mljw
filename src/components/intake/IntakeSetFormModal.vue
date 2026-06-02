@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
-import { intakeOptions, activeOptions, validateIntakeSetForm } from '../../data/intakeSets.js'
+import { activeOptions, validateIntakeSetForm } from '../../data/intakeSets.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -18,14 +18,15 @@ const form = ref({
 })
 const errors = ref({})
 
-const modalTitle = computed(() => (props.mode === 'edit' ? 'Edit' : 'Create'))
+const isEditMode = computed(() => props.mode === 'edit')
+const modalTitle = computed(() => (isEditMode.value ? 'Edit' : 'Create'))
 
 watch(
-  () => props.visible,
-  (visible) => {
-    if (!visible) return
+  () => [props.visible, props.mode, props.initialData],
+  () => {
+    if (!props.visible) return
     errors.value = {}
-    if (props.mode === 'edit' && props.initialData) {
+    if (isEditMode.value && props.initialData) {
       form.value = {
         code: props.initialData.code,
         intake: props.initialData.intake,
@@ -41,16 +42,24 @@ watch(
   },
 )
 
-function handleSave() {
+function buildPayload() {
   const payload = {
     code: form.value.code.trim(),
-    intake: form.value.intake,
+    intake: form.value.intake.trim(),
     active: form.value.active,
   }
+  if (isEditMode.value && props.initialData?.code) {
+    payload.code = props.initialData.code
+  }
+  return payload
+}
+
+function handleSave() {
+  const payload = buildPayload()
   const validationErrors = validateIntakeSetForm(
     payload,
     props.allItems,
-    props.mode === 'edit' ? props.initialData?.id : null,
+    isEditMode.value ? props.initialData?.id : null,
   )
   errors.value = validationErrors
   if (Object.keys(validationErrors).length) return
@@ -82,37 +91,43 @@ function handleOverlayClick(event) {
               v-model="form.code"
               type="text"
               class="form-input"
-              :class="{ error: errors.code }"
+              :class="{ error: errors.code, 'form-input-readonly': isEditMode }"
+              maxlength="2"
               placeholder="please input"
+              :disabled="isEditMode"
+              :readonly="isEditMode"
             />
           </div>
           <p v-if="errors.code" class="field-error">{{ errors.code }}</p>
 
           <div class="form-row">
             <label class="form-label"><span class="required">*</span> Intake:</label>
-            <select
+            <input
               v-model="form.intake"
+              type="text"
               class="form-input"
-              :class="{ error: errors.intake, 'is-empty': !form.intake }"
-            >
-              <option value="">please select</option>
-              <option v-for="opt in intakeOptions" :key="opt" :value="opt">{{ opt }}</option>
-            </select>
+              :class="{ error: errors.intake }"
+              maxlength="6"
+              placeholder="please input"
+            />
           </div>
           <p v-if="errors.intake" class="field-error">{{ errors.intake }}</p>
 
           <div class="form-row">
             <label class="form-label"><span class="required">*</span> Active:</label>
-            <select v-model="form.active" class="form-input" :class="{ error: errors.active }">
-              <option v-for="opt in activeOptions" :key="opt" :value="opt">{{ opt }}</option>
-            </select>
+            <div class="radio-group" :class="{ error: errors.active }">
+              <label v-for="opt in activeOptions" :key="opt" class="radio-option">
+                <input v-model="form.active" type="radio" :value="opt" />
+                {{ opt }}
+              </label>
+            </div>
           </div>
           <p v-if="errors.active" class="field-error">{{ errors.active }}</p>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-default" @click="handleClose">Cancel</button>
-          <button type="button" class="btn btn-primary" @click="handleSave">Confirm</button>
+          <button type="button" class="btn btn-primary" @click="handleSave">Submit</button>
         </div>
       </div>
     </div>
@@ -133,7 +148,7 @@ function handleOverlayClick(event) {
 
 .modal-panel {
   width: 100%;
-  max-width: 480px;
+  max-width: 520px;
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
@@ -163,7 +178,7 @@ function handleOverlayClick(event) {
 }
 
 .modal-form {
-  padding: 20px;
+  padding: 24px 20px 28px;
 }
 
 .form-row {
@@ -193,14 +208,41 @@ function handleOverlayClick(event) {
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 13px;
+  box-sizing: border-box;
 }
 
 .form-input.error {
   border-color: #ef4444;
 }
 
-.form-input.is-empty {
-  color: #9ca3af;
+.form-input-readonly:disabled,
+.form-input-readonly[readonly] {
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.radio-group {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+  min-height: 32px;
+}
+
+.radio-group.error {
+  outline: 1px solid #ef4444;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
 }
 
 .field-error {
@@ -213,7 +255,7 @@ function handleOverlayClick(event) {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 12px 20px;
+  padding: 12px 20px 16px;
   border-top: 1px solid #f0f0f0;
 }
 
@@ -233,6 +275,11 @@ function handleOverlayClick(event) {
 
 .btn-primary {
   background: #2563eb;
+  border: 1px solid #2563eb;
   color: #fff;
+}
+
+.btn-primary:hover {
+  background: #1d4ed8;
 }
 </style>

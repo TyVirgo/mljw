@@ -178,12 +178,14 @@ function getRowNumber(index) {
     <div class="page-card">
       <div class="search-bar">
         <div class="search-row">
-          <div class="search-item">
-            <label>Intake :</label>
-            <select v-model="searchIntake" class="search-select" :class="{ 'is-empty': !searchIntake }">
-              <option value="">please select</option>
-              <option v-for="opt in intakeOptions" :key="opt" :value="opt">{{ opt }}</option>
-            </select>
+          <div class="search-fields">
+            <div class="search-item">
+              <label>Intake :</label>
+              <select v-model="searchIntake" class="search-select" :class="{ 'is-empty': !searchIntake }">
+                <option value="">please select</option>
+                <option v-for="opt in intakeOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+            </div>
           </div>
           <div class="search-actions">
             <button type="button" class="btn btn-primary" @click="handleSearch">
@@ -209,7 +211,7 @@ function getRowNumber(index) {
         <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">
           Delete
         </button>
-        <button type="button" class="btn btn-outline" @click="openExportModal">Export</button>
+        <button type="button" class="btn btn-default" @click="openExportModal">Export</button>
       </div>
 
       <div class="table-section">
@@ -318,34 +320,45 @@ function getRowNumber(index) {
 
 .search-row {
   display: flex;
-  flex-wrap: nowrap;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 12px;
+  min-width: 0;
+}
+
+.search-fields {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px 10px;
   min-width: 0;
 }
 
 .search-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .search-item label {
-  font-size: 13px;
+  font-size: 12px;
   color: #374151;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .search-select {
   width: 180px;
+  min-width: 140px;
   height: 32px;
   padding: 0 10px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 13px;
   background: #fff;
+  box-sizing: border-box;
 }
 
 .search-select.is-empty {
@@ -356,6 +369,12 @@ function getRowNumber(index) {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+  margin-left: auto;
+}
+
+.search-actions .btn {
+  padding: 0 12px;
+  white-space: nowrap;
 }
 
 .toolbar {

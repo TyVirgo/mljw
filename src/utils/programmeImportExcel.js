@@ -16,6 +16,8 @@ import {
   advertisementCodeOptions,
   accStatusOptions,
   typeOfApprovalOptions,
+  FEE_AMOUNT_PATTERN,
+  FEE_AMOUNT_VALIDATION_MESSAGE,
   localFeeColumns,
   internationalFeeColumns,
   getDepartmentOptions,
@@ -26,59 +28,59 @@ const ERROR_REPORT_PREFIX = 'programme-version-import-error-report'
 
 function buildImportColumns() {
   const columns = [
-    { header: 'Programme Name', path: 'programmeInfo.programmeName', required: true },
-    { header: 'Programme Name_EN', path: 'programmeInfo.programmeNameEn', required: true },
-    { header: 'Programme Name_MAL', path: 'programmeInfo.programmeNameMal', required: true },
-    { header: 'Programme Code', path: 'programmeInfo.programmeCode', required: true },
-    { header: 'ID Code', path: 'programmeInfo.idCode', required: true },
-    { header: 'Study Duration for Chinese Students', path: 'programmeInfo.studyDurationChinese', required: true },
-    { header: 'Level of Study', path: 'programmeInfo.levelOfStudy', required: true, options: levelOfStudyOptions },
-    { header: 'Field of Study', path: 'programmeInfo.fieldOfStudy', required: true, options: fieldOfStudyOptions },
-    { header: 'Method of Learning and Teaching', path: 'programmeInfo.methodOfLearning', required: true, options: methodOfLearningOptions },
-    { header: 'Medium of Instruction', path: 'programmeInfo.mediumOfInstruction', required: true, options: mediumOfInstructionOptions },
-    { header: 'Awarding body', path: 'programmeInfo.awardingBody', required: true, options: awardingBodyOptions },
-    { header: 'Prog. Commence', path: 'programmeInfo.progCommence', required: true },
-    { header: 'National Education Code (NEC)', path: 'programmeInfo.nec', required: true },
-    { header: 'Years', path: 'programmeInfo.years', required: true },
-    { header: 'Level', path: 'programmeInfo.level', required: true, options: programmeLevelOptions },
+    { header: 'Programme Name', path: 'programmeInfo.programmeName', required: true, maxLength: 100 },
+    { header: 'Programme Name_EN', path: 'programmeInfo.programmeNameEn', required: true, maxLength: 100 },
+    { header: 'Programme Name_MAL', path: 'programmeInfo.programmeNameMal', required: true, maxLength: 100 },
+    { header: 'Programme Code', path: 'programmeInfo.programmeCode', required: true, maxLength: 20 },
+    { header: 'ID Code', path: 'programmeInfo.idCode', required: false, maxLength: 20 },
+    { header: 'National Education Code (NEC)', path: 'programmeInfo.nec', required: false, maxLength: 20 },
+    { header: 'Study Duration for Chinese Students', path: 'programmeInfo.studyDurationChinese', required: false, numericMaxDigits: 2 },
+    { header: 'Years', path: 'programmeInfo.years', required: true, numericMaxDigits: 2 },
+    { header: 'Level', path: 'programmeInfo.levelOfStudy', required: true, options: levelOfStudyOptions },
+    { header: 'Programme Level', path: 'programmeInfo.level', required: true, options: programmeLevelOptions },
+    { header: 'Field of Study', path: 'programmeInfo.fieldOfStudy', required: false, options: fieldOfStudyOptions },
     { header: 'Type of Programme', path: 'programmeInfo.typeOfProgramme', required: true, options: typeOfProgrammeOptions },
+    { header: 'Method of Learning and Teaching', path: 'programmeInfo.methodOfLearning', required: true, options: methodOfLearningOptions },
     { header: 'Mode of Study', path: 'programmeInfo.modeOfStudy', required: true, options: modeOfStudyOptions },
+    { header: 'Medium of Instruction', path: 'programmeInfo.mediumOfInstruction', required: true, options: mediumOfInstructionOptions },
     { header: 'Method of Delivery', path: 'programmeInfo.methodOfDelivery', required: true, options: methodOfDeliveryOptions },
     { header: 'Mode of Offer', path: 'programmeInfo.modeOfOffer', required: true, options: modeOfOfferOptions },
-    { header: 'Department', path: 'programmeInfo.department', required: true, type: 'department' },
-    { header: 'Advertisement Code', path: 'programmeInfo.advertisementCode', required: true, options: advertisementCodeOptions },
+    { header: 'Awarding body', path: 'programmeInfo.awardingBody', required: false, options: awardingBodyOptions },
+    { header: 'Department', path: 'programmeInfo.department', required: false, type: 'department' },
+    { header: 'Prog. Commence', path: 'programmeInfo.progCommence', required: false },
+    { header: 'Advertisement Code', path: 'programmeInfo.advertisementCode', required: false, options: advertisementCodeOptions },
     { header: 'Acc. Status', path: 'programmeInfo.accStatus', required: true, options: accStatusOptions },
-    { header: 'Long Semester Weeks', path: 'programmeInfo.longSemesterWeeks', required: true },
-    { header: 'Long Semester Count', path: 'programmeInfo.longSemesterCount', required: true },
-    { header: 'Short Semester Weeks', path: 'programmeInfo.shortSemesterWeeks', required: true },
-    { header: 'Short Semester Count', path: 'programmeInfo.shortSemesterCount', required: true },
-    { header: 'Industrial Training Weeks', path: 'programmeInfo.industrialTrainingWeeks', required: true },
-    { header: 'Industrial Training Count', path: 'programmeInfo.industrialTrainingCount', required: true },
-    { header: 'MQA Code', path: 'approvalDetails.mqaCode', required: true },
-    { header: 'MQA Start Date', path: 'approvalDetails.mqaStartDate', required: true },
-    { header: 'MQA Expiry Date', path: 'approvalDetails.mqaExpiryDate', required: false },
-    { header: 'MQA Syor Reference (PA)', path: 'approvalDetails.mqaSyorReferencePa', required: true },
-    { header: 'MQA Syor Reference (FA)', path: 'approvalDetails.mqaSyorReferenceFa', required: true },
-    { header: 'MQA Syor Date(PA)', path: 'approvalDetails.mqaSyorDatePa', required: true },
-    { header: 'MQA Syor Date(FA)', path: 'approvalDetails.mqaSyorDateFa', required: true },
-    { header: 'First intake duration as in approval', path: 'approvalDetails.mqaFirstIntakeDuration', required: true },
-    { header: 'MOHE Code', path: 'approvalDetails.moheCode', required: true },
-    { header: 'MOHE Approval Date', path: 'approvalDetails.moheApprovalDate', required: true },
-    { header: 'MOHE Expiry Date', path: 'approvalDetails.moheExpiryDate', required: true },
-    { header: 'MOHE Approval Reference No.', path: 'approvalDetails.moheApprovalReferenceNo', required: true },
-    { header: 'MOHE Start Date', path: 'approvalDetails.moheStartDate', required: true },
-    { header: 'MUET', path: 'entryRequirements.muet', required: false },
-    { header: 'TOEFL IBT', path: 'entryRequirements.toeflIbt', required: false },
-    { header: 'PEARSON TEST OF ENGLISH', path: 'entryRequirements.pearsonTestOfEnglish', required: false },
-    { header: 'CAMBRIDGE ENGLISH(iii)', path: 'entryRequirements.cambridgeEnglishIii', required: false },
-    { header: 'ELTS', path: 'entryRequirements.elts', required: false },
-    { header: 'TOEFL Essentials (Online)', path: 'entryRequirements.toeflEssentials', required: false },
-    { header: 'CAMBRIDGE ENGLISH(i/ii)', path: 'entryRequirements.cambridgeEnglishIi', required: false },
-    { header: 'ELS', path: 'entryRequirements.els', required: false },
-    { header: 'Total Continuous Assessment', path: 'thresholdMarks.totalContinuousAssessment', required: false },
-    { header: 'Total Final Assessment', path: 'thresholdMarks.totalFinalAssessment', required: false },
-    { header: 'Overall Score', path: 'thresholdMarks.overallScore', required: false },
-    { header: 'Duration (Min. Year)', path: 'feeStructure.durationMinYear', required: true },
+    { header: 'Long Semester Weeks', path: 'programmeInfo.longSemesterWeeks', required: false, numericMaxDigits: 2 },
+    { header: 'Long Semester Count', path: 'programmeInfo.longSemesterCount', required: false, numericMaxDigits: 2 },
+    { header: 'Short Semester Weeks', path: 'programmeInfo.shortSemesterWeeks', required: false, numericMaxDigits: 2 },
+    { header: 'Short Semester Count', path: 'programmeInfo.shortSemesterCount', required: false, numericMaxDigits: 2 },
+    { header: 'Industrial Training Weeks', path: 'programmeInfo.industrialTrainingWeeks', required: false, numericMaxDigits: 2 },
+    { header: 'Industrial Training Count', path: 'programmeInfo.industrialTrainingCount', required: false, numericMaxDigits: 2 },
+    { header: 'MQA Code', path: 'approvalDetails.mqaCode', required: true, maxLength: 50 },
+    { header: 'Start Date (MQA)', path: 'approvalDetails.mqaStartDate', required: true },
+    { header: 'Expiry Date (MQA)', path: 'approvalDetails.mqaExpiryDate', required: false },
+    { header: 'Syor Date(PA)', path: 'approvalDetails.mqaSyorDatePa', required: true },
+    { header: 'Syor Reference (PA)', path: 'approvalDetails.mqaSyorReferencePa', required: true, maxLength: 50 },
+    { header: 'Syor Date(FA)', path: 'approvalDetails.mqaSyorDateFa', required: true },
+    { header: 'Syor Reference (FA)', path: 'approvalDetails.mqaSyorReferenceFa', required: true, maxLength: 50 },
+    { header: 'First intake duration as in approval', path: 'approvalDetails.mqaFirstIntakeDuration', required: true, numericMaxDigits: 2 },
+    { header: 'MOHE Code', path: 'approvalDetails.moheCode', required: true, maxLength: 50 },
+    { header: 'MOHE Approval Reference No.', path: 'approvalDetails.moheApprovalReferenceNo', required: true, maxLength: 50 },
+    { header: 'Approval Date (MOHE)', path: 'approvalDetails.moheApprovalDate', required: true },
+    { header: 'Start Date (MOHE)', path: 'approvalDetails.moheStartDate', required: true },
+    { header: 'Expiry Date (MOHE)', path: 'approvalDetails.moheExpiryDate', required: false },
+    { header: 'MUET', path: 'entryRequirements.muet', required: false, numericPattern: /^\d+(\.\d{1,3})?$/, numericMessage: 'must be numeric with at most 3 decimal places' },
+    { header: 'IELTS', path: 'entryRequirements.elts', required: false, numericPattern: /^\d+(\.\d{1})?$/, numericMessage: 'must be numeric with at most 1 decimal place' },
+    { header: 'TOEFL IBT', path: 'entryRequirements.toeflIbt', required: false, numericPattern: /^\d{1,3}$/, numericMessage: 'must be numeric with at most 3 digits' },
+    { header: 'TOEFL Essentials (Online)', path: 'entryRequirements.toeflEssentials', required: false, numericPattern: /^\d{1,3}$/, numericMessage: 'must be numeric with at most 3 digits' },
+    { header: 'PEARSON TEST OF ENGLISH', path: 'entryRequirements.pearsonTestOfEnglish', required: false, numericPattern: /^\d+(\.\d{1})?$/, numericMessage: 'must be numeric with at most 1 decimal place' },
+    { header: 'CAMBRIDGE ENGLISH(i/ii)', path: 'entryRequirements.cambridgeEnglishIi', required: false, numericPattern: /^\d+(\.\d{1})?$/, numericMessage: 'must be numeric with at most 1 decimal place' },
+    { header: 'CAMBRIDGE ENGLISH(iii)', path: 'entryRequirements.cambridgeEnglishIii', required: false, numericPattern: /^\d+(\.\d{1})?$/, numericMessage: 'must be numeric with at most 1 decimal place' },
+    { header: 'ELS', path: 'entryRequirements.els', required: false, numericPattern: /^\d{1,3}$/, numericMessage: 'must be numeric with at most 3 digits' },
+    { header: 'Total Continuous Assessment', path: 'thresholdMarks.totalContinuousAssessment', required: false, numericPattern: /^\d{1,3}$/, numericMessage: 'must be numeric with at most 3 digits' },
+    { header: 'Total Final Assessment', path: 'thresholdMarks.totalFinalAssessment', required: false, numericPattern: /^\d{1,3}$/, numericMessage: 'must be numeric with at most 3 digits' },
+    { header: 'Overall Score', path: 'thresholdMarks.overallScore', required: false, numericPattern: /^\d{1,3}$/, numericMessage: 'must be numeric with at most 3 digits' },
+    { header: 'Duration (Min. Year)', path: 'feeStructure.durationMinYear', required: true, numericMaxDigits: 2 },
     { header: 'Type of Approval', path: 'feeStructure.typeOfApproval', required: true, options: typeOfApprovalOptions },
   ]
 
@@ -87,10 +89,12 @@ function buildImportColumns() {
       header: `Local Student (RM) - ${col.label}`,
       path: `feeStructure.localStudent.${col.key}`,
       required: false,
+      numericPattern: FEE_AMOUNT_PATTERN,
+      numericMessage: FEE_AMOUNT_VALIDATION_MESSAGE,
     })
   })
   columns.push({
-    header: 'Local Student (RM) - Check Total',
+    header: 'Local Student (RM) - Check Total (Local Student)',
     path: 'feeStructure.localStudent.checkTotal',
     required: false,
     type: 'boolean',
@@ -101,10 +105,12 @@ function buildImportColumns() {
       header: `International Student (RM) - ${col.label}`,
       path: `feeStructure.internationalStudent.${col.key}`,
       required: false,
+      numericPattern: FEE_AMOUNT_PATTERN,
+      numericMessage: FEE_AMOUNT_VALIDATION_MESSAGE,
     })
   })
   columns.push({
-    header: 'International Student (RM) - Check Total',
+    header: 'International Student (RM) - Check Total (International Student)',
     path: 'feeStructure.internationalStudent.checkTotal',
     required: false,
     type: 'boolean',
@@ -201,6 +207,18 @@ function validateRecord(formData, rowNumber, existingCodes, fileCodes) {
     if (col.required && !value && col.type !== 'boolean') {
       errors.push(`Row ${rowNumber}: ${col.header} is required`)
       return
+    }
+
+    if (value && col.maxLength && value.length > col.maxLength) {
+      errors.push(`Row ${rowNumber}: ${col.header} must be at most ${col.maxLength} characters`)
+    }
+
+    if (value && col.numericMaxDigits && !new RegExp(`^\\d{1,${col.numericMaxDigits}}$`).test(value)) {
+      errors.push(`Row ${rowNumber}: ${col.header} must be numeric with at most ${col.numericMaxDigits} digits`)
+    }
+
+    if (value && col.numericPattern && !col.numericPattern.test(value)) {
+      errors.push(`Row ${rowNumber}: ${col.header} ${col.numericMessage || 'format is invalid'}`)
     }
 
     if (col.options && value && !col.options.includes(value)) {

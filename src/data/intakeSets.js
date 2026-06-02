@@ -32,15 +32,29 @@ export function validateIntakeSetForm(form, allItems, excludeId = null) {
   const code = String(form.code || '').trim()
   const intake = String(form.intake || '').trim()
 
-  if (!code) errors.code = 'Code is required'
-  if (!intake) errors.intake = 'Intake is required'
-  if (!form.active) errors.active = 'Active is required'
-
-  if (code) {
+  if (!code) {
+    errors.code = 'Code is required'
+  } else if (!/^\d{1,2}$/.test(code)) {
+    errors.code = 'Code must be numeric with at most 2 digits'
+  } else {
     const duplicate = allItems.some(
       (item) => item.id !== excludeId && item.code.toLowerCase() === code.toLowerCase(),
     )
-    if (duplicate) errors.code = 'Code already exists'
+    if (duplicate) errors.code = 'Code already exists and must be globally unique'
+  }
+
+  if (!intake) {
+    errors.intake = 'Intake is required'
+  } else if (!/^\d{6}$/.test(intake)) {
+    errors.intake = 'Intake must be 6 digits in Year+Month format (e.g. 202509)'
+  } else if (!/^(19|20)\d{2}(0[1-9]|1[0-2])$/.test(intake)) {
+    errors.intake = 'Intake must follow Year+Month format (e.g. 202509)'
+  }
+
+  if (!form.active) {
+    errors.active = 'Active is required'
+  } else if (!activeOptions.includes(form.active)) {
+    errors.active = 'Active must be Yes or No'
   }
 
   return errors

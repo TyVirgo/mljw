@@ -84,11 +84,11 @@ function handleOverlayClick(event) {
                 <span class="detail-value">{{ display(approval.mqaCode) }}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Start Date:</span>
+                <span class="detail-label">Start Date (MQA):</span>
                 <span class="detail-value">{{ display(approval.mqaStartDate) }}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Expiry Date:</span>
+                <span class="detail-label">Expiry Date (MQA):</span>
                 <span class="detail-value">{{ display(approval.mqaExpiryDate) }}</span>
               </div>
               <div class="detail-row">
@@ -108,7 +108,7 @@ function handleOverlayClick(event) {
                 <span class="detail-value">{{ display(approval.mqaSyorReferenceFa) }}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label"><span class="required">*</span> First intake duration as in approval :</span>
+                <span class="detail-label">First intake duration as in approval:</span>
                 <span class="detail-value">{{ display(approval.mqaFirstIntakeDuration) }}</span>
               </div>
             </div>
@@ -124,15 +124,15 @@ function handleOverlayClick(event) {
                 <span class="detail-value">{{ display(approval.moheApprovalReferenceNo) }}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Approval Date:</span>
+                <span class="detail-label">Approval Date (MOHE):</span>
                 <span class="detail-value">{{ display(approval.moheApprovalDate) }}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Start Date:</span>
+                <span class="detail-label">Start Date (MOHE):</span>
                 <span class="detail-value">{{ display(approval.moheStartDate) }}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Expiry Date:</span>
+                <span class="detail-label">Expiry Date (MOHE):</span>
                 <span class="detail-value">{{ display(approval.moheExpiryDate) }}</span>
               </div>
             </div>
@@ -140,13 +140,14 @@ function handleOverlayClick(event) {
 
           <!-- Step 2: Entry Requirements -->
           <section v-show="currentStep === 2">
+            <h3 class="section-title"><span class="section-bar"></span>Entry Requirements</h3>
             <div class="detail-grid">
               <div class="detail-row">
                 <span class="detail-label">MUET:</span>
                 <span class="detail-value">{{ display(entry.muet) }}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">ELTS:</span>
+                <span class="detail-label">IELTS:</span>
                 <span class="detail-value">{{ display(entry.elts) }}</span>
               </div>
               <div class="detail-row">
@@ -178,6 +179,7 @@ function handleOverlayClick(event) {
 
           <!-- Step 3: Threshold Marks -->
           <section v-show="currentStep === 3">
+            <h3 class="section-title"><span class="section-bar"></span>Threshold Marks</h3>
             <table class="threshold-table">
               <thead>
                 <tr>
@@ -198,6 +200,7 @@ function handleOverlayClick(event) {
 
           <!-- Step 4: Fee Structure -->
           <section v-show="currentStep === 4">
+            <h3 class="section-title"><span class="section-bar"></span>Fee Structure</h3>
             <div class="detail-grid">
               <div class="detail-row">
                 <span class="detail-label">Duration (Min. Year):</span>
@@ -215,7 +218,7 @@ function handleOverlayClick(event) {
                 <thead>
                   <tr>
                     <th v-for="col in localFeeColumns" :key="`local-head-${col.key}`">{{ col.label }}</th>
-                    <th class="col-check-total">Check Total</th>
+                    <th class="col-check-total">Check Total (Local Student)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -243,7 +246,7 @@ function handleOverlayClick(event) {
                 <thead>
                   <tr>
                     <th v-for="col in internationalFeeColumns" :key="`intl-head-${col.key}`">{{ col.label }}</th>
-                    <th class="col-check-total">Check Total</th>
+                    <th class="col-check-total">Check Total (International Student)</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -86,57 +86,65 @@ function getFileIconType(fileName) {
             <span class="detail-label">Programme Name:</span>
             <span class="detail-value">{{ display(info.programmeName) }}</span>
           </div>
+          <div class="detail-row detail-row-full">
+            <span class="detail-label">Programme Name_EN:</span>
+            <span class="detail-value">{{ display(info.programmeNameEn) }}</span>
+          </div>
+          <div class="detail-row detail-row-full">
+            <span class="detail-label">Programme Name_MAL:</span>
+            <span class="detail-value">{{ display(info.programmeNameMal) }}</span>
+          </div>
           <div class="detail-row">
             <span class="detail-label">Programme Code:</span>
             <span class="detail-value">{{ display(info.programmeCode) }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">National Education Code (NEC):</span>
-            <span class="detail-value">{{ display(info.nec) }}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">ID Code:</span>
             <span class="detail-value">{{ display(info.idCode) }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Years:</span>
-            <span class="detail-value">{{ display(info.years) }}</span>
+            <span class="detail-label">National Education Code (NEC):</span>
+            <span class="detail-value">{{ display(info.nec) }}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Study Duration for Chinese Students:</span>
             <span class="detail-value">{{ display(info.studyDurationChinese) }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Level:</span>
-            <span class="detail-value">{{ display(info.level) }}</span>
+            <span class="detail-label">Years:</span>
+            <span class="detail-value">{{ display(info.years) }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Level of Study:</span>
+            <span class="detail-label">Level:</span>
             <span class="detail-value">{{ display(info.levelOfStudy) }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Type of Programme:</span>
-            <span class="detail-value">{{ display(info.typeOfProgramme) }}</span>
+            <span class="detail-label">Programme Level:</span>
+            <span class="detail-value">{{ display(info.level) }}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Field of Study:</span>
             <span class="detail-value">{{ display(info.fieldOfStudy) }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Mode of Study:</span>
-            <span class="detail-value">{{ display(info.modeOfStudy) }}</span>
+            <span class="detail-label">Type of Programme:</span>
+            <span class="detail-value">{{ display(info.typeOfProgramme) }}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Method of Learning and Teaching:</span>
             <span class="detail-value">{{ display(info.methodOfLearning) }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Method of Delivery:</span>
-            <span class="detail-value">{{ display(info.methodOfDelivery) }}</span>
+            <span class="detail-label">Mode of Study:</span>
+            <span class="detail-value">{{ display(info.modeOfStudy) }}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Medium of Instruction:</span>
             <span class="detail-value">{{ display(info.mediumOfInstruction) }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Method of Delivery:</span>
+            <span class="detail-value">{{ display(info.methodOfDelivery) }}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Mode of Offer:</span>
@@ -214,7 +222,7 @@ function getFileIconType(fileName) {
                 </p>
               </div>
             </div>
-            <p v-if="item.description" class="attachment-desc">{{ item.description }}</p>
+            <p v-if="item.description" class="attachment-desc"><span class="attachment-desc-label">Description:</span> {{ item.description }}</p>
           </div>
         </div>
       </section>
@@ -228,11 +236,11 @@ function getFileIconType(fileName) {
             <span class="detail-value">{{ display(approval.mqaCode) }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Start Date:</span>
+            <span class="detail-label">Start Date (MQA):</span>
             <span class="detail-value">{{ display(approval.mqaStartDate) }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Expiry Date:</span>
+            <span class="detail-label">Expiry Date (MQA):</span>
             <span class="detail-value">{{ display(approval.mqaExpiryDate) }}</span>
           </div>
           <div class="detail-row">
@@ -252,7 +260,7 @@ function getFileIconType(fileName) {
             <span class="detail-value">{{ display(approval.mqaSyorReferenceFa) }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">First intake duration as in approval :</span>
+            <span class="detail-label">First intake duration as in approval:</span>
             <span class="detail-value">{{ display(approval.mqaFirstIntakeDuration) }}</span>
           </div>
         </div>
@@ -268,15 +276,15 @@ function getFileIconType(fileName) {
             <span class="detail-value">{{ display(approval.moheApprovalReferenceNo) }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Approval Date:</span>
+            <span class="detail-label">Approval Date (MOHE):</span>
             <span class="detail-value">{{ display(approval.moheApprovalDate) }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Start Date:</span>
+            <span class="detail-label">Start Date (MOHE):</span>
             <span class="detail-value">{{ display(approval.moheStartDate) }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Expiry Date:</span>
+            <span class="detail-label">Expiry Date (MOHE):</span>
             <span class="detail-value">{{ display(approval.moheExpiryDate) }}</span>
           </div>
         </div>
@@ -284,13 +292,14 @@ function getFileIconType(fileName) {
 
       <!-- Step 3 -->
       <section v-show="currentStep === 3">
+        <h3 class="section-title"><span class="section-bar"></span>Entry Requirements</h3>
         <div class="detail-grid">
           <div class="detail-row">
             <span class="detail-label">MUET:</span>
             <span class="detail-value">{{ display(entry.muet) }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">ELTS:</span>
+            <span class="detail-label">IELTS:</span>
             <span class="detail-value">{{ display(entry.elts) }}</span>
           </div>
           <div class="detail-row">
@@ -322,6 +331,7 @@ function getFileIconType(fileName) {
 
       <!-- Step 4 -->
       <section v-show="currentStep === 4">
+        <h3 class="section-title"><span class="section-bar"></span>Threshold Marks</h3>
         <table class="threshold-table">
           <thead>
             <tr>
@@ -342,6 +352,7 @@ function getFileIconType(fileName) {
 
       <!-- Step 5 -->
       <section v-show="currentStep === 5">
+        <h3 class="section-title"><span class="section-bar"></span>Fee Structure</h3>
         <div class="detail-grid">
           <div class="detail-row">
             <span class="detail-label">Duration (Min. Year):</span>
@@ -359,7 +370,7 @@ function getFileIconType(fileName) {
             <thead>
               <tr>
                 <th v-for="col in localFeeColumns" :key="`local-head-${col.key}`">{{ col.label }}</th>
-                <th class="col-check-total">Check Total</th>
+                <th class="col-check-total">Check Total (Local Student)</th>
               </tr>
             </thead>
             <tbody>
@@ -387,7 +398,7 @@ function getFileIconType(fileName) {
             <thead>
               <tr>
                 <th v-for="col in internationalFeeColumns" :key="`intl-head-${col.key}`">{{ col.label }}</th>
-                <th class="col-check-total">Check Total</th>
+                <th class="col-check-total">Check Total (International Student)</th>
               </tr>
             </thead>
             <tbody>
