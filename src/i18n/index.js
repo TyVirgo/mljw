@@ -63,6 +63,24 @@ function translateFlatText(text) {
   match = text.match(/^please input department name$/)
   if (match) return '请输入院系名称'
 
+  match = text.match(/^Changed (.+) from (.+) to (.+)$/)
+  if (match) return `将 ${tr(match[1])} 由 ${match[2]} 调整为 ${match[3]}`
+
+  match = text.match(/^Added CLO (.+)$/)
+  if (match) return `新增 CLO ${match[1]}`
+
+  match = text.match(/^Deleted CLO (.+)$/)
+  if (match) return `删除 CLO ${match[1]}`
+
+  match = text.match(/^Updated CLO (.+)$/)
+  if (match) return `更新 CLO ${match[1]}`
+
+  match = text.match(/^Updated Student Learning Time \(SLT\) configuration$/)
+  if (match) return '更新 Student Learning Time (SLT) 配置'
+
+  match = text.match(/^Duplicate Course Code in import file$/)
+  if (match) return '导入文件中课程编号重复'
+
   return text
 }
 

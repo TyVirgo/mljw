@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
-import CourseFormModal from '../components/course/CourseFormModal.vue'
-import CourseDetailModal from '../components/course/CourseDetailModal.vue'
+import CourseCreateWizard from '../components/course/CourseCreateWizard.vue'
+import CourseDetailPanel from '../components/course/CourseDetailPanel.vue'
 import CourseImportModal from '../components/course/CourseImportModal.vue'
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import ExportModal from '../components/common/ExportModal.vue'
@@ -13,7 +13,9 @@ import {
   getOfferingOptions,
   getOfferingLabel,
   createCourseId,
-  generateCopyCourseCode,
+  enrichCourseForDetail,
+  buildCourseChangeLogs,
+  prepareCourseForCopy,
 } from '../data/courses.js'
 import { initialDepartments } from '../data/departments.js'
 import { semesterTypeOptions } from '../data/semesterInfo.js'
@@ -32,12 +34,12 @@ const selectedIds = ref([])
 const currentPage = ref(1)
 const pageSize = ref(10)
 
-const formModalVisible = ref(false)
-const formModalMode = ref('create')
-const editingItem = ref(null)
+const viewMode = ref('list')
 
-const detailVisible = ref(false)
+const editingItem = ref(null)
+const editingSnapshot = ref(null)
 const detailItem = ref(null)
+const copyDraft = ref(null)
 
 const importModalVisible = ref(false)
 const exportModalVisible = ref(false)
@@ -96,6 +98,7 @@ const allPageSelected = computed(() => {
 })
 
 const hasSelection = computed(() => selectedIds.value.length > 0)
+const canCopy = computed(() => selectedIds.value.length === 1)
 
 function handleSearch() {
   appliedSearch.value = { ...searchForm.value }
@@ -132,45 +135,62 @@ function toggleSelect(id) {
 }
 
 function openCreateModal() {
-  formModalMode.value = 'create'
-  editingItem.value = null
-  formModalVisible.value = true
+  copyDraft.value = null
+  viewMode.value = 'create'
+}
+
+function closeCreateWizard() {
+  viewMode.value = 'list'
+  copyDraft.value = null
+}
+
+function handleCreateSave(payload) {
+  courses.value.push({
+    id: createCourseId(),
+    ...payload,
+    changeRecords: [],
+  })
+  closeCreateWizard()
 }
 
 function openEditModal(item) {
-  formModalMode.value = 'edit'
-  editingItem.value = { ...item }
-  formModalVisible.value = true
+  const enriched = enrichCourseForDetail({ ...item })
+  editingSnapshot.value = JSON.parse(JSON.stringify(enriched))
+  editingItem.value = enriched
+  viewMode.value = 'edit'
+}
+
+function closeEditWizard() {
+  viewMode.value = 'list'
+  editingItem.value = null
+  editingSnapshot.value = null
+}
+
+function handleEditSave(payload) {
+  if (!editingSnapshot.value) return
+  const index = courses.value.findIndex((item) => item.id === editingSnapshot.value.id)
+  if (index === -1) return
+
+  const changeLogs = buildCourseChangeLogs(editingSnapshot.value, payload)
+  courses.value[index] = {
+    ...courses.value[index],
+    ...payload,
+    requiredReferences: '',
+    furtherReadings: '',
+    courseOwnerDisplay: '',
+    changeRecords: [...(courses.value[index].changeRecords || []), ...changeLogs],
+  }
+  closeEditWizard()
 }
 
 function openDetailModal(item) {
-  detailItem.value = { ...item }
-  detailVisible.value = true
-}
-
-function closeFormModal() {
-  formModalVisible.value = false
-  editingItem.value = null
+  detailItem.value = enrichCourseForDetail({ ...item })
+  viewMode.value = 'detail'
 }
 
 function closeDetailModal() {
-  detailVisible.value = false
+  viewMode.value = 'list'
   detailItem.value = null
-}
-
-function handleSave(formData) {
-  if (formModalMode.value === 'edit' && editingItem.value) {
-    const index = courses.value.findIndex((item) => item.id === editingItem.value.id)
-    if (index !== -1) {
-      courses.value[index] = { ...courses.value[index], ...formData }
-    }
-  } else {
-    courses.value.push({
-      id: createCourseId(),
-      ...formData,
-    })
-  }
-  closeFormModal()
 }
 
 function requestDelete(ids) {
@@ -198,18 +218,14 @@ function cancelDelete() {
 }
 
 function handleCopy() {
-  if (!hasSelection.value) {
-    window.alert(t('common.selectRowsFirst'))
+  if (selectedIds.value.length !== 1) {
+    window.alert(t('pages.course.copySelectOne'))
     return
   }
-  const sources = courses.value.filter((item) => selectedIds.value.includes(item.id))
-  sources.forEach((source) => {
-    courses.value.push({
-      ...source,
-      id: createCourseId(),
-      courseCode: generateCopyCourseCode(source.courseCode, courses.value),
-    })
-  })
+  const source = courses.value.find((item) => item.id === selectedIds.value[0])
+  if (!source) return
+  copyDraft.value = prepareCourseForCopy(enrichCourseForDetail({ ...source }), courses.value)
+  viewMode.value = 'create'
   selectedIds.value = []
 }
 
@@ -219,8 +235,17 @@ function openImportModal() {
 
 function handleImportSuccess(importedRows) {
   importedRows.forEach((row) => {
-    courses.value.push({ ...row })
+    courses.value.push({
+      id: createCourseId(),
+      ...row,
+      clos: row.clos || [],
+      slt: row.slt || { contentOutlines: [], continuousAssessments: [], finalAssessments: [] },
+      changeRecords: row.changeRecords || [],
+    })
   })
+  if (importedRows.length) {
+    currentPage.value = 1
+  }
 }
 
 function openExportModal() {
@@ -261,7 +286,27 @@ function getRowNumber(index) {
 </script>
 
 <template>
-  <div class="course-page">
+  <CourseCreateWizard
+    v-if="viewMode === 'create'"
+    :mode="copyDraft ? 'copy' : 'create'"
+    :all-courses="courses"
+    :initial-course="copyDraft"
+    @back="closeCreateWizard"
+    @save="handleCreateSave"
+  />
+
+  <CourseCreateWizard
+    v-else-if="viewMode === 'edit' && editingItem"
+    mode="edit"
+    :all-courses="courses"
+    :initial-course="editingItem"
+    @back="closeEditWizard"
+    @save="handleEditSave"
+  />
+
+  <CourseDetailPanel v-else-if="viewMode === 'detail' && detailItem" :course="detailItem" @back="closeDetailModal" />
+
+  <div v-else-if="viewMode === 'list'" class="course-page">
     <div class="page-card">
       <div class="search-bar">
         <div class="search-row">
@@ -349,7 +394,7 @@ function getRowNumber(index) {
         </button>
         <button type="button" class="btn btn-outline" @click="openImportModal">{{ t('common.import') }}</button>
         <button type="button" class="btn btn-outline" @click="openExportModal">{{ t('common.export') }}</button>
-        <button type="button" class="btn btn-outline" :disabled="!hasSelection" @click="handleCopy">{{ t('common.copy') }}</button>
+        <button type="button" class="btn btn-outline" :disabled="!canCopy" @click="handleCopy">{{ t('common.copy') }}</button>
       </div>
 
       <div class="table-section">
@@ -403,17 +448,6 @@ function getRowNumber(index) {
         />
       </div>
     </div>
-
-    <CourseFormModal
-      :visible="formModalVisible"
-      :mode="formModalMode"
-      :initial-data="editingItem"
-      :all-courses="courses"
-      @close="closeFormModal"
-      @save="handleSave"
-    />
-
-    <CourseDetailModal :visible="detailVisible" :data="detailItem" @close="closeDetailModal" />
 
     <CourseImportModal
       :visible="importModalVisible"

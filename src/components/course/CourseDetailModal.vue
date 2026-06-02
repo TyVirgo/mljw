@@ -1,6 +1,7 @@
 <script setup>
+import { ref } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { getOfferingLabel, getCourseOwnerLabel } from '../../data/courses.js'
+import { getOfferingLabel, getCourseOwnerLabel, formatMethodList } from '../../data/courses.js'
 import { initialDepartments } from '../../data/departments.js'
 
 defineProps({
@@ -11,6 +12,7 @@ defineProps({
 const emit = defineEmits(['close'])
 
 const { t, tr } = useAppI18n()
+const activeTab = ref('general')
 
 function display(value) {
   if (value === null || value === undefined || value === '') return '--'
@@ -32,10 +34,15 @@ function handleOverlayClick(event) {
         </div>
 
         <div class="tab-bar">
-          <button type="button" class="tab-btn active">{{ tr('General Information') }}</button>
+          <button type="button" class="tab-btn" :class="{ active: activeTab === 'general' }" @click="activeTab = 'general'">
+            {{ tr('General Information') }}
+          </button>
+          <button type="button" class="tab-btn" :class="{ active: activeTab === 'clo' }" @click="activeTab = 'clo'">
+            {{ tr('Course Learning Outcome (CLO)') }}
+          </button>
         </div>
 
-        <div class="detail-body">
+        <div v-if="activeTab === 'general'" class="detail-body">
           <div class="detail-grid">
             <div class="detail-item">
               <span class="detail-label">{{ tr('Course Code:') }}</span>
@@ -69,7 +76,43 @@ function handleOverlayClick(event) {
               <span class="detail-label">{{ tr('Semester Type:') }}</span>
               <span class="detail-value">{{ data.semesterType ? tr(data.semesterType) : '--' }}</span>
             </div>
+            <div class="detail-item detail-item-full">
+              <span class="detail-label">{{ tr('Pre-requisite / co-requisite:') }}</span>
+              <span class="detail-value">{{ display(data.prerequisite) }}</span>
+            </div>
+            <div class="detail-item detail-item-full">
+              <span class="detail-label">{{ tr('Synopsis:') }}</span>
+              <span class="detail-value">{{ display(data.synopsis) }}</span>
+            </div>
+            <div class="detail-item detail-item-full">
+              <span class="detail-label">{{ tr('References:') }}</span>
+              <span class="detail-value">{{ display(data.references) }}</span>
+            </div>
           </div>
+        </div>
+
+        <div v-else class="detail-body">
+          <table v-if="data.clos?.length" class="clo-table">
+            <thead>
+              <tr>
+                <th>{{ tr('CLO') }}</th>
+                <th>{{ tr('Outcome') }}</th>
+                <th>{{ tr("Bloom's Taxonomy Level") }}</th>
+                <th>{{ tr('Teaching Methods') }}</th>
+                <th>{{ tr('Assessment Methods') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in data.clos" :key="item.id">
+                <td>{{ item.cloCode }}</td>
+                <td>{{ item.outcome }}</td>
+                <td>{{ item.bloomLevel }}</td>
+                <td>{{ formatMethodList(item.teachingMethods, tr) }}</td>
+                <td>{{ formatMethodList(item.assessmentMethods, tr) }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="empty-hint">{{ t('common.noData') }}</p>
         </div>
 
         <div class="modal-footer">
@@ -139,10 +182,15 @@ function handleOverlayClick(event) {
   border: none;
   background: none;
   font-size: 14px;
+  color: #6b7280;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab-btn.active {
   color: #2563eb;
   font-weight: 600;
-  border-bottom: 2px solid #2563eb;
-  margin-bottom: -1px;
+  border-bottom-color: #2563eb;
 }
 
 .detail-body {
@@ -167,10 +215,38 @@ function handleOverlayClick(event) {
   color: #6b7280;
 }
 
+.detail-item-full {
+  grid-column: 1 / -1;
+}
+
 .detail-value {
   font-size: 13px;
   color: #111827;
   word-break: break-word;
+}
+
+.clo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.clo-table th,
+.clo-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  text-align: left;
+}
+
+.clo-table th {
+  background: #f9fafb;
+  color: #6b7280;
+}
+
+.empty-hint {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 13px;
 }
 
 .modal-footer {

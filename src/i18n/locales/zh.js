@@ -65,6 +65,7 @@ export default {
     pleaseSelect: '请选择',
     pleaseSelectDate: '请选择日期',
     deleteConfirmation: '删除确认',
+    saveConfirmation: '保存确认',
     areYouSure: '确定要继续吗？',
     selectRowsFirst: '请先选择要导出的行。',
     selectExportField: '请至少选择一个导出字段。',
@@ -216,8 +217,14 @@ export default {
     course: {
       deleteOne: '确定要删除该课程记录吗？',
       deleteMany: '确定要删除 {count} 条课程记录吗？',
-      importSuccessCount: '成功导入 {count} 条记录。',
+      importSuccessCount: '成功导入 {count} 条课程记录。',
+      importPartialSuccess:
+        '成功导入 {success} 条记录，{failed} 行校验失败。请下载错误报告修正后重新导入。',
+      importAllFailed: '导入失败，{count} 行存在错误。请下载错误报告修正后重新导入。',
       importFailedCount: '导入失败 {count} 条记录。',
+      copySelectOne: '请勾选一条课程记录进行复制。',
+      copyHint:
+        '已从 {name}（{code}）复制，CLO 与学时配置已自动回填。请修改课程编号、开课单位等差异化字段并确保编号唯一后再保存。',
     },
   },
 }

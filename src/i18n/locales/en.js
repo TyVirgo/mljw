@@ -65,6 +65,7 @@ export default {
     pleaseSelect: 'please select',
     pleaseSelectDate: 'please select date',
     deleteConfirmation: 'Delete Confirmation',
+    saveConfirmation: 'Save Confirmation',
     areYouSure: 'Are you sure you want to proceed?',
     selectRowsFirst: 'Please select rows to export first.',
     selectExportField: 'Please select at least one export field.',
@@ -217,8 +218,15 @@ export default {
     course: {
       deleteOne: 'Are you sure you want to delete this course record?',
       deleteMany: 'Are you sure you want to delete {count} course records?',
-      importSuccessCount: 'Successfully imported {count} record(s).',
+      importSuccessCount: 'Successfully imported {count} course record(s).',
+      importPartialSuccess:
+        'Imported {success} record(s). {failed} row(s) failed validation. Please download the error report, fix the data, and import again.',
+      importAllFailed:
+        'Import failed. {count} row(s) contain errors. Please download the error report, fix the data, and import again.',
       importFailedCount: 'Failed to import {count} record(s).',
+      copySelectOne: 'Please select exactly one course to copy.',
+      copyHint:
+        'Copied from {name} ({code}). CLO and SLT settings have been pre-filled. Please update the Course Code, Offering Unit and other differentiated fields to ensure uniqueness before saving.',
     },
   },
 }
