@@ -64,7 +64,6 @@ const detailsView = ref(null)
 
 function createEmptySearch() {
   return {
-    keyword: '',
     code: '',
     name: '',
     level: '',
@@ -93,26 +92,6 @@ function highlightText(text, terms) {
     .split(regex)
     .map((part, index) => (index % 2 === 1 ? `<mark class="search-highlight">${escapeHtml(part)}</mark>` : escapeHtml(part)))
     .join('')
-}
-
-function getCurrentVersion(item) {
-  if (!item.versions?.length) return {}
-  return item.versions.find((version) => version.isCurrent) || item.versions[0]
-}
-
-function matchKeyword(item, keyword) {
-  if (!keyword) return true
-  const target = keyword.trim().toLowerCase()
-  const version = getCurrentVersion(item)
-  const fields = [
-    item.code,
-    item.name,
-    item.level,
-    item.years,
-    version.mqaCode,
-    version.moheCode,
-  ]
-  return fields.some((field) => String(field ?? '').toLowerCase().includes(target))
 }
 
 function matchText(value, keyword) {
@@ -150,7 +129,6 @@ const filteredProgrammes = computed(() => {
   const s = appliedSearch.value
   return scopedProgrammes.value.filter(
     (item) =>
-      matchKeyword(item, s.keyword) &&
       matchText(item.code, s.code) &&
       matchText(item.name, s.name) &&
       matchLevel(item.level, s.level),
@@ -159,13 +137,12 @@ const filteredProgrammes = computed(() => {
 
 const hasActiveSearch = computed(() => {
   const s = appliedSearch.value
-  return !!(s.keyword?.trim() || s.code?.trim() || s.name?.trim() || s.level)
+  return !!(s.code?.trim() || s.name?.trim() || s.level)
 })
 
 function getCellHighlightTerms(field) {
   const s = appliedSearch.value
   const terms = []
-  if (s.keyword?.trim()) terms.push(s.keyword.trim())
   if (field === 'code' && s.code?.trim()) terms.push(s.code.trim())
   if (field === 'name' && s.name?.trim()) terms.push(s.name.trim())
   if (field === 'level' && s.level) terms.push(s.level)
@@ -561,10 +538,6 @@ function handleExportConfirm({ selectedFields, exportScope }) {
           <div class="search-bar">
             <div class="search-row">
               <div class="search-fields">
-                <div class="search-item">
-                  <label>{{ tr('Keywords:') }}</label>
-                  <input v-model="searchForm.keyword" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
-                </div>
                 <div class="search-item">
                   <label>{{ tr('Programme Code:') }}</label>
                   <input v-model="searchForm.code" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />

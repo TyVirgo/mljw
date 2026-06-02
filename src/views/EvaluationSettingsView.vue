@@ -80,7 +80,7 @@ function confirmSave() {
     <div class="page-card">
       <div class="info-banner">
         <span class="info-icon" aria-hidden="true">i</span>
-        <p>{{ tr('New lecturer or lecturer category change triggers the requirement for a prompt teacher evaluation.') }}</p>
+        <p>{{ tr('Any lecturer who meets the following conditions is required to undergo lecture evaluation.') }}</p>
       </div>
 
       <section class="settings-section">
