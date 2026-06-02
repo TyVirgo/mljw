@@ -12,6 +12,7 @@ import CodeSetManagementView from './views/CodeSetManagementView.vue'
 import ProgrammeVersionView from './views/ProgrammeVersionView.vue'
 import IntakeSetView from './views/IntakeSetView.vue'
 import ProgrammeIntakeView from './views/ProgrammeIntakeView.vue'
+import LecturerInformationView from './views/LecturerInformationView.vue'
 import SemesterInformationView from './views/SemesterInformationView.vue'
 import CalendarView from './views/CalendarView.vue'
 import CourseInformationView from './views/CourseInformationView.vue'
@@ -34,6 +35,7 @@ const isProgrammeIntake = computed(() => currentPageId.value === 'programme-inta
 const isSemesterInformation = computed(() => currentPageId.value === 'semester-information')
 const isCalendar = computed(() => currentPageId.value === 'calendar')
 const isCourseInformation = computed(() => currentPageId.value === 'course-information')
+const isLecturerInformation = computed(() => currentPageId.value === 'lecturer-information')
 const isUnderConstruction = computed(() => !developedPages.has(currentPageId.value))
 
 function handleSelect(id) {
@@ -80,6 +82,7 @@ function openBasicDataAdmin() {
           <SemesterInformationView v-else-if="isSemesterInformation" />
           <CalendarView v-else-if="isCalendar" />
           <CourseInformationView v-else-if="isCourseInformation" />
+          <LecturerInformationView v-else-if="isLecturerInformation" />
           <UnderConstructionView v-else-if="isUnderConstruction" @back="handleBack" />
         </main>
       </div>
