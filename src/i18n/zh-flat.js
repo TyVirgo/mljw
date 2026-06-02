@@ -548,7 +548,6 @@ export const zhFlat = {
   Friday: '周五',
   Saturday: '周六',
 
-  // Course Info
   'Course Code:': '课程编号：',
   'Course Code': '课程编号',
   'Course Name:': '课程名字：',
@@ -604,4 +603,22 @@ export const zhFlat = {
   'Semester Type is invalid': '学期类型无效',
   'Missing required columns: Course Code, Course Name': '缺少必填列：课程编号、课程名字',
   'Import file is empty': '导入文件为空',
+
+  // Evaluation Settings
+  'New lecturer or lecturer category change triggers the requirement for a prompt teacher evaluation.':
+    '新入职教师或教师类型变更会触发教师评估需求。',
+  'New Lecturer': '新入职教师',
+  'New lecturers without any teaching experience are required to undergo teacher evaluation.':
+    '新入职且无教学经验的教师，需进行教师评估。',
+  'Change in Lecturer Category': '教师类型变更',
+  'Category change from': '教师由',
+  'to': '变更为',
+  'requires teacher evaluation for providing information.': '，需进行评估。',
+  'Are you sure you want to delete this rule?': '确定要删除该规则吗？',
+  'Please select both categories for all enabled rules.': '请为所有启用的规则选择变更前与变更后类型。',
+  'From and to categories must be different.': '变更前与变更后类型不能相同。',
+  'Duplicate category change rules are not allowed.': '不允许重复的类型变更规则。',
+  'Saved successfully.': '保存成功。',
+  'Save Confirmation': '保存确认',
+  'Are you sure you want to save the evaluation settings?': '确定要保存评估设置吗？',
 }

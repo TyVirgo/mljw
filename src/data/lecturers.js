@@ -144,18 +144,30 @@ export function createEmptyLecturerForm() {
 }
 
 export function normalizeLecturer(item) {
+  const employment = {
+    foundationUndergraduatePostgraduate: '',
+    officeExtension: '',
+    xmumEmail: '',
+    currentlyTeaching: 'Yes',
+    ...(item.employment || {}),
+  }
+  const hasTeachingRecord = item.hasTeachingRecord ?? employment.currentlyTeaching === 'Yes'
+
   return {
     requiresEvaluation: false,
     nameCn: '',
     nameMal: '',
+    previousCategory: '',
+    hasTeachingRecord,
     personal: {},
-    employment: { currentlyTeaching: 'Yes' },
+    employment,
     attachment: null,
     remarks: '',
     qualifications: [],
     workingExperiences: [],
     cpdByYear: [],
     ...item,
+    hasTeachingRecord,
     personal: {
       dateOfBirth: '',
       nationality: '',
@@ -165,10 +177,7 @@ export function normalizeLecturer(item) {
       ...(item.personal || {}),
     },
     employment: {
-      foundationUndergraduatePostgraduate: '',
-      officeExtension: '',
-      xmumEmail: '',
-      currentlyTeaching: 'Yes',
+      ...employment,
       ...(item.employment || {}),
     },
     qualifications: (item.qualifications || []).map((q) => ({
@@ -408,6 +417,7 @@ export const initialLecturers = [
     employmentStatus: 'Active',
     dateOfJoining: '01/09/2023',
     requiresEvaluation: false,
+    hasTeachingRecord: false,
     personal: {
       dateOfBirth: '28/02/2000',
       nationality: 'Malaysia',
@@ -466,6 +476,7 @@ export const initialLecturers = [
     name: 'Wong Siew Ling',
     gender: 'Female',
     category: 'Full-time Lecturer',
+    previousCategory: 'Student Teaching Assistant',
     department: 'Department of Clinical Medicine',
     academicQualificationHighest: 'Degree, Foundation',
     title: 'Dr.',
