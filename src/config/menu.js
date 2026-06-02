@@ -77,6 +77,9 @@ export const developedPages = new Set([
   'semester-information',
   'calendar',
   'course-information',
+  'course-application',
+  'course-approval-process',
+  'course-change-application',
   'lecturer-information',
   'evaluation-settings',
 ])

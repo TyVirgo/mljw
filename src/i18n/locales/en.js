@@ -26,7 +26,7 @@ export default {
     courseInfo: 'Course Info',
     courseInformation: 'Course Info',
     courseApplication: 'Course Application',
-    courseApprovalProcess: 'Course Approval Process',
+    courseApprovalProcess: 'New Course Approval',
     courseChangeApplication: 'Course Change Application',
     courseChangeReview: 'Course Change Review',
     lecturerInfo: 'Lecturer Info',

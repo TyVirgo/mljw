@@ -136,23 +136,29 @@ function handleOverlayClick(event) {
             <span class="section-total">{{ tr('Total SLT:') }} <strong>{{ totalSLT }}</strong></span>
           </div>
 
-          <div class="slt-block">
-            <p class="slt-group-label">{{ tr('F2F:') }}</p>
-            <div class="slt-grid">
-              <div class="slt-field">
-                <label>{{ tr('Physical:') }}</label>
-                <input v-model.number="form.physical" type="number" min="0" step="1" class="form-input num-input" />
-              </div>
-              <div class="slt-field">
-                <label>{{ tr('Online/ Technology-mediated:') }}</label>
-                <input v-model.number="form.online" type="number" min="0" step="1" class="form-input num-input" />
+          <div class="slt-learning">
+            <div class="slt-group">
+              <p class="slt-group-label">{{ tr('F2F:') }}</p>
+              <div class="slt-block f2f-block">
+                <div class="slt-field-grid">
+                  <div class="slt-field">
+                    <label>{{ tr('Physical:') }}</label>
+                    <input v-model.number="form.physical" type="number" min="0" step="1" class="form-input num-input" />
+                  </div>
+                  <div class="slt-field">
+                    <label>{{ tr('Online/ Technology-mediated:') }}</label>
+                    <input v-model.number="form.online" type="number" min="0" step="1" class="form-input num-input" />
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="form-row nf2f-row">
-            <label class="form-label">{{ tr('NF2F:') }}</label>
-            <input v-model.number="form.nf2f" type="number" min="0" step="1" class="form-input num-input" />
+            <div class="slt-group nf2f-group">
+              <p class="slt-group-label">{{ tr('NF2F:') }}</p>
+              <div class="slt-field">
+                <input v-model.number="form.nf2f" type="number" min="0" step="1" class="form-input num-input" />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -211,12 +217,13 @@ function handleOverlayClick(event) {
 .modal-form {
   padding: 20px 24px;
   overflow: auto;
+  --form-label-width: 168px;
 }
 
 .form-row {
   display: grid;
-  grid-template-columns: 200px 1fr;
-  gap: 12px;
+  grid-template-columns: var(--form-label-width) 1fr;
+  gap: 8px;
   margin-bottom: 16px;
   align-items: center;
 }
@@ -225,6 +232,7 @@ function handleOverlayClick(event) {
   font-size: 13px;
   color: #374151;
   text-align: right;
+  white-space: nowrap;
 }
 
 .required {
@@ -240,10 +248,6 @@ function handleOverlayClick(event) {
   font-size: 13px;
   padding: 0 12px;
   box-sizing: border-box;
-}
-
-.num-input {
-  max-width: 120px;
 }
 
 .percent-wrap {
@@ -293,39 +297,80 @@ function handleOverlayClick(event) {
   color: #2563eb;
 }
 
-.slt-block {
-  background: #f5f5f5;
-  border-radius: 4px;
-  padding: 16px;
+.slt-learning {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   margin-bottom: 16px;
 }
 
-.slt-group-label {
-  margin: 0 0 12px;
-  font-size: 13px;
-  font-weight: 600;
+.slt-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
 }
 
-.slt-grid {
+.slt-group-label {
+  margin: 0;
+  width: 48px;
+  flex-shrink: 0;
+  padding-top: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.nf2f-group {
+  align-items: center;
+}
+
+.nf2f-group .slt-group-label {
+  padding-top: 0;
+}
+
+.slt-block {
+  background: #f5f5f5;
+  border-radius: 4px;
+  padding: 16px 20px;
+}
+
+.f2f-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.slt-field-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  grid-template-columns: repeat(2, minmax(0, max-content));
+  gap: 10px 40px;
 }
 
 .slt-field {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   font-size: 13px;
 }
 
-.nf2f-row {
-  align-items: center;
+.slt-field label {
+  min-width: 68px;
+  text-align: right;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: #374151;
+}
+
+.num-input {
+  width: 100px;
+  max-width: 100px;
+  flex-shrink: 0;
+  text-align: left;
+  background: #fff;
 }
 
 .field-error {
-  margin: -8px 0 12px 212px;
+  margin: -8px 0 12px calc(var(--form-label-width) + 8px);
   font-size: 12px;
   color: #ef4444;
 }
@@ -342,7 +387,7 @@ function handleOverlayClick(event) {
   min-width: 72px;
   height: 36px;
   padding: 0 16px;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 13px;
 }
 

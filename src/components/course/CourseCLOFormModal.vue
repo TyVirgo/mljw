@@ -8,6 +8,7 @@ import {
   MAX_CLO_OUTCOME_LENGTH,
   validateCLOForm,
   formatMethodList,
+  generateNextCLOCode,
 } from '../../data/courses.js'
 
 const props = defineProps({
@@ -43,7 +44,7 @@ function createEmptyForm() {
 }
 
 watch(
-  () => [props.visible, props.mode, props.initialData],
+  () => [props.visible, props.mode, props.initialData, props.allClos],
   () => {
     if (!props.visible) return
     errors.value = {}
@@ -58,7 +59,10 @@ watch(
         assessmentMethods: [...(props.initialData.assessmentMethods || [])],
       }
     } else {
-      form.value = createEmptyForm()
+      form.value = {
+        ...createEmptyForm(),
+        cloCode: generateNextCLOCode(props.allClos),
+      }
     }
   },
 )
@@ -118,10 +122,10 @@ function handleOverlayClick(event) {
             <input
               v-model="form.cloCode"
               type="text"
-              class="form-input"
+              class="form-input readonly"
               :class="{ error: errors.cloCode }"
-              maxlength="10"
-              :placeholder="t('common.pleaseInput')"
+              readonly
+              tabindex="-1"
             />
           </div>
           <p v-if="errors.cloCode" class="field-error">{{ tr(errors.cloCode) }}</p>
@@ -326,6 +330,12 @@ function handleOverlayClick(event) {
   border-color: #ef4444;
 }
 
+.form-input.readonly {
+  background: #f5f5f5;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
 .form-select.is-empty {
   color: #bfbfbf;
 }
@@ -428,7 +438,7 @@ function handleOverlayClick(event) {
   min-width: 72px;
   height: 36px;
   padding: 0 16px;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
 }

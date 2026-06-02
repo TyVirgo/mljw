@@ -26,7 +26,7 @@ export default {
     courseInfo: '课程信息',
     courseInformation: '课程信息',
     courseApplication: '课程申请',
-    courseApprovalProcess: '课程审批流程',
+    courseApprovalProcess: '新课程审批',
     courseChangeApplication: '课程变更申请',
     courseChangeReview: '课程变更审核',
     lecturerInfo: '讲师信息',

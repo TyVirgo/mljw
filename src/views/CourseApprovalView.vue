@@ -1,28 +1,27 @@
 <script setup>
 import { ref, computed } from 'vue'
-import CourseCreateWizard from '../components/course/CourseCreateWizard.vue'
-import CourseDetailPanel from '../components/course/CourseDetailPanel.vue'
-import CourseImportModal from '../components/course/CourseImportModal.vue'
-import ConfirmDialog from '../components/common/ConfirmDialog.vue'
+import CourseApplicationWizard from '../components/courseApplication/CourseApplicationWizard.vue'
+import ApprovalLogModal from '../components/courseApplication/ApprovalLogModal.vue'
+import CourseApprovalModal from '../components/courseApproval/CourseApprovalModal.vue'
 import ExportModal from '../components/common/ExportModal.vue'
 import TablePagination from '../components/common/TablePagination.vue'
-import { courses } from '../data/courseStore.js'
+import { courseApplications, courses } from '../data/courseStore.js'
+import { applicationStatusOptions, statusBadgeClass } from '../data/courseApplications.js'
 import {
-  createCourseId,
-  enrichCourseForDetail,
-  buildCourseChangeLogs,
-  prepareCourseForCopy,
-  courseClassificationOptions,
-  mediumOfInstructionOptions,
-  getOfferingOptions,
-  getOfferingLabel,
-} from '../data/courses.js'
+  getApprovalQueue,
+  canBatchApproveSelection,
+  getSharedApprovalStage,
+  applyApprovalDecisions,
+} from '../data/courseApproval.js'
+import { courseClassificationOptions, getOfferingOptions, getOfferingLabel } from '../data/courses.js'
 import { initialDepartments } from '../data/departments.js'
-import { semesterTypeOptions } from '../data/semesterInfo.js'
-import { exportCoursesToExcel, courseExportFields } from '../utils/exportCourseExcel.js'
+import {
+  exportCourseApprovalsToExcel,
+  courseApprovalExportFields,
+} from '../utils/exportCourseApprovalExcel.js'
 import { useListPageI18n } from '../composables/useListPageI18n.js'
 
-const { t, tr, translatedExportFields } = useListPageI18n(courseExportFields)
+const { t, tr, translatedExportFields } = useListPageI18n(courseApprovalExportFields)
 
 const searchExpanded = ref(false)
 const searchForm = ref(createEmptySearch())
@@ -33,18 +32,12 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 
 const viewMode = ref('list')
-
-const editingItem = ref(null)
-const editingSnapshot = ref(null)
 const detailItem = ref(null)
-const copyDraft = ref(null)
-
-const importModalVisible = ref(false)
+const approvalLogItem = ref(null)
 const exportModalVisible = ref(false)
-
-const confirmVisible = ref(false)
-const confirmMessage = ref('')
-const pendingDeleteIds = ref([])
+const approvalModalVisible = ref(false)
+const pendingApprovalIds = ref([])
+const approvalModalStage = ref('')
 
 const offeringOptions = computed(() => getOfferingOptions(initialDepartments))
 
@@ -54,8 +47,8 @@ function createEmptySearch() {
     courseName: '',
     offering: '',
     courseClassification: '',
-    mediumOfInstruction: '',
-    semesterType: '',
+    status: '',
+    applicant: '',
   }
 }
 
@@ -69,34 +62,43 @@ function matchSelect(value, selected) {
   return value === selected
 }
 
-const filteredCourses = computed(() => {
+const approvalQueue = computed(() => getApprovalQueue(courseApplications.value))
+
+const filteredItems = computed(() => {
   const s = appliedSearch.value
-  return courses.value.filter(
+  return approvalQueue.value.filter(
     (item) =>
       matchText(item.courseCode, s.courseCode) &&
       matchText(item.courseName, s.courseName) &&
       matchSelect(item.offering, s.offering) &&
       matchSelect(item.courseClassification, s.courseClassification) &&
-      matchSelect(item.mediumOfInstruction, s.mediumOfInstruction) &&
-      matchSelect(item.semesterType, s.semesterType),
+      matchSelect(item.status, s.status) &&
+      matchText(item.applicant, s.applicant),
   )
 })
 
-const totalCount = computed(() => filteredCourses.value.length)
+const totalCount = computed(() => filteredItems.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / pageSize.value)))
 
-const paginatedCourses = computed(() => {
+const paginatedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
-  return filteredCourses.value.slice(start, start + pageSize.value)
+  return filteredItems.value.slice(start, start + pageSize.value)
 })
 
 const allPageSelected = computed(() => {
-  if (!paginatedCourses.value.length) return false
-  return paginatedCourses.value.every((item) => selectedIds.value.includes(item.id))
+  if (!paginatedItems.value.length) return false
+  return paginatedItems.value.every((item) => selectedIds.value.includes(item.id))
 })
 
 const hasSelection = computed(() => selectedIds.value.length > 0)
-const canCopy = computed(() => selectedIds.value.length === 1)
+
+const selectedItems = computed(() =>
+  selectedIds.value
+    .map((id) => courseApplications.value.find((row) => row.id === id))
+    .filter(Boolean),
+)
+
+const canApproveSelection = computed(() => canBatchApproveSelection(selectedItems.value))
 
 function handleSearch() {
   appliedSearch.value = { ...searchForm.value }
@@ -116,7 +118,7 @@ function toggleSearchExpanded() {
 }
 
 function toggleSelectAll(event) {
-  const pageIds = paginatedCourses.value.map((item) => item.id)
+  const pageIds = paginatedItems.value.map((item) => item.id)
   if (event.target.checked) {
     selectedIds.value = [...new Set([...selectedIds.value, ...pageIds])]
   } else {
@@ -132,122 +134,48 @@ function toggleSelect(id) {
   }
 }
 
-function openCreateModal() {
-  copyDraft.value = null
-  viewMode.value = 'create'
-}
-
-function closeCreateWizard() {
-  viewMode.value = 'list'
-  copyDraft.value = null
-}
-
-function handleCreateSave(payload) {
-  courses.value.push({
-    id: createCourseId(),
-    ...payload,
-    changeRecords: [],
-  })
-  closeCreateWizard()
-}
-
-function openEditModal(item) {
-  const enriched = enrichCourseForDetail({ ...item })
-  editingSnapshot.value = JSON.parse(JSON.stringify(enriched))
-  editingItem.value = enriched
-  viewMode.value = 'edit'
-}
-
-function closeEditWizard() {
-  viewMode.value = 'list'
-  editingItem.value = null
-  editingSnapshot.value = null
-}
-
-function handleEditSave(payload) {
-  if (!editingSnapshot.value) return
-  const index = courses.value.findIndex((item) => item.id === editingSnapshot.value.id)
-  if (index === -1) return
-
-  const changeLogs = buildCourseChangeLogs(editingSnapshot.value, payload)
-  courses.value[index] = {
-    ...courses.value[index],
-    ...payload,
-    requiredReferences: '',
-    furtherReadings: '',
-    courseOwnerDisplay: '',
-    changeRecords: [...(courses.value[index].changeRecords || []), ...changeLogs],
-  }
-  closeEditWizard()
-}
-
-function openDetailModal(item) {
-  detailItem.value = enrichCourseForDetail({ ...item })
+function openDetail(item) {
+  detailItem.value = { ...item }
   viewMode.value = 'detail'
 }
 
-function closeDetailModal() {
+function closeDetail() {
   viewMode.value = 'list'
   detailItem.value = null
 }
 
-function requestDelete(ids) {
-  const uniqueIds = [...new Set(ids)]
-  if (!uniqueIds.length) return
-  pendingDeleteIds.value = uniqueIds
-  confirmMessage.value =
-    uniqueIds.length === 1
-      ? t('pages.course.deleteOne')
-      : t('pages.course.deleteMany', { count: uniqueIds.length })
-  confirmVisible.value = true
+function openApprovalLog(item) {
+  approvalLogItem.value = { ...item }
 }
 
-function confirmDelete() {
-  courses.value = courses.value.filter((item) => !pendingDeleteIds.value.includes(item.id))
-  selectedIds.value = selectedIds.value.filter((id) => !pendingDeleteIds.value.includes(id))
-  pendingDeleteIds.value = []
-  confirmVisible.value = false
+function openApprovalModal() {
+  if (!canApproveSelection.value) {
+    window.alert(tr('Please select one or more applications at the same approval stage that can be approved.'))
+    return
+  }
+  pendingApprovalIds.value = selectedItems.value.map((item) => item.id)
+  approvalModalStage.value = getSharedApprovalStage(selectedItems.value) || ''
+  approvalModalVisible.value = true
+}
+
+function handleApprovalConfirm({ action, comment }) {
+  const result = applyApprovalDecisions(
+    pendingApprovalIds.value,
+    action,
+    comment,
+    courseApplications.value,
+    courses.value,
+  )
+  courseApplications.value = result.applications
+  courses.value = result.courses
+  pendingApprovalIds.value = []
+  approvalModalVisible.value = false
+  selectedIds.value = []
   if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
 }
 
-function cancelDelete() {
-  pendingDeleteIds.value = []
-  confirmVisible.value = false
-}
-
-function handleCopy() {
-  if (selectedIds.value.length !== 1) {
-    window.alert(t('pages.course.copySelectOne'))
-    return
-  }
-  const source = courses.value.find((item) => item.id === selectedIds.value[0])
-  if (!source) return
-  copyDraft.value = prepareCourseForCopy(enrichCourseForDetail({ ...source }), courses.value)
-  viewMode.value = 'create'
-  selectedIds.value = []
-}
-
-function openImportModal() {
-  importModalVisible.value = true
-}
-
-function handleImportSuccess(importedRows) {
-  importedRows.forEach((row) => {
-    courses.value.push({
-      id: createCourseId(),
-      ...row,
-      clos: row.clos || [],
-      slt: row.slt || { contentOutlines: [], continuousAssessments: [], finalAssessments: [] },
-      changeRecords: row.changeRecords || [],
-    })
-  })
-  if (importedRows.length) {
-    currentPage.value = 1
-  }
-}
-
 function openExportModal() {
-  if (!filteredCourses.value.length) {
+  if (!filteredItems.value.length) {
     window.alert(t('common.noDataExport'))
     return
   }
@@ -256,13 +184,9 @@ function openExportModal() {
 
 function handleExportConfirm({ selectedFields, exportScope }) {
   let data = []
-  if (exportScope === 'currentPage') {
-    data = paginatedCourses.value
-  } else if (exportScope === 'allResults') {
-    data = filteredCourses.value
-  } else {
-    data = filteredCourses.value.filter((item) => selectedIds.value.includes(item.id))
-  }
+  if (exportScope === 'currentPage') data = paginatedItems.value
+  else if (exportScope === 'allResults') data = filteredItems.value
+  else data = filteredItems.value.filter((item) => selectedIds.value.includes(item.id))
 
   if (!data.length) {
     window.alert(t('common.noDataExport'))
@@ -270,7 +194,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   }
 
   const timestamp = new Date().toISOString().slice(0, 10)
-  exportCoursesToExcel(data, `course-information-${timestamp}.xlsx`, selectedFields)
+  exportCourseApprovalsToExcel(data, `course-approval-${timestamp}.xlsx`, selectedFields)
   exportModalVisible.value = false
 }
 
@@ -284,27 +208,15 @@ function getRowNumber(index) {
 </script>
 
 <template>
-  <CourseCreateWizard
-    v-if="viewMode === 'create'"
-    :mode="copyDraft ? 'copy' : 'create'"
-    :all-courses="courses"
-    :initial-course="copyDraft"
-    @back="closeCreateWizard"
-    @save="handleCreateSave"
+  <CourseApplicationWizard
+    v-if="viewMode === 'detail' && detailItem"
+    mode="detail"
+    :all-applications="courseApplications"
+    :initial-application="detailItem"
+    @back="closeDetail"
   />
 
-  <CourseCreateWizard
-    v-else-if="viewMode === 'edit' && editingItem"
-    mode="edit"
-    :all-courses="courses"
-    :initial-course="editingItem"
-    @back="closeEditWizard"
-    @save="handleEditSave"
-  />
-
-  <CourseDetailPanel v-else-if="viewMode === 'detail' && detailItem" :course="detailItem" @back="closeDetailModal" />
-
-  <div v-else-if="viewMode === 'list'" class="course-page">
+  <div v-else class="course-approval-page">
     <div class="page-card">
       <div class="search-bar">
         <div class="search-row">
@@ -318,21 +230,10 @@ function getRowNumber(index) {
               <input v-model="searchForm.courseName" type="text" class="search-input" :placeholder="t('common.pleaseInput')" />
             </div>
             <div class="search-item">
-              <label>{{ tr('Offering By:') }}</label>
+              <label>{{ tr('Offering Unit:') }}</label>
               <select v-model="searchForm.offering" class="search-select" :class="{ 'is-empty': !searchForm.offering }">
                 <option value="">{{ t('common.pleaseSelect') }}</option>
                 <option v-for="opt in offeringOptions" :key="opt.code" :value="opt.code">{{ opt.nameEn }}</option>
-              </select>
-            </div>
-            <div class="search-item">
-              <label>{{ tr('Course Classification:') }}</label>
-              <select
-                v-model="searchForm.courseClassification"
-                class="search-select"
-                :class="{ 'is-empty': !searchForm.courseClassification }"
-              >
-                <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in courseClassificationOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
               </select>
             </div>
           </div>
@@ -361,38 +262,43 @@ function getRowNumber(index) {
           </div>
         </div>
 
-        <div v-if="searchExpanded" class="search-row search-row-2">
+        <div class="search-row search-row-2">
           <div class="search-fields">
             <div class="search-item">
-              <label>{{ tr('Medium of Instruction:') }}</label>
+              <label>{{ tr('Course Classification:') }}</label>
               <select
-                v-model="searchForm.mediumOfInstruction"
+                v-model="searchForm.courseClassification"
                 class="search-select"
-                :class="{ 'is-empty': !searchForm.mediumOfInstruction }"
+                :class="{ 'is-empty': !searchForm.courseClassification }"
               >
                 <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in mediumOfInstructionOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
+                <option v-for="opt in courseClassificationOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
               </select>
             </div>
-            <div class="search-item">
-              <label>{{ tr('Semester Type:') }}</label>
-              <select v-model="searchForm.semesterType" class="search-select" :class="{ 'is-empty': !searchForm.semesterType }">
-                <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in semesterTypeOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
-              </select>
-            </div>
+            <template v-if="searchExpanded">
+              <div class="search-item">
+                <label>{{ tr('Status:') }}</label>
+                <select v-model="searchForm.status" class="search-select" :class="{ 'is-empty': !searchForm.status }">
+                  <option value="">{{ t('common.all') }}</option>
+                  <option v-for="opt in applicationStatusOptions.filter((s) => s !== 'Temporary saved')" :key="opt" :value="opt">
+                    {{ tr(opt) }}
+                  </option>
+                </select>
+              </div>
+              <div class="search-item">
+                <label>{{ tr('Applicant:') }}</label>
+                <input v-model="searchForm.applicant" type="text" class="search-input" :placeholder="t('common.pleaseInput')" />
+              </div>
+            </template>
           </div>
         </div>
       </div>
 
       <div class="toolbar">
-        <button type="button" class="btn btn-primary" @click="openCreateModal">{{ tr('+ Create') }}</button>
-        <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">
-          {{ t('common.delete') }}
+        <button type="button" class="btn btn-primary" :disabled="!canApproveSelection" @click="openApprovalModal">
+          {{ tr('Review') }}
         </button>
-        <button type="button" class="btn btn-outline" @click="openImportModal">{{ t('common.import') }}</button>
         <button type="button" class="btn btn-outline" @click="openExportModal">{{ t('common.export') }}</button>
-        <button type="button" class="btn btn-outline" :disabled="!canCopy" @click="handleCopy">{{ t('common.copy') }}</button>
       </div>
 
       <div class="table-section">
@@ -404,33 +310,42 @@ function getRowNumber(index) {
                   <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
                 </th>
                 <th>{{ t('common.serialNo') }}</th>
+                <th>{{ tr('Status') }}</th>
+                <th>{{ tr('Approval Stage') }}</th>
                 <th>{{ tr('Course Code') }}</th>
                 <th>{{ tr('Course Name') }}</th>
                 <th>{{ tr('Offering Unit') }}</th>
                 <th>{{ tr('Course Classification') }}</th>
                 <th>{{ tr('Credit') }}</th>
-                <th>{{ t('common.actions') }}</th>
+                <th>{{ tr('Applicant') }}</th>
+                <th>{{ tr('Application Date and Time') }}</th>
+                <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="!paginatedCourses.length">
-                <td colspan="8" class="empty-cell">{{ t('common.noData') }}</td>
+              <tr v-if="!paginatedItems.length">
+                <td colspan="12" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
-              <tr v-for="(item, index) in paginatedCourses" :key="item.id">
+              <tr v-for="(item, index) in paginatedItems" :key="item.id">
                 <td class="col-check">
                   <input type="checkbox" :checked="selectedIds.includes(item.id)" @change="toggleSelect(item.id)" />
                 </td>
                 <td>{{ getRowNumber(index) }}</td>
+                <td>
+                  <span class="status-badge" :class="statusBadgeClass(item.status)">{{ tr(item.status) }}</span>
+                </td>
+                <td>{{ tr(item.approvalStage) }}</td>
                 <td>{{ item.courseCode }}</td>
                 <td>{{ item.courseName }}</td>
                 <td>{{ getOfferingLabel(item.offering, initialDepartments) }}</td>
                 <td>{{ tr(item.courseClassification) }}</td>
                 <td>{{ item.credit }}</td>
-                <td class="actions-cell">
+                <td>{{ item.applicant }}</td>
+                <td>{{ item.applicationDateTime }}</td>
+                <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
-                    <button type="button" class="link-btn" @click="openDetailModal(item)">{{ tr('Details') }}</button>
-                    <button type="button" class="link-btn" @click="openEditModal(item)">{{ t('common.edit') }}</button>
-                    <button type="button" class="link-btn delete" @click="requestDelete([item.id])">{{ t('common.delete') }}</button>
+                    <button type="button" class="link-btn" @click="openDetail(item)">{{ tr('Details') }}</button>
+                    <button type="button" class="link-btn" @click="openApprovalLog(item)">{{ tr('Approval Log') }}</button>
                   </div>
                 </td>
               </tr>
@@ -447,20 +362,19 @@ function getRowNumber(index) {
       </div>
     </div>
 
-    <CourseImportModal
-      :visible="importModalVisible"
-      :existing-courses="courses"
-      @close="importModalVisible = false"
-      @imported="handleImportSuccess"
+    <ApprovalLogModal
+      :visible="!!approvalLogItem"
+      :logs="approvalLogItem?.approvalLog || []"
+      :course-name="approvalLogItem?.courseName || ''"
+      @close="approvalLogItem = null"
     />
 
-    <ConfirmDialog
-      :visible="confirmVisible"
-      :title="t('common.deleteConfirmation')"
-      :message="confirmMessage"
-      :confirm-text="t('common.delete')"
-      @confirm="confirmDelete"
-      @cancel="cancelDelete"
+    <CourseApprovalModal
+      :visible="approvalModalVisible"
+      :approval-stage="approvalModalStage"
+      :target-count="pendingApprovalIds.length"
+      @close="approvalModalVisible = false"
+      @confirm="handleApprovalConfirm"
     />
 
     <ExportModal
@@ -474,7 +388,7 @@ function getRowNumber(index) {
 </template>
 
 <style scoped>
-.course-page {
+.course-approval-page {
   height: calc(100vh - 56px);
   display: flex;
   flex-direction: column;
@@ -496,7 +410,7 @@ function getRowNumber(index) {
 }
 
 .search-bar {
-  --search-label-w: 158px;
+  --search-label-w: 148px;
   --search-input-w: 180px;
   margin-bottom: 16px;
   padding-bottom: 16px;
@@ -511,7 +425,6 @@ function getRowNumber(index) {
   flex-wrap: wrap;
   gap: 8px 12px;
   width: 100%;
-  min-width: 0;
 }
 
 .search-row-2 {
@@ -521,9 +434,9 @@ function getRowNumber(index) {
 
 .search-fields {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
   gap: 8px 10px;
+  align-items: center;
   flex: 1;
   min-width: 0;
 }
@@ -556,7 +469,6 @@ function getRowNumber(index) {
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 13px;
-  background: #fff;
   box-sizing: border-box;
 }
 
@@ -568,6 +480,7 @@ function getRowNumber(index) {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+  align-items: center;
   margin-left: auto;
 }
 
@@ -590,6 +503,7 @@ function getRowNumber(index) {
   gap: 4px;
   padding: 0 8px;
   height: 32px;
+  cursor: pointer;
 }
 
 .toolbar {
@@ -608,6 +522,7 @@ function getRowNumber(index) {
   border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
+  cursor: pointer;
 }
 
 .btn-primary {
@@ -616,13 +531,7 @@ function getRowNumber(index) {
   border: 1px solid #2563eb;
 }
 
-.btn-default {
-  background: #fff;
-  border: 1px solid #d1d5db;
-  color: #374151;
-}
-
-.btn-default:disabled {
+.btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -633,9 +542,10 @@ function getRowNumber(index) {
   color: #2563eb;
 }
 
-.btn-outline:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.btn-default {
+  background: #fff;
+  border: 1px solid #d1d5db;
+  color: #374151;
 }
 
 .table-section {
@@ -651,17 +561,21 @@ function getRowNumber(index) {
   overflow: auto;
   border: 1px solid #f3f4f6;
   border-radius: 8px;
+  position: relative;
 }
 
 .data-table {
-  width: 100%;
-  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 .data-table th,
 .data-table td {
-  padding: 12px 14px;
+  padding: 16px 14px;
   text-align: left;
   border-bottom: 1px solid #f3f4f6;
   vertical-align: middle;
@@ -684,11 +598,55 @@ function getRowNumber(index) {
   padding: 40px !important;
 }
 
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.status-progress {
+  background: #2563eb;
+}
+
+.status-approved {
+  background: #16a34a;
+}
+
+.status-draft {
+  background: #6b7280;
+}
+
+.status-rejected {
+  background: #dc2626;
+}
+
 .actions-inner {
   display: inline-flex;
   align-items: center;
   gap: 12px;
   white-space: nowrap;
+}
+
+.col-sticky-right {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: #fff;
+  border-left: 1px solid #f3f4f6;
+  min-width: 180px;
+}
+
+.data-table thead .col-sticky-right {
+  background: #f9fafb;
+  z-index: 3;
+}
+
+.data-table tbody tr:hover .col-sticky-right {
+  background: #fafafa;
 }
 
 .link-btn {
@@ -697,9 +655,6 @@ function getRowNumber(index) {
   padding: 0;
   border: none;
   background: none;
-}
-
-.link-btn.delete {
-  color: #ef4444;
+  cursor: pointer;
 }
 </style>

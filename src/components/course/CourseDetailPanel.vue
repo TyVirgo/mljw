@@ -2,13 +2,13 @@
 import { ref, computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import CourseSLTStepPanel from './CourseSLTStepPanel.vue'
+import CourseGeneralInfoDetail from './CourseGeneralInfoDetail.vue'
+import CourseDetailStepper from './CourseDetailStepper.vue'
 import TablePagination from '../common/TablePagination.vue'
 import {
   courseDetailSteps,
-  getOfferingLabel,
   formatMethodList,
 } from '../../data/courses.js'
-import { initialDepartments } from '../../data/departments.js'
 
 const props = defineProps({
   course: { type: Object, required: true },
@@ -37,17 +37,6 @@ const paginatedChanges = computed(() => {
   const start = (changePage.value - 1) * changePageSize.value
   return list.slice(start, start + changePageSize.value)
 })
-
-function stepClass(stepId) {
-  if (stepId === currentStep.value) return 'active'
-  if (stepId < currentStep.value) return 'completed'
-  return ''
-}
-
-function display(value) {
-  if (value === null || value === undefined || value === '') return '--'
-  return value
-}
 
 function getRowNumber(index, page, pageSize) {
   return (page - 1) * pageSize + index + 1
@@ -91,96 +80,12 @@ function handleExport() {
       </div>
     </div>
 
-    <h1 class="course-title">{{ course.courseName }}</h1>
-
-    <div class="stepper">
-      <template v-for="(step, index) in courseDetailSteps" :key="step.id">
-        <div class="step-item" :class="stepClass(step.id)">
-          <span class="step-circle">{{ step.id }}</span>
-          <span class="step-label">{{ tr(step.title) }}</span>
-        </div>
-        <div v-if="index < courseDetailSteps.length - 1" class="step-line" :class="{ completed: step.id < currentStep }" />
-      </template>
-    </div>
+    <CourseDetailStepper v-model="currentStep" :steps="courseDetailSteps" />
 
     <div class="panel-body">
       <!-- Step 1: General Information -->
       <section v-show="currentStep === 1" class="step-section">
-        <div class="detail-grid">
-          <div class="detail-col">
-            <div class="detail-row">
-              <span class="detail-label">{{ tr('Course Code:') }}</span>
-              <span class="detail-value">{{ display(course.courseCode) }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">{{ tr('Offering Unit:') }}</span>
-              <span class="detail-value">{{ getOfferingLabel(course.offering, initialDepartments) }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">{{ tr('Course Classification:') }}</span>
-              <span class="detail-value">
-                {{ course.courseClassification ? tr(course.courseClassification) : '--' }}
-              </span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">{{ tr('Medium of Instruction:') }}</span>
-              <span class="detail-value">
-                {{ course.mediumOfInstruction ? tr(course.mediumOfInstruction) : '--' }}
-              </span>
-            </div>
-          </div>
-
-          <div class="detail-col">
-            <div class="detail-row">
-              <span class="detail-label">{{ tr('Course Name:') }}</span>
-              <span class="detail-value">{{ display(course.courseName) }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">{{ tr('Course Owner:') }}</span>
-              <span class="detail-value">{{ display(course.courseOwnerDisplay) }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">{{ tr('Credit:') }}</span>
-              <span class="detail-value">{{ display(course.credit) }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">{{ tr('Semester Type:') }}</span>
-              <span class="detail-value">{{ course.semesterType ? tr(course.semesterType) : '--' }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="detail-block">
-          <span class="detail-label">{{ tr('Pre-requisite / co-requisite:') }}</span>
-          <span class="detail-value">{{ display(course.prerequisite) }}</span>
-        </div>
-
-        <div class="detail-block">
-          <span class="detail-label">{{ tr('Synopsis:') }}</span>
-          <p class="detail-text">{{ display(course.synopsis) }}</p>
-        </div>
-
-        <div class="detail-block">
-          <span class="detail-label ref-label">
-            {{ tr('References:') }}
-            <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="16" x2="12" y2="12" />
-              <line x1="12" y1="8" x2="12.01" y2="8" />
-            </svg>
-          </span>
-          <div v-if="course.requiredReferences || course.furtherReadings" class="ref-sections">
-            <div v-if="course.requiredReferences" class="ref-group">
-              <h4 class="ref-subtitle">{{ tr('Required References') }}</h4>
-              <p class="detail-text">{{ course.requiredReferences }}</p>
-            </div>
-            <div v-if="course.furtherReadings" class="ref-group">
-              <h4 class="ref-subtitle">{{ tr('Further Readings') }}</h4>
-              <p class="detail-text">{{ course.furtherReadings }}</p>
-            </div>
-          </div>
-          <p v-else class="detail-text">{{ display(course.references) }}</p>
-        </div>
+        <CourseGeneralInfoDetail :data="course" />
       </section>
 
       <!-- Step 2: CLO -->
@@ -298,85 +203,11 @@ function handleExport() {
   gap: 8px;
 }
 
-.course-title {
-  margin: 12px 0 0;
-  text-align: center;
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-  flex-shrink: 0;
-}
-
-.stepper {
-  display: flex;
+.panel-actions .btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-  padding: 12px 0 20px;
-  flex-shrink: 0;
-  gap: 4px 0;
-}
-
-.step-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.step-circle {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
-  background: #e5e7eb;
-  color: #9ca3af;
-  border: 2px solid #e5e7eb;
-}
-
-.step-label {
-  font-size: 12px;
-  color: #9ca3af;
-  text-align: center;
-  max-width: 120px;
-  line-height: 1.3;
-}
-
-.step-item.active .step-circle {
-  background: #2563eb;
-  color: #fff;
-  border-color: #2563eb;
-}
-
-.step-item.active .step-label {
-  color: #2563eb;
-  font-weight: 600;
-}
-
-.step-item.completed .step-circle {
-  background: #2563eb;
-  color: #fff;
-  border-color: #2563eb;
-}
-
-.step-item.completed .step-label {
-  color: #2563eb;
-}
-
-.step-line {
-  width: 48px;
-  height: 2px;
-  background: #e5e7eb;
-  margin: 0 8px 20px;
-}
-
-.step-line.completed {
-  background: #2563eb;
+  min-width: 92px;
 }
 
 .panel-body {
@@ -385,77 +216,7 @@ function handleExport() {
   overflow: auto;
   border: 1px solid #f3f4f6;
   border-radius: 12px;
-  padding: 20px 24px;
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 32px;
-}
-
-.detail-col {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.detail-row {
-  display: grid;
-  grid-template-columns: 180px 1fr;
-  gap: 12px;
-  align-items: start;
-}
-
-.detail-block {
-  margin-top: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.detail-label {
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.ref-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.info-icon {
-  width: 14px;
-  height: 14px;
-  color: #9ca3af;
-}
-
-.detail-value {
-  font-size: 13px;
-  color: #111827;
-  word-break: break-word;
-}
-
-.detail-text {
-  margin: 0;
-  font-size: 13px;
-  color: #111827;
-  line-height: 1.6;
-  white-space: pre-line;
-}
-
-.ref-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.ref-subtitle {
-  margin: 0 0 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
+  padding: 24px 28px;
 }
 
 .table-wrap {

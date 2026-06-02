@@ -17,6 +17,9 @@ import EvaluationSettingsView from './views/EvaluationSettingsView.vue'
 import SemesterInformationView from './views/SemesterInformationView.vue'
 import CalendarView from './views/CalendarView.vue'
 import CourseInformationView from './views/CourseInformationView.vue'
+import CourseApplicationView from './views/CourseApplicationView.vue'
+import CourseApprovalView from './views/CourseApprovalView.vue'
+import CourseChangeApplicationView from './views/CourseChangeApplicationView.vue'
 import UnderConstructionView from './views/UnderConstructionView.vue'
 import AcademicPortalView from './views/AcademicPortalView.vue'
 import { developedPages, basicDataModuleKey } from './config/menu.js'
@@ -36,6 +39,9 @@ const isProgrammeIntake = computed(() => currentPageId.value === 'programme-inta
 const isSemesterInformation = computed(() => currentPageId.value === 'semester-information')
 const isCalendar = computed(() => currentPageId.value === 'calendar')
 const isCourseInformation = computed(() => currentPageId.value === 'course-information')
+const isCourseApplication = computed(() => currentPageId.value === 'course-application')
+const isCourseApproval = computed(() => currentPageId.value === 'course-approval-process')
+const isCourseChangeApplication = computed(() => currentPageId.value === 'course-change-application')
 const isLecturerInformation = computed(() => currentPageId.value === 'lecturer-information')
 const isEvaluationSettings = computed(() => currentPageId.value === 'evaluation-settings')
 const isUnderConstruction = computed(() => !developedPages.has(currentPageId.value))
@@ -84,6 +90,9 @@ function openBasicDataAdmin() {
           <SemesterInformationView v-else-if="isSemesterInformation" />
           <CalendarView v-else-if="isCalendar" />
           <CourseInformationView v-else-if="isCourseInformation" />
+          <CourseApplicationView v-else-if="isCourseApplication" />
+          <CourseApprovalView v-else-if="isCourseApproval" />
+          <CourseChangeApplicationView v-else-if="isCourseChangeApplication" />
           <LecturerInformationView v-else-if="isLecturerInformation" />
           <EvaluationSettingsView v-else-if="isEvaluationSettings" />
           <UnderConstructionView v-else-if="isUnderConstruction" @back="handleBack" />

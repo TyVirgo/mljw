@@ -205,6 +205,14 @@ export function createCLOId(clos = []) {
   return Math.max(maxId + 1, nextCLOId++)
 }
 
+export function generateNextCLOCode(allClos = []) {
+  const maxNumber = allClos.reduce((max, item) => {
+    const match = String(item.cloCode || '').match(/^CLO(\d+)$/i)
+    return match ? Math.max(max, Number(match[1])) : max
+  }, 0)
+  return `CLO${maxNumber + 1}`
+}
+
 export function validateCourseForm(form, allCourses, excludeId = null) {
   const errors = {}
   const courseCode = form.courseCode?.trim() || ''
@@ -753,7 +761,7 @@ export function prepareCourseForCopy(source, allCourses) {
   }
 }
 
-const demoCLOs = [
+export const demoCLOs = [
   {
     id: 1,
     cloCode: 'CLO1',
@@ -804,7 +812,7 @@ const demoCLOs = [
   },
 ]
 
-const demoSLT = {
+export const demoSLT = {
   contentOutlines: [
     {
       id: 1,
