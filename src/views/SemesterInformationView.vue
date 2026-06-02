@@ -4,6 +4,7 @@ import SemesterInfoFormModal from '../components/semester/SemesterInfoFormModal.
 import AcademicYearFormModal from '../components/semester/AcademicYearFormModal.vue'
 import SemesterFormModal from '../components/semester/SemesterFormModal.vue'
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
+import ExportModal from '../components/common/ExportModal.vue'
 import TablePagination from '../components/common/TablePagination.vue'
 import YnSwitch from '../components/common/YnSwitch.vue'
 import {
@@ -26,9 +27,10 @@ import {
   createSemesterMasterId,
   formatSemesterSettingName,
 } from '../data/semesters.js'
-import { useAppI18n } from '../composables/useAppI18n.js'
+import { exportSemesterRecordsToExcel, semesterRecordExportFields } from '../utils/exportSemesterRecordExcel.js'
+import { useListPageI18n } from '../composables/useListPageI18n.js'
 
-const { t, tr, locale } = useAppI18n()
+const { t, tr, locale, translatedExportFields } = useListPageI18n(semesterRecordExportFields)
 
 const activeTab = ref('year-semester')
 const records = ref(initialSemesterRecords.map((item) => ({ ...item })))
@@ -68,6 +70,8 @@ const confirmVisible = ref(false)
 const confirmMessage = ref('')
 const pendingDeleteId = ref(null)
 const deleteTarget = ref('year-semester')
+
+const exportModalVisible = ref(false)
 
 const academicYearOptions = computed(() => getAcademicYearOptions(records.value))
 const semesterOptions = computed(() => getSemesterOptions(records.value))
@@ -374,6 +378,34 @@ function toggleSemesterActivation(item, value) {
     activation: value ? 'Yes' : 'No',
   }
 }
+
+function openExportModal() {
+  if (!filteredRecords.value.length) {
+    window.alert(t('common.noDataExport'))
+    return
+  }
+  exportModalVisible.value = true
+}
+
+function handleExportConfirm({ selectedFields, exportScope }) {
+  let data = []
+  if (exportScope === 'currentPage') {
+    data = paginatedRecords.value
+  } else if (exportScope === 'allResults') {
+    data = filteredRecords.value
+  } else {
+    data = []
+  }
+
+  if (!data.length) {
+    window.alert(t('common.noDataExport'))
+    return
+  }
+
+  const timestamp = new Date().toISOString().slice(0, 10)
+  exportSemesterRecordsToExcel(data, `academic-year-semester-${timestamp}.xlsx`, selectedFields)
+  exportModalVisible.value = false
+}
 </script>
 
 <template>
@@ -447,6 +479,7 @@ function toggleSemesterActivation(item, value) {
 
         <div class="toolbar">
           <button type="button" class="btn btn-primary" @click="openCreateModal">{{ t('common.create') }}</button>
+          <button type="button" class="btn btn-default" @click="openExportModal">{{ t('common.export') }}</button>
         </div>
 
         <div class="table-section">
@@ -715,6 +748,14 @@ function toggleSemesterActivation(item, value) {
       :confirm-text="t('common.delete')"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
+    />
+
+    <ExportModal
+      :visible="exportModalVisible"
+      :fields="translatedExportFields"
+      :has-selected-rows="false"
+      @close="exportModalVisible = false"
+      @confirm="handleExportConfirm"
     />
   </div>
 </template>
