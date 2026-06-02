@@ -74,7 +74,9 @@ export const developedPages = new Set([
   'programme-version',
   'intake-set',
   'programme-intake',
-  'lecturer-information',
+  'semester-information',
+  'calendar',
+  'course-information',
 ])
 
 export function findMenuLabelKey(id) {
