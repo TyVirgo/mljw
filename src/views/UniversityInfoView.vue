@@ -172,7 +172,7 @@ function getDeleteMessage() {
             </div>
 
             <div id="field-universityNameChinese" class="form-item" :class="{ 'has-error': errors.universityNameChinese }">
-              <label><span class="required">*</span> {{ tr('University Name (Chinese):') }}</label>
+              <label><span class="required">*</span> {{ tr('University Name (CN):') }}</label>
               <input
                 v-model="form.universityNameChinese"
                 type="text"

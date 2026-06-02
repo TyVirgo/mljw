@@ -160,6 +160,7 @@ export const zhFlat = {
   'University Name:': '学校名称：',
   'University Name is required': '学校名称为必填项',
   'University Name (Chinese) is required': '学校名称（中文）为必填项',
+  'University Name (CN) is required': '学校名称（CN）为必填项',
   'University Name (MAL) is required': '学校名称（马来语）为必填项',
   'University Address is required': '学校地址为必填项',
   'MOHE Registration Certificate No.': 'MOHE 注册证书编号',
@@ -170,6 +171,7 @@ export const zhFlat = {
   'University Name (Malay):': '学校名称（马来语）：',
   'Company No.:': '公司编号：',
   'University Name (Chinese):': '学校名称（中文）：',
+  'University Name (CN):': '学校名称（CN）：',
   'Contact No.:': '联系电话：',
   'Post Code:': '邮编：',
   'Fax No.:': '传真：',
@@ -189,7 +191,7 @@ export const zhFlat = {
   'Mobile Portal Logo:': '移动门户 Logo：',
   'MOHE Registration Certificate No.:': 'MOHE 注册证书编号：',
   'University Name (MAL):': '学校名称（马来语）：',
-  'University Name (Chinese):': '学校名称（中文）：',
+  'University Name (CN):': '学校名称（CN）：',
   'Displayed on the home page. Recommended image size: 670px (width) × 670px (height).':
     '显示在首页。建议图片尺寸：670px（宽）× 670px（高）。',
   'Displayed on the login page. Recommended image size: 1440px (width) × 900px (height).':
