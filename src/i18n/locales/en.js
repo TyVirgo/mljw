@@ -214,5 +214,11 @@ export default {
       saveSuccess: 'Calendar configuration saved successfully.',
       exportSuccess: 'Calendar exported successfully.',
     },
+    course: {
+      deleteOne: 'Are you sure you want to delete this course record?',
+      deleteMany: 'Are you sure you want to delete {count} course records?',
+      importSuccessCount: 'Successfully imported {count} record(s).',
+      importFailedCount: 'Failed to import {count} record(s).',
+    },
   },
 }

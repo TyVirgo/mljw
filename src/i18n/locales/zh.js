@@ -213,5 +213,11 @@ export default {
       saveSuccess: '校历配置保存成功。',
       exportSuccess: '校历导出成功。',
     },
+    course: {
+      deleteOne: '确定要删除该课程记录吗？',
+      deleteMany: '确定要删除 {count} 条课程记录吗？',
+      importSuccessCount: '成功导入 {count} 条记录。',
+      importFailedCount: '导入失败 {count} 条记录。',
+    },
   },
 }
