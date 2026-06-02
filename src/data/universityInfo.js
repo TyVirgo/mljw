@@ -115,7 +115,7 @@ export function validateSection1(data) {
   }
 
   if (!data.universityNameChinese?.trim()) {
-    errors.universityNameChinese = 'University Name (Chinese) is required'
+    errors.universityNameChinese = 'University Name (CN) is required'
   } else if (data.universityNameChinese.trim().length > 200) {
     errors.universityNameChinese = 'Maximum 200 characters'
   }

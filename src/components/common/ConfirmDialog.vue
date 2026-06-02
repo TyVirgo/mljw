@@ -20,6 +20,15 @@ const props = defineProps({
     type: String,
     default: 'Cancel',
   },
+  confirmVariant: {
+    type: String,
+    default: 'danger',
+    validator: (value) => ['danger', 'primary'].includes(value),
+  },
+  wide: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['confirm', 'cancel'])
@@ -41,12 +50,19 @@ function handleOverlayClick(event) {
 <template>
   <Teleport to="body">
     <div v-if="visible" class="confirm-overlay" @click="handleOverlayClick">
-      <div class="confirm-panel" role="alertdialog" aria-modal="true">
-        <h3 class="confirm-title">{{ displayTitle }}</h3>
-        <p class="confirm-message">{{ displayMessage }}</p>
+      <div class="confirm-panel" :class="{ wide }" role="alertdialog" aria-modal="true">
+        <h3 class="confirm-title">{{ title }}</h3>
+        <p class="confirm-message">{{ message }}</p>
         <div class="confirm-footer">
-          <button type="button" class="btn btn-default" @click="emit('cancel')">{{ displayCancelText }}</button>
-          <button type="button" class="btn btn-danger" @click="emit('confirm')">{{ displayConfirmText }}</button>
+          <button type="button" class="btn btn-default" @click="emit('cancel')">{{ cancelText }}</button>
+          <button
+            type="button"
+            class="btn"
+            :class="confirmVariant === 'primary' ? 'btn-primary' : 'btn-danger'"
+            @click="emit('confirm')"
+          >
+            {{ confirmText }}
+          </button>
         </div>
       </div>
     </div>
@@ -74,6 +90,10 @@ function handleOverlayClick(event) {
   padding: 24px;
 }
 
+.confirm-panel.wide {
+  max-width: 560px;
+}
+
 .confirm-title {
   font-size: 16px;
   font-weight: 700;
@@ -88,6 +108,10 @@ function handleOverlayClick(event) {
   margin-bottom: 24px;
 }
 
+.confirm-panel.wide .confirm-message {
+  white-space: nowrap;
+}
+
 .confirm-footer {
   display: flex;
   justify-content: flex-end;
@@ -95,8 +119,13 @@ function handleOverlayClick(event) {
 }
 
 .btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
   height: 36px;
-  padding: 0 18px;
+  padding: 0 20px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
@@ -110,6 +139,15 @@ function handleOverlayClick(event) {
 
 .btn-default:hover {
   background: #f9fafb;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #1d4ed8;
 }
 
 .btn-danger {
