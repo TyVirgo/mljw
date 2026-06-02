@@ -11,7 +11,7 @@ const props = defineProps({
 
 const emit = defineEmits(['select'])
 
-const expandedGroups = ref(['basic-info', 'site-resources', 'lecturer-info'])
+const expandedGroups = ref(['basic-info', 'programme-info', 'site-resources', 'lecturer-info'])
 
 watch(
   () => props.activeId,

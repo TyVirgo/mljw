@@ -13,7 +13,16 @@ export const menuItems = [
       { id: 'code-set-management', label: 'Code set management' },
     ],
   },
-  { id: 'programme-info', label: 'Programme Info', icon: 'database' },
+  {
+    id: 'programme-info',
+    label: 'Programme Info',
+    icon: 'database',
+    children: [
+      { id: 'programme-version', label: 'Programme Version' },
+      { id: 'intake-set', label: 'Intake Set' },
+      { id: 'programme-intake', label: 'Programme Intake' },
+    ],
+  },
   { id: 'panel-info', label: 'Panel Info', icon: 'database' },
   {
     id: 'site-resources',
@@ -44,6 +53,8 @@ export const developedPages = new Set([
   'university-info',
   'department-info',
   'code-set-management',
+  'programme-version',
+  'intake-set',
 ])
 
 export function findMenuLabel(id) {

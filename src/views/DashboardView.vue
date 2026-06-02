@@ -60,7 +60,7 @@ const quickAccess = [
   {
     title: 'Programme Info',
     description: 'View and manage academic programmes.',
-    pageId: 'programme-info',
+    pageId: 'programme-version',
     iconBg: '#dcfce7',
     iconColor: '#16a34a',
     icon: 'database',
