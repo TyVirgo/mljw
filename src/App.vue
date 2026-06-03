@@ -25,7 +25,7 @@ import UnderConstructionView from './views/UnderConstructionView.vue'
 import AcademicPortalView from './views/AcademicPortalView.vue'
 import { developedPages, basicDataModuleKey } from './config/menu.js'
 
-const appView = ref('portal')
+const appView = ref('admin')
 const currentPageId = ref('dashboard')
 
 const isDashboard = computed(() => currentPageId.value === 'dashboard')
