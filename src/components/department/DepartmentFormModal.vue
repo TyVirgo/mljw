@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
+import { useDeleteConfirm } from '../../composables/useDeleteConfirm.js'
+import ConfirmDialog from '../common/ConfirmDialog.vue'
 import {
   categoryOptions,
   yesNoOptions,
@@ -18,6 +20,13 @@ const props = defineProps({
 const emit = defineEmits(['close', 'save'])
 
 const { t, tr } = useAppI18n()
+const {
+  deleteConfirmVisible,
+  deleteConfirmMessage,
+  requestDelete: requestDeleteConfirm,
+  confirmDelete,
+  cancelDelete,
+} = useDeleteConfirm()
 
 const form = ref(createEmptyForm())
 const errors = ref({})
@@ -96,7 +105,12 @@ function addPreviousRecord() {
 }
 
 function removePreviousRecord(id) {
-  form.value.previousRecords = form.value.previousRecords.filter((row) => row.id !== id)
+  requestDeleteConfirm(
+    () => {
+      form.value.previousRecords = form.value.previousRecords.filter((row) => row.id !== id)
+    },
+    tr('Are you sure you want to delete this record?'),
+  )
 }
 
 /** 结束年份必须晚于开始年份 */
@@ -299,6 +313,14 @@ function handleOverlayClick(event) {
         </div>
       </div>
     </div>
+    <ConfirmDialog
+      :visible="deleteConfirmVisible"
+      :title="t('common.deleteConfirmation')"
+      :message="deleteConfirmMessage"
+      :confirm-text="t('common.delete')"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </Teleport>
 </template>
 

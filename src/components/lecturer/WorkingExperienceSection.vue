@@ -1,6 +1,8 @@
 <script setup>
 import { ref } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
+import { useDeleteConfirm } from '../../composables/useDeleteConfirm.js'
+import ConfirmDialog from '../common/ConfirmDialog.vue'
 import DatePickerEn from '../common/DatePickerEn.vue'
 import { createEmptyExperience } from '../../data/lecturers.js'
 
@@ -14,6 +16,13 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const { t, tr } = useAppI18n()
+const {
+  deleteConfirmVisible,
+  deleteConfirmMessage,
+  requestDelete: requestDeleteConfirm,
+  confirmDelete,
+  cancelDelete,
+} = useDeleteConfirm()
 
 const editingId = ref(null)
 const draft = ref(null)
@@ -68,9 +77,13 @@ function saveEdit() {
 }
 
 function removeItem(id) {
-  if (!window.confirm(tr('Delete this working experience?'))) return
-  updateList(props.modelValue.filter((e) => e.id !== id))
-  if (editingId.value === id) cancelEdit()
+  requestDeleteConfirm(
+    () => {
+      updateList(props.modelValue.filter((e) => e.id !== id))
+      if (editingId.value === id) cancelEdit()
+    },
+    tr('Delete this working experience?'),
+  )
 }
 
 function isEditing(id) {
@@ -160,6 +173,15 @@ function formatMonthDisplay(value) {
         </div>
       </template>
     </div>
+
+    <ConfirmDialog
+      :visible="deleteConfirmVisible"
+      :title="t('common.deleteConfirmation')"
+      :message="deleteConfirmMessage"
+      :confirm-text="t('common.delete')"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
 

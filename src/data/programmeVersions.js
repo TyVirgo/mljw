@@ -307,7 +307,11 @@ export function buildVersionFromSave(formData, meta = {}) {
 
 export function getProgrammeCurrentVersion(programme) {
   if (!programme?.versions?.length) return null
-  return programme.versions.find((item) => item.isCurrent) || programme.versions[0]
+  const marked = programme.versions.find((item) => item.isCurrent)
+  if (marked) return marked
+  return [...programme.versions].sort((a, b) =>
+    String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')),
+  )[0]
 }
 
 export function getProgrammeCurrentFormData(programme) {

@@ -6,6 +6,7 @@ import ProgrammeIntakeFormModal from '../components/programmeIntake/ProgrammeInt
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import ExportModal from '../components/common/ExportModal.vue'
 import TablePagination from '../components/common/TablePagination.vue'
+import CollapsibleTreePanel from '../components/common/CollapsibleTreePanel.vue'
 import {
   initialProgrammeIntakes,
   programmeIntakeSchools,
@@ -320,17 +321,18 @@ function getRowNumber(index) {
   <div class="programme-intake-page">
     <div class="page-card">
       <div class="programme-layout">
-        <aside class="tree-panel">
-          <div class="tree-search">
-            <input v-model="treeKeyword" type="text" :placeholder="t('common.search')" />
-            <button type="button" class="tree-search-btn" :aria-label="tr('Search tree')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            </button>
-          </div>
-          <div class="tree-body">
+        <CollapsibleTreePanel>
+          <template #search>
+            <div class="tree-search">
+              <input v-model="treeKeyword" type="text" :placeholder="t('common.search')" />
+              <button type="button" class="tree-search-btn" :aria-label="tr('Search tree')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </button>
+            </div>
+          </template>
             <div
               class="tree-node branch root-clear"
               :class="{ active: !selectedTreeNodeId }"
@@ -392,8 +394,7 @@ function getRowNumber(index) {
                 </template>
               </template>
             </template>
-          </div>
-        </aside>
+        </CollapsibleTreePanel>
 
         <section class="main-panel">
           <div class="search-bar">
@@ -608,15 +609,6 @@ function getRowNumber(index) {
   min-height: 0;
 }
 
-.tree-panel {
-  width: 260px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid #f3f4f6;
-  background: #fafafa;
-}
-
 .tree-search {
   display: flex;
   gap: 6px;
@@ -649,12 +641,6 @@ function getRowNumber(index) {
 .tree-search-btn svg {
   width: 14px;
   height: 14px;
-}
-
-.tree-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px 0 14px;
 }
 
 .tree-node {

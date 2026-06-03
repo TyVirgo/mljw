@@ -6,6 +6,7 @@ import {
   createVersionFormSteps,
   createEmptyVersionForm,
   extractVersionFormFromFormData,
+  getProgrammeCurrentVersion,
   programmePublishTooltip,
   typeOfApprovalOptions,
   localFeeColumns,
@@ -15,6 +16,7 @@ import {
 const props = defineProps({
   visible: Boolean,
   mode: { type: String, default: 'create' },
+  programme: { type: Object, default: null },
   programmeName: { type: String, default: '' },
   version: { type: Object, default: null },
 })
@@ -32,13 +34,14 @@ const modalTitle = computed(() => (isEditMode.value ? t('common.edit') : tr('Cre
 const isLastStep = computed(() => currentStep.value === createVersionFormSteps.length)
 
 watch(
-  () => [props.visible, props.mode, props.version],
+  () => [props.visible, props.mode, props.programme, props.version],
   () => {
     if (!props.visible) return
     currentStep.value = 1
     errors.value = {}
-    if (isEditMode.value && props.version?.formData) {
-      form.value = extractVersionFormFromFormData(props.version.formData)
+    const latestVersion = props.programme ? getProgrammeCurrentVersion(props.programme) : props.version
+    if (latestVersion?.formData) {
+      form.value = extractVersionFormFromFormData(latestVersion.formData)
     } else {
       form.value = createEmptyVersionForm()
     }

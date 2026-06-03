@@ -1,6 +1,8 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
+import { useDeleteConfirm } from '../../composables/useDeleteConfirm.js'
+import ConfirmDialog from '../common/ConfirmDialog.vue'
 import DatePickerEn from '../common/DatePickerEn.vue'
 import {
   createFormSteps,
@@ -38,6 +40,13 @@ const props = defineProps({
 const emit = defineEmits(['close', 'save', 'publish'])
 
 const { t, tr } = useAppI18n()
+const {
+  deleteConfirmVisible,
+  deleteConfirmMessage,
+  requestDelete: requestDeleteConfirm,
+  confirmDelete,
+  cancelDelete,
+} = useDeleteConfirm()
 
 const currentStep = ref(1)
 const form = ref(createEmptyProgrammeForm())
@@ -116,7 +125,12 @@ function confirmAttachmentUpload() {
 }
 
 function removeAttachment(id) {
-  form.value.attachments = form.value.attachments.filter((item) => item.id !== id)
+  requestDeleteConfirm(
+    () => {
+      form.value.attachments = form.value.attachments.filter((item) => item.id !== id)
+    },
+    tr('Are you sure you want to delete this record?'),
+  )
 }
 
 function getFileIconType(fileName) {
@@ -1086,6 +1100,14 @@ function fieldError(key) {
         </div>
       </div>
     </div>
+    <ConfirmDialog
+      :visible="deleteConfirmVisible"
+      :title="t('common.deleteConfirmation')"
+      :message="deleteConfirmMessage"
+      :confirm-text="t('common.delete')"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </Teleport>
 </template>
 

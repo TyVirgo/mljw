@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
+import CollapsibleTreePanel from '../components/common/CollapsibleTreePanel.vue'
 import TablePagination from '../components/common/TablePagination.vue'
 import ExportModal from '../components/common/ExportModal.vue'
 import ProgrammeVersionCreateModal from '../components/programme/ProgrammeVersionCreateModal.vue'
@@ -486,17 +487,18 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   <div class="programme-page">
     <div class="page-card">
       <div class="programme-layout">
-        <aside class="tree-panel">
-          <div class="tree-search">
-            <input v-model="treeKeyword" type="text" :placeholder="tr('please input the keywords')" />
-            <button type="button" class="tree-search-btn" :aria-label="tr('Search tree')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            </button>
-          </div>
-          <div class="tree-body">
+        <CollapsibleTreePanel>
+          <template #search>
+            <div class="tree-search">
+              <input v-model="treeKeyword" type="text" :placeholder="tr('please input the keywords')" />
+              <button type="button" class="tree-search-btn" :aria-label="tr('Search tree')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </button>
+            </div>
+          </template>
             <template v-for="node in displayTree" :key="node.id">
               <div
                 class="tree-node branch"
@@ -520,8 +522,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                 </div>
               </template>
             </template>
-          </div>
-        </aside>
+        </CollapsibleTreePanel>
 
         <section class="main-panel">
           <ProgrammeVersionDetailPanel
@@ -789,15 +790,6 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   min-height: 0;
 }
 
-.tree-panel {
-  width: 260px;
-  flex-shrink: 0;
-  border-right: 1px solid #f0f0f0;
-  display: flex;
-  flex-direction: column;
-  background: #fafafa;
-}
-
 .tree-search {
   display: flex;
   gap: 6px;
@@ -830,12 +822,6 @@ function handleExportConfirm({ selectedFields, exportScope }) {
 .tree-search-btn svg {
   width: 14px;
   height: 14px;
-}
-
-.tree-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px 0 12px;
 }
 
 .tree-node {

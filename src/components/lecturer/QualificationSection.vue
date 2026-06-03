@@ -1,6 +1,8 @@
 <script setup>
 import { ref } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
+import { useDeleteConfirm } from '../../composables/useDeleteConfirm.js'
+import ConfirmDialog from '../common/ConfirmDialog.vue'
 import {
   createEmptyQualification,
   createAttachmentId,
@@ -19,6 +21,13 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const { t, tr } = useAppI18n()
+const {
+  deleteConfirmVisible,
+  deleteConfirmMessage,
+  requestDelete: requestDeleteConfirm,
+  confirmDelete,
+  cancelDelete,
+} = useDeleteConfirm()
 
 const editingId = ref(null)
 const draft = ref(null)
@@ -84,9 +93,13 @@ function saveEdit() {
 }
 
 function removeItem(id) {
-  if (!window.confirm(tr('Delete this qualification?'))) return
-  updateList(props.modelValue.filter((q) => q.id !== id))
-  if (editingId.value === id) cancelEdit()
+  requestDeleteConfirm(
+    () => {
+      updateList(props.modelValue.filter((q) => q.id !== id))
+      if (editingId.value === id) cancelEdit()
+    },
+    tr('Delete this qualification?'),
+  )
 }
 
 function triggerUpload() {
@@ -115,7 +128,12 @@ function handleFileChange(event) {
 
 function removeAttachment(attachId) {
   if (!draft.value) return
-  draft.value.attachments = draft.value.attachments.filter((a) => a.id !== attachId)
+  requestDeleteConfirm(
+    () => {
+      draft.value.attachments = draft.value.attachments.filter((a) => a.id !== attachId)
+    },
+    tr('Are you sure you want to delete this record?'),
+  )
 }
 
 function isEditing(id) {
@@ -218,6 +236,15 @@ function isEditing(id) {
         </div>
       </template>
     </div>
+
+    <ConfirmDialog
+      :visible="deleteConfirmVisible"
+      :title="t('common.deleteConfirmation')"
+      :message="deleteConfirmMessage"
+      :confirm-text="t('common.delete')"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
 

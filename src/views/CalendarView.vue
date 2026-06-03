@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import CalendarEventModal from '../components/calendar/CalendarEventModal.vue'
+import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import {
   getSemesterPeriodOptions,
   findSemesterRecordByKey,
@@ -19,9 +20,17 @@ import {
 } from '../data/calendarInfo.js'
 import { initialSemesterRecords } from '../data/semesterInfo.js'
 import { useAppI18n } from '../composables/useAppI18n.js'
+import { useDeleteConfirm } from '../composables/useDeleteConfirm.js'
 import { exportCalendarToExcel } from '../utils/exportCalendarExcel.js'
 
 const { t, tr } = useAppI18n()
+const {
+  deleteConfirmVisible,
+  deleteConfirmMessage,
+  requestDelete: requestDeleteConfirm,
+  confirmDelete,
+  cancelDelete,
+} = useDeleteConfirm()
 
 const semesterOptions = getSemesterPeriodOptions(initialSemesterRecords)
 
@@ -195,7 +204,12 @@ function handleFileChange(event) {
 }
 
 function removeAttachment(id) {
-  attachments.value = attachments.value.filter((item) => item.id !== id)
+  requestDeleteConfirm(
+    () => {
+      attachments.value = attachments.value.filter((item) => item.id !== id)
+    },
+    tr('Are you sure you want to delete this record?'),
+  )
 }
 
 function formatFileSize(size) {
@@ -458,6 +472,15 @@ function handleExport() {
       :default-date="selectedDateKey"
       @close="closeEventModal"
       @save="handleEventSave"
+    />
+
+    <ConfirmDialog
+      :visible="deleteConfirmVisible"
+      :title="t('common.deleteConfirmation')"
+      :message="deleteConfirmMessage"
+      :confirm-text="t('common.delete')"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
     />
   </div>
 </template>
