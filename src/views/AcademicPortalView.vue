@@ -1,22 +1,44 @@
 <script setup>
 import { ref, computed } from 'vue'
 import UserProfileMenu from '../components/UserProfileMenu.vue'
+import LanguageSwitcher from '../components/LanguageSwitcher.vue'
+import { useAppI18n } from '../composables/useAppI18n.js'
 
-const emit = defineEmits(['back-to-admin', 'open-basic-data'])
+const emit = defineEmits(['open-basic-data'])
+
+const { t } = useAppI18n()
 
 const searchKeyword = ref('')
 const activeTab = ref('all')
+const portalScreen = ref('home')
+const activeAppName = ref('')
 
 const applications = [
   {
     id: 'basic-data',
-    name: 'Basic Data',
+    nameKey: 'portal.apps.basicData',
     category: 'basic',
+    developed: true,
+    icon: 'grid',
+  },
+  {
+    id: 'student-records',
+    nameKey: 'portal.apps.studentRecords',
+    category: 'basic',
+    developed: false,
+    icon: 'student',
   },
 ]
 
+const applicationsWithLabels = computed(() =>
+  applications.map((app) => ({
+    ...app,
+    name: t(app.nameKey),
+  })),
+)
+
 const filteredApplications = computed(() => {
-  let list = applications
+  let list = applicationsWithLabels.value
   if (activeTab.value === 'basic') {
     list = list.filter((app) => app.category === 'basic')
   }
@@ -28,9 +50,19 @@ const filteredApplications = computed(() => {
 })
 
 function openApplication(app) {
-  if (app.id === 'basic-data') {
+  if (app.developed && app.id === 'basic-data') {
     emit('open-basic-data')
+    return
   }
+  if (!app.developed) {
+    activeAppName.value = app.name
+    portalScreen.value = 'under-construction'
+  }
+}
+
+function backFromUnderConstruction() {
+  portalScreen.value = 'home'
+  activeAppName.value = ''
 }
 </script>
 
@@ -51,72 +83,55 @@ function openApplication(app) {
         </div>
       </div>
 
-      <div class="header-title">Academic Portal</div>
+      <div class="header-title">{{ t('portal.title') }}</div>
 
       <div class="header-actions">
-        <UserProfileMenu variant="portal" @back-to-admin="$emit('back-to-admin')" />
+        <LanguageSwitcher />
+        <UserProfileMenu variant="portal" />
       </div>
     </header>
 
     <main class="portal-main">
       <div class="portal-card">
-        <div class="card-title">
-          <span class="title-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="7" height="7" rx="1" />
-              <rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" />
-              <rect x="14" y="14" width="7" height="7" rx="1" />
-            </svg>
-          </span>
-          <h1>Academic Portal</h1>
-        </div>
+        <template v-if="portalScreen === 'under-construction'">
+          <div class="under-construction-panel">
+            <button type="button" class="back-btn" @click="backFromUnderConstruction">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="19" y1="12" x2="5" y2="12" />
+                <polyline points="12 19 5 12 12 5" />
+              </svg>
+              {{ t('common.back') }}
+            </button>
 
-        <div class="search-box">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            v-model="searchKeyword"
-            type="text"
-            placeholder="Please input application name"
-          />
-        </div>
+            <div class="under-construction-body">
+              <p v-if="activeAppName" class="under-app-name">{{ activeAppName }}</p>
+              <div class="under-icon" aria-hidden="true">
+                <svg viewBox="0 0 64 64" fill="none">
+                  <path
+                    d="M8 44 L32 20 L56 44"
+                    stroke="#9ca3af"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    fill="none"
+                  />
+                  <line x1="8" y1="44" x2="56" y2="44" stroke="#9ca3af" stroke-width="3" stroke-linecap="round" />
+                  <line x1="20" y1="44" x2="20" y2="52" stroke="#9ca3af" stroke-width="3" stroke-linecap="round" />
+                  <line x1="44" y1="44" x2="44" y2="52" stroke="#9ca3af" stroke-width="3" stroke-linecap="round" />
+                  <line x1="14" y1="32" x2="18" y2="36" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round" />
+                  <line x1="50" y1="32" x2="46" y2="36" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round" />
+                </svg>
+              </div>
+              <p class="under-title">{{ t('underConstruction.title') }}</p>
+              <p class="under-subtitle">{{ t('underConstruction.subtitle') }}</p>
+              <span class="under-badge">{{ t('portal.underDevelopment') }}</span>
+            </div>
+          </div>
+        </template>
 
-        <div class="tab-group">
-          <button
-            type="button"
-            class="tab-btn"
-            :class="{ active: activeTab === 'all' }"
-            @click="activeTab = 'all'"
-          >
-            All
-          </button>
-          <button
-            type="button"
-            class="tab-btn"
-            :class="{ active: activeTab === 'basic' }"
-            @click="activeTab = 'basic'"
-          >
-            Basic Service
-          </button>
-        </div>
-
-        <div class="section-heading">
-          <span class="section-bar"></span>
-          <span>Basic Service</span>
-        </div>
-
-        <div class="service-grid">
-          <button
-            v-for="app in filteredApplications"
-            :key="app.id"
-            type="button"
-            class="service-card"
-            @click="openApplication(app)"
-          >
-            <span class="service-icon" aria-hidden="true">
+        <template v-else>
+          <div class="card-title">
+            <span class="title-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7" rx="1" />
                 <rect x="14" y="3" width="7" height="7" rx="1" />
@@ -124,10 +139,80 @@ function openApplication(app) {
                 <rect x="14" y="14" width="7" height="7" rx="1" />
               </svg>
             </span>
-            <span class="service-name">{{ app.name }}</span>
-            <span class="service-deco" aria-hidden="true"></span>
-          </button>
-        </div>
+            <h1>{{ t('portal.title') }}</h1>
+          </div>
+
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              v-model="searchKeyword"
+              type="text"
+              :placeholder="t('portal.searchPlaceholder')"
+            />
+          </div>
+
+          <div class="tab-group">
+            <button
+              type="button"
+              class="tab-btn"
+              :class="{ active: activeTab === 'all' }"
+              @click="activeTab = 'all'"
+            >
+              {{ t('portal.tabAll') }}
+            </button>
+            <button
+              type="button"
+              class="tab-btn"
+              :class="{ active: activeTab === 'basic' }"
+              @click="activeTab = 'basic'"
+            >
+              {{ t('portal.tabBasicService') }}
+            </button>
+          </div>
+
+          <div class="section-heading">
+            <span class="section-bar"></span>
+            <span>{{ t('portal.sectionBasicService') }}</span>
+          </div>
+
+          <div class="service-grid">
+            <button
+              v-for="app in filteredApplications"
+              :key="app.id"
+              type="button"
+              class="service-card"
+              :class="{ pending: !app.developed }"
+              @click="openApplication(app)"
+            >
+              <span class="service-icon" :class="{ 'icon-student': app.icon === 'student' }" aria-hidden="true">
+                <svg
+                  v-if="app.icon === 'student'"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M4 19v-1a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v1" />
+                  <circle cx="12" cy="7" r="4" />
+                  <path d="M12 11v3" />
+                  <path d="M10 14h4" />
+                </svg>
+                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+              </span>
+              <span class="service-name">{{ app.name }}</span>
+              <span v-if="!app.developed" class="service-badge">{{ t('portal.underDevelopment') }}</span>
+              <span class="service-deco" aria-hidden="true"></span>
+            </button>
+          </div>
+        </template>
       </div>
     </main>
   </div>
@@ -200,7 +285,9 @@ function openApplication(app) {
 
 .header-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 10px;
 }
 
 .portal-main {
@@ -355,6 +442,16 @@ function openApplication(app) {
   border-color: #2563eb;
 }
 
+.service-card.pending {
+  border-style: dashed;
+  border-color: #cbd5e1;
+}
+
+.service-card.pending:hover {
+  border-color: #93c5fd;
+  border-style: solid;
+}
+
 .service-icon {
   width: 36px;
   height: 36px;
@@ -366,6 +463,10 @@ function openApplication(app) {
   justify-content: center;
 }
 
+.service-icon.icon-student {
+  background: #1d4ed8;
+}
+
 .service-icon svg {
   width: 20px;
   height: 20px;
@@ -375,6 +476,17 @@ function openApplication(app) {
   font-size: 14px;
   font-weight: 600;
   color: #111827;
+  line-height: 1.35;
+}
+
+.service-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
 .service-deco {
@@ -385,5 +497,77 @@ function openApplication(app) {
   height: 56px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(37, 99, 235, 0.12) 0%, rgba(37, 99, 235, 0) 70%);
+}
+
+.under-construction-panel {
+  min-height: 420px;
+  position: relative;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  margin-bottom: 24px;
+  font-size: 14px;
+  color: #4b5563;
+  border-radius: 8px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.back-btn:hover {
+  color: #2563eb;
+}
+
+.back-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.under-construction-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px 64px;
+  text-align: center;
+}
+
+.under-app-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2563eb;
+  margin-bottom: 20px;
+}
+
+.under-icon svg {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 20px;
+}
+
+.under-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.under-subtitle {
+  font-size: 14px;
+  color: #9ca3af;
+  margin-bottom: 16px;
+}
+
+.under-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  padding: 4px 12px;
+  border-radius: 999px;
 }
 </style>

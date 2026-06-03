@@ -332,7 +332,18 @@ function getRowNumber(index) {
               <label>{{ tr('Offering Unit:') }}</label>
               <select v-model="searchForm.offering" class="search-select" :class="{ 'is-empty': !searchForm.offering }">
                 <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in offeringOptions" :key="opt.code" :value="opt.code">{{ opt.nameEn }}</option>
+                <option v-for="opt in offeringOptions" :key="opt.code" :value="opt.code">{{ tr(opt.nameEn) }}</option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ tr('Course Classification:') }}</label>
+              <select
+                v-model="searchForm.courseClassification"
+                class="search-select"
+                :class="{ 'is-empty': !searchForm.courseClassification }"
+              >
+                <option value="">{{ t('common.pleaseSelect') }}</option>
+                <option v-for="opt in courseClassificationOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
               </select>
             </div>
           </div>
@@ -359,34 +370,23 @@ function getRowNumber(index) {
             </button>
           </div>
         </div>
-        <div class="search-row search-row-2">
+        <Transition name="search-expand">
+          <div v-if="searchExpanded" class="search-row search-row-secondary">
           <div class="search-fields">
             <div class="search-item">
-              <label>{{ tr('Course Classification:') }}</label>
-              <select
-                v-model="searchForm.courseClassification"
-                class="search-select"
-                :class="{ 'is-empty': !searchForm.courseClassification }"
-              >
-                <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in courseClassificationOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
+              <label>{{ tr('Status:') }}</label>
+              <select v-model="searchForm.status" class="search-select" :class="{ 'is-empty': !searchForm.status }">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in applicationStatusOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
               </select>
             </div>
-            <template v-if="searchExpanded">
-              <div class="search-item">
-                <label>{{ tr('Status:') }}</label>
-                <select v-model="searchForm.status" class="search-select" :class="{ 'is-empty': !searchForm.status }">
-                  <option value="">{{ t('common.all') }}</option>
-                  <option v-for="opt in applicationStatusOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
-                </select>
-              </div>
-              <div class="search-item">
-                <label>{{ tr('Applicant:') }}</label>
-                <input v-model="searchForm.applicant" type="text" class="search-input" :placeholder="t('common.pleaseInput')" />
-              </div>
-            </template>
+            <div class="search-item">
+              <label>{{ tr('Applicant:') }}</label>
+              <input v-model="searchForm.applicant" type="text" class="search-input" :placeholder="t('common.pleaseInput')" />
+            </div>
           </div>
-        </div>
+          </div>
+        </Transition>
       </div>
 
       <div class="toolbar">
@@ -435,8 +435,8 @@ function getRowNumber(index) {
                 </td>
                 <td>{{ tr(item.approvalStage) }}</td>
                 <td>{{ item.courseCode || item.sourceCourseCode || '--' }}</td>
-                <td>{{ item.courseName }}</td>
-                <td>{{ getOfferingLabel(item.offering, initialDepartments) }}</td>
+                <td>{{ tr(item.courseName) }}</td>
+                <td>{{ tr(getOfferingLabel(item.offering, initialDepartments)) }}</td>
                 <td>{{ tr(item.courseClassification) }}</td>
                 <td>{{ item.credit }}</td>
                 <td>{{ item.applicant }}</td>
@@ -525,103 +525,6 @@ function getRowNumber(index) {
   border: 1px solid #f3f4f6;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 20px 24px 16px;
-}
-
-.search-bar {
-  --search-label-w: 148px;
-  --search-input-w: 180px;
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f3f4f6;
-  flex-shrink: 0;
-}
-
-.search-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  width: 100%;
-}
-
-.search-row-2 {
-  margin-top: 12px;
-  justify-content: flex-start;
-}
-
-.search-fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 10px;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-
-.search-row-2 .search-fields {
-  flex: 0 1 auto;
-}
-
-.search-item {
-  display: grid;
-  grid-template-columns: var(--search-label-w) var(--search-input-w);
-  gap: 8px;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.search-item label {
-  font-size: 12px;
-  color: #374151;
-  white-space: nowrap;
-  text-align: right;
-}
-
-.search-input,
-.search-select {
-  width: var(--search-input-w);
-  min-width: 0;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  box-sizing: border-box;
-}
-
-.search-select.is-empty {
-  color: #9ca3af;
-}
-
-.search-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-  align-items: center;
-  margin-left: auto;
-}
-
-.search-actions svg {
-  width: 14px;
-  height: 14px;
-}
-
-.search-actions svg.up {
-  transform: rotate(180deg);
-}
-
-.btn-text {
-  background: none;
-  border: none;
-  color: #2563eb;
-  font-size: 13px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 8px;
-  height: 32px;
-  cursor: pointer;
 }
 
 .toolbar {

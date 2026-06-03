@@ -1,0 +1,156 @@
+/**
+ * 列表页搜索区统一布局：条件左上左对齐，查询/重置同一行右上对齐。
+ */
+.search-bar {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f3f4f6;
+  flex-shrink: 0;
+}
+
+.search-bar .search-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+}
+
+.search-bar .search-row + .search-row,
+.search-bar .search-row-secondary,
+.search-bar .search-row-2 {
+  margin-top: 12px;
+  justify-content: flex-start;
+}
+
+.search-bar .search-fields,
+.search-bar .search-fields-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px 20px;
+  flex: 1;
+  min-width: 0;
+}
+
+.search-bar .search-item,
+.search-bar .search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.search-bar .search-item label,
+.search-bar .search-label {
+  flex-shrink: 0;
+  text-align: left;
+  font-size: 13px;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.search-bar .search-item input:not([type='checkbox']):not([type='radio']),
+.search-bar .search-item select,
+.search-bar .search-input,
+.search-bar .search-select {
+  width: 180px;
+  min-width: 120px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #111827;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.search-bar .search-item input:focus,
+.search-bar .search-item select:focus,
+.search-bar .search-input:focus,
+.search-bar .search-select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.search-bar .search-select.is-empty {
+  color: #9ca3af;
+}
+
+.search-bar .search-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.search-bar .search-actions svg {
+  width: 14px;
+  height: 14px;
+}
+
+.search-bar .search-actions svg.up {
+  transform: rotate(180deg);
+}
+
+.search-bar .toggle-link,
+.search-bar .btn-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: #2563eb;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.search-bar .range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.search-bar .range-inputs input {
+  width: 72px;
+  min-width: 72px;
+}
+
+.search-bar .range-sep {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.search-bar .search-item-switch {
+  gap: 10px;
+}
+
+/* 搜索区「更多/收起」展开行动画 */
+.search-expand-enter-active,
+.search-expand-leave-active {
+  transition:
+    max-height 0.28s ease,
+    opacity 0.22s ease,
+    margin-top 0.28s ease;
+  overflow: hidden;
+}
+
+.search-expand-enter-from,
+.search-expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0 !important;
+}
+
+.search-expand-enter-to,
+.search-expand-leave-from {
+  max-height: 80px;
+  opacity: 1;
+}

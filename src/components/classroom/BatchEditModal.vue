@@ -144,29 +144,29 @@ function toggleSoftware(item) {
 function validate() {
   const checkedFields = Object.entries(enabled.value).filter(([, on]) => on)
   if (!checkedFields.length) {
-    error.value = 'Please select at least one field to update.'
+    error.value = tr('Please select at least one field to update.')
     return false
   }
 
   for (const [key] of checkedFields) {
     if (['capacity', 'availableSeats', 'examSeats'].includes(key) && values.value[key] === '') {
-      error.value = 'Please fill in values for all checked fields.'
+      error.value = tr('Please fill in values for all checked fields.')
       return false
     }
     if (key === 'classroomEquipment' && !values.value.classroomEquipment.length) {
-      error.value = 'Please fill in values for all checked fields.'
+      error.value = tr('Please fill in values for all checked fields.')
       return false
     }
     if (key === 'software' && !values.value.software.length) {
-      error.value = 'Please fill in values for all checked fields.'
+      error.value = tr('Please fill in values for all checked fields.')
       return false
     }
     if (['block', 'floor', 'classroomType', 'deskChairType'].includes(key) && !values.value[key]) {
-      error.value = 'Please fill in values for all checked fields.'
+      error.value = tr('Please fill in values for all checked fields.')
       return false
     }
     if (key === 'userDepartment' && !values.value.userDepartments.length) {
-      error.value = 'Please select at least one department.'
+      error.value = tr('Please select at least one department.')
       return false
     }
   }
@@ -288,7 +288,7 @@ function handleOverlayClick(event) {
               <div v-if="equipmentDropdownOpen && enabled.classroomEquipment" class="dropdown-panel">
                 <label v-for="opt in equipmentOptions" :key="opt" class="dropdown-option">
                   <input type="checkbox" :checked="values.classroomEquipment.includes(opt)" @change="toggleEquipment(opt)" />
-                  <span>{{ opt }}</span>
+                  <span>{{ tr(opt) }}</span>
                 </label>
               </div>
             </div>
@@ -310,7 +310,7 @@ function handleOverlayClick(event) {
               <div v-if="softwareDropdownOpen && enabled.software" class="dropdown-panel">
                 <label v-for="opt in softwareOptions" :key="opt" class="dropdown-option">
                   <input type="checkbox" :checked="values.software.includes(opt)" @change="toggleSoftware(opt)" />
-                  <span>{{ opt }}</span>
+                  <span>{{ tr(opt) }}</span>
                 </label>
               </div>
             </div>
@@ -359,7 +359,7 @@ function handleOverlayClick(event) {
               <div v-if="userDeptDropdownOpen && enabled.userDepartment" class="dropdown-panel">
                 <label v-for="dept in departmentOptions" :key="dept" class="dropdown-option">
                   <input type="checkbox" :checked="values.userDepartments.includes(dept)" @change="toggleUserDepartment(dept)" />
-                  <span>{{ dept }}</span>
+                  <span>{{ tr(dept) }}</span>
                 </label>
               </div>
             </div>

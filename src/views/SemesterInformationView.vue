@@ -420,7 +420,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
           :class="{ active: activeTab === tab.id }"
           @click="activeTab = tab.id"
         >
-          {{ tab.label }}
+          {{ tr(tab.label) }}
         </button>
       </div>
 
@@ -807,90 +807,6 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   color: #2563eb;
   font-weight: 600;
   border-bottom-color: #2563eb;
-}
-
-.search-bar {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f3f4f6;
-  flex-shrink: 0;
-}
-
-.search-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-}
-
-.search-fields {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  min-width: 0;
-}
-
-.search-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
-}
-
-.search-item label {
-  font-size: 12px;
-  color: #374151;
-  white-space: nowrap;
-}
-
-.search-item-switch {
-  gap: 10px;
-}
-
-.search-select {
-  width: 160px;
-  min-width: 120px;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  background: #fff;
-  box-sizing: border-box;
-}
-
-.search-select.is-empty {
-  color: #9ca3af;
-}
-
-.search-input {
-  width: 180px;
-  min-width: 140px;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  background: #fff;
-  box-sizing: border-box;
-}
-
-.search-input::placeholder {
-  color: #9ca3af;
-}
-
-.search-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.search-actions .btn {
-  padding: 0 12px;
-  white-space: nowrap;
 }
 
 .toolbar {

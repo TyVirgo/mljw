@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import DatePickerEn from '../common/DatePickerEn.vue'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import QualificationSection from './QualificationSection.vue'
@@ -30,6 +31,8 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'save'])
 
+const { t, tr } = useAppI18n()
+
 const currentStep = ref(1)
 const form = ref(createEmptyLecturerForm())
 const errors = ref({})
@@ -39,12 +42,13 @@ const cancelConfirmVisible = ref(false)
 
 const departmentOptions = getDepartmentOptions()
 const isEditMode = computed(() => props.mode === 'edit')
-const modalTitle = computed(() => (isEditMode.value ? 'Edit' : 'Create'))
-const isLastStep = computed(() => currentStep.value === formSteps.length)
+const translatedSteps = computed(() => formSteps.map((step) => ({ ...step, label: tr(step.label) })))
+const modalTitle = computed(() => (isEditMode.value ? t('common.edit') : t('common.create')))
+const isLastStep = computed(() => currentStep.value === translatedSteps.value.length)
 const saveConfirmMessage = computed(() =>
   isEditMode.value
-    ? 'Are you sure you want to save the changes to this lecturer?'
-    : 'Are you sure you want to save this lecturer?',
+    ? tr('Are you sure you want to save the changes to this lecturer?')
+    : tr('Are you sure you want to save this lecturer?'),
 )
 
 watch(
@@ -97,7 +101,7 @@ function validateStep1() {
   })
   errors.value = e
   if (Object.keys(e).length) {
-    window.alert('Please fill in all required fields.')
+    window.alert(tr('Please fill in all required fields.'))
     return false
   }
   return true
@@ -105,7 +109,7 @@ function validateStep1() {
 
 function handleNext() {
   if (currentStep.value === 1 && !validateStep1()) return
-  if (currentStep.value < formSteps.length) currentStep.value += 1
+  if (currentStep.value < translatedSteps.value.length) currentStep.value += 1
 }
 
 function handlePrevious() {
@@ -120,7 +124,7 @@ function handleFileChange(event) {
   const file = event.target.files?.[0]
   if (!file) return
   if (!file.name.toLowerCase().endsWith('.pdf')) {
-    window.alert('Supported file extensions: .pdf')
+    window.alert(tr('Supported file extensions: .pdf'))
     event.target.value = ''
     return
   }
@@ -170,12 +174,12 @@ function handleOverlayClick(event) {
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
           <h2 class="modal-title">{{ modalTitle }}</h2>
-          <button type="button" class="modal-close" aria-label="Close" @click="requestClose">×</button>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="requestClose">×</button>
         </div>
 
         <div class="stepper">
           <div class="stepper-track">
-            <div v-for="(step, index) in formSteps" :key="step.id" class="step-unit">
+            <div v-for="(step, index) in translatedSteps" :key="step.id" class="step-unit">
               <button
                 type="button"
                 class="step-unit-body"
@@ -186,7 +190,7 @@ function handleOverlayClick(event) {
                 <div class="step-circle">{{ step.id }}</div>
                 <span class="step-label">{{ step.label }}</span>
               </button>
-              <div v-if="index < formSteps.length - 1" class="step-connector" aria-hidden="true">
+              <div v-if="index < translatedSteps.length - 1" class="step-connector" aria-hidden="true">
                 <span class="step-connector-line" />
                 <svg class="step-connector-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                   <polyline points="9 6 15 12 9 18" />
@@ -200,127 +204,127 @@ function handleOverlayClick(event) {
           <!-- Step 1 -->
           <div v-show="currentStep === 1" class="step-content">
             <section class="form-section">
-              <h3 class="section-title"><span class="bar" />Personal Information</h3>
+              <h3 class="section-title"><span class="bar" />{{ tr('Personal Information') }}</h3>
               <div class="form-grid">
                 <div class="form-item">
-                  <label><span class="req">*</span> Name:</label>
-                  <input v-model="form.name" type="text" placeholder="please input" :class="fieldError('name')" />
+                  <label><span class="req">*</span> {{ tr('Name:') }}</label>
+                  <input v-model="form.name" type="text" :placeholder="t('common.pleaseInput')" :class="fieldError('name')" />
                 </div>
                 <div class="form-item">
-                  <label>Name_CN:</label>
-                  <input v-model="form.nameCn" type="text" placeholder="please input" />
+                  <label>{{ tr('Name_CN') }}:</label>
+                  <input v-model="form.nameCn" type="text" :placeholder="t('common.pleaseInput')" />
                 </div>
                 <div class="form-item">
-                  <label>Name_MAL:</label>
-                  <input v-model="form.nameMal" type="text" placeholder="please input" />
+                  <label>{{ tr('Name_MAL') }}:</label>
+                  <input v-model="form.nameMal" type="text" :placeholder="t('common.pleaseInput')" />
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> Gender:</label>
+                  <label><span class="req">*</span> {{ tr('Gender:') }}</label>
                   <select v-model="form.gender" :class="fieldError('gender')">
-                    <option value="">please select</option>
-                    <option v-for="opt in genderOptions" :key="opt" :value="opt">{{ opt }}</option>
+                    <option value="">{{ tr('please select') }}</option>
+                    <option v-for="opt in genderOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
                   </select>
                 </div>
                 <div class="form-item">
-                  <label>Date of Birth:</label>
-                  <DatePickerEn v-model="form.personal.dateOfBirth" placeholder="please select date" />
+                  <label>{{ tr('Date of Birth:') }}</label>
+                  <DatePickerEn v-model="form.personal.dateOfBirth" :placeholder="t('common.pleaseSelectDate')" />
                 </div>
                 <div class="form-item">
-                  <label>Nationality:</label>
+                  <label>{{ tr('Nationality') }}:</label>
                   <select v-model="form.personal.nationality">
-                    <option value="">please select</option>
-                    <option v-for="opt in nationalityOptions" :key="opt" :value="opt">{{ opt }}</option>
+                    <option value="">{{ tr('please select') }}</option>
+                    <option v-for="opt in nationalityOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
                   </select>
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> Mobile Phone:</label>
-                  <input v-model="form.personal.mobilePhone" type="text" placeholder="please input" :class="fieldError('mobilePhone')" />
+                  <label><span class="req">*</span> {{ tr('Mobile Phone:') }}</label>
+                  <input v-model="form.personal.mobilePhone" type="text" :placeholder="t('common.pleaseInput')" :class="fieldError('mobilePhone')" />
                 </div>
                 <div class="form-item">
-                  <label>Personal Email:</label>
-                  <input v-model="form.personal.personalEmail" type="text" placeholder="please input" />
+                  <label>{{ tr('Personal Email:') }}</label>
+                  <input v-model="form.personal.personalEmail" type="text" :placeholder="t('common.pleaseInput')" />
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> Degree:</label>
+                  <label><span class="req">*</span> {{ tr('Degree:') }}</label>
                   <select v-model="form.degree" :class="fieldError('degree')">
-                    <option value="">please select</option>
-                    <option v-for="opt in degreeOptions" :key="opt" :value="opt">{{ opt }}</option>
+                    <option value="">{{ tr('please select') }}</option>
+                    <option v-for="opt in degreeOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
                   </select>
                 </div>
                 <div class="form-item">
-                  <label>Research Focus Areas:</label>
-                  <input v-model="form.personal.researchFocusAreas" type="text" placeholder="please input" />
+                  <label>{{ tr('Research Focus Areas:') }}</label>
+                  <input v-model="form.personal.researchFocusAreas" type="text" :placeholder="t('common.pleaseInput')" />
                 </div>
               </div>
             </section>
 
             <section class="form-section">
-              <h3 class="section-title"><span class="bar" />Employment Information</h3>
+              <h3 class="section-title"><span class="bar" />{{ tr('Employment Information') }}</h3>
               <div class="form-grid">
                 <div class="form-item">
-                  <label><span class="req">*</span> Staff ID:</label>
-                  <input v-model="form.staffId" type="text" placeholder="please input" :class="fieldError('staffId')" />
+                  <label><span class="req">*</span> {{ tr('Staff ID:') }}</label>
+                  <input v-model="form.staffId" type="text" :placeholder="t('common.pleaseInput')" :class="fieldError('staffId')" />
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> Category:</label>
+                  <label><span class="req">*</span> {{ tr('Category:') }}</label>
                   <select v-model="form.category" :class="fieldError('category')">
-                    <option value="">please select</option>
-                    <option v-for="opt in categoryOptions" :key="opt" :value="opt">{{ opt }}</option>
+                    <option value="">{{ tr('please select') }}</option>
+                    <option v-for="opt in categoryOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
                   </select>
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> School/Department:</label>
+                  <label><span class="req">*</span> {{ tr('School/Department:') }}</label>
                   <select v-model="form.department" :class="fieldError('department')">
-                    <option value="">please select</option>
-                    <option v-for="opt in departmentOptions" :key="opt" :value="opt">{{ opt }}</option>
+                    <option value="">{{ tr('please select') }}</option>
+                    <option v-for="opt in departmentOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
                   </select>
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> FOU/UG/PG:</label>
+                  <label><span class="req">*</span> {{ tr('FOU/UG/PG:') }}</label>
                   <select v-model="form.employment.foundationUndergraduatePostgraduate" :class="fieldError('foundationUndergraduatePostgraduate')">
-                    <option value="">please select</option>
-                    <option v-for="opt in foundationOptions" :key="opt" :value="opt">{{ opt }}</option>
+                    <option value="">{{ tr('please select') }}</option>
+                    <option v-for="opt in foundationOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
                   </select>
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> Title:</label>
+                  <label><span class="req">*</span> {{ tr('Title:') }}</label>
                   <select v-model="form.title" :class="fieldError('title')">
-                    <option value="">please select</option>
-                    <option v-for="opt in titleOptions" :key="opt" :value="opt">{{ opt }}</option>
+                    <option value="">{{ tr('please select') }}</option>
+                    <option v-for="opt in titleOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
                   </select>
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> Academic Position:</label>
+                  <label><span class="req">*</span> {{ tr('Academic Position:') }}</label>
                   <select v-model="form.academicPosition" :class="fieldError('academicPosition')">
-                    <option value="">please select</option>
-                    <option v-for="opt in academicPositionOptions" :key="opt" :value="opt">{{ opt }}</option>
+                    <option value="">{{ tr('please select') }}</option>
+                    <option v-for="opt in academicPositionOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
                   </select>
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> Office Extension:</label>
-                  <input v-model="form.employment.officeExtension" type="text" placeholder="please input" :class="fieldError('officeExtension')" />
+                  <label><span class="req">*</span> {{ tr('Office Extension:') }}</label>
+                  <input v-model="form.employment.officeExtension" type="text" :placeholder="t('common.pleaseInput')" :class="fieldError('officeExtension')" />
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> XMUM Email:</label>
-                  <input v-model="form.employment.xmumEmail" type="text" placeholder="please input" :class="fieldError('xmumEmail')" />
+                  <label><span class="req">*</span> {{ tr('XMUM Email:') }}</label>
+                  <input v-model="form.employment.xmumEmail" type="text" :placeholder="t('common.pleaseInput')" :class="fieldError('xmumEmail')" />
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> Date of Joining:</label>
-                  <DatePickerEn v-model="form.dateOfJoining" placeholder="please select date" :class="fieldError('dateOfJoining')" />
+                  <label><span class="req">*</span> {{ tr('Date of Joining:') }}</label>
+                  <DatePickerEn v-model="form.dateOfJoining" :placeholder="t('common.pleaseSelectDate')" :class="fieldError('dateOfJoining')" />
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> Employment Status:</label>
+                  <label><span class="req">*</span> {{ tr('Employment Status:') }}</label>
                   <div class="radio-group">
                     <label v-for="opt in employmentStatusOptions" :key="opt" class="radio-label">
-                      <input v-model="form.employmentStatus" type="radio" :value="opt" /> {{ opt }}
+                      <input v-model="form.employmentStatus" type="radio" :value="opt" /> {{ tr(opt) }}
                     </label>
                   </div>
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> Currently Teaching:</label>
+                  <label><span class="req">*</span> {{ tr('Currently Teaching:') }}</label>
                   <div class="radio-group">
                     <label v-for="opt in yesNoOptions" :key="`ct-${opt}`" class="radio-label">
-                      <input v-model="form.employment.currentlyTeaching" type="radio" :value="opt" /> {{ opt }}
+                      <input v-model="form.employment.currentlyTeaching" type="radio" :value="opt" /> {{ tr(opt) }}
                     </label>
                   </div>
                 </div>
@@ -328,26 +332,26 @@ function handleOverlayClick(event) {
             </section>
 
             <section class="form-section">
-              <h3 class="section-title"><span class="bar" />Others</h3>
+              <h3 class="section-title"><span class="bar" />{{ tr('Others') }}</h3>
               <div class="form-grid">
                 <div class="form-item full">
-                  <label>Attachment:</label>
+                  <label>{{ tr('Attachment') }}:</label>
                   <div>
                     <input ref="fileInputRef" type="file" accept=".pdf" hidden @change="handleFileChange" />
                     <button type="button" class="btn-upload" @click="triggerFileUpload">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                      Upload File
+                      {{ tr('Upload File') }}
                     </button>
-                    <p class="upload-hint">Supported file extensions: .pdf</p>
+                    <p class="upload-hint">{{ tr('Supported file extensions: .pdf') }}</p>
                     <div v-if="form.attachment" class="file-row">
                       {{ form.attachment.fileName }} ({{ formatAttachmentSize(form.attachment.size) }}, {{ formatUploadTimestamp(form.attachment.uploadedAt) }})
                     </div>
                   </div>
                 </div>
                 <div class="form-item full">
-                  <label>Remarks:</label>
+                  <label>{{ tr('Remarks') }}:</label>
                   <div class="textarea-wrap">
-                    <textarea v-model="form.remarks" maxlength="400" rows="3" placeholder="please input" />
+                    <textarea v-model="form.remarks" maxlength="400" rows="3" :placeholder="t('common.pleaseInput')" />
                     <span class="char-count">{{ form.remarks.length }}/400</span>
                   </div>
                 </div>
@@ -368,22 +372,22 @@ function handleOverlayClick(event) {
           <!-- Step 4 -->
           <div v-show="currentStep === 4" class="step-content cpd-placeholder">
             <div class="cpd-info">
-              <h3>Continuous Professional Development (CPD)</h3>
-              <p>CPD data is sourced from:</p>
+              <h3>{{ tr('Continuous Professional Development (CPD)') }}</h3>
+              <p>{{ tr('CPD data is sourced from:') }}</p>
               <ul>
-                <li>HR system data synchronization</li>
-                <li>Teacher portal submission after approval</li>
+                <li>{{ tr('HR system data synchronization') }}</li>
+                <li>{{ tr('Teacher portal submission after approval') }}</li>
               </ul>
-              <p class="hint">CPD records cannot be manually entered here. They will appear in the Details view once synced or approved.</p>
+              <p class="hint">{{ tr('CPD records cannot be manually entered here. They will appear in the Details view once synced or approved.') }}</p>
             </div>
           </div>
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" @click="requestClose">Cancel</button>
-          <button v-if="currentStep > 1" type="button" class="btn btn-default" @click="handlePrevious">Previous</button>
-          <button v-if="!isLastStep" type="button" class="btn btn-primary" @click="handleNext">Next</button>
-          <button type="button" class="btn btn-primary" @click="requestSave">Save</button>
+          <button type="button" class="btn btn-default" @click="requestClose">{{ t('common.cancel') }}</button>
+          <button v-if="currentStep > 1" type="button" class="btn btn-default" @click="handlePrevious">{{ tr('Previous') }}</button>
+          <button v-if="!isLastStep" type="button" class="btn btn-primary" @click="handleNext">{{ tr('Next') }}</button>
+          <button type="button" class="btn btn-primary" @click="requestSave">{{ t('common.save') }}</button>
         </div>
       </div>
     </div>
@@ -391,9 +395,9 @@ function handleOverlayClick(event) {
 
   <ConfirmDialog
     :visible="saveConfirmVisible"
-    title="Save Confirmation"
+    :title="t('common.saveConfirmation')"
     :message="saveConfirmMessage"
-    confirm-text="Confirm"
+    :confirm-text="t('common.confirm')"
     confirm-variant="primary"
     wide
     @confirm="confirmSave"
@@ -402,9 +406,9 @@ function handleOverlayClick(event) {
 
   <ConfirmDialog
     :visible="cancelConfirmVisible"
-    title="Cancel Confirmation"
-    message="Your changes will not be saved. Are you sure you want to exit?"
-    confirm-text="Confirm"
+    :title="tr('Cancel Confirmation')"
+    :message="tr('Your changes will not be saved. Are you sure you want to exit?')"
+    :confirm-text="t('common.confirm')"
     confirm-variant="danger"
     wide
     @confirm="confirmClose"

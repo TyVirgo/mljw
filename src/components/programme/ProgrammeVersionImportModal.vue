@@ -70,7 +70,7 @@ function clearSelectedFile() {
 
 async function handleImport() {
   if (!selectedFile.value) {
-    window.alert('Please select an Excel file to import.')
+    window.alert(tr('Please select an Excel file to import.'))
     return
   }
 

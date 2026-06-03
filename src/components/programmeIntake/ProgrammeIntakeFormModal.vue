@@ -141,7 +141,7 @@ function handleOverlayClick(event) {
                 :class="{ error: errors.startingSemester, 'is-empty': !startingSemester }"
               >
                 <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in startingSemesterOptions" :key="opt" :value="opt">{{ opt }}</option>
+                <option v-for="opt in startingSemesterOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
               </select>
             </div>
             <p v-if="errors.startingSemester" class="field-error">{{ tr(errors.startingSemester) }}</p>

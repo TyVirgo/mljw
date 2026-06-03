@@ -40,11 +40,11 @@ function handleOverlayClick(event) {
             </thead>
             <tbody>
               <tr v-for="item in logs" :key="item.id">
-                <td>{{ item.stage }}</td>
+                <td>{{ tr(item.stage) }}</td>
                 <td>{{ item.actor }}</td>
-                <td>{{ item.action }}</td>
+                <td>{{ tr(item.action) }}</td>
                 <td>{{ item.dateTime }}</td>
-                <td>{{ item.comment || '--' }}</td>
+                <td>{{ item.comment ? tr(item.comment) : tr('--') }}</td>
               </tr>
             </tbody>
           </table>

@@ -272,7 +272,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
 
 function openUserDepartmentModal() {
   if (!hasSelection.value) {
-    window.alert('Please select at least one classroom.')
+    window.alert(tr('Please select at least one classroom.'))
     return
   }
   const selected = classrooms.value.filter((item) => selectedIds.value.includes(item.id))
@@ -299,7 +299,7 @@ function handleUserDepartmentSubmit(departments) {
 
 function openBatchEditModal() {
   if (!hasSelection.value) {
-    window.alert('Please select at least one classroom.')
+    window.alert(tr('Please select at least one classroom.'))
     return
   }
   batchEditVisible.value = true
@@ -337,8 +337,8 @@ function getRowNumber(index) {
   <div class="classroom-page">
     <div class="page-card">
       <div class="search-bar">
-        <div class="search-grid">
-          <div class="search-row search-row-main">
+        <div class="search-row">
+          <div class="search-fields">
             <div class="search-item">
               <label>{{ tr('Classroom No.:') }}</label>
               <input v-model="searchForm.classroomNo" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
@@ -351,32 +351,34 @@ function getRowNumber(index) {
               <label>{{ tr('Classroom Type:') }}</label>
               <select v-model="searchForm.classroomType">
                 <option value="">{{ t('common.all') }}</option>
-                <option v-for="opt in classroomTypeOptions" :key="opt" :value="opt">{{ opt }}</option>
+                <option v-for="opt in classroomTypeOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
               </select>
             </div>
-            <div class="search-actions">
-              <button type="button" class="btn btn-primary" @click="handleSearch">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                {{ t('common.search') }}
-              </button>
-              <button type="button" class="btn btn-default" @click="handleReset">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-                {{ t('common.reset') }}
-              </button>
-              <button type="button" class="toggle-link" @click="toggleSearchExpanded">
-                {{ searchExpanded ? t('common.collapse') : t('common.more') }}
-                <svg :class="{ up: searchExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
-              </button>
-            </div>
           </div>
+          <div class="search-actions">
+            <button type="button" class="btn btn-primary" @click="handleSearch">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+              {{ t('common.search') }}
+            </button>
+            <button type="button" class="btn btn-default" @click="handleReset">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+              {{ t('common.reset') }}
+            </button>
+            <button type="button" class="toggle-link" @click="toggleSearchExpanded">
+              {{ searchExpanded ? t('common.collapse') : t('common.more') }}
+              <svg :class="{ up: searchExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+            </button>
+          </div>
+        </div>
 
-          <template v-if="searchExpanded">
-            <div class="search-row">
+        <template v-if="searchExpanded">
+          <div class="search-row search-row-secondary">
+            <div class="search-fields">
               <div class="search-item">
                 <label>{{ tr('Desk/Chair Type:') }}</label>
                 <select v-model="searchForm.deskChairType">
                   <option value="">{{ t('common.all') }}</option>
-                  <option v-for="opt in deskChairTypeOptions" :key="opt" :value="opt">{{ opt }}</option>
+                  <option v-for="opt in deskChairTypeOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
                 </select>
               </div>
               <div class="search-item">
@@ -396,7 +398,9 @@ function getRowNumber(index) {
                 </div>
               </div>
             </div>
-            <div class="search-row">
+          </div>
+          <div class="search-row search-row-secondary">
+            <div class="search-fields">
               <div class="search-item">
                 <label>{{ tr('Exam Seats:') }}</label>
                 <div class="range-inputs">
@@ -422,7 +426,9 @@ function getRowNumber(index) {
                 </select>
               </div>
             </div>
-            <div class="search-row search-row-2">
+          </div>
+          <div class="search-row search-row-secondary">
+            <div class="search-fields">
               <div class="search-item">
                 <label>{{ tr('User Department:') }}</label>
                 <select v-model="searchForm.userDepartment">
@@ -439,8 +445,8 @@ function getRowNumber(index) {
                 </select>
               </div>
             </div>
-          </template>
-        </div>
+          </div>
+        </template>
       </div>
 
       <div class="toolbar">
@@ -510,8 +516,8 @@ function getRowNumber(index) {
               <td>{{ item.classroomName }}</td>
               <td>{{ item.classroomNameEn }}</td>
               <td>{{ item.classroomNameMal }}</td>
-              <td>{{ item.classroomType }}</td>
-              <td>{{ item.deskChairType }}</td>
+              <td>{{ tr(item.classroomType) }}</td>
+              <td>{{ tr(item.deskChairType) }}</td>
               <td>{{ item.capacity }}</td>
               <td>{{ item.availableSeats }}</td>
               <td>{{ item.examSeats }}</td>
@@ -609,121 +615,6 @@ function getRowNumber(index) {
   border: 1px solid #f3f4f6;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 20px 24px 16px;
-}
-
-.search-bar {
-  margin-bottom: 16px;
-  padding: 0 0 16px;
-  border-bottom: 1px solid #f3f4f6;
-  flex-shrink: 0;
-}
-
-.search-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  width: 100%;
-}
-
-.search-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px 32px;
-  align-items: center;
-  width: 100%;
-}
-
-.search-row-main {
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
-}
-
-.search-row-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.search-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  width: 100%;
-}
-
-.search-item label {
-  flex-shrink: 0;
-  text-align: left;
-  font-size: 13px;
-  color: #374151;
-  white-space: nowrap;
-}
-
-.search-item input,
-.search-item select {
-  flex: 1;
-  min-width: 0;
-  width: auto;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #111827;
-  background: #fff;
-}
-
-.search-item input:focus,
-.search-item select:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
-}
-
-.range-inputs {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.range-inputs input {
-  flex: 1;
-  min-width: 0;
-  width: auto;
-}
-
-.range-sep {
-  flex-shrink: 0;
-  font-size: 13px;
-  color: #9ca3af;
-}
-
-.search-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-self: end;
-  white-space: nowrap;
-}
-
-.toggle-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: #2563eb;
-  padding: 6px 4px;
-  white-space: nowrap;
-}
-
-.toggle-link svg {
-  width: 14px;
-  height: 14px;
-  transition: transform 0.2s;
-}
-
-.toggle-link svg.up {
-  transform: rotate(180deg);
 }
 
 .toolbar {

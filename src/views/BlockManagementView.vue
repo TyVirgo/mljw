@@ -221,13 +221,15 @@ function getRowNumber(index) {
     <div class="page-card">
       <div class="search-bar">
         <div class="search-row">
-          <div class="search-item">
-            <label>{{ tr('Block No.:') }}</label>
-            <input v-model="searchBlockNo" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
-          </div>
-          <div class="search-item">
-            <label>{{ tr('Block Name:') }}</label>
-            <input v-model="searchBlockName" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
+          <div class="search-fields">
+            <div class="search-item">
+              <label>{{ tr('Block No.:') }}</label>
+              <input v-model="searchBlockNo" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
+            </div>
+            <div class="search-item">
+              <label>{{ tr('Block Name:') }}</label>
+              <input v-model="searchBlockName" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
+            </div>
           </div>
           <div class="search-actions">
             <button type="button" class="btn btn-primary" @click="handleSearch">
@@ -361,60 +363,6 @@ function getRowNumber(index) {
   border: 1px solid #f3f4f6;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 20px 24px 16px;
-}
-
-.search-bar {
-  margin-bottom: 16px;
-  padding: 0 0 16px;
-  border-bottom: 1px solid #f3f4f6;
-  flex-shrink: 0;
-}
-
-.search-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 24px;
-  width: 100%;
-}
-
-.search-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.search-item label {
-  flex-shrink: 0;
-  text-align: left;
-  font-size: 13px;
-  color: #374151;
-  white-space: nowrap;
-}
-
-.search-item input {
-  width: 200px;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #111827;
-  background: #fff;
-}
-
-.search-item input:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
-}
-
-.search-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  margin-left: auto;
 }
 
 .toolbar {

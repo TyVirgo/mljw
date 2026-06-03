@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "build:deploy": "node scripts/restore-index.mjs && vite build && node scripts/copy-static.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "openspec": "node node_modules/@fission-ai/openspec/bin/openspec.js",
+    "opsx": "node node_modules/@fission-ai/openspec/bin/openspec.js"
   },
   "dependencies": {
     "vue": "^3.5.13",

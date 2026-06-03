@@ -120,14 +120,14 @@ function handleConfirm() {
   if (!records.length) {
     errors.value = {
       programmes: duplicates.length
-        ? `All selected records already exist: ${duplicates.join(', ')}`
-        : 'No programme records can be created',
+        ? tr(`All selected records already exist: ${duplicates.join(', ')}`)
+        : tr('No programme records can be created'),
     }
     return
   }
 
   if (duplicates.length) {
-    window.alert(`Skipped duplicate Programme Intake code(s): ${duplicates.join(', ')}`)
+    window.alert(tr(`Skipped duplicate Programme Intake code(s): ${duplicates.join(', ')}`))
   }
 
   emit('confirm', records)
@@ -158,7 +158,7 @@ function handleOverlayClick(event) {
               <select v-model="schoolId" class="filter-input" :class="{ error: errors.schoolId, 'is-empty': !schoolId }">
                 <option value="">{{ t('common.pleaseSelect') }}</option>
                 <option v-for="school in programmeIntakeSchools" :key="school.id" :value="school.id">
-                  {{ school.label }}
+                  {{ tr(school.label) }}
                 </option>
               </select>
             </div>
@@ -246,7 +246,7 @@ function handleOverlayClick(event) {
                 :class="{ error: errors.startingSemester, 'is-empty': !startingSemester }"
               >
                 <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in startingSemesterOptions" :key="opt" :value="opt">{{ opt }}</option>
+                <option v-for="opt in startingSemesterOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
               </select>
             </div>
             <p v-if="errors.startingSemester" class="field-error">{{ errors.startingSemester }}</p>

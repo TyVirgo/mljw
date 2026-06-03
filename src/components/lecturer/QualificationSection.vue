@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   createEmptyQualification,
   createAttachmentId,
@@ -16,6 +17,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue'])
+
+const { t, tr } = useAppI18n()
 
 const editingId = ref(null)
 const draft = ref(null)
@@ -58,7 +61,7 @@ function cancelEdit() {
 function saveEdit() {
   if (!draft.value) return
   if (!draft.value.name.trim()) {
-    window.alert('Please enter Name of Qualification.')
+    window.alert(tr('Please enter Name of Qualification.'))
     return
   }
   updateList(
@@ -81,7 +84,7 @@ function saveEdit() {
 }
 
 function removeItem(id) {
-  if (!window.confirm('Delete this qualification?')) return
+  if (!window.confirm(tr('Delete this qualification?'))) return
   updateList(props.modelValue.filter((q) => q.id !== id))
   if (editingId.value === id) cancelEdit()
 }
@@ -94,7 +97,7 @@ function handleFileChange(event) {
   const file = event.target.files?.[0]
   if (!file || !draft.value) return
   if (!file.name.toLowerCase().endsWith('.pdf')) {
-    window.alert('Supported file extensions: .pdf')
+    window.alert(tr('Supported file extensions: .pdf'))
     event.target.value = ''
     return
   }
@@ -122,22 +125,22 @@ function isEditing(id) {
 
 <template>
   <div class="qual-section">
-    <button type="button" class="btn-add" @click="startAdd">+ Add</button>
+    <button type="button" class="btn-add" @click="startAdd">{{ tr('+ Add') }}</button>
     <input ref="fileInputRef" type="file" accept=".pdf" hidden @change="handleFileChange" />
 
-    <div v-if="!modelValue.length && editingId === null" class="empty-hint">No qualifications added yet.</div>
+    <div v-if="!modelValue.length && editingId === null" class="empty-hint">{{ tr('No qualifications added yet.') }}</div>
 
     <div v-for="(item, index) in modelValue" :key="item.id" class="qual-card">
       <div class="card-header">
-        <h3 class="card-title"><span class="bar" />Qualification {{ index + 1 }}</h3>
+        <h3 class="card-title"><span class="bar" />{{ tr('Qualification') }} {{ index + 1 }}</h3>
         <div v-if="isEditing(item.id)" class="card-actions">
-          <button type="button" class="btn-save" @click="saveEdit">Save</button>
+          <button type="button" class="btn-save" @click="saveEdit">{{ t('common.save') }}</button>
         </div>
         <div v-else class="card-actions">
-          <button type="button" class="icon-btn" title="Edit" @click="startEdit(item)">
+          <button type="button" class="icon-btn" :title="t('common.edit')" @click="startEdit(item)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
           </button>
-          <button type="button" class="icon-btn" title="Delete" @click="removeItem(item.id)">
+          <button type="button" class="icon-btn" :title="t('common.delete')" @click="removeItem(item.id)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
           </button>
         </div>
@@ -146,51 +149,51 @@ function isEditing(id) {
       <template v-if="isEditing(item.id) && draft">
         <div class="form-grid">
           <div class="form-item">
-            <label>Name of Qualification:</label>
-            <input v-model="draft.name" type="text" placeholder="please input" />
+            <label>{{ tr('Name of Qualification:') }}</label>
+            <input v-model="draft.name" type="text" :placeholder="t('common.pleaseInput')" />
           </div>
           <div class="form-item">
-            <label>Name of Awarding Institution:</label>
-            <input v-model="draft.institution" type="text" placeholder="please input" />
+            <label>{{ tr('Name of Awarding Institution:') }}</label>
+            <input v-model="draft.institution" type="text" :placeholder="t('common.pleaseInput')" />
           </div>
           <div class="form-item">
-            <label>Awarding country:</label>
+            <label>{{ tr('Awarding country:') }}</label>
             <select v-model="draft.country">
-              <option value="">please select</option>
-              <option v-for="opt in countryOptions" :key="opt" :value="opt">{{ opt }}</option>
+              <option value="">{{ tr('please select') }}</option>
+              <option v-for="opt in countryOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
             </select>
           </div>
           <div class="form-item">
-            <label>Year of Award:</label>
+            <label>{{ tr('Year of Award:') }}</label>
             <select v-model="draft.year">
-              <option value="">please select</option>
+              <option value="">{{ tr('please select') }}</option>
               <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
             </select>
           </div>
           <div class="form-item full">
-            <label>Remarks:</label>
+            <label>{{ tr('Remarks') }}:</label>
             <div class="textarea-wrap">
-              <textarea v-model="draft.remarks" maxlength="100" rows="3" placeholder="please input" />
+              <textarea v-model="draft.remarks" maxlength="100" rows="3" :placeholder="t('common.pleaseInput')" />
               <span class="char-count">{{ draft.remarks.length }}/100</span>
             </div>
           </div>
           <div class="form-item full">
-            <label>Attachment:</label>
+            <label>{{ tr('Attachment') }}:</label>
             <div>
               <button type="button" class="btn-upload" @click="triggerUpload">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                Upload File
+                {{ tr('Upload File') }}
               </button>
-              <p class="upload-hint">Upload scroll and transcript. Supported file extensions: .pdf</p>
+              <p class="upload-hint">{{ tr('Upload scroll and transcript. Supported file extensions: .pdf') }}</p>
               <div v-for="att in draft.attachments" :key="att.id" class="file-row">
                 <span>{{ att.fileName }} ({{ formatAttachmentSize(att.size) }})</span>
-                <button type="button" class="link-remove" @click="removeAttachment(att.id)">Remove</button>
+                <button type="button" class="link-remove" @click="removeAttachment(att.id)">{{ tr('Remove') }}</button>
               </div>
             </div>
           </div>
         </div>
         <div class="card-footer">
-          <button type="button" class="icon-btn" title="Cancel" @click="cancelEdit">
+          <button type="button" class="icon-btn" :title="t('common.cancel')" @click="cancelEdit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
           </button>
         </div>
@@ -198,18 +201,18 @@ function isEditing(id) {
 
       <template v-else>
         <div class="detail-grid">
-          <div class="detail-row"><span class="label">Name of Qualification:</span><span>{{ item.name || '--' }}</span></div>
-          <div class="detail-row"><span class="label">Name of Awarding Institution:</span><span>{{ item.institution || '--' }}</span></div>
-          <div class="detail-row"><span class="label">Awarding country:</span><span>{{ item.country || '--' }}</span></div>
-          <div class="detail-row"><span class="label">Year of Award:</span><span>{{ item.year || '--' }}</span></div>
-          <div class="detail-row full"><span class="label">Remarks:</span><span>{{ item.remarks || '--' }}</span></div>
+          <div class="detail-row"><span class="label">{{ tr('Name of Qualification:') }}</span><span>{{ item.name || tr('--') }}</span></div>
+          <div class="detail-row"><span class="label">{{ tr('Name of Awarding Institution:') }}</span><span>{{ item.institution || tr('--') }}</span></div>
+          <div class="detail-row"><span class="label">{{ tr('Awarding country:') }}</span><span>{{ item.country ? tr(item.country) : tr('--') }}</span></div>
+          <div class="detail-row"><span class="label">{{ tr('Year of Award:') }}</span><span>{{ item.year || tr('--') }}</span></div>
+          <div class="detail-row full"><span class="label">{{ tr('Remarks') }}:</span><span>{{ item.remarks || tr('--') }}</span></div>
         </div>
         <div v-if="item.attachments?.length" class="attachments">
           <div v-for="att in item.attachments" :key="att.id" class="file-card">
             <span class="file-icon">DOC</span>
             <div class="file-info">
               <span class="file-name">{{ att.fileName }}</span>
-              <span class="file-meta">{{ formatAttachmentSize(att.size) }}, Uploaded at: {{ formatUploadTimestamp(att.uploadedAt) }}</span>
+              <span class="file-meta">{{ formatAttachmentSize(att.size) }}, {{ tr('Uploaded at:') }} {{ formatUploadTimestamp(att.uploadedAt) }}</span>
             </div>
           </div>
         </div>

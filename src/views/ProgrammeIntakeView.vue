@@ -323,7 +323,7 @@ function getRowNumber(index) {
         <aside class="tree-panel">
           <div class="tree-search">
             <input v-model="treeKeyword" type="text" :placeholder="t('common.search')" />
-            <button type="button" class="tree-search-btn" aria-label="Search tree">
+            <button type="button" class="tree-search-btn" :aria-label="tr('Search tree')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -343,38 +343,38 @@ function getRowNumber(index) {
               <div
                 class="tree-node branch"
                 :class="{ active: isTreeActive(school.id) }"
-                :style="{ paddingLeft: '12px' }"
+                :style="{ paddingLeft: '14px' }"
                 @click="selectTreeNode(school)"
               >
                 <button
                   type="button"
                   class="tree-toggle"
-                  :aria-label="isTreeExpanded(school.id) ? 'Collapse' : 'Expand'"
+                  :aria-label="isTreeExpanded(school.id) ? tr('Collapse') : tr('Expand')"
                   @click.stop="toggleTreeExpand(school.id)"
                 >
                   {{ isTreeExpanded(school.id) ? '−' : '+' }}
                 </button>
-                <span class="tree-label">{{ school.label }}</span>
+                <span class="tree-label">{{ tr(school.label) }}</span>
               </div>
               <template v-if="school.children?.length && isTreeExpanded(school.id)">
                 <template v-for="programme in school.children" :key="programme.id">
                   <div
                     class="tree-node branch"
                     :class="{ active: isTreeActive(programme.id) }"
-                    :style="{ paddingLeft: '28px' }"
+                    :style="{ paddingLeft: '32px' }"
                     @click.stop="selectTreeNode(programme)"
                   >
                     <button
                       v-if="programme.children?.length"
                       type="button"
                       class="tree-toggle"
-                      :aria-label="isTreeExpanded(programme.id) ? 'Collapse' : 'Expand'"
+                      :aria-label="isTreeExpanded(programme.id) ? tr('Collapse') : tr('Expand')"
                       @click.stop="toggleTreeExpand(programme.id)"
                     >
                       {{ isTreeExpanded(programme.id) ? '−' : '+' }}
                     </button>
                     <span v-else class="tree-toggle placeholder"></span>
-                    <span class="tree-label">{{ programme.label }}</span>
+                    <span class="tree-label">{{ tr(programme.label) }}</span>
                   </div>
                   <template v-if="programme.children?.length && isTreeExpanded(programme.id)">
                     <div
@@ -382,7 +382,7 @@ function getRowNumber(index) {
                       :key="year.id"
                       class="tree-node leaf"
                       :class="{ active: isTreeActive(year.id) }"
-                      :style="{ paddingLeft: '44px' }"
+                      :style="{ paddingLeft: '50px' }"
                       @click.stop="selectTreeNode(year)"
                     >
                       <span class="tree-toggle placeholder"></span>
@@ -397,77 +397,75 @@ function getRowNumber(index) {
 
         <section class="main-panel">
           <div class="search-bar">
-            <div class="search-grid">
-              <div class="search-row search-row-main">
-                <div class="search-fields">
-                  <div class="search-item">
-                    <label>{{ tr('Programme Code:') }}</label>
-                    <input
-                      v-model="searchForm.programmeCode"
-                      type="text"
-                      :placeholder="t('common.pleaseInput')"
-                      @keyup.enter="handleSearch"
-                    />
-                  </div>
-                  <div class="search-item search-item-wide">
-                    <label>{{ tr('Programme Intake:') }}</label>
-                    <input
-                      v-model="searchForm.programmeIntake"
-                      type="text"
-                      :placeholder="t('common.pleaseInput')"
-                      @keyup.enter="handleSearch"
-                    />
-                  </div>
-                  <div class="search-item">
-                    <label>{{ tr('Years:') }}</label>
-                    <select v-model="searchForm.years">
-                      <option value="">{{ t('common.all') }}</option>
-                      <option v-for="opt in yearsOptions" :key="opt" :value="opt">{{ opt }}</option>
-                    </select>
-                  </div>
+            <div class="search-row">
+              <div class="search-fields">
+                <div class="search-item">
+                  <label>{{ tr('Programme Code:') }}</label>
+                  <input
+                    v-model="searchForm.programmeCode"
+                    type="text"
+                    :placeholder="t('common.pleaseInput')"
+                    @keyup.enter="handleSearch"
+                  />
                 </div>
-                <div class="search-actions">
-                  <button type="button" class="btn btn-primary" @click="handleSearch">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                    {{ t('common.search') }}
-                  </button>
-                  <button type="button" class="btn btn-default" @click="handleReset">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="23 4 23 10 17 10" />
-                      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-                    </svg>
-                    {{ t('common.reset') }}
-                  </button>
-                  <button type="button" class="toggle-link" @click="toggleSearchExpanded">
-                    {{ searchExpanded ? t('common.collapse') : t('common.more') }}
-                    <svg :class="{ up: searchExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="6 9 12 15 18 9" />
-                    </svg>
-                  </button>
+                <div class="search-item">
+                  <label>{{ tr('Programme Intake:') }}</label>
+                  <input
+                    v-model="searchForm.programmeIntake"
+                    type="text"
+                    :placeholder="t('common.pleaseInput')"
+                    @keyup.enter="handleSearch"
+                  />
+                </div>
+                <div class="search-item">
+                  <label>{{ tr('Years:') }}</label>
+                  <select v-model="searchForm.years">
+                    <option value="">{{ t('common.all') }}</option>
+                    <option v-for="opt in yearsOptions" :key="opt" :value="opt">{{ opt }}</option>
+                  </select>
                 </div>
               </div>
+              <div class="search-actions">
+                <button type="button" class="btn btn-primary" @click="handleSearch">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  {{ t('common.search') }}
+                </button>
+                <button type="button" class="btn btn-default" @click="handleReset">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                  {{ t('common.reset') }}
+                </button>
+                <button type="button" class="toggle-link" @click="toggleSearchExpanded">
+                  {{ searchExpanded ? t('common.collapse') : t('common.more') }}
+                  <svg :class="{ up: searchExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+              </div>
+            </div>
 
-              <div v-if="searchExpanded" class="search-row search-row-2">
-                <div class="search-fields">
-                  <div class="search-item">
-                    <label>{{ tr('Active:') }}</label>
-                    <select v-model="searchForm.active">
-                      <option value="">{{ t('common.all') }}</option>
-                      <option v-for="opt in activeOptions" :key="opt" :value="opt">{{ opt }}</option>
-                    </select>
-                  </div>
-                  <div class="search-item search-item-school">
-                    <label>{{ tr('School:') }}</label>
-                    <select v-model="searchForm.schoolId">
-                      <option value="">{{ t('common.all') }}</option>
-                      <option v-for="school in programmeIntakeSchools" :key="school.id" :value="school.id">
-                        {{ school.label }}
-                      </option>
-                    </select>
-                  </div>
+            <div v-if="searchExpanded" class="search-row search-row-secondary">
+              <div class="search-fields">
+                <div class="search-item">
+                  <label>{{ tr('Active:') }}</label>
+                  <select v-model="searchForm.active">
+                    <option value="">{{ t('common.all') }}</option>
+                    <option v-for="opt in activeOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
+                  </select>
+                </div>
+                <div class="search-item">
+                  <label>{{ tr('School:') }}</label>
+                  <select v-model="searchForm.schoolId">
+                    <option value="">{{ t('common.all') }}</option>
+                    <option v-for="school in programmeIntakeSchools" :key="school.id" :value="school.id">
+                      {{ tr(school.label) }}
+                    </option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -514,10 +512,10 @@ function getRowNumber(index) {
                     <td>{{ item.intake }}</td>
                     <td>{{ item.years }}</td>
                     <td>{{ item.programmeCode }}</td>
-                    <td>{{ item.programmeName }}</td>
-                    <td>{{ item.school }}</td>
+                    <td>{{ tr(item.programmeName) }}</td>
+                    <td>{{ tr(item.school) }}</td>
                     <td>
-                      <span :class="item.active === 'Yes' ? 'status-yes' : 'status-no'">{{ item.active }}</span>
+                      <span :class="item.active === 'Yes' ? 'status-yes' : 'status-no'">{{ tr(item.active) }}</span>
                     </td>
                     <td class="actions-cell">
                       <div class="actions-inner">
@@ -656,18 +654,27 @@ function getRowNumber(index) {
 .tree-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0 12px;
+  padding: 10px 0 14px;
 }
 
 .tree-node {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 32px;
-  padding-right: 10px;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 12px 7px 0;
   font-size: 13px;
+  line-height: 1.5;
   color: #374151;
   cursor: pointer;
+}
+
+.tree-label {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.5;
+  padding-top: 1px;
+  word-break: break-word;
 }
 
 .tree-node:hover {
@@ -683,13 +690,20 @@ function getRowNumber(index) {
   font-weight: 500;
 }
 
+.tree-node.root-clear {
+  padding-left: 12px;
+  margin-bottom: 4px;
+}
+
 .tree-node.root-clear .tree-label {
   font-weight: 600;
+  color: #2563eb;
 }
 
 .tree-toggle {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -724,104 +738,6 @@ function getRowNumber(index) {
   min-width: 0;
   min-height: 0;
   padding: 16px 20px;
-}
-
-.search-bar {
-  margin-bottom: 12px;
-  flex-shrink: 0;
-}
-
-.search-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.search-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-}
-
-.search-row-2 .search-fields {
-  padding-left: 0;
-}
-
-.search-fields {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 10px;
-  min-width: 0;
-}
-
-.search-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-}
-
-.search-item label {
-  font-size: 12px;
-  color: #374151;
-  white-space: nowrap;
-}
-
-.search-item input,
-.search-item select {
-  width: 108px;
-  min-width: 88px;
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  box-sizing: border-box;
-}
-
-.search-item-wide input {
-  width: 128px;
-}
-
-.search-item-school select {
-  width: 220px;
-  min-width: 180px;
-}
-
-.search-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-  margin-left: auto;
-  align-items: center;
-}
-
-.search-actions .btn {
-  padding: 0 12px;
-  white-space: nowrap;
-}
-
-.toggle-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: #2563eb;
-  padding: 0 4px;
-  white-space: nowrap;
-}
-
-.toggle-link svg {
-  width: 14px;
-  height: 14px;
-  transition: transform 0.15s;
-}
-
-.toggle-link svg.up {
-  transform: rotate(180deg);
 }
 
 .toolbar {

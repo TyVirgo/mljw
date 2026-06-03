@@ -114,18 +114,18 @@ function confirmSave() {
               <span>{{ tr('Category change from') }}</span>
               <select v-model="rule.fromCategory" class="rule-select">
                 <option value="">{{ tr('please select') }}</option>
-                <option v-for="opt in categoryOptions" :key="`from-${rule.id}-${opt}`" :value="opt">{{ opt }}</option>
+                <option v-for="opt in categoryOptions" :key="`from-${rule.id}-${opt}`" :value="opt">{{ tr(opt) }}</option>
               </select>
               <span>{{ tr('to') }}</span>
               <select v-model="rule.toCategory" class="rule-select">
                 <option value="">{{ tr('please select') }}</option>
-                <option v-for="opt in categoryOptions" :key="`to-${rule.id}-${opt}`" :value="opt">{{ opt }}</option>
+                <option v-for="opt in categoryOptions" :key="`to-${rule.id}-${opt}`" :value="opt">{{ tr(opt) }}</option>
               </select>
               <span>{{ tr('requires teacher evaluation for providing information.') }}</span>
             </span>
           </p>
           <div class="rule-actions">
-            <button type="button" class="link-delete" @click="requestDeleteRule(rule.id)">{{ tr('Delete') }}</button>
+            <button type="button" class="link-delete" @click="requestDeleteRule(rule.id)">{{ t('common.delete') }}</button>
             <button
               type="button"
               class="enable-switch"
@@ -140,7 +140,7 @@ function confirmSave() {
           </div>
         </div>
 
-        <button type="button" class="btn-create" @click="addRule">+ {{ tr('Create') }}</button>
+        <button type="button" class="btn-create" @click="addRule">+ {{ t('common.create') }}</button>
       </section>
 
       <div class="form-footer">
@@ -161,7 +161,7 @@ function confirmSave() {
 
     <ConfirmDialog
       :visible="saveConfirmVisible"
-      :title="tr('Save Confirmation')"
+      :title="t('common.saveConfirmation')"
       :message="tr('Are you sure you want to save the evaluation settings?')"
       :confirm-text="t('common.confirm')"
       confirm-variant="primary"

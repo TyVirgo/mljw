@@ -477,56 +477,6 @@ function handleExport() {
   padding: 20px 24px 24px;
 }
 
-.search-bar {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.search-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.search-fields {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.search-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.search-item label {
-  font-size: 12px;
-  color: #374151;
-  white-space: nowrap;
-}
-
-.search-select {
-  width: 180px;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  background: #fff;
-}
-
-.search-select.is-empty {
-  color: #9ca3af;
-}
-
-.search-actions {
-  display: flex;
-  gap: 8px;
-}
-
 .btn {
   display: inline-flex;
   align-items: center;

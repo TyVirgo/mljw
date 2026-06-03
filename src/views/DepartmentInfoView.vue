@@ -251,8 +251,8 @@ function getRowNumber(index) {
   <div class="department-page">
     <div class="page-card">
       <div class="search-bar">
-        <div class="search-grid">
-          <div class="search-row search-row-main">
+        <div class="search-row">
+          <div class="search-fields">
             <div class="search-item">
               <label>{{ tr('ID:') }}</label>
               <input v-model="searchForm.deptId" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
@@ -273,23 +273,25 @@ function getRowNumber(index) {
                 <option v-for="opt in reportToFilterOptions" :key="opt" :value="opt">{{ opt }}</option>
               </select>
             </div>
-            <div class="search-actions">
-              <button type="button" class="btn btn-primary" @click="handleSearch">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                {{ t('common.search') }}
-              </button>
-              <button type="button" class="btn btn-default" @click="handleReset">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-                {{ t('common.reset') }}
-              </button>
-              <button type="button" class="toggle-link" @click="toggleSearchExpanded">
-                {{ searchExpanded ? t('common.collapse') : t('common.more') }}
-                <svg :class="{ up: searchExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
-              </button>
-            </div>
           </div>
+          <div class="search-actions">
+            <button type="button" class="btn btn-primary" @click="handleSearch">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+              {{ t('common.search') }}
+            </button>
+            <button type="button" class="btn btn-default" @click="handleReset">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+              {{ t('common.reset') }}
+            </button>
+            <button type="button" class="toggle-link" @click="toggleSearchExpanded">
+              {{ searchExpanded ? t('common.collapse') : t('common.more') }}
+              <svg :class="{ up: searchExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+            </button>
+          </div>
+        </div>
 
-          <div v-if="searchExpanded" class="search-row search-row-2">
+        <div v-if="searchExpanded" class="search-row search-row-secondary">
+          <div class="search-fields">
             <div class="search-item">
               <label>{{ tr('Offering:') }}</label>
               <select v-model="searchForm.offering">
@@ -351,13 +353,13 @@ function getRowNumber(index) {
                 <td>{{ getRowNumber(index) }}</td>
                 <td>{{ item.deptId }}</td>
                 <td>{{ item.code }}</td>
-                <td>{{ item.nameEn }}</td>
+                <td>{{ tr(item.nameEn) }}</td>
                 <td>{{ item.nameZh }}</td>
-                <td>{{ item.category }}</td>
+                <td>{{ tr(item.category) }}</td>
                 <td>{{ formatReportTo(item.reportTo) }}</td>
-                <td>{{ item.offering }}</td>
-                <td>{{ item.teaching }}</td>
-                <td>{{ item.active }}</td>
+                <td>{{ tr(item.offering) }}</td>
+                <td>{{ tr(item.teaching) }}</td>
+                <td>{{ tr(item.active) }}</td>
                 <td class="actions-cell">
                   <div class="actions-inner">
                     <button type="button" class="link-btn" @click="openEditModal(item)">{{ t('common.edit') }}</button>
@@ -429,80 +431,6 @@ function getRowNumber(index) {
   border: 1px solid #f3f4f6;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 20px 24px 16px;
-}
-
-.search-bar {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f3f4f6;
-  flex-shrink: 0;
-}
-
-.search-grid {
-  --search-label-w: 92px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  align-items: flex-start;
-}
-
-.search-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 14px 32px;
-}
-
-.search-item {
-  display: grid;
-  grid-template-columns: var(--search-label-w) 148px;
-  gap: 8px;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.search-item label {
-  text-align: right;
-  font-size: 13px;
-  color: #374151;
-  white-space: nowrap;
-}
-
-.search-item input,
-.search-item select {
-  width: 148px;
-  min-width: 0;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-}
-
-.search-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.toggle-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: #2563eb;
-}
-
-.toggle-link svg {
-  width: 14px;
-  height: 14px;
-  transition: transform 0.2s;
-}
-
-.toggle-link svg.up {
-  transform: rotate(180deg);
 }
 
 .toolbar {
