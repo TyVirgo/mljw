@@ -741,6 +741,17 @@ function getRowNumber(index) {
   background: #fafafa;
 }
 
+.name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+.name-text {
+  flex-shrink: 0;
+}
+
 .empty-cell {
   text-align: center;
   color: #9ca3af;
