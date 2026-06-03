@@ -1,8 +1,10 @@
 <script setup>
+import { computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { changeDescriptionComponents } from '../../data/courseChangeApplications.js'
+import ChangeLevelToggle from './ChangeLevelToggle.vue'
 
-defineProps({
+const props = defineProps({
   courseName: { type: String, default: '' },
   changeDescription: { type: Object, required: true },
   readonly: { type: Boolean, default: false },
@@ -14,12 +16,14 @@ const emit = defineEmits(['choose', 'update:changeDescription'])
 
 const { t, tr } = useAppI18n()
 
-function onPick(key, level, model) {
-  emit('update:changeDescription', { ...model, [key]: level })
-}
+const sections = computed(() => [
+  { title: 'MAIN COMPONENTS', items: changeDescriptionComponents.main },
+  { title: 'OTHER COMPONENTS', items: changeDescriptionComponents.other },
+])
 
-function levelClass(active) {
-  return active ? 'active' : ''
+function onPick(key, level) {
+  if (props.readonly || props.changeDescription[key] === level) return
+  emit('update:changeDescription', { ...props.changeDescription, [key]: level })
 }
 </script>
 
@@ -36,71 +40,54 @@ function levelClass(active) {
       <p v-if="error" class="error-text">{{ tr(error) }}</p>
     </div>
 
-    <section class="component-section">
-      <h3 class="section-title">{{ tr('MAIN COMPONENTS') }}</h3>
-      <div class="component-table">
-        <div v-for="item in changeDescriptionComponents.main" :key="item.key" class="component-row">
-          <div class="component-info">
-            <div class="component-name">{{ tr(item.label) }}</div>
-            <div class="component-hint">{{ tr(item.hint) }}</div>
-          </div>
-          <div v-if="readonly" class="readonly-level">
-            {{ changeDescription[item.key] === 'major' ? tr('Major Changes') : tr('Minor / No Changes') }}
-          </div>
-          <div v-else class="level-toggle">
-            <button
-              type="button"
-              class="level-btn"
-              :class="levelClass(changeDescription[item.key] === 'major')"
-              @click="onPick(item.key, 'major', changeDescription)"
-            >
-              N
-            </button>
-            <button
-              type="button"
-              class="level-btn"
-              :class="levelClass(changeDescription[item.key] === 'minor')"
-              @click="onPick(item.key, 'minor', changeDescription)"
-            >
-              Y
-            </button>
-            <span class="level-label major">{{ tr('Major Changes') }}</span>
-            <span class="level-label minor">{{ tr('Minor / No Changes') }}</span>
-          </div>
+    <section v-for="section in sections" :key="section.title" class="component-section">
+      <h3 class="section-title">{{ tr(section.title) }}</h3>
+      <div class="change-table">
+        <div class="table-header">
+          <div class="col-name">{{ tr('Component Name') }}</div>
+          <div class="col-level">{{ tr('Major Changes') }}</div>
+          <div class="col-level">{{ tr('Minor Changes') }}</div>
+          <div class="col-level">{{ tr('No Changes') }}</div>
         </div>
-      </div>
-    </section>
-
-    <section class="component-section">
-      <h3 class="section-title">{{ tr('OTHER COMPONENTS') }}</h3>
-      <div class="component-table">
-        <div v-for="item in changeDescriptionComponents.other" :key="item.key" class="component-row">
-          <div class="component-info">
+        <div v-for="item in section.items" :key="item.key" class="table-row">
+          <div class="col-name">
             <div class="component-name">{{ tr(item.label) }}</div>
-            <div class="component-hint">{{ tr(item.hint) }}</div>
           </div>
-          <div v-if="readonly" class="readonly-level">
-            {{ changeDescription[item.key] === 'major' ? tr('Major Changes') : tr('Minor / No Changes') }}
+          <div class="col-level">
+            <div class="level-cell" :class="{ 'toggle-only': !item.majorCriteria.length }">
+              <ul v-if="item.majorCriteria.length" class="criteria-list">
+                <li v-for="criterion in item.majorCriteria" :key="criterion">{{ tr(criterion) }}</li>
+              </ul>
+              <ChangeLevelToggle
+                :active="changeDescription[item.key] === 'major'"
+                :disabled="readonly"
+                @toggle="onPick(item.key, 'major')"
+              />
+            </div>
           </div>
-          <div v-else class="level-toggle">
-            <button
-              type="button"
-              class="level-btn"
-              :class="levelClass(changeDescription[item.key] === 'major')"
-              @click="onPick(item.key, 'major', changeDescription)"
-            >
-              N
-            </button>
-            <button
-              type="button"
-              class="level-btn"
-              :class="levelClass(changeDescription[item.key] === 'minor')"
-              @click="onPick(item.key, 'minor', changeDescription)"
-            >
-              Y
-            </button>
-            <span class="level-label major">{{ tr('Major Changes') }}</span>
-            <span class="level-label minor">{{ tr('Minor / No Changes') }}</span>
+          <div class="col-level">
+            <div class="level-cell" :class="{ 'toggle-only': !item.minorCriteria.length }">
+              <ul v-if="item.minorCriteria.length" class="criteria-list">
+                <li v-for="criterion in item.minorCriteria" :key="criterion">{{ tr(criterion) }}</li>
+              </ul>
+              <ChangeLevelToggle
+                :active="changeDescription[item.key] === 'minor'"
+                :disabled="readonly"
+                @toggle="onPick(item.key, 'minor')"
+              />
+            </div>
+          </div>
+          <div class="col-level">
+            <div class="level-cell" :class="{ 'toggle-only': !item.noneCriteria.length }">
+              <ul v-if="item.noneCriteria.length" class="criteria-list">
+                <li v-for="criterion in item.noneCriteria" :key="criterion">{{ tr(criterion) }}</li>
+              </ul>
+              <ChangeLevelToggle
+                :active="changeDescription[item.key] === 'none'"
+                :disabled="readonly"
+                @toggle="onPick(item.key, 'none')"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -150,89 +137,98 @@ function levelClass(active) {
 
 .section-title {
   margin: 0 0 12px;
+  padding-left: 10px;
+  border-left: 3px solid #2563eb;
   font-size: 14px;
   font-weight: 600;
   color: #111827;
 }
 
-.component-table {
+.change-table {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   overflow: hidden;
 }
 
-.component-row {
+.table-header,
+.table-row {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 16px;
-  align-items: center;
-  padding: 14px 16px;
-  border-bottom: 1px solid #f3f4f6;
+  grid-template-columns: minmax(150px, 0.85fr) 1fr 1fr 1fr;
 }
 
-.component-row:last-child {
+.table-header {
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.table-header .col-name,
+.table-header .col-level {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.table-header .col-level {
+  text-align: left;
+}
+
+.table-row {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.table-row:last-child {
   border-bottom: none;
+}
+
+.col-name {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  background: #fafafa;
+  border-right: 1px solid #e5e7eb;
 }
 
 .component-name {
   font-size: 13px;
   font-weight: 600;
   color: #111827;
-  margin-bottom: 4px;
 }
 
-.component-hint {
+.col-level {
+  padding: 14px 16px;
+  border-right: 1px solid #e5e7eb;
+}
+
+.col-level:last-child {
+  border-right: none;
+}
+
+.level-cell {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 24px;
+  height: 100%;
+}
+
+.level-cell.toggle-only {
+  justify-content: flex-end;
+}
+
+.criteria-list {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+
+.criteria-list li {
   font-size: 12px;
   color: #6b7280;
-  line-height: 1.5;
-}
-
-.level-toggle {
-  display: grid;
-  grid-template-columns: 36px 36px;
-  grid-template-rows: auto auto;
-  gap: 6px 8px;
-  align-items: center;
-  justify-items: center;
-}
-
-.level-btn {
-  width: 36px;
-  height: 28px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  background: #fff;
-  color: #6b7280;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.level-btn.active {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
-}
-
-.level-label {
-  font-size: 11px;
-  color: #6b7280;
-  white-space: nowrap;
-}
-
-.level-label.major {
-  grid-column: 1;
-}
-
-.level-label.minor {
-  grid-column: 2;
-}
-
-.readonly-level {
-  font-size: 13px;
-  color: #2563eb;
-  font-weight: 500;
-  white-space: nowrap;
+  line-height: 1.6;
 }
 
 .btn-outline {

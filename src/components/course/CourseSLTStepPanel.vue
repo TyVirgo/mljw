@@ -159,17 +159,34 @@ function hourCell(row, group, key) {
   <section class="slt-step">
     <div class="stats-row">
       <div class="stat-card">
-        {{ tr('Total') }} <strong>{{ stats.totalSLT }}</strong> SLT
+        <span class="stat-label">{{ tr('Total') }}</span>
+        <strong class="stat-value">{{ stats.totalSLT }} SLT</strong>
       </div>
       <div class="stat-card">
-        {{ tr('Assessment') }} <strong>{{ stats.assessmentSLT }}</strong> SLT
+        <span class="stat-label">{{ tr('Assessment') }}</span>
+        <strong class="stat-value">{{ stats.assessmentSLT }} SLT</strong>
       </div>
       <div class="stat-card">
-        {{ tr('Online Learning Hours') }} <strong>{{ stats.onlineIndepPct }}%</strong>
+        <span class="stat-label">{{ tr('Online+Indep.') }}</span>
+        <strong class="stat-value">{{ stats.onlineIndepPct }}%</strong>
       </div>
       <div class="stat-card">
-        {{ tr('On-site Learning Hours') }} <strong>{{ stats.physicalPct }}%</strong>
+        <span class="stat-label">{{ tr('Physical') }}</span>
+        <strong class="stat-value">{{ stats.physicalPct }}%</strong>
       </div>
+      <span class="info-tip-wrap" tabindex="0" :aria-label="tr('SLT percentage calculation formulas')">
+        <span class="info-icon" aria-hidden="true">i</span>
+        <span class="info-tooltip">
+          <p class="tooltip-item">
+            <span class="tooltip-title">1. {{ tr('% SLT for F2F Physical Component:') }}</span>
+            {{ tr('[Total F2F Physical / (Total F2F Physical + Total F2F Online + Total Independent Learning) x 100]') }}
+          </p>
+          <p class="tooltip-item">
+            <span class="tooltip-title">2. {{ tr('% SLT for Online & Independent Learning Component:') }}</span>
+            {{ tr('[(Total F2F Online + Total Independent Learning) / (Total F2F Physical + Total F2F Online + Total Independent Learning) x 100]') }}
+          </p>
+        </span>
+      </span>
     </div>
 
     <!-- Outline section -->
@@ -412,20 +429,96 @@ function hourCell(row, group, key) {
 .stats-row {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
 }
 
-.stat-card {
-  padding: 10px 16px;
-  border: 1px solid #dbeafe;
-  border-radius: 999px;
-  background: #f8fbff;
-  font-size: 13px;
-  color: #374151;
+.info-tip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.stat-card strong {
+.info-icon {
+  width: 18px;
+  height: 18px;
+  border: 1px solid #2563eb;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #2563eb;
+  cursor: help;
+}
+
+.info-tooltip {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(420px, calc(100vw - 48px));
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  font-size: 12px;
+  line-height: 1.55;
+  font-weight: 400;
+  color: #374151;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 10;
+}
+
+.tooltip-item {
+  margin: 0;
+}
+
+.tooltip-item + .tooltip-item {
+  margin-top: 10px;
+}
+
+.tooltip-title {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.info-tip-wrap:hover .info-tooltip,
+.info-tip-wrap:focus-within .info-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.stat-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 13px;
+}
+
+.stat-label {
+  color: #6b7280;
+}
+
+.stat-value {
+  color: #2563eb;
+  font-weight: 600;
 }
 
 .slt-section {

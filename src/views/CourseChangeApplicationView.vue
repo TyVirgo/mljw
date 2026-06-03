@@ -13,10 +13,8 @@ import {
   canEditChangeApplication,
   canSubmitChangeApplication,
   canDeleteChangeApplication,
-  canWithdrawChangeApplication,
   canViewChangeApprovalLog,
   submitChangeApplications,
-  withdrawChangeApplications,
   statusBadgeClass,
 } from '../data/courseChangeApplications.js'
 import { courseClassificationOptions, getOfferingOptions, getOfferingLabel } from '../data/courses.js'
@@ -52,7 +50,6 @@ const confirmText = ref('')
 const confirmVariant = ref('danger')
 const pendingDeleteIds = ref([])
 const submitConfirmVisible = ref(false)
-const withdrawConfirmVisible = ref(false)
 const pendingConfirmAction = ref(null)
 
 const offeringOptions = computed(() => getOfferingOptions(initialDepartments))
@@ -111,14 +108,6 @@ const canSubmitSelection = computed(() => {
   return selectedIds.value.every((id) => {
     const item = applications.value.find((row) => row.id === id)
     return item && canSubmitChangeApplication(item)
-  })
-})
-
-const canWithdrawSelection = computed(() => {
-  if (!hasSelection.value) return false
-  return selectedIds.value.every((id) => {
-    const item = applications.value.find((row) => row.id === id)
-    return item && canWithdrawChangeApplication(item)
   })
 })
 
@@ -243,23 +232,11 @@ function requestSubmit() {
   submitConfirmVisible.value = true
 }
 
-function requestWithdraw() {
-  if (!canWithdrawSelection.value) return
-  withdrawConfirmVisible.value = true
-}
-
 function confirmSubmit() {
   const targets = applications.value.filter((item) => selectedIds.value.includes(item.id))
   applications.value = submitChangeApplications(targets, applications.value)
   selectedIds.value = []
   submitConfirmVisible.value = false
-}
-
-function confirmWithdraw() {
-  const targets = applications.value.filter((item) => selectedIds.value.includes(item.id))
-  applications.value = withdrawChangeApplications(targets, applications.value)
-  selectedIds.value = []
-  withdrawConfirmVisible.value = false
 }
 
 function confirmDialogAction() {
@@ -421,9 +398,6 @@ function getRowNumber(index) {
         <button type="button" class="btn btn-outline" :disabled="!canSubmitSelection" @click="requestSubmit">
           {{ tr('Submit') }}
         </button>
-        <button type="button" class="btn btn-outline btn-withdraw" :disabled="!canWithdrawSelection" @click="requestWithdraw">
-          {{ tr('Withdraw') }}
-        </button>
       </div>
 
       <div class="table-section">
@@ -437,6 +411,7 @@ function getRowNumber(index) {
                 <th>{{ t('common.serialNo') }}</th>
                 <th>{{ tr('Status') }}</th>
                 <th>{{ tr('Approval Stage') }}</th>
+                <th>{{ tr('Course Code') }}</th>
                 <th>{{ tr('Course Name') }}</th>
                 <th>{{ tr('Offering Unit') }}</th>
                 <th>{{ tr('Course Classification') }}</th>
@@ -448,7 +423,7 @@ function getRowNumber(index) {
             </thead>
             <tbody>
               <tr v-if="!paginatedApplications.length">
-                <td colspan="11" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="12" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedApplications" :key="item.id">
                 <td class="col-check">
@@ -459,6 +434,7 @@ function getRowNumber(index) {
                   <span class="status-badge" :class="statusBadgeClass(item.status)">{{ tr(item.status) }}</span>
                 </td>
                 <td>{{ tr(item.approvalStage) }}</td>
+                <td>{{ item.courseCode || item.sourceCourseCode || '--' }}</td>
                 <td>{{ item.courseName }}</td>
                 <td>{{ getOfferingLabel(item.offering, initialDepartments) }}</td>
                 <td>{{ tr(item.courseClassification) }}</td>
@@ -517,16 +493,6 @@ function getRowNumber(index) {
       confirm-variant="primary"
       @confirm="confirmSubmit"
       @cancel="submitConfirmVisible = false"
-    />
-
-    <ConfirmDialog
-      :visible="withdrawConfirmVisible"
-      :title="tr('Withdraw Confirmation')"
-      :message="tr('Are you sure you want to withdraw the selected change application(s) to draft?')"
-      :confirm-text="tr('Withdraw')"
-      confirm-variant="primary"
-      @confirm="confirmWithdraw"
-      @cancel="withdrawConfirmVisible = false"
     />
 
     <ExportModal
@@ -699,11 +665,6 @@ function getRowNumber(index) {
   background: #fff;
   border: 1px solid #2563eb;
   color: #2563eb;
-}
-
-.btn-withdraw {
-  border-color: #ef4444;
-  color: #ef4444;
 }
 
 .table-section {

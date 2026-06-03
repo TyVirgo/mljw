@@ -27,33 +27,112 @@ export const courseChangeSteps = [
 
 export const changeDescriptionComponents = {
   main: [
-    { key: 'courseName', label: 'Course Name', hint: 'Change course name, e.g. improve grammar or no change.' },
-    { key: 'credit', label: 'Credit Value', hint: 'Change credit value to meet MQA/EAC standards or no change.' },
-    { key: 'courseClassification', label: 'Course Classification', hint: 'Change course classification, e.g. from major to elective.' },
-    { key: 'clo', label: 'CLO', hint: 'Add or remove CLOs.' },
+    {
+      key: 'courseName',
+      label: 'Course Name',
+      majorCriteria: ['Change course name to reflect the change in course content.'],
+      minorCriteria: ['Improve the grammar of the course name.'],
+      noneCriteria: ['No change.'],
+    },
+    {
+      key: 'credit',
+      label: 'Credit Value',
+      majorCriteria: ['Add or reduce the credit value of the course.'],
+      minorCriteria: ['Change credit value to meet MQA/EAC standards.'],
+      noneCriteria: ['No change.'],
+    },
+    {
+      key: 'courseClassification',
+      label: 'Course Classification',
+      majorCriteria: ['Change course classification, e.g. from major to elective.'],
+      minorCriteria: ['Change course classification to meet MQA/EAC standards.'],
+      noneCriteria: ['No change.'],
+    },
+    {
+      key: 'clo',
+      label: 'CLO',
+      majorCriteria: ['Add or remove CLOs.'],
+      minorCriteria: [
+        'Improve the grammar of the CLOs.',
+        'Rearrange the sequence of the CLOs.',
+        'Combine the CLOs.',
+      ],
+      noneCriteria: ['No change.'],
+    },
   ],
   other: [
-    { key: 'synopsis', label: 'Synopsis', hint: 'Change synopsis content or no change.' },
-    { key: 'prerequisite', label: 'Pre-requisite / co-requisite', hint: 'Change pre-requisite / co-requisite or no change.' },
-    { key: 'teachingMethods', label: 'Teaching Methods', hint: 'Add or reduce lectures, tutorials, or revise teaching strategy.' },
-    { key: 'courseContent', label: 'Course Content', hint: 'Add or reduce topics in course content.' },
-    { key: 'assessmentMethods', label: 'Assessment Methods', hint: 'Revise coursework components or exam hours.' },
-    { key: 'references', label: 'References', hint: 'Add or reduce main or additional references.' },
+    {
+      key: 'synopsis',
+      label: 'Synopsis',
+      majorCriteria: ['Revise the synopsis to reflect the change in course content.'],
+      minorCriteria: ['Rephrase the synopsis.', 'Improve the grammar of the synopsis.'],
+      noneCriteria: ['No change.'],
+    },
+    {
+      key: 'prerequisite',
+      label: 'Pre-requisite / co-requisite',
+      majorCriteria: ['Add, remove, or revise the pre-requisite / co-requisite of the course.'],
+      minorCriteria: [],
+      noneCriteria: ['No change.'],
+    },
+    {
+      key: 'teachingMethods',
+      label: 'Teaching Methods',
+      majorCriteria: [
+        'Add or reduce the number of lectures (L), tutorials (T), practical (P).',
+        'Revise the teaching strategy, e.g. from classroom delivery (CD) to podcast.',
+      ],
+      minorCriteria: [],
+      noneCriteria: ['No change.'],
+    },
+    {
+      key: 'courseContent',
+      label: 'Course Content',
+      majorCriteria: ['Add or reduce topic in the course content.'],
+      minorCriteria: [
+        'Rearrange the topics.',
+        'Update the topics.',
+        'Add or reduce subtopics in the topics.',
+      ],
+      noneCriteria: ['No change.'],
+    },
+    {
+      key: 'assessmentMethods',
+      label: 'Assessment Methods',
+      majorCriteria: ['Change the percentage of continuous assessment and final assessment.'],
+      minorCriteria: [
+        'Revise the coursework components, e.g. test, assignment, etc.',
+        'Revise the exam hours.',
+      ],
+      noneCriteria: ['No change.'],
+    },
+    {
+      key: 'references',
+      label: 'References',
+      majorCriteria: ['Add or reduce the main or additional references.'],
+      minorCriteria: [
+        'Update the publication year or edition of the references.',
+        'Revise the referencing system, e.g. from MLA to APA.',
+      ],
+      noneCriteria: ['No change.'],
+    },
   ],
 }
 
+export const changeDescriptionLevels = ['major', 'minor', 'none']
+
 export function createEmptyChangeDescription() {
   return {
-    courseName: 'minor',
-    credit: 'minor',
-    courseClassification: 'minor',
-    clo: 'minor',
-    synopsis: 'minor',
-    prerequisite: 'minor',
-    teachingMethods: 'minor',
-    courseContent: 'minor',
-    assessmentMethods: 'minor',
-    references: 'minor',
+    courseName: 'none',
+    credit: 'none',
+    courseClassification: 'none',
+    clo: 'none',
+    synopsis: 'none',
+    prerequisite: 'none',
+    teachingMethods: 'none',
+    courseContent: 'none',
+    assessmentMethods: 'none',
+    references: 'none',
   }
 }
 
@@ -349,7 +428,7 @@ export function validateChangeDescriptionStep(sourceCourseId, changeDescription)
   }
   const allKeys = [...changeDescriptionComponents.main, ...changeDescriptionComponents.other].map((c) => c.key)
   for (const key of allKeys) {
-    if (!changeDescription?.[key]) {
+    if (!changeDescriptionLevels.includes(changeDescription?.[key])) {
       errors.changeDescription = 'Please complete all change description selections'
       break
     }
