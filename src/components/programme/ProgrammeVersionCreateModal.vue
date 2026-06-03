@@ -89,17 +89,17 @@ function onFileSelected(event) {
 
 function confirmAttachmentUpload() {
   if (!pendingUploadFile.value) {
-    window.alert('Please select a file to upload.')
+    window.alert(tr('Please select a file to upload.'))
     return
   }
   const file = pendingUploadFile.value
   if (file.size > 10 * 1024 * 1024) {
-    window.alert('Single file size must not exceed 10MB.')
+    window.alert(tr('Single file size must not exceed 10MB.'))
     return
   }
   const desc = pendingUploadDescription.value.trim()
   if (desc.length > 100) {
-    window.alert('Description must be at most 100 characters.')
+    window.alert(tr('Description must be at most 100 characters.'))
     return
   }
   form.value.attachments.push({

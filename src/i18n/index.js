@@ -81,6 +81,27 @@ function translateFlatText(text) {
   match = text.match(/^Duplicate Course Code in import file$/)
   if (match) return '导入文件中课程编号重复'
 
+  match = text.match(/^Are you sure you want to delete (\d+) selected lecturers\? This action cannot be undone\.$/)
+  if (match) return `确定要删除选中的 ${match[1]} 位讲师吗？此操作无法撤销。`
+
+  match = text.match(/^Qualification (\d+)$/)
+  if (match) return `学历资格 ${match[1]}`
+
+  match = text.match(/^Working Experience (\d+)$/)
+  if (match) return `工作经历 ${match[1]}`
+
+  match = text.match(/^(\d{4}\/\d{4}) Semester (\d+)$/)
+  if (match) return `${match[1]} 第${match[2]}学期`
+
+  match = text.match(/^Please select at least one classroom\.$/)
+  if (match) return '请至少选择一间教室。'
+
+  match = text.match(/^All selected records already exist: (.+)$/)
+  if (match) return `所选记录均已存在：${match[1]}`
+
+  match = text.match(/^Set usage department permissions for (\d+) selected classroom\(s\)\.$/)
+  if (match) return `为 ${match[1]} 间已选教室设置使用院系权限`
+
   return text
 }
 

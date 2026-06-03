@@ -84,7 +84,7 @@ function handleConfirm() {
   }
 
   if (duplicates.length) {
-    window.alert(`Skipped duplicate Programme Intake code(s): ${duplicates.join(', ')}`)
+    window.alert(tr(`Skipped duplicate Programme Intake code(s): ${duplicates.join(', ')}`))
   }
 
   emit('confirm', records)
@@ -159,7 +159,7 @@ function handleOverlayClick(event) {
                 :class="{ error: errors.startingSemester, 'is-empty': !startingSemester }"
               >
                 <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in startingSemesterOptions" :key="opt" :value="opt">{{ opt }}</option>
+                <option v-for="opt in startingSemesterOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
               </select>
             </div>
             <p v-if="errors.startingSemester" class="field-error">{{ errors.startingSemester }}</p>

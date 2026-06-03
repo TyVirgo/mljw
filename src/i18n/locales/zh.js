@@ -31,7 +31,7 @@ export default {
     courseChangeReview: '课程变更审核',
     lecturerInfo: '讲师信息',
     lecturerInformation: '讲师信息',
-    evaluationSettings: '评估设置',
+    evaluationSettings: '评价设置',
     semesterCalendar: '学期与校历',
     semesterInformation: '学期信息',
     calendar: '校历',
@@ -158,6 +158,18 @@ export default {
     programmeDesc: '查看与管理培养方案。',
     courseDesc: '管理课程与培养计划。',
     lecturerDesc: '查看讲师档案与任课信息。',
+  },
+  portal: {
+    title: '教学门户',
+    searchPlaceholder: '请输入应用名称',
+    tabAll: '全部',
+    tabBasicService: '基础服务',
+    sectionBasicService: '基础服务',
+    underDevelopment: '待开发',
+    apps: {
+      basicData: '基础数据',
+      studentRecords: '学籍管理',
+    },
   },
   underConstruction: {
     title: '页面建设中。',

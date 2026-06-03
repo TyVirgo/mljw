@@ -243,7 +243,7 @@ function getRowNumber(index) {
         <aside class="tree-panel">
           <div class="tree-search">
             <input v-model="treeKeyword" type="text" :placeholder="tr('Please enter keywords')" />
-            <button type="button" class="tree-search-btn" aria-label="Search tree">
+            <button type="button" class="tree-search-btn" :aria-label="tr('Search tree')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -260,7 +260,7 @@ function getRowNumber(index) {
               >
                 <span v-if="node.children?.length" class="tree-arrow" :class="{ expanded: isExpanded(node.id) }">▸</span>
                 <span v-else class="tree-arrow placeholder"></span>
-                <span class="tree-label">{{ node.label }}</span>
+                <span class="tree-label">{{ tr(node.label) }}</span>
               </div>
               <template v-if="node.children?.length && isExpanded(node.id)">
                 <div
@@ -272,7 +272,7 @@ function getRowNumber(index) {
                   @click.stop="selectTreeNode(child)"
                 >
                   <span class="tree-arrow placeholder"></span>
-                  <span class="tree-label">{{ child.label }}</span>
+                  <span class="tree-label">{{ tr(child.label) }}</span>
                 </div>
               </template>
             </template>
@@ -284,13 +284,15 @@ function getRowNumber(index) {
 
           <div class="search-bar">
             <div class="search-row">
-              <div class="search-item">
-                <label>{{ tr('Node Code/Name:') }}</label>
-                <input v-model="searchNode" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
-              </div>
-              <div class="search-item">
-                <label>{{ tr('Code Name:') }}</label>
-                <input v-model="searchCodeName" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
+              <div class="search-fields">
+                <div class="search-item">
+                  <label>{{ tr('Node Code/Name:') }}</label>
+                  <input v-model="searchNode" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
+                </div>
+                <div class="search-item">
+                  <label>{{ tr('Code Name:') }}</label>
+                  <input v-model="searchCodeName" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
+                </div>
               </div>
               <div class="search-actions">
                 <button type="button" class="btn btn-primary" @click="handleSearch">{{ t('common.search') }}</button>
@@ -333,9 +335,9 @@ function getRowNumber(index) {
                     </td>
                     <td>{{ getRowNumber(index) }}</td>
                     <td>{{ item.nodeCode }}</td>
-                    <td>{{ item.nodeName }}</td>
+                    <td>{{ tr(item.nodeName) }}</td>
                     <td>{{ item.code }}</td>
-                    <td>{{ item.codeName }}</td>
+                    <td>{{ tr(item.codeName) }}</td>
                     <td>{{ formatParentCode(item.parentCode) }}</td>
                     <td class="actions-cell">
                       <div class="actions-inner">
@@ -526,44 +528,6 @@ function getRowNumber(index) {
   border: 1px solid #a7f3d0;
   border-radius: 6px;
   font-size: 13px;
-}
-
-.search-bar {
-  margin-bottom: 12px;
-  flex-shrink: 0;
-}
-
-.search-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 16px 24px;
-}
-
-.search-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.search-item label {
-  font-size: 13px;
-  color: #374151;
-  white-space: nowrap;
-}
-
-.search-item input {
-  width: 200px;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-}
-
-.search-actions {
-  display: flex;
-  gap: 8px;
 }
 
 .toolbar {

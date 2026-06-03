@@ -19,6 +19,9 @@ import {
 } from '../data/lecturers.js'
 import { exportLecturersToExcel, lecturerExportFields } from '../utils/exportLecturerExcel.js'
 import { mergeEvaluationOverrides } from '../data/evaluationSettings.js'
+import { useListPageI18n } from '../composables/useListPageI18n.js'
+
+const { t, tr, translatedExportFields } = useListPageI18n(lecturerExportFields)
 
 const lecturers = ref(
   initialLecturers.map((item) => mergeEvaluationOverrides(normalizeLecturer({ ...item }))),
@@ -177,7 +180,7 @@ function handleSave(formData) {
       (item) => item.id !== editingItem.value.id && item.staffId.toLowerCase() === formData.staffId.toLowerCase(),
     )
     if (duplicate) {
-      window.alert('Staff ID already exists.')
+      window.alert(tr('Staff ID already exists.'))
       return
     }
     const index = lecturers.value.findIndex((item) => item.id === editingItem.value.id)
@@ -192,7 +195,7 @@ function handleSave(formData) {
       (item) => item.staffId.toLowerCase() === formData.staffId.toLowerCase(),
     )
     if (duplicate) {
-      window.alert('Staff ID already exists.')
+      window.alert(tr('Staff ID already exists.'))
       return
     }
     lecturers.value.push(normalizeLecturer({ id: createLecturerId(), ...formData }))
@@ -206,8 +209,8 @@ function requestDelete(ids) {
   pendingDeleteIds.value = uniqueIds
   confirmMessage.value =
     uniqueIds.length === 1
-      ? 'Are you sure you want to delete this lecturer? This action cannot be undone.'
-      : `Are you sure you want to delete ${uniqueIds.length} selected lecturers? This action cannot be undone.`
+      ? tr('Are you sure you want to delete this lecturer? This action cannot be undone.')
+      : tr(`Are you sure you want to delete ${uniqueIds.length} selected lecturers? This action cannot be undone.`)
   confirmVisible.value = true
 }
 
@@ -225,7 +228,7 @@ function confirmDelete() {
 
 function openExportModal() {
   if (!filteredLecturers.value.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
   exportModalVisible.value = true
@@ -238,7 +241,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   else data = filteredLecturers.value.filter((item) => selectedIds.value.includes(item.id))
 
   if (!data.length) {
-    window.alert('No data to export.')
+    window.alert(t('common.noDataExport'))
     return
   }
   const timestamp = new Date().toISOString().slice(0, 10)
@@ -252,11 +255,11 @@ function showNotice(message) {
 }
 
 function handleSyncCache() {
-  showNotice('HR system sync is not yet connected. CPD and lecturer data will be synchronized once the integration is available.')
+  showNotice(tr('HR system sync is not yet connected. CPD and lecturer data will be synchronized once the integration is available.'))
 }
 
 function handleEmsReference() {
-  showNotice('EMS system integration is not yet connected.')
+  showNotice(tr('EMS system integration is not yet connected.'))
 }
 
 function handlePaginationChange({ type }) {
@@ -272,81 +275,79 @@ function getRowNumber(index) {
   <div class="lecturer-page">
     <div class="page-card">
       <div class="search-bar">
-        <div class="search-panel">
-          <div class="search-line search-line-main">
-            <div class="search-fields-grid">
-              <div class="search-item search-item-col-1">
-                <label>Name:</label>
-                <input v-model="searchForm.name" type="text" placeholder="please input" @keyup.enter="handleSearch" />
-              </div>
-              <div class="search-item search-item-col-2">
-                <label>Staff ID:</label>
-                <input v-model="searchForm.staffId" type="text" placeholder="please input" @keyup.enter="handleSearch" />
-              </div>
-              <div class="search-item search-item-col-3">
-                <label>School/Department:</label>
-                <select v-model="searchForm.department">
-                  <option value="">please select</option>
-                  <option v-for="opt in departmentOptions" :key="opt" :value="opt">{{ opt }}</option>
+        <div class="search-row">
+          <div class="search-fields">
+            <div class="search-item">
+              <label>{{ tr('Name:') }}</label>
+              <input v-model="searchForm.name" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
+            </div>
+            <div class="search-item">
+              <label>{{ tr('Staff ID:') }}</label>
+              <input v-model="searchForm.staffId" type="text" :placeholder="t('common.pleaseInput')" @keyup.enter="handleSearch" />
+            </div>
+            <div class="search-item">
+              <label>{{ tr('School/Department:') }}</label>
+              <select v-model="searchForm.department">
+                <option value="">{{ tr('please select') }}</option>
+                <option v-for="opt in departmentOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ tr('Category:') }}</label>
+              <select v-model="searchForm.category">
+                <option value="">{{ tr('please select') }}</option>
+                <option v-for="opt in categoryOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
+              </select>
+            </div>
+            <template v-if="searchExpanded">
+              <div class="search-item">
+                <label>{{ tr('Title:') }}</label>
+                <select v-model="searchForm.title">
+                  <option value="">{{ tr('please select') }}</option>
+                  <option v-for="opt in titleOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
                 </select>
               </div>
-              <div class="search-item search-item-col-4">
-                <label>Category:</label>
-                <select v-model="searchForm.category">
-                  <option value="">please select</option>
-                  <option v-for="opt in categoryOptions" :key="opt" :value="opt">{{ opt }}</option>
+              <div class="search-item">
+                <label>{{ tr('Academic Position:') }}</label>
+                <select v-model="searchForm.academicPosition">
+                  <option value="">{{ tr('please select') }}</option>
+                  <option v-for="opt in academicPositionOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
                 </select>
               </div>
-
-              <template v-if="searchExpanded">
-                <div class="search-item search-item-col-1">
-                  <label>Title:</label>
-                  <select v-model="searchForm.title">
-                    <option value="">please select</option>
-                    <option v-for="opt in titleOptions" :key="opt" :value="opt">{{ opt }}</option>
-                  </select>
-                </div>
-                <div class="search-item search-item-col-2">
-                  <label>Academic Position:</label>
-                  <select v-model="searchForm.academicPosition">
-                    <option value="">please select</option>
-                    <option v-for="opt in academicPositionOptions" :key="opt" :value="opt">{{ opt }}</option>
-                  </select>
-                </div>
-                <div class="search-item search-item-col-3">
-                  <label>Degree:</label>
-                  <select v-model="searchForm.degree">
-                    <option value="">please select</option>
-                    <option v-for="opt in degreeOptions" :key="opt" :value="opt">{{ opt }}</option>
-                  </select>
-                </div>
-                <div class="search-item search-item-col-4">
-                  <label>Employment Status:</label>
-                  <select v-model="searchForm.employmentStatus">
-                    <option value="">please select</option>
-                    <option v-for="opt in employmentStatusOptions" :key="opt" :value="opt">{{ opt }}</option>
-                  </select>
-                </div>
-              </template>
-            </div>
-            <div class="search-actions">
-              <button type="button" class="btn btn-primary" @click="handleSearch">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                Search
-              </button>
-              <button type="button" class="btn btn-default" @click="handleReset">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-                Reset
-              </button>
-              <button type="button" class="toggle-link" @click="toggleSearchExpanded">
-                {{ searchExpanded ? 'Less' : 'More' }}
-                <svg :class="{ up: searchExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
-              </button>
-            </div>
+              <div class="search-item">
+                <label>{{ tr('Degree:') }}</label>
+                <select v-model="searchForm.degree">
+                  <option value="">{{ tr('please select') }}</option>
+                  <option v-for="opt in degreeOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
+                </select>
+              </div>
+              <div class="search-item">
+                <label>{{ tr('Employment Status:') }}</label>
+                <select v-model="searchForm.employmentStatus">
+                  <option value="">{{ tr('please select') }}</option>
+                  <option v-for="opt in employmentStatusOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
+                </select>
+              </div>
+            </template>
           </div>
+          <div class="search-actions">
+            <button type="button" class="btn btn-primary" @click="handleSearch">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+              {{ t('common.search') }}
+            </button>
+            <button type="button" class="btn btn-default" @click="handleReset">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+              {{ t('common.reset') }}
+            </button>
+            <button type="button" class="toggle-link" @click="toggleSearchExpanded">
+              {{ searchExpanded ? t('common.collapse') : t('common.more') }}
+              <svg :class="{ up: searchExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+            </button>
+          </div>
+        </div>
 
-          <div class="search-line eval-filter-line">
-            <span class="eval-filter-label">Filter lecturers who require teaching observation/lecture evaluation:</span>
+        <div class="search-row search-row-secondary eval-filter-line">
+            <span class="eval-filter-label">{{ tr('Filter lecturers who require teaching observation/lecture evaluation:') }}</span>
             <label class="eval-switch" :class="{ on: searchForm.requiresEvaluationOnly }">
               <input
                 v-model="searchForm.requiresEvaluationOnly"
@@ -360,16 +361,15 @@ function getRowNumber(index) {
                 <span class="eval-switch-letter eval-switch-letter-n">N</span>
               </span>
             </label>
-          </div>
         </div>
       </div>
 
       <div class="toolbar">
-        <button type="button" class="btn btn-primary" @click="openCreateModal">+ Create</button>
-        <button type="button" class="btn btn-dark" :disabled="!hasSelection" @click="requestDelete(selectedIds)">Delete</button>
-        <button type="button" class="btn btn-default" @click="openExportModal">Export</button>
-        <button type="button" class="btn btn-default" @click="handleSyncCache">Sync Cache</button>
-        <button type="button" class="btn btn-default" @click="handleEmsReference">Refers to EMS system</button>
+        <button type="button" class="btn btn-primary" @click="openCreateModal">+ {{ t('common.create') }}</button>
+        <button type="button" class="btn btn-dark" :disabled="!hasSelection" @click="requestDelete(selectedIds)">{{ t('common.delete') }}</button>
+        <button type="button" class="btn btn-default" @click="openExportModal">{{ t('common.export') }}</button>
+        <button type="button" class="btn btn-default" @click="handleSyncCache">{{ tr('Sync Cache') }}</button>
+        <button type="button" class="btn btn-default" @click="handleEmsReference">{{ tr('Refers to EMS system') }}</button>
       </div>
 
       <div class="table-section">
@@ -378,24 +378,24 @@ function getRowNumber(index) {
             <thead>
               <tr>
                 <th class="col-check"><input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" /></th>
-                <th class="col-no">No.</th>
-                <th class="col-staff-id">Staff ID</th>
-                <th class="col-name">Name</th>
-                <th class="col-gender">Gender</th>
-                <th>Category</th>
-                <th>Department</th>
-                <th>Academic Qualification (Highest)</th>
-                <th>Title</th>
-                <th>Academic Position</th>
-                <th>Degree</th>
-                <th>Employment Status</th>
-                <th>Date of Joining</th>
-                <th class="col-sticky-right">Actions</th>
+                <th class="col-no">{{ t('common.serialNo') }}</th>
+                <th class="col-staff-id">{{ tr('Staff ID') }}</th>
+                <th class="col-name">{{ tr('Name') }}</th>
+                <th class="col-gender">{{ tr('Gender') }}</th>
+                <th>{{ tr('Category') }}</th>
+                <th>{{ tr('Department') }}</th>
+                <th>{{ tr('Academic Qualification (Highest)') }}</th>
+                <th>{{ tr('Title') }}</th>
+                <th>{{ tr('Academic Position') }}</th>
+                <th>{{ tr('Degree') }}</th>
+                <th>{{ tr('Employment Status') }}</th>
+                <th>{{ tr('Date of Joining') }}</th>
+                <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!paginatedLecturers.length">
-                <td colspan="14" class="empty-cell">No data found</td>
+                <td colspan="14" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedLecturers" :key="item.id">
                 <td class="col-check">
@@ -407,25 +407,25 @@ function getRowNumber(index) {
                   <div class="name-cell">
                     <span class="name-text">{{ item.name }}</span>
                     <span v-if="showEvalTag(item)" class="eval-tag">
-                      <span class="eval-tag-line">Requires</span>
-                      <span class="eval-tag-line">Evaluation</span>
+                      <span class="eval-tag-line">{{ tr('Requires') }}</span>
+                      <span class="eval-tag-line">{{ tr('Evaluation') }}</span>
                     </span>
                   </div>
                 </td>
-                <td class="col-gender">{{ item.gender }}</td>
-                <td>{{ item.category }}</td>
-                <td>{{ item.department }}</td>
-                <td>{{ item.academicQualificationHighest }}</td>
-                <td>{{ item.title }}</td>
-                <td>{{ item.academicPosition }}</td>
-                <td>{{ item.degree }}</td>
-                <td>{{ item.employmentStatus }}</td>
+                <td class="col-gender">{{ tr(item.gender) }}</td>
+                <td>{{ tr(item.category) }}</td>
+                <td>{{ tr(item.department) }}</td>
+                <td>{{ tr(item.academicQualificationHighest) }}</td>
+                <td>{{ tr(item.title) }}</td>
+                <td>{{ tr(item.academicPosition) }}</td>
+                <td>{{ tr(item.degree) }}</td>
+                <td>{{ tr(item.employmentStatus) }}</td>
                 <td>{{ formatDateDisplay(item.dateOfJoining) }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
-                    <button type="button" class="link-btn" @click="openEditModal(item)">Edit</button>
-                    <button type="button" class="link-btn" @click="openDetailModal(item)">Details</button>
-                    <button type="button" class="link-btn delete" @click="requestDelete([item.id])">Delete</button>
+                    <button type="button" class="link-btn" @click="openEditModal(item)">{{ t('common.edit') }}</button>
+                    <button type="button" class="link-btn" @click="openDetailModal(item)">{{ tr('Details') }}</button>
+                    <button type="button" class="link-btn delete" @click="requestDelete([item.id])">{{ t('common.delete') }}</button>
                   </div>
                 </td>
               </tr>
@@ -454,16 +454,16 @@ function getRowNumber(index) {
 
     <ConfirmDialog
       :visible="confirmVisible"
-      title="Delete Confirmation"
+      :title="t('common.deleteConfirmation')"
       :message="confirmMessage"
-      confirm-text="Delete"
+      :confirm-text="t('common.delete')"
       @confirm="confirmDelete"
       @cancel="confirmVisible = false"
     />
 
     <ExportModal
       :visible="exportModalVisible"
-      :fields="lecturerExportFields"
+      :fields="translatedExportFields"
       :has-selected-rows="hasSelection"
       @close="exportModalVisible = false"
       @confirm="handleExportConfirm"
@@ -473,12 +473,12 @@ function getRowNumber(index) {
       <div v-if="noticeVisible" class="notice-overlay" @click="noticeVisible = false">
         <div class="notice-panel" @click.stop>
           <div class="notice-header">
-            <h2>Notice</h2>
+            <h2>{{ t('common.notice') }}</h2>
             <button type="button" class="notice-close" @click="noticeVisible = false">×</button>
           </div>
           <p class="notice-body">{{ noticeMessage }}</p>
           <div class="notice-footer">
-            <button type="button" class="btn btn-primary" @click="noticeVisible = false">OK</button>
+            <button type="button" class="btn btn-primary" @click="noticeVisible = false">{{ t('common.confirm') }}</button>
           </div>
         </div>
       </div>
@@ -508,86 +508,8 @@ function getRowNumber(index) {
   padding: 20px 24px 16px;
 }
 
-.search-bar {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f3f4f6;
-  flex-shrink: 0;
-}
-
-.search-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.search-line {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.search-line-main {
-  flex-wrap: nowrap;
-  align-items: flex-start;
-}
-
-.search-fields-grid {
-  display: grid;
-  grid-template-columns: repeat(4, max-content);
-  column-gap: 24px;
-  row-gap: 14px;
-  flex: 1;
-  min-width: 0;
-}
-
-.search-item {
-  display: grid;
-  grid-template-columns: var(--search-label-w) 148px;
-  gap: 8px;
-  align-items: center;
-}
-
-.search-item-col-1 { --search-label-w: 52px; }
-.search-item-col-2 { --search-label-w: 128px; }
-.search-item-col-3 { --search-label-w: 132px; }
-.search-item-col-4 { --search-label-w: 132px; }
-
-.search-item label {
-  font-size: 13px;
-  color: #374151;
-  white-space: nowrap;
-  text-align: right;
-}
-
-.search-item input,
-.search-item select {
-  width: 148px;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #111827;
-  background: #fff;
-}
-
-.search-item input::placeholder {
-  color: #9ca3af;
-}
-
-.search-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: 24px;
-  flex-shrink: 0;
-  padding-top: 0;
-}
-
 .eval-filter-line {
   gap: 12px;
-  padding-top: 2px;
 }
 
 .eval-filter-label {

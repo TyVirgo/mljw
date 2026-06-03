@@ -1,20 +1,31 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+# 项目上下文 — AI 创建 artifact 时会参考这些信息
+context: |
+  项目名称：ly-cea-pjxt-jcsj-ui（教务基础数据前端）
+  技术栈：Vue 3 (Composition API + script setup)、Vite 5、原生 CSS（scoped）
+  语言：界面文案使用 i18n（src/i18n/），通过 useAppI18n composable 或 $tr 访问
+  路由：无 vue-router，页面切换由 App.vue 中 currentPageId + v-if 控制
+  菜单：src/config/menu.js 定义 sidebar 菜单与 developedPages
+  数据层：src/data/*.js 本地 mock 数据 + localStorage 持久化
+  组件约定：
+    - 页面视图放在 src/views/
+    - 可复用组件放在 src/components/（common/ 子目录放通用组件）
+    - composables 放在 src/composables/
+    - Excel 导出工具放在 src/utils/export*.js（使用 xlsx 库）
+  UI 风格：白色卡片 + 圆角 + 浅灰背景 (#f3f4f6)，与现有页面保持一致
+  新增页面步骤：创建 View → 注册到 App.vue → 加入 menu.js → 补充 i18n 文案
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - 提案使用中文撰写
+    - 明确列出 Non-goals（非目标范围）
+  design:
+    - 设计文档使用中文
+    - 需说明影响的文件路径和组件结构
+  tasks:
+    - 任务拆分为可独立完成的步骤，每步不超过 2 小时
+    - 任务描述使用中文
+  spec:
+    - 需求规格使用中文
+    - 每个 Requirement 至少包含一个 Scenario（WHEN/THEN 格式）

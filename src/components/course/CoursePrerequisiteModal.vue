@@ -182,7 +182,7 @@ function handleOverlayClick(event) {
 
         <div class="modal-body">
           <div class="search-bar">
-            <div class="search-row search-row-1">
+            <div class="search-row">
               <div class="search-fields">
                 <div class="search-field">
                   <label class="search-label">{{ tr('Course Name:') }}</label>
@@ -222,7 +222,8 @@ function handleOverlayClick(event) {
               </div>
             </div>
 
-            <div class="search-row search-row-2">
+            <div class="search-row search-row-secondary">
+              <div class="search-fields">
               <div class="search-field">
                 <label class="search-label">{{ tr('Offering:') }}</label>
                 <select
@@ -233,6 +234,7 @@ function handleOverlayClick(event) {
                   <option value="">{{ t('common.pleaseSelect') }}</option>
                   <option v-for="opt in offeringOptions" :key="opt.code" :value="opt.code">{{ opt.nameEn }}</option>
                 </select>
+              </div>
               </div>
             </div>
           </div>
@@ -358,76 +360,6 @@ function handleOverlayClick(event) {
   flex-direction: column;
   padding: 20px 28px 16px;
   overflow: hidden;
-}
-
-.search-bar {
-  margin-bottom: 20px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #f3f4f6;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.search-row-1 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  min-width: 0;
-}
-
-.search-row-1 .search-fields {
-  display: grid;
-  grid-template-columns: repeat(2, max-content);
-  gap: 16px 36px;
-}
-
-.search-row-2 {
-  min-width: 0;
-}
-
-.search-field {
-  display: grid;
-  grid-template-columns: var(--search-label-width, 120px) 220px;
-  gap: 8px;
-  align-items: center;
-}
-
-.search-label {
-  font-size: 13px;
-  color: #374151;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.search-input,
-.search-select {
-  width: 100%;
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  background: #fff;
-  box-sizing: border-box;
-}
-
-.search-select.is-empty {
-  color: #9ca3af;
-}
-
-.search-actions {
-  display: flex;
-  gap: 12px;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.search-actions svg {
-  width: 14px;
-  height: 14px;
 }
 
 .table-section {

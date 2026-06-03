@@ -243,7 +243,7 @@ function getRowNumber(index) {
                 <td>{{ getRowNumber(index) }}</td>
                 <td>{{ item.code }}</td>
                 <td>{{ item.intake }}</td>
-                <td>{{ item.active }}</td>
+                <td>{{ tr(item.active) }}</td>
                 <td class="actions-cell">
                   <div class="actions-inner">
                     <button type="button" class="link-btn" @click="openEditModal(item)">{{ t('common.edit') }}</button>
@@ -312,72 +312,6 @@ function getRowNumber(index) {
   border: 1px solid #f3f4f6;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 20px 24px 16px;
-}
-
-.search-bar {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f3f4f6;
-  flex-shrink: 0;
-}
-
-.search-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-}
-
-.search-fields {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 8px 10px;
-  min-width: 0;
-}
-
-.search-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-  min-width: 0;
-}
-
-.search-item label {
-  font-size: 12px;
-  color: #374151;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.search-select {
-  width: 180px;
-  min-width: 140px;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  background: #fff;
-  box-sizing: border-box;
-}
-
-.search-select.is-empty {
-  color: #9ca3af;
-}
-
-.search-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.search-actions .btn {
-  padding: 0 12px;
-  white-space: nowrap;
 }
 
 .toolbar {

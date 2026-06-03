@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import DatePickerEn from '../common/DatePickerEn.vue'
 import { createEmptyExperience } from '../../data/lecturers.js'
 
@@ -11,6 +12,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue'])
+
+const { t, tr } = useAppI18n()
 
 const editingId = ref(null)
 const draft = ref(null)
@@ -65,7 +68,7 @@ function saveEdit() {
 }
 
 function removeItem(id) {
-  if (!window.confirm('Delete this working experience?')) return
+  if (!window.confirm(tr('Delete this working experience?'))) return
   updateList(props.modelValue.filter((e) => e.id !== id))
   if (editingId.value === id) cancelEdit()
 }
@@ -92,21 +95,21 @@ function formatMonthDisplay(value) {
 
 <template>
   <div class="exp-section">
-    <button type="button" class="btn-add" @click="startAdd">+ Create</button>
+    <button type="button" class="btn-add" @click="startAdd">{{ tr('+ Create') }}</button>
 
-    <div v-if="!modelValue.length && editingId === null" class="empty-hint">No working experience added yet.</div>
+    <div v-if="!modelValue.length && editingId === null" class="empty-hint">{{ tr('No working experience added yet.') }}</div>
 
     <div v-for="(item, index) in modelValue" :key="item.id" class="exp-card">
       <div class="card-header">
-        <h3 class="card-title"><span class="bar" />Working Experience {{ index + 1 }}</h3>
+        <h3 class="card-title"><span class="bar" />{{ tr('Working Experience') }} {{ index + 1 }}</h3>
         <div v-if="isEditing(item.id)" class="card-actions">
-          <button type="button" class="btn-save" @click="saveEdit">Save</button>
+          <button type="button" class="btn-save" @click="saveEdit">{{ t('common.save') }}</button>
         </div>
         <div v-else class="card-actions">
-          <button type="button" class="icon-btn" title="Edit" @click="startEdit(item)">
+          <button type="button" class="icon-btn" :title="t('common.edit')" @click="startEdit(item)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
           </button>
-          <button type="button" class="icon-btn" title="Delete" @click="removeItem(item.id)">
+          <button type="button" class="icon-btn" :title="t('common.delete')" @click="removeItem(item.id)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
           </button>
         </div>
@@ -115,32 +118,32 @@ function formatMonthDisplay(value) {
       <template v-if="isEditing(item.id) && draft">
         <div class="form-grid">
           <div class="form-item">
-            <label>Academic Position:</label>
-            <input v-model="draft.academicPosition" type="text" placeholder="please input" />
+            <label>{{ tr('Academic Position:') }}</label>
+            <input v-model="draft.academicPosition" type="text" :placeholder="t('common.pleaseInput')" />
           </div>
           <div class="form-item">
-            <label>Employer:</label>
-            <input v-model="draft.employer" type="text" placeholder="please input" />
+            <label>{{ tr('Employer') }}:</label>
+            <input v-model="draft.employer" type="text" :placeholder="t('common.pleaseInput')" />
           </div>
           <div class="form-item">
-            <label>Start of Service:</label>
-            <DatePickerEn v-model="draft.startDate" placeholder="please select date" />
+            <label>{{ tr('Start of Service:') }}</label>
+            <DatePickerEn v-model="draft.startDate" :placeholder="t('common.pleaseSelectDate')" />
           </div>
           <div class="form-item">
-            <label>End of Service:</label>
-            <DatePickerEn v-model="draft.endDate" placeholder="please select date" />
+            <label>{{ tr('End of Service:') }}</label>
+            <DatePickerEn v-model="draft.endDate" :placeholder="t('common.pleaseSelectDate')" />
           </div>
           <div class="form-item">
-            <label>Experience in Education (Years):</label>
-            <input v-model="draft.educationYears" type="text" placeholder="please input" />
+            <label>{{ tr('Experience in Education (Years):') }}</label>
+            <input v-model="draft.educationYears" type="text" :placeholder="t('common.pleaseInput')" />
           </div>
           <div class="form-item">
-            <label>Experience in Industry (Relevant Fields) (Years):</label>
-            <input v-model="draft.industryYears" type="text" placeholder="please input" />
+            <label>{{ tr('Experience in Industry (Relevant Fields) (Years):') }}</label>
+            <input v-model="draft.industryYears" type="text" :placeholder="t('common.pleaseInput')" />
           </div>
         </div>
         <div class="card-footer">
-          <button type="button" class="icon-btn" title="Cancel" @click="cancelEdit">
+          <button type="button" class="icon-btn" :title="t('common.cancel')" @click="cancelEdit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
           </button>
         </div>
@@ -148,12 +151,12 @@ function formatMonthDisplay(value) {
 
       <template v-else>
         <div class="detail-grid">
-          <div class="detail-row"><span class="label">Academic Position:</span><span>{{ item.academicPosition || '--' }}</span></div>
-          <div class="detail-row"><span class="label">Employer:</span><span>{{ item.employer || '--' }}</span></div>
-          <div class="detail-row"><span class="label">Start of Service:</span><span>{{ formatMonthDisplay(item.startDate) }}</span></div>
-          <div class="detail-row"><span class="label">End of Service:</span><span>{{ formatMonthDisplay(item.endDate) }}</span></div>
-          <div class="detail-row"><span class="label">Experience in Education (Years):</span><span>{{ item.educationYears || '--' }}</span></div>
-          <div class="detail-row"><span class="label">Experience in Industry (Relevant Fields) (Years):</span><span>{{ item.industryYears || '--' }}</span></div>
+          <div class="detail-row"><span class="label">{{ tr('Academic Position:') }}</span><span>{{ item.academicPosition || tr('--') }}</span></div>
+          <div class="detail-row"><span class="label">{{ tr('Employer') }}:</span><span>{{ item.employer || tr('--') }}</span></div>
+          <div class="detail-row"><span class="label">{{ tr('Start of Service:') }}</span><span>{{ formatMonthDisplay(item.startDate) }}</span></div>
+          <div class="detail-row"><span class="label">{{ tr('End of Service:') }}</span><span>{{ formatMonthDisplay(item.endDate) }}</span></div>
+          <div class="detail-row"><span class="label">{{ tr('Experience in Education (Years):') }}</span><span>{{ item.educationYears || tr('--') }}</span></div>
+          <div class="detail-row"><span class="label">{{ tr('Experience in Industry (Relevant Fields) (Years):') }}</span><span>{{ item.industryYears || tr('--') }}</span></div>
         </div>
       </template>
     </div>

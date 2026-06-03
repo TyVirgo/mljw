@@ -80,6 +80,7 @@ export const developedPages = new Set([
   'course-application',
   'course-approval-process',
   'course-change-application',
+  'course-change-review',
   'lecturer-information',
   'evaluation-settings',
 ])

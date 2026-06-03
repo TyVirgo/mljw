@@ -96,7 +96,7 @@ async function handleFileChange(event) {
   try {
     form[key] = await readImageFile(file)
   } catch (err) {
-    window.alert(err.message || 'Failed to upload image')
+    window.alert(err.message ? tr(err.message) : tr('Failed to upload image'))
   } finally {
     uploadingImageKey.value = ''
   }
@@ -293,7 +293,7 @@ function getDeleteMessage() {
               :id="`field-${item.key}`"
               class="image-field"
             >
-              <label>{{ item.label }}</label>
+              <label>{{ tr(item.label) }}</label>
               <div class="image-content">
                 <button
                   type="button"
@@ -306,7 +306,7 @@ function getDeleteMessage() {
                 <button type="button" class="delete-link" @click="requestDeleteImage(item.key)">
                   {{ t('common.delete') }}
                 </button>
-                <p class="image-hint">{{ item.hint }}</p>
+                <p class="image-hint">{{ tr(item.hint) }}</p>
               </div>
             </div>
           </div>
@@ -320,7 +320,7 @@ function getDeleteMessage() {
               :id="`field-${item.key}`"
               class="image-field"
             >
-              <label>{{ item.label }}</label>
+              <label>{{ tr(item.label) }}</label>
               <div class="image-content">
                 <button
                   type="button"
@@ -333,7 +333,7 @@ function getDeleteMessage() {
                 <button type="button" class="delete-link" @click="requestDeleteImage(item.key)">
                   {{ t('common.delete') }}
                 </button>
-                <p class="image-hint">{{ item.hint }}</p>
+                <p class="image-hint">{{ tr(item.hint) }}</p>
               </div>
             </div>
 
@@ -376,7 +376,7 @@ function getDeleteMessage() {
               :id="`field-${item.key}`"
               class="image-field"
             >
-              <label>{{ item.label }}</label>
+              <label>{{ tr(item.label) }}</label>
               <div class="image-content">
                 <button
                   type="button"
@@ -389,7 +389,7 @@ function getDeleteMessage() {
                 <button type="button" class="delete-link" @click="requestDeleteImage(item.key)">
                   {{ t('common.delete') }}
                 </button>
-                <p class="image-hint">{{ item.hint }}</p>
+                <p class="image-hint">{{ tr(item.hint) }}</p>
               </div>
             </div>
 
@@ -399,7 +399,7 @@ function getDeleteMessage() {
               :id="`field-${item.key}`"
               class="image-field"
             >
-              <label>{{ item.label }}</label>
+              <label>{{ tr(item.label) }}</label>
               <div class="image-content">
                 <button
                   type="button"
@@ -412,7 +412,7 @@ function getDeleteMessage() {
                 <button type="button" class="delete-link" @click="requestDeleteImage(item.key)">
                   {{ t('common.delete') }}
                 </button>
-                <p class="image-hint">{{ item.hint }}</p>
+                <p class="image-hint">{{ tr(item.hint) }}</p>
               </div>
             </div>
 

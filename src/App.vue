@@ -20,11 +20,12 @@ import CourseInformationView from './views/CourseInformationView.vue'
 import CourseApplicationView from './views/CourseApplicationView.vue'
 import CourseApprovalView from './views/CourseApprovalView.vue'
 import CourseChangeApplicationView from './views/CourseChangeApplicationView.vue'
+import CourseChangeReviewView from './views/CourseChangeReviewView.vue'
 import UnderConstructionView from './views/UnderConstructionView.vue'
 import AcademicPortalView from './views/AcademicPortalView.vue'
 import { developedPages, basicDataModuleKey } from './config/menu.js'
 
-const appView = ref('admin')
+const appView = ref('portal')
 const currentPageId = ref('dashboard')
 
 const isDashboard = computed(() => currentPageId.value === 'dashboard')
@@ -42,6 +43,7 @@ const isCourseInformation = computed(() => currentPageId.value === 'course-infor
 const isCourseApplication = computed(() => currentPageId.value === 'course-application')
 const isCourseApproval = computed(() => currentPageId.value === 'course-approval-process')
 const isCourseChangeApplication = computed(() => currentPageId.value === 'course-change-application')
+const isCourseChangeReview = computed(() => currentPageId.value === 'course-change-review')
 const isLecturerInformation = computed(() => currentPageId.value === 'lecturer-information')
 const isEvaluationSettings = computed(() => currentPageId.value === 'evaluation-settings')
 const isUnderConstruction = computed(() => !developedPages.has(currentPageId.value))
@@ -58,10 +60,6 @@ function goToPortal() {
   appView.value = 'portal'
 }
 
-function goToAdmin() {
-  appView.value = 'admin'
-}
-
 function openBasicDataAdmin() {
   appView.value = 'admin'
   currentPageId.value = 'dashboard'
@@ -69,7 +67,7 @@ function openBasicDataAdmin() {
 </script>
 
 <template>
-  <AcademicPortalView v-if="appView === 'portal'" @back-to-admin="goToAdmin" @open-basic-data="openBasicDataAdmin" />
+  <AcademicPortalView v-if="appView === 'portal'" @open-basic-data="openBasicDataAdmin" />
 
   <div v-else class="app-layout">
     <HeaderBar :title-key="basicDataModuleKey" @back-to-portal="goToPortal" @go-home="goToPortal" />
@@ -93,6 +91,7 @@ function openBasicDataAdmin() {
           <CourseApplicationView v-else-if="isCourseApplication" />
           <CourseApprovalView v-else-if="isCourseApproval" />
           <CourseChangeApplicationView v-else-if="isCourseChangeApplication" />
+          <CourseChangeReviewView v-else-if="isCourseChangeReview" />
           <LecturerInformationView v-else-if="isLecturerInformation" />
           <EvaluationSettingsView v-else-if="isEvaluationSettings" />
           <UnderConstructionView v-else-if="isUnderConstruction" @back="handleBack" />

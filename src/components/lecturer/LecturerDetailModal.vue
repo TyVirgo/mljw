@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   formSteps,
   formatDateDisplay,
@@ -14,7 +15,10 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
+const { t, tr } = useAppI18n()
+
 const currentStep = ref(1)
+const translatedSteps = computed(() => formSteps.map((step) => ({ ...step, label: tr(step.label) })))
 const cpdExpanded = ref({})
 
 watch(
@@ -33,7 +37,7 @@ watch(
   },
 )
 
-const isLastStep = computed(() => currentStep.value === formSteps.length)
+const isLastStep = computed(() => currentStep.value === translatedSteps.value.length)
 
 function stepClass(stepId) {
   return stepId === currentStep.value ? 'active' : ''
@@ -77,13 +81,13 @@ function handleOverlayClick(event) {
     <div v-if="visible && data" class="modal-overlay" @click="handleOverlayClick">
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
-          <h2 class="modal-title">Detail</h2>
-          <button type="button" class="modal-close" aria-label="Close" @click="emit('close')">×</button>
+          <h2 class="modal-title">{{ tr('Detail') }}</h2>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" @click="emit('close')">×</button>
         </div>
 
         <div class="stepper">
           <div class="stepper-track">
-            <div v-for="(step, index) in formSteps" :key="step.id" class="step-unit">
+            <div v-for="(step, index) in translatedSteps" :key="step.id" class="step-unit">
               <button
                 type="button"
                 class="step-unit-body"
@@ -94,7 +98,7 @@ function handleOverlayClick(event) {
                 <div class="step-circle">{{ step.id }}</div>
                 <span class="step-label">{{ step.label }}</span>
               </button>
-              <div v-if="index < formSteps.length - 1" class="step-connector" aria-hidden="true">
+              <div v-if="index < translatedSteps.length - 1" class="step-connector" aria-hidden="true">
                 <span class="step-connector-line" />
                 <svg class="step-connector-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                   <polyline points="9 6 15 12 9 18" />
@@ -108,65 +112,65 @@ function handleOverlayClick(event) {
           <!-- Step 1 -->
           <div v-show="currentStep === 1">
             <section class="detail-section">
-              <h3 class="section-title"><span class="bar" />Personal Information</h3>
+              <h3 class="section-title"><span class="bar" />{{ tr('Personal Information') }}</h3>
               <div class="detail-columns">
                 <div class="detail-col detail-col-left">
-                  <div class="detail-row"><span class="label">Name:</span><span class="value">{{ data.name }}</span></div>
-                  <div class="detail-row"><span class="label">Name_MAL:</span><span class="value">{{ display(data.nameMal) }}</span></div>
-                  <div class="detail-row"><span class="label">Date of Birth:</span><span class="value">{{ formatDateDisplay(data.personal?.dateOfBirth) }}</span></div>
-                  <div class="detail-row"><span class="label">Mobile Phone:</span><span class="value">{{ display(data.personal?.mobilePhone) }}</span></div>
-                  <div class="detail-row"><span class="label">Degree:</span><span class="value">{{ data.degree }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Name:') }}</span><span class="value">{{ data.name }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Name_MAL') }}:</span><span class="value">{{ display(data.nameMal) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Date of Birth:') }}</span><span class="value">{{ formatDateDisplay(data.personal?.dateOfBirth) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Mobile Phone:') }}</span><span class="value">{{ display(data.personal?.mobilePhone) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Degree:') }}</span><span class="value">{{ tr(data.degree) }}</span></div>
                 </div>
                 <div class="detail-col detail-col-right">
-                  <div class="detail-row"><span class="label">Name_CN:</span><span class="value">{{ display(data.nameCn) }}</span></div>
-                  <div class="detail-row"><span class="label">Gender:</span><span class="value">{{ data.gender }}</span></div>
-                  <div class="detail-row"><span class="label">Nationality:</span><span class="value">{{ display(data.personal?.nationality) }}</span></div>
-                  <div class="detail-row"><span class="label">Personal Email:</span><span class="value">{{ display(data.personal?.personalEmail) }}</span></div>
-                  <div class="detail-row"><span class="label">Research Focus Areas:</span><span class="value">{{ display(data.personal?.researchFocusAreas) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Name_CN') }}:</span><span class="value">{{ display(data.nameCn) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Gender:') }}</span><span class="value">{{ tr(data.gender) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Nationality') }}:</span><span class="value">{{ tr(display(data.personal?.nationality)) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Personal Email:') }}</span><span class="value">{{ display(data.personal?.personalEmail) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Research Focus Areas:') }}</span><span class="value">{{ display(data.personal?.researchFocusAreas) }}</span></div>
                 </div>
               </div>
             </section>
 
             <section class="detail-section">
-              <h3 class="section-title"><span class="bar" />Employment Information</h3>
+              <h3 class="section-title"><span class="bar" />{{ tr('Employment Information') }}</h3>
               <div class="detail-columns">
                 <div class="detail-col detail-col-left">
-                  <div class="detail-row"><span class="label">Staff ID:</span><span class="value">{{ data.staffId }}</span></div>
-                  <div class="detail-row"><span class="label">School/Department:</span><span class="value">{{ data.department }}</span></div>
-                  <div class="detail-row"><span class="label">Title:</span><span class="value">{{ data.title }}</span></div>
-                  <div class="detail-row"><span class="label">Office Extension:</span><span class="value">{{ display(data.employment?.officeExtension) }}</span></div>
-                  <div class="detail-row"><span class="label">Date of Joining:</span><span class="value">{{ formatDateDisplay(data.dateOfJoining) }}</span></div>
-                  <div class="detail-row"><span class="label">Currently Teaching:</span><span class="value">{{ data.employment?.currentlyTeaching }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Staff ID:') }}</span><span class="value">{{ data.staffId }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('School/Department:') }}</span><span class="value">{{ tr(data.department) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Title:') }}</span><span class="value">{{ tr(data.title) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Office Extension:') }}</span><span class="value">{{ display(data.employment?.officeExtension) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Date of Joining:') }}</span><span class="value">{{ formatDateDisplay(data.dateOfJoining) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Currently Teaching:') }}</span><span class="value">{{ tr(data.employment?.currentlyTeaching) }}</span></div>
                 </div>
                 <div class="detail-col detail-col-right">
-                  <div class="detail-row"><span class="label">Category:</span><span class="value">{{ data.category }}</span></div>
-                  <div class="detail-row"><span class="label">FOU/UG/PG:</span><span class="value">{{ display(data.employment?.foundationUndergraduatePostgraduate) }}</span></div>
-                  <div class="detail-row"><span class="label">Academic Position:</span><span class="value">{{ data.academicPosition }}</span></div>
-                  <div class="detail-row"><span class="label">XMUM Email:</span><span class="value">{{ display(data.employment?.xmumEmail) }}</span></div>
-                  <div class="detail-row"><span class="label">Employment Status:</span><span class="value">{{ data.employmentStatus }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Category:') }}</span><span class="value">{{ tr(data.category) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('FOU/UG/PG:') }}</span><span class="value">{{ tr(display(data.employment?.foundationUndergraduatePostgraduate)) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Academic Position:') }}</span><span class="value">{{ tr(data.academicPosition) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('XMUM Email:') }}</span><span class="value">{{ display(data.employment?.xmumEmail) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Employment Status:') }}</span><span class="value">{{ tr(data.employmentStatus) }}</span></div>
                 </div>
               </div>
             </section>
 
             <section class="detail-section">
-              <h3 class="section-title"><span class="bar" />Others</h3>
+              <h3 class="section-title"><span class="bar" />{{ tr('Others') }}</h3>
               <div v-if="data.attachment" class="attachment-block">
                 <div class="detail-row detail-row-full">
-                  <span class="label">Upload Attachment:</span>
+                  <span class="label">{{ tr('Upload Attachment:') }}</span>
                   <div class="file-card">
                     <span class="file-icon">DOC</span>
                     <div class="file-info">
                       <span class="file-name">{{ data.attachment.fileName }}</span>
-                      <span class="file-meta">{{ formatAttachmentSize(data.attachment.size) }} | Uploaded at: {{ formatUploadTimestamp(data.attachment.uploadedAt) }}</span>
+                      <span class="file-meta">{{ formatAttachmentSize(data.attachment.size) }} | {{ tr('Uploaded at:') }} {{ formatUploadTimestamp(data.attachment.uploadedAt) }}</span>
                     </div>
-                    <button type="button" class="download-btn" title="Download">
+                    <button type="button" class="download-btn" :title="tr('Download')">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                     </button>
                   </div>
                 </div>
               </div>
               <div class="detail-row detail-row-full">
-                <span class="label">Remarks:</span>
+                <span class="label">{{ tr('Remarks') }}:</span>
                 <span class="value">{{ display(data.remarks) }}</span>
               </div>
             </section>
@@ -174,24 +178,24 @@ function handleOverlayClick(event) {
 
           <!-- Step 2 -->
           <div v-show="currentStep === 2">
-            <div v-if="!data.qualifications?.length" class="empty-hint">No academic qualifications recorded.</div>
+            <div v-if="!data.qualifications?.length" class="empty-hint">{{ tr('No academic qualifications recorded.') }}</div>
             <div v-for="(qual, index) in data.qualifications" :key="qual.id" class="qual-card">
-              <h3 class="card-title"><span class="bar" />Qualification {{ index + 1 }}</h3>
+              <h3 class="card-title"><span class="bar" />{{ tr('Qualification') }} {{ index + 1 }}</h3>
               <div class="detail-grid">
-                <div class="detail-item"><span class="label">Name of Qualification:</span><span class="value">{{ qual.name }}</span></div>
-                <div class="detail-item"><span class="label">Name of Awarding Institution:</span><span class="value">{{ qual.institution }}</span></div>
-                <div class="detail-item"><span class="label">Awarding country:</span><span class="value">{{ qual.country }}</span></div>
-                <div class="detail-item"><span class="label">Year of Award:</span><span class="value">{{ qual.year }}</span></div>
-                <div class="detail-item full"><span class="label">Remarks:</span><span class="value">{{ display(qual.remarks) }}</span></div>
+                <div class="detail-item"><span class="label">{{ tr('Name of Qualification:') }}</span><span class="value">{{ qual.name }}</span></div>
+                <div class="detail-item"><span class="label">{{ tr('Name of Awarding Institution:') }}</span><span class="value">{{ qual.institution }}</span></div>
+                <div class="detail-item"><span class="label">{{ tr('Awarding country:') }}</span><span class="value">{{ tr(qual.country) }}</span></div>
+                <div class="detail-item"><span class="label">{{ tr('Year of Award:') }}</span><span class="value">{{ qual.year }}</span></div>
+                <div class="detail-item full"><span class="label">{{ tr('Remarks') }}:</span><span class="value">{{ display(qual.remarks) }}</span></div>
               </div>
               <div v-if="qual.attachments?.length" class="attachments">
                 <div v-for="att in qual.attachments" :key="att.id" class="file-card">
                   <span class="file-icon">DOC</span>
                   <div class="file-info">
                     <span class="file-name">{{ att.fileName }}</span>
-                    <span class="file-meta">{{ formatAttachmentSize(att.size) }}, Uploaded at: {{ formatUploadTimestamp(att.uploadedAt) }}</span>
+                    <span class="file-meta">{{ formatAttachmentSize(att.size) }}, {{ tr('Uploaded at:') }} {{ formatUploadTimestamp(att.uploadedAt) }}</span>
                   </div>
-                  <button type="button" class="download-btn" title="Download">
+                  <button type="button" class="download-btn" :title="tr('Download')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                   </button>
                 </div>
@@ -201,44 +205,44 @@ function handleOverlayClick(event) {
 
           <!-- Step 3 -->
           <div v-show="currentStep === 3">
-            <div v-if="!data.workingExperiences?.length" class="empty-hint">No working experience recorded.</div>
+            <div v-if="!data.workingExperiences?.length" class="empty-hint">{{ tr('No working experience recorded.') }}</div>
             <div v-for="(exp, index) in data.workingExperiences" :key="exp.id" class="exp-card">
-              <h3 class="card-title"><span class="bar" />Working Experience {{ index + 1 }}</h3>
+              <h3 class="card-title"><span class="bar" />{{ tr('Working Experience') }} {{ index + 1 }}</h3>
               <div class="detail-grid">
-                <div class="detail-item"><span class="label">Academic Position:</span><span class="value">{{ exp.academicPosition }}</span></div>
-                <div class="detail-item"><span class="label">Employer:</span><span class="value">{{ exp.employer }}</span></div>
-                <div class="detail-item"><span class="label">Start of Service:</span><span class="value">{{ formatMonthDisplay(exp.startDate) }}</span></div>
-                <div class="detail-item"><span class="label">End of Service:</span><span class="value">{{ formatMonthDisplay(exp.endDate) }}</span></div>
-                <div class="detail-item"><span class="label">Experience in Education (Years):</span><span class="value">{{ exp.educationYears }}</span></div>
-                <div class="detail-item"><span class="label">Experience in Industry (Relevant Fields) (Years):</span><span class="value">{{ exp.industryYears }}</span></div>
+                <div class="detail-item"><span class="label">{{ tr('Academic Position:') }}</span><span class="value">{{ exp.academicPosition }}</span></div>
+                <div class="detail-item"><span class="label">{{ tr('Employer') }}:</span><span class="value">{{ exp.employer }}</span></div>
+                <div class="detail-item"><span class="label">{{ tr('Start of Service:') }}</span><span class="value">{{ formatMonthDisplay(exp.startDate) }}</span></div>
+                <div class="detail-item"><span class="label">{{ tr('End of Service:') }}</span><span class="value">{{ formatMonthDisplay(exp.endDate) }}</span></div>
+                <div class="detail-item"><span class="label">{{ tr('Experience in Education (Years):') }}</span><span class="value">{{ exp.educationYears }}</span></div>
+                <div class="detail-item"><span class="label">{{ tr('Experience in Industry (Relevant Fields) (Years):') }}</span><span class="value">{{ exp.industryYears }}</span></div>
               </div>
             </div>
           </div>
 
           <!-- Step 4 CPD -->
           <div v-show="currentStep === 4">
-            <div v-if="!data.cpdByYear?.length" class="empty-hint">No CPD records available. Data will appear after HR sync or teacher portal approval.</div>
+            <div v-if="!data.cpdByYear?.length" class="empty-hint">{{ tr('No CPD records available. Data will appear after HR sync or teacher portal approval.') }}</div>
             <div v-for="yearGroup in data.cpdByYear" :key="yearGroup.year" class="cpd-year-panel">
               <button type="button" class="cpd-year-header" @click="toggleCpdYear(yearGroup.year)">
                 <span class="bar" />
                 <span class="year-label">{{ yearGroup.year }}</span>
-                <span class="year-stats">Number of Activity Attended: {{ yearGroup.activityCount }}</span>
-                <span class="year-stats">Number of Hours Earned: {{ yearGroup.hoursEarned }}</span>
+                <span class="year-stats">{{ tr('Number of Activity Attended:') }} {{ yearGroup.activityCount }}</span>
+                <span class="year-stats">{{ tr('Number of Hours Earned:') }} {{ yearGroup.hoursEarned }}</span>
                 <svg class="chevron" :class="{ up: cpdExpanded[yearGroup.year] }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
               </button>
               <div v-show="cpdExpanded[yearGroup.year]" class="cpd-table-wrap">
                 <table class="cpd-table">
                   <thead>
                     <tr>
-                      <th>No.</th>
-                      <th>Name of Activity</th>
-                      <th>Name of Activity Provider</th>
-                      <th>Type of Activity</th>
-                      <th>Category</th>
-                      <th>Mode of Delivery</th>
-                      <th>Date(s) Attended</th>
-                      <th>Number of Hours Earned</th>
-                      <th>Evidence</th>
+                      <th>{{ t('common.serialNo') }}</th>
+                      <th>{{ tr('Name of Activity') }}</th>
+                      <th>{{ tr('Name of Activity Provider') }}</th>
+                      <th>{{ tr('Type of Activity') }}</th>
+                      <th>{{ tr('Category') }}</th>
+                      <th>{{ tr('Mode of Delivery') }}</th>
+                      <th>{{ tr('Date(s) Attended') }}</th>
+                      <th>{{ tr('Number of Hours Earned') }}</th>
+                      <th>{{ tr('Evidence') }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -261,9 +265,9 @@ function handleOverlayClick(event) {
         </div>
 
         <div class="modal-footer">
-          <button v-if="currentStep > 1" type="button" class="btn btn-default" @click="currentStep -= 1">Previous</button>
-          <button v-if="!isLastStep" type="button" class="btn btn-primary" @click="currentStep += 1">Next</button>
-          <button v-else type="button" class="btn btn-primary" @click="emit('close')">Close</button>
+          <button v-if="currentStep > 1" type="button" class="btn btn-default" @click="currentStep -= 1">{{ tr('Previous') }}</button>
+          <button v-if="!isLastStep" type="button" class="btn btn-primary" @click="currentStep += 1">{{ tr('Next') }}</button>
+          <button v-else type="button" class="btn btn-primary" @click="emit('close')">{{ t('common.close') }}</button>
         </div>
       </div>
     </div>

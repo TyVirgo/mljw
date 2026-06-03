@@ -55,7 +55,7 @@ function removeDepartment(dept) {
 
 function handleSubmit() {
   if (!selectedDepartments.value.length) {
-    error.value = 'Please select at least one department.'
+    error.value = tr('Please select at least one department.')
     return
   }
   emit('submit', [...selectedDepartments.value])
@@ -77,7 +77,7 @@ function handleOverlayClick(event) {
         <div class="modal-header">
           <div>
             <h2 class="modal-title">{{ t('common.userDepartment') }}</h2>
-            <p class="modal-desc">{{ tr('Set usage department permissions for') }} {{ selectedCount }} {{ tr('selected classroom(s).') }}</p>
+            <p class="modal-desc">{{ tr(`Set usage department permissions for ${selectedCount} selected classroom(s).`) }}</p>
           </div>
           <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
@@ -107,13 +107,13 @@ function handleOverlayClick(event) {
                     :checked="selectedDepartments.includes(dept)"
                     @change="toggleDepartment(dept)"
                   />
-                  <span>{{ dept }}</span>
+                  <span>{{ tr(dept) }}</span>
                 </label>
               </div>
 
               <div v-if="selectedDepartments.length" class="selected-tags">
                 <span v-for="dept in selectedDepartments" :key="dept" class="dept-tag">
-                  {{ dept }}
+                  {{ tr(dept) }}
                   <button type="button" class="tag-remove" @click="removeDepartment(dept)">×</button>
                 </span>
               </div>

@@ -39,6 +39,15 @@ function handleBrandClick() {
     <h1 class="header-title">{{ t(titleKey) }}</h1>
 
     <div class="header-actions">
+      <button type="button" class="portal-link-btn" @click="$emit('back-to-portal')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="17 1 21 5 17 9" />
+          <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+          <polyline points="7 23 3 19 7 15" />
+          <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+        </svg>
+        {{ t('user.backToPortal') }}
+      </button>
       <LanguageSwitcher />
       <button class="notification-btn" :aria-label="t('header.notifications')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -47,7 +56,7 @@ function handleBrandClick() {
         </svg>
         <span class="notification-dot"></span>
       </button>
-      <UserProfileMenu variant="admin" @back-to-portal="$emit('back-to-portal')" />
+      <UserProfileMenu variant="admin" />
     </div>
   </header>
 </template>
@@ -132,8 +141,35 @@ function handleBrandClick() {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 12px;
   padding-right: 24px;
+  flex-shrink: 0;
+}
+
+.portal-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.portal-link-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.portal-link-btn svg {
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
 }
 

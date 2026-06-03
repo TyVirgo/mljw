@@ -160,6 +160,18 @@ export default {
     courseDesc: 'Manage courses and curriculum.',
     lecturerDesc: 'View lecturer profiles and assignments.',
   },
+  portal: {
+    title: 'Academic Portal',
+    searchPlaceholder: 'Please input application name',
+    tabAll: 'All',
+    tabBasicService: 'Basic Service',
+    sectionBasicService: 'Basic Service',
+    underDevelopment: 'Under development',
+    apps: {
+      basicData: 'Basic Data',
+      studentRecords: 'Student Status Management',
+    },
+  },
   underConstruction: {
     title: 'This page is under construction.',
     subtitle: 'Please check back later.',

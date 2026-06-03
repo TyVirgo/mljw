@@ -422,11 +422,15 @@ function handleVersionFormSave(versionForm) {
 }
 
 function handleProgrammePublish() {
-  window.alert('The Approval letter for the update of professional information has been sent to the relevant personnel.')
+  window.alert(
+    tr('The Approval letter for the update of professional information has been sent to the relevant personnel.'),
+  )
 }
 
 function handleVersionPublish() {
-  window.alert('The Approval letter for the update of professional information has been sent to the relevant personnel.')
+  window.alert(
+    tr('The Approval letter for the update of professional information has been sent to the relevant personnel.'),
+  )
 }
 
 function openImportModal() {
@@ -485,7 +489,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
         <aside class="tree-panel">
           <div class="tree-search">
             <input v-model="treeKeyword" type="text" :placeholder="tr('please input the keywords')" />
-            <button type="button" class="tree-search-btn" aria-label="Search tree">
+            <button type="button" class="tree-search-btn" :aria-label="tr('Search tree')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -500,7 +504,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                 @click="selectTreeNode(node)"
               >
                 <span class="tree-arrow" :class="{ expanded: isTreeExpanded(node.id) }">▸</span>
-                <span class="tree-label">{{ node.label }}</span>
+                <span class="tree-label">{{ tr(node.label) }}</span>
               </div>
               <template v-if="node.children?.length && isTreeExpanded(node.id)">
                 <div
@@ -512,7 +516,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                   @click.stop="selectTreeNode(child)"
                 >
                   <span class="tree-arrow placeholder"></span>
-                  <span class="tree-label">{{ child.label }}</span>
+                  <span class="tree-label">{{ tr(child.label) }}</span>
                 </div>
               </template>
             </template>
@@ -634,11 +638,11 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                       </td>
                       <td>
                         <span v-if="hasActiveSearch" v-html="highlightText(item.name, getCellHighlightTerms('name'))"></span>
-                        <span v-else>{{ item.name }}</span>
+                        <span v-else>{{ tr(item.name) }}</span>
                       </td>
                       <td>
                         <span v-if="hasActiveSearch" v-html="highlightText(item.level, getCellHighlightTerms('level'))"></span>
-                        <span v-else>{{ item.level }}</span>
+                        <span v-else>{{ tr(item.level) }}</span>
                       </td>
                       <td>{{ item.years }}</td>
                       <td class="actions-cell">
@@ -882,11 +886,6 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   padding: 16px 20px;
 }
 
-.search-bar {
-  margin-bottom: 12px;
-  flex-shrink: 0;
-}
-
 .search-result-tip {
   margin-top: 10px;
   font-size: 13px;
@@ -911,71 +910,6 @@ function handleExportConfirm({ selectedFields, exportScope }) {
 
 .data-table tbody tr.search-result-row:hover {
   background: #fef3c7;
-}
-
-.search-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-}
-
-.search-fields {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 8px 10px;
-  min-width: 0;
-}
-
-.search-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-  min-width: 0;
-}
-
-.search-item label {
-  font-size: 12px;
-  color: #374151;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.search-item input,
-.search-item select {
-  width: 108px;
-  min-width: 88px;
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  box-sizing: border-box;
-}
-
-.search-item-name input {
-  width: 128px;
-  min-width: 100px;
-}
-
-.search-item-level select {
-  width: 118px;
-  min-width: 96px;
-}
-
-.search-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.search-actions .btn {
-  padding: 0 12px;
-  white-space: nowrap;
 }
 
 .toolbar {
