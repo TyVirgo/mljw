@@ -82,6 +82,7 @@ export const developedPages = new Set([
   'course-change-application',
   'lecturer-information',
   'evaluation-settings',
+  'lecturer-information',
 ])
 
 export function findMenuLabelKey(id) {
