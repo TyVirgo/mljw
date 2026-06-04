@@ -1,36 +1,64 @@
 /** Intake month codes: Feb/Apr short semesters, Sep long semester. */
+import { initialSemesterRecords, formatAcademicSession } from './semesterInfo.js'
+
 export const VALID_INTAKE_MONTHS = ['02', '04', '09']
 
-export const intakeOptions = [
-  '202509',
-  '202504',
-  '202502',
-  '202409',
-  '202404',
-  '202402',
-  '202309',
-  '202304',
-  '202302',
-]
+export function parseIntakeBatch(intake) {
+  const value = String(intake || '').trim()
+  const slashMatch = value.match(/^(\d{4})\/(\d{2})$/)
+  if (slashMatch && VALID_INTAKE_MONTHS.includes(slashMatch[2])) {
+    return { year: slashMatch[1], month: slashMatch[2] }
+  }
+  const compactMatch = value.match(/^(\d{4})(\d{2})$/)
+  if (compactMatch && VALID_INTAKE_MONTHS.includes(compactMatch[2])) {
+    return { year: compactMatch[1], month: compactMatch[2] }
+  }
+  return null
+}
+
+export function formatIntakeBatch(intake) {
+  const parsed = parseIntakeBatch(intake)
+  if (!parsed) return String(intake || '').trim()
+  return `${parsed.year}/${parsed.month}`
+}
+
+export function intakeToCompact(intake) {
+  const parsed = parseIntakeBatch(intake)
+  if (!parsed) return String(intake || '').replace(/\//g, '')
+  return `${parsed.year}${parsed.month}`
+}
+
+export function getIntakeOptions(records = initialSemesterRecords) {
+  const seen = new Set()
+  const options = []
+  records.forEach((record) => {
+    if (!VALID_INTAKE_MONTHS.includes(record.semester)) return
+    const value = formatAcademicSession(record.academicYear, record.semester)
+    if (value && !seen.has(value)) {
+      seen.add(value)
+      options.push(value)
+    }
+  })
+  return options.sort()
+}
+
+export const intakeOptions = getIntakeOptions()
 
 export const activeOptions = ['Yes', 'No']
 
 export const initialIntakeSets = [
-  { id: 1, code: '01', intake: '202509', active: 'Yes' },
-  { id: 2, code: '02', intake: '202504', active: 'Yes' },
-  { id: 3, code: '03', intake: '202502', active: 'Yes' },
-  { id: 4, code: '04', intake: '202409', active: 'Yes' },
-  { id: 5, code: '05', intake: '202404', active: 'Yes' },
-  { id: 6, code: '06', intake: '202402', active: 'Yes' },
+  { id: 1, code: '01', intake: '2025/09', active: 'Yes' },
+  { id: 2, code: '02', intake: '2025/04', active: 'Yes' },
+  { id: 3, code: '03', intake: '2025/02', active: 'Yes' },
+  { id: 4, code: '04', intake: '2024/09', active: 'Yes' },
+  { id: 5, code: '05', intake: '2024/04', active: 'Yes' },
+  { id: 6, code: '06', intake: '2024/02', active: 'Yes' },
 ]
 
 let intakeSeq = initialIntakeSets.length
 
 export function isValidIntakeBatch(intake) {
-  const value = String(intake || '').trim()
-  if (!/^\d{6}$/.test(value)) return false
-  if (!/^(19|20)\d{2}(0[1-9]|1[0-2])$/.test(value)) return false
-  return VALID_INTAKE_MONTHS.includes(value.slice(4, 6))
+  return parseIntakeBatch(intake) !== null
 }
 
 export function createIntakeSetId() {
@@ -41,7 +69,7 @@ export function createIntakeSetId() {
 export function validateIntakeSetForm(form, allItems, excludeId = null) {
   const errors = {}
   const code = String(form.code || '').trim()
-  const intake = String(form.intake || '').trim()
+  const intake = formatIntakeBatch(form.intake)
 
   if (!code) {
     errors.code = 'Code is required'
@@ -57,7 +85,7 @@ export function validateIntakeSetForm(form, allItems, excludeId = null) {
   if (!intake) {
     errors.intake = 'Intake is required'
   } else if (!isValidIntakeBatch(intake)) {
-    errors.intake = 'Intake must be Year+Month in 02, 04 or 09 format (e.g. 202409)'
+    errors.intake = 'Intake must be in YYYY/MM format with month 02, 04 or 09 (e.g. 2025/09)'
   }
 
   if (!form.active) {

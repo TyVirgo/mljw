@@ -1,5 +1,5 @@
 import { isValidDdMmYyyy, parseDdMmYyyy, formatDateToDdMmYyyy } from './universityInfo.js'
-import { initialSemesterRecords } from './semesterInfo.js'
+import { initialSemesterRecords, formatAcademicSession } from './semesterInfo.js'
 
 export const CALENDAR_STORAGE_KEY = 'jw-calendar-data'
 export const MAX_CALENDAR_REMARKS = 200
@@ -14,15 +14,50 @@ export const holidayNameOptions = [
   'Other',
 ]
 
+export function buildSemesterPeriodKey(academicYear, semester) {
+  return formatAcademicSession(academicYear, semester)
+}
+
+export function parseSemesterPeriodKey(key) {
+  if (!key) return null
+  const slashMatch = String(key).match(/^(\d{4})\/(\d{2})$/)
+  if (slashMatch) {
+    return { academicYear: slashMatch[1], semester: slashMatch[2] }
+  }
+  const compactMatch = String(key).match(/^(\d{4})(\d{2})$/)
+  if (compactMatch) {
+    return { academicYear: compactMatch[1], semester: compactMatch[2] }
+  }
+  return null
+}
+
+export function formatSemesterPeriodKey(key) {
+  const parsed = parseSemesterPeriodKey(key)
+  if (!parsed) return key
+  return buildSemesterPeriodKey(parsed.academicYear, parsed.semester)
+}
+
+function toLegacySemesterPeriodKey(key) {
+  const parsed = parseSemesterPeriodKey(key)
+  if (!parsed) return key
+  return `${parsed.academicYear}${parsed.semester}`
+}
+
 export function getSemesterPeriodOptions(records = initialSemesterRecords) {
   return records.map((record) => ({
-    key: `${record.academicYear}${record.semester}`,
+    key: buildSemesterPeriodKey(record.academicYear, record.semester),
     record,
   }))
 }
 
 export function findSemesterRecordByKey(key, records = initialSemesterRecords) {
-  return records.find((item) => `${item.academicYear}${item.semester}` === key) || null
+  const parsed = parseSemesterPeriodKey(key)
+  if (!parsed) return null
+  return (
+    records.find(
+      (item) => item.academicYear === parsed.academicYear && item.semester === parsed.semester,
+    ) || null
+  )
 }
 
 export function formatDisplayDateDot(value) {
@@ -176,12 +211,20 @@ export function loadAllCalendarData() {
 
 export function loadCalendarConfig(semesterKey) {
   const all = loadAllCalendarData()
-  return all[semesterKey] ? { ...createEmptyCalendarConfig(), ...all[semesterKey] } : createEmptyCalendarConfig()
+  const normalizedKey = formatSemesterPeriodKey(semesterKey)
+  const legacyKey = toLegacySemesterPeriodKey(semesterKey)
+  const stored = all[normalizedKey] || all[legacyKey]
+  return stored ? { ...createEmptyCalendarConfig(), ...stored } : createEmptyCalendarConfig()
 }
 
 export function saveCalendarConfig(semesterKey, config) {
   const all = loadAllCalendarData()
-  all[semesterKey] = {
+  const normalizedKey = formatSemesterPeriodKey(semesterKey)
+  const legacyKey = toLegacySemesterPeriodKey(semesterKey)
+  if (legacyKey !== normalizedKey && all[legacyKey]) {
+    delete all[legacyKey]
+  }
+  all[normalizedKey] = {
     calendarRemarks: config.calendarRemarks || '',
     attachments: config.attachments || [],
     events: config.events || [],
@@ -191,7 +234,8 @@ export function saveCalendarConfig(semesterKey, config) {
 }
 
 export function getDefaultCalendarConfig(semesterKey) {
-  if (semesterKey === '202509') {
+  const normalizedKey = formatSemesterPeriodKey(semesterKey)
+  if (normalizedKey === '2025/09') {
     return {
       calendarRemarks: '',
       attachments: [],

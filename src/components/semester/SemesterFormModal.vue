@@ -3,6 +3,7 @@ import { ref, watch, computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import YnSwitch from '../common/YnSwitch.vue'
 import { validateSemesterMasterForm } from '../../data/semesters.js'
+import { semesterCodeOptions } from '../../data/semesterInfo.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -111,14 +112,14 @@ function handleOverlayClick(event) {
 
           <div class="form-row">
             <label class="form-label"><span class="required">*</span> {{ tr('Semester:') }}</label>
-            <input
+            <select
               v-model="form.name"
-              type="text"
               class="form-input"
-              :class="{ error: errors.name }"
-              maxlength="20"
-              :placeholder="t('common.pleaseInput')"
-            />
+              :class="{ error: errors.name, 'is-empty': !form.name }"
+            >
+              <option value="">{{ t('common.pleaseSelect') }}</option>
+              <option v-for="opt in semesterCodeOptions" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
           </div>
           <p v-if="errors.name" class="field-error">{{ tr(errors.name) }}</p>
 
@@ -236,6 +237,10 @@ function handleOverlayClick(event) {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.form-input.is-empty {
+  color: #9ca3af;
 }
 
 .switch-wrap {

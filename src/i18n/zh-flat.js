@@ -127,6 +127,8 @@ export const zhFlat = {
   'Are you sure you want to delete this intake set?': '确定要删除该入学批次吗？',
   'Are you sure you want to delete 2 selected intake sets?': '确定要删除选中的 2 个入学批次吗？',
   'Are you sure you want to delete 3 selected intake sets?': '确定要删除选中的 3 个入学批次吗？',
+  'Intake must be in YYYY/MM format with month 02, 04 or 09 (e.g. 2025/09)':
+    '入学批次须为 YYYY/MM 格式，月份仅可为 02、04 或 09（如 2025/09）',
   'Block No. already exists.': '楼栋编号已存在。',
   'Floor': '楼层',
   '+ Create': '+ 新增',
@@ -141,8 +143,11 @@ export const zhFlat = {
   'Programme Intake': '专业批次',
   'Years': '学制',
   'Starting Semester': '起始学期',
+  'Starting Academic Session': '起始学年学期',
   'Intake:': '入学批次：',
   'Starting Semester:': '起始学期：',
+  'Starting Academic Session:': '起始学年学期：',
+  'Starting Academic Session is required': '起始学年学期为必填项',
   'Active:': '启用：',
   'Programme:': '培养方案：',
   'School:': '学院：',
@@ -502,6 +507,8 @@ export const zhFlat = {
   'Semester must be within 20 characters': '学期名称不能超过 20 个字符',
 
   // Calendar
+  'Academic Session:': '学年学期：',
+  'Academic Session': '学年学期',
   'Academic Year & Semester:': '学年学期：',
   'Academic Year & Semester is required': '学年学期为必填项',
   'Selected Academic Year & Semester is not configured': '所选学年学期未配置',

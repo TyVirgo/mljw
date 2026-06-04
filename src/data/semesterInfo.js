@@ -1,5 +1,7 @@
 import { isValidDdMmYyyy, parseDdMmYyyy } from './universityInfo.js'
 
+export const semesterCodeOptions = ['02', '04', '09']
+
 export const semesterTypeOptions = ['Long', 'Short']
 
 export const weekStartDayOptions = ['Sunday', 'Monday']
@@ -86,8 +88,8 @@ export function getAcademicYearOptions(records) {
   return [...new Set(records.map((item) => item.academicYear))].sort()
 }
 
-export function getSemesterOptions(records) {
-  return [...new Set(records.map((item) => item.semester))].sort()
+export function getSemesterOptions() {
+  return [...semesterCodeOptions]
 }
 
 export function formatDisplayDate(value) {
@@ -98,6 +100,11 @@ export function formatDisplayDate(value) {
 export function formatAcademicYearDisplay(year, locale = 'en') {
   if (!year) return ''
   return locale === 'zh' ? `${year}年` : year
+}
+
+export function formatAcademicSession(academicYear, semester) {
+  if (!academicYear || !semester) return ''
+  return `${String(academicYear).trim()}/${String(semester).trim()}`
 }
 
 export function formatSemesterDisplay(semester, locale = 'en') {
@@ -118,8 +125,8 @@ export function validateSemesterForm(form, allItems, excludeId = null) {
 
   if (!semester) {
     errors.semester = 'Semester is required'
-  } else if (!/^\d{2}$/.test(semester)) {
-    errors.semester = 'Semester must be a 2-digit code (e.g. 02)'
+  } else if (!semesterCodeOptions.includes(semester)) {
+    errors.semester = 'Semester must be one of: 02, 04, 09'
   }
 
   if (!form.semesterType) {

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import SemesterInfoFormModal from '../components/semester/SemesterInfoFormModal.vue'
 import AcademicYearFormModal from '../components/semester/AcademicYearFormModal.vue'
 import SemesterFormModal from '../components/semester/SemesterFormModal.vue'
@@ -13,6 +13,7 @@ import {
   getAcademicYearOptions,
   getSemesterOptions,
   formatDisplayDate,
+  formatAcademicSession,
   formatAcademicYearDisplay,
   formatSemesterDisplay,
   normalizeCurrentSemester,
@@ -74,7 +75,7 @@ const deleteTarget = ref('year-semester')
 const exportModalVisible = ref(false)
 
 const academicYearOptions = computed(() => getAcademicYearOptions(records.value))
-const semesterOptions = computed(() => getSemesterOptions(records.value))
+const semesterOptions = computed(() => getSemesterOptions())
 
 const filteredRecords = computed(() => {
   const { academicYear, semester, currentOnly } = appliedSearch.value
@@ -160,6 +161,14 @@ function handleReset() {
   appliedSearch.value = { academicYear: '', semester: '', currentOnly: false }
   currentPage.value = 1
 }
+
+watch(searchCurrentOnly, (currentOnly) => {
+  appliedSearch.value = {
+    ...appliedSearch.value,
+    currentOnly,
+  }
+  currentPage.value = 1
+})
 
 function handleYearSearch() {
   appliedYearSearch.value = searchYearKeyword.value
@@ -357,6 +366,10 @@ function displaySemester(semester) {
   return formatSemesterDisplay(semester, locale.value)
 }
 
+function displayAcademicSession(item) {
+  return formatAcademicSession(item.academicYear, item.semester)
+}
+
 function displaySemesterSettingName(name) {
   return formatSemesterSettingName(name, locale.value)
 }
@@ -488,6 +501,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
               <thead>
                 <tr>
                   <th>{{ t('common.serialNo') }}</th>
+                  <th>{{ tr('Academic Session') }}</th>
                   <th>{{ tr('Academic Year') }}</th>
                   <th>{{ tr('Semester') }}</th>
                   <th>{{ tr('Semester Type') }}</th>
@@ -499,10 +513,11 @@ function handleExportConfirm({ selectedFields, exportScope }) {
               </thead>
               <tbody>
                 <tr v-if="!paginatedRecords.length">
-                  <td colspan="8" class="empty-cell">{{ t('common.noData') }}</td>
+                  <td colspan="9" class="empty-cell">{{ t('common.noData') }}</td>
                 </tr>
                 <tr v-for="(item, index) in paginatedRecords" :key="item.id">
                   <td>{{ getRowNumber(index) }}</td>
+                  <td>{{ displayAcademicSession(item) }}</td>
                   <td>{{ displayYear(item.academicYear) }}</td>
                   <td>{{ displaySemester(item.semester) }}</td>
                   <td>{{ tr(item.semesterType) }}</td>

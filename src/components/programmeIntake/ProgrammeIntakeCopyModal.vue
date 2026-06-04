@@ -142,28 +142,34 @@ function handleOverlayClick(event) {
             <p class="section-title">{{ t('modal.batchInformation') }}</p>
             <p class="section-tip">{{ t('modal.batchTip') }}</p>
 
-            <div class="form-row">
-              <label class="form-label"><span class="required">*</span> Intake:</label>
-              <select v-model="intake" class="form-input" :class="{ error: errors.intake, 'is-empty': !intake }">
-                <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in activeIntakeOptions" :key="opt" :value="opt">{{ opt }}</option>
-              </select>
-            </div>
-            <p v-if="errors.intake" class="field-error">{{ errors.intake }}</p>
+            <div class="bottom-form-fields">
+              <div class="form-field">
+                <label class="form-label"><span class="required">*</span> Intake:</label>
+                <div class="form-field-control">
+                  <select v-model="intake" class="form-input" :class="{ error: errors.intake, 'is-empty': !intake }">
+                    <option value="">{{ t('common.pleaseSelect') }}</option>
+                    <option v-for="opt in activeIntakeOptions" :key="opt" :value="opt">{{ opt }}</option>
+                  </select>
+                  <p v-if="errors.intake" class="field-error">{{ errors.intake }}</p>
+                </div>
+              </div>
 
-            <div class="form-row">
-              <label class="form-label"><span class="required">*</span> Starting Semester:</label>
-              <select
-                v-model="startingSemester"
-                class="form-input"
-                :class="{ error: errors.startingSemester, 'is-empty': !startingSemester }"
-              >
-                <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in startingSemesterOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
-              </select>
+              <div class="form-field">
+                <label class="form-label"><span class="required">*</span> {{ tr('Starting Academic Session:') }}</label>
+                <div class="form-field-control">
+                  <select
+                    v-model="startingSemester"
+                    class="form-input"
+                    :class="{ error: errors.startingSemester, 'is-empty': !startingSemester }"
+                  >
+                    <option value="">{{ t('common.pleaseSelect') }}</option>
+                    <option v-for="opt in startingSemesterOptions" :key="opt" :value="opt">{{ opt }}</option>
+                  </select>
+                  <p v-if="errors.startingSemester" class="field-error">{{ errors.startingSemester }}</p>
+                  <p class="form-note">{{ t('modal.intakeFormNote') }}</p>
+                </div>
+              </div>
             </div>
-            <p v-if="errors.startingSemester" class="field-error">{{ errors.startingSemester }}</p>
-            <p class="form-note">Note: Data is taken from the academic year and semester information table.</p>
 
             <div class="form-row">
               <label class="form-label"><span class="required">*</span> Active:</label>
@@ -297,6 +303,47 @@ function handleOverlayClick(event) {
   border-top: 1px solid #f3f4f6;
 }
 
+.bottom-form-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 32px;
+}
+
+.form-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+  min-width: 320px;
+}
+
+.form-field .form-label {
+  width: auto;
+  padding-top: 7px;
+  line-height: 18px;
+}
+
+.form-field-control {
+  flex: 1;
+  min-width: 0;
+  max-width: 240px;
+}
+
+.form-field .form-input {
+  width: 100%;
+}
+
+.form-field .field-error {
+  margin: 4px 0 0;
+}
+
+.form-field .form-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+
 .form-row {
   display: flex;
   align-items: center;
@@ -305,11 +352,12 @@ function handleOverlayClick(event) {
 }
 
 .form-label {
-  width: 132px;
+  width: 180px;
   flex-shrink: 0;
   font-size: 13px;
   color: #374151;
   text-align: right;
+  white-space: nowrap;
 }
 
 .required {
@@ -337,15 +385,9 @@ function handleOverlayClick(event) {
 }
 
 .field-error {
-  margin: 0 0 10px 144px;
+  margin: 0 0 10px 192px;
   font-size: 12px;
   color: #ef4444;
-}
-
-.form-note {
-  margin: 0 0 12px 144px;
-  font-size: 12px;
-  color: #9ca3af;
 }
 
 .radio-group {

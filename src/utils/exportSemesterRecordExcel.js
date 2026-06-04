@@ -1,8 +1,9 @@
 import * as XLSX from 'xlsx'
-import { formatDisplayDate } from '../data/semesterInfo.js'
+import { formatDisplayDate, formatAcademicSession } from '../data/semesterInfo.js'
 
 export const semesterRecordExportColumns = [
   { key: 'no', header: 'No.', width: 8 },
+  { key: 'academicSession', header: 'Academic Session', width: 16 },
   { key: 'academicYear', header: 'Academic Year', width: 14 },
   { key: 'semester', header: 'Semester', width: 12 },
   { key: 'semesterType', header: 'Semester Type', width: 16 },
@@ -18,6 +19,7 @@ function formatRow(item, index) {
     no: index + 1,
     academicYear: item.academicYear,
     semester: item.semester,
+    academicSession: formatAcademicSession(item.academicYear, item.semester),
     semesterType: item.semesterType,
     startDate: formatDisplayDate(item.startDate),
     endDate: formatDisplayDate(item.endDate),

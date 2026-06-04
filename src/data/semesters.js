@@ -1,12 +1,11 @@
+import { formatSemesterDisplay, semesterCodeOptions } from './semesterInfo.js'
+
 export const yesNoOptions = ['Yes', 'No']
 
 export const initialSemesters = [
   { id: 1, code: '1', name: '02', activation: 'Yes' },
   { id: 2, code: '2', name: '04', activation: 'Yes' },
   { id: 3, code: '3', name: '09', activation: 'Yes' },
-  { id: 4, code: '4', name: '01', activation: 'Yes' },
-  { id: 5, code: '5', name: '03', activation: 'No' },
-  { id: 6, code: '6', name: '05', activation: 'No' },
 ]
 
 let semesterMasterSeq = initialSemesters.length
@@ -18,9 +17,8 @@ export function createSemesterMasterId() {
 
 export function formatSemesterSettingName(name, locale = 'en') {
   if (!name) return ''
-  if (/^\d{2}$/.test(name.trim())) {
-    const semester = name.trim()
-    return locale === 'zh' ? `${semester}学期` : `Semester ${semester}`
+  if (/^\d{2}$/.test(String(name).trim())) {
+    return formatSemesterDisplay(String(name).trim(), locale)
   }
   return name
 }
@@ -41,8 +39,8 @@ export function validateSemesterMasterForm(form, allItems, excludeId = null) {
 
   if (!name) {
     errors.name = 'Semester is required'
-  } else if (name.length > 20) {
-    errors.name = 'Semester must be within 20 characters'
+  } else if (!semesterCodeOptions.includes(name)) {
+    errors.name = 'Semester must be one of: 02, 04, 09'
   }
 
   if (!form.activation) {

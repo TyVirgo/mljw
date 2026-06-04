@@ -34,8 +34,8 @@ const {
 
 const semesterOptions = getSemesterPeriodOptions(initialSemesterRecords)
 
-const searchSemesterKey = ref('202509')
-const appliedSemesterKey = ref('202509')
+const searchSemesterKey = ref('2025/09')
+const appliedSemesterKey = ref('2025/09')
 
 const calendarRemarks = ref('')
 const attachments = ref([])
@@ -113,9 +113,9 @@ function handleSearch() {
 }
 
 function handleReset() {
-  searchSemesterKey.value = '202509'
-  appliedSemesterKey.value = '202509'
-  loadDraftForSemester('202509')
+  searchSemesterKey.value = '2025/09'
+  appliedSemesterKey.value = '2025/09'
+  loadDraftForSemester('2025/09')
 }
 
 function getEventsForDate(dateKey) {
@@ -269,7 +269,7 @@ function handleExport() {
     weeks: calendarWeeks.value,
     weekdayLabels: weekdayLabels.value,
     tr,
-    filename: `calendar-${appliedSemesterKey.value}.xlsx`,
+    filename: `calendar-${appliedSemesterKey.value.replace('/', '-')}.xlsx`,
   })
 
   if (ok) {
@@ -287,7 +287,7 @@ function handleExport() {
         <div class="search-row">
           <div class="search-fields">
             <div class="search-item">
-              <label>{{ tr('Academic Year & Semester:') }}</label>
+              <label>{{ tr('Academic Session:') }}</label>
               <select
                 v-model="searchSemesterKey"
                 class="search-select"

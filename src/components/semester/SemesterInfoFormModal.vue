@@ -5,6 +5,7 @@ import DatePickerEn from '../common/DatePickerEn.vue'
 import YnSwitch from '../common/YnSwitch.vue'
 import {
   semesterTypeOptions,
+  semesterCodeOptions,
   weekStartDayOptions,
   validateSemesterForm,
 } from '../../data/semesterInfo.js'
@@ -137,14 +138,14 @@ function handleOverlayClick(event) {
 
             <div class="form-item">
               <label class="form-label"><span class="required">*</span> {{ tr('Semester:') }}</label>
-              <input
+              <select
                 v-model="form.semester"
-                type="text"
                 class="form-input"
-                :class="{ error: errors.semester }"
-                maxlength="2"
-                :placeholder="t('common.pleaseInput')"
-              />
+                :class="{ error: errors.semester, 'is-empty': !form.semester }"
+              >
+                <option value="">{{ t('common.pleaseSelect') }}</option>
+                <option v-for="opt in semesterCodeOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
               <p v-if="errors.semester" class="field-error">{{ tr(errors.semester) }}</p>
             </div>
 

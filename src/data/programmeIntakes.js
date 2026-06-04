@@ -1,19 +1,29 @@
-import { intakeOptions, initialIntakeSets, isValidIntakeBatch } from './intakeSets.js'
+import {
+  intakeOptions,
+  initialIntakeSets,
+  isValidIntakeBatch,
+  intakeToCompact,
+  parseIntakeBatch,
+} from './intakeSets.js'
 import { initialProgrammes } from './programmeVersions.js'
+import { initialSemesterRecords, formatAcademicSession } from './semesterInfo.js'
 
 export { intakeOptions }
 
-export const startingSemesterOptions = [
-  '2025/2026 Semester 1',
-  '2025/2026 Semester 2',
-  '2025/2026 Semester 3',
-  '2024/2025 Semester 1',
-  '2024/2025 Semester 2',
-  '2024/2025 Semester 3',
-  '2023/2024 Semester 1',
-  '2023/2024 Semester 2',
-  '2023/2024 Semester 3',
-]
+export function getStartingAcademicSessionOptions(records = initialSemesterRecords) {
+  const seen = new Set()
+  const options = []
+  records.forEach((record) => {
+    const value = formatAcademicSession(record.academicYear, record.semester)
+    if (value && !seen.has(value)) {
+      seen.add(value)
+      options.push(value)
+    }
+  })
+  return options.sort()
+}
+
+export const startingSemesterOptions = getStartingAcademicSessionOptions()
 
 export function getActiveIntakeOptions() {
   return [...new Set(initialIntakeSets.filter((item) => item.active === 'Yes').map((item) => item.intake))]
@@ -71,73 +81,73 @@ export const initialProgrammeIntakes = [
   {
     id: 1,
     programmeIntake: '202509IBU',
-    intake: '202509',
+    intake: '2025/09',
     years: 3,
     programmeCode: 'IBU',
     programmeName: 'Bachelor of Management in International Business (Honours)',
     schoolId: 'sob',
     school: 'School of Business',
-    startingSemester: '2025/2026 Semester 3',
+    startingSemester: '2025/09',
     active: 'Yes',
   },
   {
     id: 2,
     programmeIntake: '202504IBU',
-    intake: '202504',
+    intake: '2025/04',
     years: 3,
     programmeCode: 'IBU',
     programmeName: 'Bachelor of Management in International Business (Honours)',
     schoolId: 'sob',
     school: 'School of Business',
-    startingSemester: '2025/2026 Semester 2',
+    startingSemester: '2025/04',
     active: 'Yes',
   },
   {
     id: 3,
     programmeIntake: '202502MCT',
-    intake: '202502',
+    intake: '2025/02',
     years: 4,
     programmeCode: 'MCT',
     programmeName: 'Bachelor of Traditional Chinese Medicine (Honours)',
     schoolId: 'stcm',
     school: 'School of Traditional Chinese Medicine',
-    startingSemester: '2025/2026 Semester 1',
+    startingSemester: '2025/02',
     active: 'Yes',
   },
   {
     id: 4,
     programmeIntake: '202409EGE',
-    intake: '202409',
+    intake: '2024/09',
     years: 5,
     programmeCode: 'EGE',
     programmeName: 'Bachelor of Electronic and Electrical Engineering (Honours)',
     schoolId: 'some',
     school: 'School of Mechanical Engineering',
-    startingSemester: '2024/2025 Semester 3',
+    startingSemester: '2024/09',
     active: 'No',
   },
   {
     id: 5,
     programmeIntake: '202404MCT',
-    intake: '202404',
+    intake: '2024/04',
     years: 4,
     programmeCode: 'MCT',
     programmeName: 'Bachelor of Traditional Chinese Medicine (Honours)',
     schoolId: 'stcm',
     school: 'School of Traditional Chinese Medicine',
-    startingSemester: '2024/2025 Semester 2',
+    startingSemester: '2024/04',
     active: 'Yes',
   },
   {
     id: 6,
     programmeIntake: '202402IBU',
-    intake: '202402',
+    intake: '2024/02',
     years: 3,
     programmeCode: 'IBU',
     programmeName: 'Bachelor of Management in International Business (Honours)',
     schoolId: 'soc',
     school: 'School of Communication',
-    startingSemester: '2024/2025 Semester 1',
+    startingSemester: '2024/02',
     active: 'No',
   },
 ]
@@ -182,7 +192,7 @@ export function buildProgrammeIntakeTree(items) {
     }
 
     const programmeNode = schoolNode.children.get(item.programmeCode)
-    const intakeYear = String(item.intake).slice(0, 4)
+    const intakeYear = parseIntakeBatch(item.intake)?.year || String(item.intake).slice(0, 4)
     if (!programmeNode.children.has(intakeYear)) {
       programmeNode.children.set(intakeYear, {
         id: `${item.schoolId}-${item.programmeCode}-${intakeYear}`,
@@ -241,7 +251,7 @@ export function validateProgrammeIntakeForm(form, allItems, excludeId = null) {
   if (!intake) {
     errors.intake = 'Intake is required'
   } else if (!isValidIntakeBatch(intake)) {
-    errors.intake = 'Intake must be Year+Month in 02, 04 or 09 format (e.g. 202409)'
+    errors.intake = 'Intake must be in YYYY/MM format with month 02, 04 or 09 (e.g. 2025/09)'
   }
 
   if (!form.years) errors.years = 'Years is required'
@@ -256,7 +266,7 @@ export function validateProgrammeIntakeForm(form, allItems, excludeId = null) {
 
   if (!form.schoolId) errors.schoolId = 'School is required'
 
-  if (!form.startingSemester) errors.startingSemester = 'Starting Semester is required'
+  if (!form.startingSemester) errors.startingSemester = 'Starting Academic Session is required'
 
   if (!form.active) {
     errors.active = 'Active is required'
@@ -268,7 +278,7 @@ export function validateProgrammeIntakeForm(form, allItems, excludeId = null) {
 }
 
 export function suggestProgrammeIntake(intake, programmeCode) {
-  const intakeValue = String(intake || '').trim()
+  const intakeValue = intakeToCompact(intake)
   const codeValue = String(programmeCode || '').trim().toUpperCase()
   if (!intakeValue || !codeValue) return ''
   return `${intakeValue}${codeValue}`
@@ -277,7 +287,7 @@ export function suggestProgrammeIntake(intake, programmeCode) {
 export function validateProgrammeIntakeEditForm(form) {
   const errors = {}
 
-  if (!form.startingSemester) errors.startingSemester = 'Starting Semester is required'
+  if (!form.startingSemester) errors.startingSemester = 'Starting Academic Session is required'
 
   if (!form.active) {
     errors.active = 'Active is required'
@@ -302,9 +312,13 @@ export function validateProgrammeIntakeCreateForm(form) {
     errors.programmes = 'Please select at least one programme record'
   }
 
-  if (!form.intake) errors.intake = 'Intake is required'
+  if (!form.intake) {
+    errors.intake = 'Intake is required'
+  } else if (!isValidIntakeBatch(form.intake)) {
+    errors.intake = 'Intake must be in YYYY/MM format with month 02, 04 or 09 (e.g. 2025/09)'
+  }
 
-  if (!form.startingSemester) errors.startingSemester = 'Starting Semester is required'
+  if (!form.startingSemester) errors.startingSemester = 'Starting Academic Session is required'
 
   return errors
 }
@@ -343,9 +357,13 @@ export function validateProgrammeIntakeCopyForm(form) {
     errors.sources = 'Please select at least one programme intake record to copy'
   }
 
-  if (!form.intake) errors.intake = 'Intake is required'
+  if (!form.intake) {
+    errors.intake = 'Intake is required'
+  } else if (!isValidIntakeBatch(form.intake)) {
+    errors.intake = 'Intake must be in YYYY/MM format with month 02, 04 or 09 (e.g. 2025/09)'
+  }
 
-  if (!form.startingSemester) errors.startingSemester = 'Starting Semester is required'
+  if (!form.startingSemester) errors.startingSemester = 'Starting Academic Session is required'
 
   if (!form.active) {
     errors.active = 'Active is required'

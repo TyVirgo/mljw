@@ -167,7 +167,8 @@ export function exportCalendarToExcel({
   )
 
   const safeName =
-    filename || `calendar-${semesterKey}-${new Date().toISOString().slice(0, 10)}.xlsx`
+    filename ||
+    `calendar-${String(semesterKey).replace('/', '-')}-${new Date().toISOString().slice(0, 10)}.xlsx`
   XLSX.writeFile(workbook, safeName)
   return true
 }

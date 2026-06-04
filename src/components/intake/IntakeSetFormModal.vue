@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { activeOptions, validateIntakeSetForm } from '../../data/intakeSets.js'
+import { activeOptions, formatIntakeBatch, intakeOptions, validateIntakeSetForm } from '../../data/intakeSets.js'
 
 const { t, tr } = useAppI18n()
 
@@ -48,7 +48,7 @@ watch(
 function buildPayload() {
   const payload = {
     code: form.value.code.trim(),
-    intake: form.value.intake.trim(),
+    intake: formatIntakeBatch(form.value.intake),
     active: form.value.active,
   }
   if (isEditMode.value && props.initialData?.code) {
@@ -105,14 +105,14 @@ function handleOverlayClick(event) {
 
           <div class="form-row">
             <label class="form-label"><span class="required">*</span> {{ tr('Intake:') }}</label>
-            <input
+            <select
               v-model="form.intake"
-              type="text"
-              class="form-input"
+              class="form-input form-select"
               :class="{ error: errors.intake }"
-              maxlength="6"
-              :placeholder="t('common.pleaseInput')"
-            />
+            >
+              <option value="" disabled>{{ t('common.pleaseSelect') }}</option>
+              <option v-for="opt in intakeOptions" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
           </div>
           <p v-if="errors.intake" class="field-error">{{ tr(errors.intake) }}</p>
 
@@ -212,6 +212,10 @@ function handleOverlayClick(event) {
   border-radius: 6px;
   font-size: 13px;
   box-sizing: border-box;
+}
+
+.form-select {
+  background: #fff;
 }
 
 .form-input.error {
