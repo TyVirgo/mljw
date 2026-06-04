@@ -185,6 +185,7 @@ export const zhFlat = {
   'Email:': '邮箱：',
   'Website:': '网站：',
   'Established (Month/Year):': '成立（月/年）：',
+  'Format must be mm/yyyy': '格式须为 mm/yyyy',
   'University Address:': '学校地址：',
   'Section 1: University Information': '第一部分：学校信息',
   'Section 2: Portal Images': '第二部分：门户图片',

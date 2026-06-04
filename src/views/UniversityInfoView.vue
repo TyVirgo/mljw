@@ -45,14 +45,15 @@ const uploadingImageKey = ref('')
 function migrateEstablishedFormat() {
   const value = form.establishedMonthYear?.trim()
   if (!value) return
-  const legacyMonthYear = value.match(/^(0[1-9]|1[0-2])\/(\d{4})$/)
-  if (legacyMonthYear) {
-    form.establishedMonthYear = `01/${legacyMonthYear[1]}/${legacyMonthYear[2]}`
+  if (/^(0[1-9]|1[0-2])\/\d{4}$/.test(value)) return
+  const fullDate = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (fullDate) {
+    form.establishedMonthYear = `${fullDate[2]}/${fullDate[3]}`
     return
   }
   const legacyIsoMonth = value.match(/^(\d{4})-(0[1-9]|1[0-2])$/)
   if (legacyIsoMonth) {
-    form.establishedMonthYear = `01/${legacyIsoMonth[2]}/${legacyIsoMonth[1]}`
+    form.establishedMonthYear = `${legacyIsoMonth[2]}/${legacyIsoMonth[1]}`
   }
 }
 
@@ -254,6 +255,7 @@ function getDeleteMessage() {
               <label>{{ tr('Established (Month/Year):') }}</label>
               <DatePickerEn
                 v-model="form.establishedMonthYear"
+                mode="month"
                 class="field-control"
                 :has-error="!!errors.establishedMonthYear"
                 @update:model-value="clearFieldError('establishedMonthYear')"

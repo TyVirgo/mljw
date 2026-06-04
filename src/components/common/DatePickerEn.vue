@@ -5,12 +5,21 @@ import {
   parseDdMmYyyy,
   formatDateToDdMmYyyy,
   isValidDdMmYyyy,
+  formatMmYyyyInput,
+  parseMmYyyy,
+  formatDateToMmYyyy,
+  isValidMmYyyy,
 } from '../../data/universityInfo.js'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
-  placeholder: { type: String, default: 'dd/mm/yyyy' },
+  placeholder: { type: String, default: '' },
   hasError: { type: Boolean, default: false },
+  mode: {
+    type: String,
+    default: 'date',
+    validator: (value) => ['date', 'month'].includes(value),
+  },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -34,21 +43,46 @@ const MONTHS = [
   'December',
 ]
 
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
 const viewDate = ref(new Date())
 
+const isMonthMode = computed(() => props.mode === 'month')
+
+const effectivePlaceholder = computed(
+  () => props.placeholder || (isMonthMode.value ? 'mm/yyyy' : 'dd/mm/yyyy'),
+)
+
+function parseValue(value) {
+  return isMonthMode.value ? parseMmYyyy(value) : parseDdMmYyyy(value)
+}
+
+function isValidValue(value) {
+  return isMonthMode.value ? isValidMmYyyy(value) : isValidDdMmYyyy(value)
+}
+
+function formatInput(raw) {
+  return isMonthMode.value ? formatMmYyyyInput(raw) : formatDdMmYyyyInput(raw)
+}
+
+function formatDateValue(date) {
+  return isMonthMode.value ? formatDateToMmYyyy(date) : formatDateToDdMmYyyy(date)
+}
+
 watch(
-  () => props.modelValue,
-  (value) => {
+  () => [props.modelValue, props.mode],
+  ([value]) => {
     draft.value = value || ''
-    const parsed = parseDdMmYyyy(value)
+    const parsed = parseValue(value)
     if (parsed) viewDate.value = new Date(parsed.getFullYear(), parsed.getMonth(), 1)
   },
   { immediate: true },
 )
 
 const panelTitle = computed(() => {
+  if (isMonthMode.value) return String(viewDate.value.getFullYear())
   return `${MONTHS[viewDate.value.getMonth()]} ${viewDate.value.getFullYear()}`
 })
 
@@ -65,14 +99,20 @@ const calendarDays = computed(() => {
   return cells
 })
 
-const selectedDate = computed(() => parseDdMmYyyy(props.modelValue))
+const selectedDate = computed(() => parseValue(props.modelValue))
+
+const selectedMonthYear = computed(() => {
+  if (!isMonthMode.value || !isValidMmYyyy(props.modelValue)) return null
+  const [, mm, yyyy] = props.modelValue.trim().match(/^(\d{2})\/(\d{4})$/)
+  return { month: Number(mm) - 1, year: Number(yyyy) }
+})
 
 function emitValue(value) {
   emit('update:modelValue', value)
 }
 
 function onInput(event) {
-  draft.value = formatDdMmYyyyInput(event.target.value)
+  draft.value = formatInput(event.target.value)
   event.target.value = draft.value
 }
 
@@ -82,31 +122,61 @@ function onBlur() {
     emitValue('')
     return
   }
-  if (isValidDdMmYyyy(trimmed)) {
+  if (isValidValue(trimmed)) {
     emitValue(trimmed)
     return
   }
   draft.value = props.modelValue || ''
 }
 
-function togglePanel() {
-  open.value = !open.value
-  if (open.value) {
-    const parsed = parseDdMmYyyy(props.modelValue) || new Date()
-    viewDate.value = new Date(parsed.getFullYear(), parsed.getMonth(), 1)
-  }
+function syncViewDate() {
+  const parsed = parseValue(props.modelValue) || new Date()
+  viewDate.value = new Date(parsed.getFullYear(), parsed.getMonth(), 1)
 }
 
-function prevMonth() {
+function openPanel() {
+  syncViewDate()
+  open.value = true
+}
+
+function togglePanel() {
+  if (open.value) {
+    open.value = false
+    return
+  }
+  openPanel()
+}
+
+function onInputClick() {
+  if (!isMonthMode.value) return
+  openPanel()
+}
+
+function prevPeriod() {
+  if (isMonthMode.value) {
+    viewDate.value = new Date(viewDate.value.getFullYear() - 1, viewDate.value.getMonth(), 1)
+    return
+  }
   viewDate.value = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() - 1, 1)
 }
 
-function nextMonth() {
+function nextPeriod() {
+  if (isMonthMode.value) {
+    viewDate.value = new Date(viewDate.value.getFullYear() + 1, viewDate.value.getMonth(), 1)
+    return
+  }
   viewDate.value = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() + 1, 1)
 }
 
 function selectDay(date) {
-  emitValue(formatDateToDdMmYyyy(date))
+  emitValue(formatDateValue(date))
+  open.value = false
+}
+
+function selectMonth(monthIndex) {
+  const mm = String(monthIndex + 1).padStart(2, '0')
+  const yyyy = viewDate.value.getFullYear()
+  emitValue(`${mm}/${yyyy}`)
   open.value = false
 }
 
@@ -125,9 +195,20 @@ function isToday(date) {
   return isSameDay(date, today)
 }
 
+function isSelectedMonth(monthIndex) {
+  const selected = selectedMonthYear.value
+  if (!selected) return false
+  return selected.month === monthIndex && selected.year === viewDate.value.getFullYear()
+}
+
+function isCurrentMonth(monthIndex) {
+  const today = new Date()
+  return today.getMonth() === monthIndex && today.getFullYear() === viewDate.value.getFullYear()
+}
+
 function setToday() {
   const today = new Date()
-  emitValue(formatDateToDdMmYyyy(today))
+  emitValue(formatDateValue(today))
   viewDate.value = new Date(today.getFullYear(), today.getMonth(), 1)
   open.value = false
 }
@@ -142,7 +223,7 @@ function onDocumentClick(event) {
   if (!open.value) return
   if (rootRef.value && !rootRef.value.contains(event.target)) {
     open.value = false
-    onBlur()
+    if (!isMonthMode.value) onBlur()
   }
 }
 
@@ -165,13 +246,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="rootRef" class="date-picker-en" :class="{ 'has-error': hasError, open }">
-    <div class="date-picker-input-wrap">
+  <div ref="rootRef" class="date-picker-en" :class="{ 'has-error': hasError, open, 'mode-month': isMonthMode }">
+    <div class="date-picker-input-wrap" @click="onInputClick">
       <input
         type="text"
         class="date-picker-input"
         :value="draft"
-        :placeholder="placeholder"
+        :placeholder="effectivePlaceholder"
+        :readonly="isMonthMode"
         inputmode="numeric"
         autocomplete="off"
         @input="onInput"
@@ -190,33 +272,48 @@ onBeforeUnmount(() => {
 
     <div v-if="open" class="date-picker-panel" @click.stop>
       <div class="date-picker-header">
-        <button type="button" class="nav-btn" aria-label="Previous month" @click="prevMonth">‹</button>
+        <button type="button" class="nav-btn" :aria-label="isMonthMode ? 'Previous year' : 'Previous month'" @click="prevPeriod">‹</button>
         <span class="date-picker-title">{{ panelTitle }}</span>
-        <button type="button" class="nav-btn" aria-label="Next month" @click="nextMonth">›</button>
+        <button type="button" class="nav-btn" :aria-label="isMonthMode ? 'Next year' : 'Next month'" @click="nextPeriod">›</button>
       </div>
 
-      <div class="date-picker-weekdays">
-        <span v-for="day in WEEKDAYS" :key="day">{{ day }}</span>
+      <div v-if="isMonthMode" class="month-picker-grid">
+        <button
+          v-for="(label, index) in MONTH_ABBR"
+          :key="label"
+          type="button"
+          class="month-btn"
+          :class="{ selected: isSelectedMonth(index), current: isCurrentMonth(index) }"
+          @click="selectMonth(index)"
+        >
+          {{ label }}
+        </button>
       </div>
 
-      <div class="date-picker-grid">
-        <span v-for="(cell, index) in calendarDays" :key="index" class="day-cell" :class="{ empty: !cell }">
-          <button
-            v-if="cell"
-            type="button"
-            class="day-btn"
-            :class="{
-              selected: isSameDay(cell, selectedDate),
-              today: isToday(cell),
-            }"
-            @click="selectDay(cell)"
-          >
-            {{ cell.getDate() }}
-          </button>
-        </span>
-      </div>
+      <template v-else>
+        <div class="date-picker-weekdays">
+          <span v-for="day in WEEKDAYS" :key="day">{{ day }}</span>
+        </div>
 
-      <div class="date-picker-footer">
+        <div class="date-picker-grid">
+          <span v-for="(cell, index) in calendarDays" :key="index" class="day-cell" :class="{ empty: !cell }">
+            <button
+              v-if="cell"
+              type="button"
+              class="day-btn"
+              :class="{
+                selected: isSameDay(cell, selectedDate),
+                today: isToday(cell),
+              }"
+              @click="selectDay(cell)"
+            >
+              {{ cell.getDate() }}
+            </button>
+          </span>
+        </div>
+      </template>
+
+      <div v-if="!isMonthMode" class="date-picker-footer">
         <button type="button" class="footer-btn" @click="clearValue">Clear</button>
         <button type="button" class="footer-btn primary" @click="setToday">Today</button>
       </div>
@@ -256,6 +353,14 @@ onBeforeUnmount(() => {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.date-picker-en.mode-month .date-picker-input-wrap {
+  cursor: pointer;
+}
+
+.date-picker-en.mode-month .date-picker-input {
+  cursor: pointer;
 }
 
 .date-picker-en.has-error .date-picker-input {
@@ -327,6 +432,39 @@ onBeforeUnmount(() => {
 
 .nav-btn:hover {
   background: #f3f4f6;
+}
+
+.month-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.month-btn {
+  height: 36px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.month-btn:hover {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.month-btn.current {
+  border: 1px solid #93c5fd;
+}
+
+.month-btn.selected {
+  background: #2563eb;
+  color: #fff;
+}
+
+.month-btn.selected:hover {
+  background: #1d4ed8;
+  color: #fff;
 }
 
 .date-picker-weekdays,

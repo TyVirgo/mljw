@@ -62,6 +62,34 @@ const companyNoPattern = /^[A-Za-z0-9-]{3,50}$/
 const phonePattern = /^[+]?[\d\s()-]{6,20}$/
 const postCodePattern = /^[A-Za-z0-9\s-]{3,12}$/
 const datePattern = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/
+const monthYearPattern = /^(0[1-9]|1[0-2])\/\d{4}$/
+
+export function isValidMmYyyy(value) {
+  if (!value?.trim()) return false
+  if (!monthYearPattern.test(value.trim())) return false
+  const [, mm, yyyy] = value.trim().match(/^(\d{2})\/(\d{4})$/)
+  const month = Number(mm)
+  const year = Number(yyyy)
+  return month >= 1 && month <= 12 && year >= 1000 && year <= 9999
+}
+
+export function formatMmYyyyInput(raw) {
+  const digits = String(raw).replace(/\D/g, '').slice(0, 6)
+  if (digits.length <= 2) return digits
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`
+}
+
+export function parseMmYyyy(value) {
+  if (!isValidMmYyyy(value)) return null
+  const [, mm, yyyy] = value.trim().match(/^(\d{2})\/(\d{4})$/)
+  return new Date(Number(yyyy), Number(mm) - 1, 1)
+}
+
+export function formatDateToMmYyyy(date) {
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const yyyy = date.getFullYear()
+  return `${mm}/${yyyy}`
+}
 
 export function isValidDdMmYyyy(value) {
   if (!value?.trim()) return false
@@ -146,8 +174,8 @@ export function validateSection1(data) {
     errors.website = 'Invalid Website URL format'
   }
 
-  if (data.establishedMonthYear?.trim() && !isValidDdMmYyyy(data.establishedMonthYear)) {
-    errors.establishedMonthYear = 'Format must be dd/mm/yyyy'
+  if (data.establishedMonthYear?.trim() && !isValidMmYyyy(data.establishedMonthYear)) {
+    errors.establishedMonthYear = 'Format must be mm/yyyy'
   }
 
   if (!data.universityAddress?.trim()) {
