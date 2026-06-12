@@ -177,6 +177,21 @@ export default {
     subtitle: 'Please check back later.',
   },
   pages: {
+    common: {
+      columnHeaderConfig: 'Header Language Config',
+      columnHeaderConfigTitle: 'Header Language Configuration',
+      columnHeaderConfigHint:
+        'Configure field labels in Chinese, English and Malay for this module. Field ids cannot be changed. Each language name is required and cannot be empty.',
+      columnHeaderValidationFailed:
+        'Please fill in the Chinese, English and Malay names for all fields. Empty values are not allowed.',
+      columnHeaderFieldRequired: 'Required',
+      columnHeaderFieldId: 'Field ID',
+      columnHeaderNameZh: 'Chinese Name',
+      columnHeaderNameEn: 'English Name',
+      columnHeaderNameMs: 'Malay Name',
+      columnHeaderResetDefault: 'Reset to Default',
+      columnHeaderSaveSuccess: 'Header language configuration saved.',
+    },
     department: {
       deleteOne: 'Are you sure you want to delete this department? This action cannot be undone.',
       deleteMany: 'Are you sure you want to delete {count} selected departments? This action cannot be undone.',
@@ -184,6 +199,12 @@ export default {
     intake: {
       deleteOne: 'Are you sure you want to delete this intake set?',
       deleteMany: 'Are you sure you want to delete {count} selected intake sets?',
+    },
+    intakeSet: {
+      columnHeaderConfig: 'Header Language Config',
+      columnHeaderList: 'List',
+      columnHeaderForm: 'Create / Edit',
+      columnHeaderSaveSuccess: 'Header language configuration saved.',
     },
     block: {
       deleteOne: 'Are you sure you want to delete this block? This action cannot be undone.',
@@ -201,10 +222,31 @@ export default {
       deleteOne: 'Are you sure you want to delete this programme?',
       deleteMany: 'Are you sure you want to delete {count} selected programmes?',
       deleteVersionOne: 'Are you sure you want to delete this version?',
+      columnHeaderConfig: 'Header Language Config',
+      columnHeaderConfigTitle: 'Header Language Configuration',
+      columnHeaderConfigHint:
+        'Configure list and create form field labels in Chinese, English and Malay for this module. Field ids cannot be changed. Each language name is required and cannot be empty.',
+      columnHeaderListMain: 'List Main Table',
+      columnHeaderListNested: 'List Version Detail',
+      columnHeaderProgrammeInfo: 'Create - Programme Info',
+      columnHeaderApprovalMqa: 'Create - MQA Info',
+      columnHeaderApprovalMohe: 'Create - MOHE Info',
+      columnHeaderEntryRequirements: 'Create - Entry Requirements',
+      columnHeaderThresholdMarks: 'Create - Threshold Marks',
+      columnHeaderFeeStructure: 'Create - Fee Structure',
+      columnHeaderFeeLocal: 'Create - Local Student Fees',
+      columnHeaderFeeInternational: 'Create - International Student Fees',
+      columnHeaderSaveSuccess: 'Header language configuration saved.',
     },
     programmeIntake: {
       deleteOne: 'Are you sure you want to delete this programme intake?',
       deleteMany: 'Are you sure you want to delete {count} selected programme intakes?',
+      columnHeaderConfig: 'Header Language Config',
+      columnHeaderList: 'List',
+      columnHeaderCreate: 'Create',
+      columnHeaderForm: 'Edit / Form',
+      columnHeaderCopy: 'Copy',
+      columnHeaderSaveSuccess: 'Header language configuration saved.',
     },
     semester: {
       tabYearSemester: 'Academic year and semester',

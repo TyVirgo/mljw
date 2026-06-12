@@ -8,6 +8,7 @@ import ProgrammeVersionCreateModal from '../components/programme/ProgrammeVersio
 import ProgrammeVersionCreateVersionModal from '../components/programme/ProgrammeVersionCreateVersionModal.vue'
 import ProgrammeVersionDetailModal from '../components/programme/ProgrammeVersionDetailModal.vue'
 import ProgrammeVersionImportModal from '../components/programme/ProgrammeVersionImportModal.vue'
+import ColumnHeaderConfigModal from '../components/common/ColumnHeaderConfigModal.vue'
 import ProgrammeVersionHistoryPanel from '../components/programme/ProgrammeVersionHistoryPanel.vue'
 import ProgrammeVersionDetailPanel from '../components/programme/ProgrammeVersionDetailPanel.vue'
 import {
@@ -23,8 +24,15 @@ import {
   programmeVersionExportFields,
 } from '../utils/exportProgrammeVersionExcel.js'
 import { useListPageI18n } from '../composables/useListPageI18n.js'
+import { useColumnHeaderConfig } from '../composables/useColumnHeaderConfig.js'
+import {
+  programmeVersionColumnHeaderStore,
+  programmeVersionColumnHeaderSections,
+  defaultProgrammeVersionColumnHeaders,
+} from '../data/programmeVersionColumnHeaders.js'
 
 const { t, tr, translatedExportFields } = useListPageI18n(programmeVersionExportFields)
+const { headerLabel, getEditableRows, save: saveColumnHeaders } = useColumnHeaderConfig(programmeVersionColumnHeaderStore)
 
 const programmes = ref(initialProgrammes.map((item) => ({ ...item, versions: [...item.versions] })))
 
@@ -58,6 +66,8 @@ const versionDetailVersion = ref(null)
 
 const importModalVisible = ref(false)
 const exportModalVisible = ref(false)
+const columnHeaderModalVisible = ref(false)
+const columnHeaderModalRows = ref([])
 
 const detailsProgramme = ref(null)
 const detailsVersion = ref(null)
@@ -462,6 +472,17 @@ function openExportModal() {
   exportModalVisible.value = true
 }
 
+function openColumnHeaderModal() {
+  columnHeaderModalRows.value = getEditableRows()
+  columnHeaderModalVisible.value = true
+}
+
+function handleColumnHeaderSave(rows) {
+  saveColumnHeaders(rows)
+  columnHeaderModalVisible.value = false
+  window.alert(t('pages.programmeVersion.columnHeaderSaveSuccess'))
+}
+
 function handleExportConfirm({ selectedFields, exportScope }) {
   let data = []
   if (exportScope === 'currentPage') {
@@ -582,18 +603,23 @@ function handleExportConfirm({ selectedFields, exportScope }) {
           </div>
 
           <div class="toolbar">
-            <button type="button" class="btn btn-primary" @click="openCreateModal">{{ t('common.create') }}</button>
-            <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">
-              {{ t('common.delete') }}
-            </button>
-            <button type="button" class="btn btn-outline" @click="openImportModal">{{ t('common.import') }}</button>
-            <button type="button" class="btn btn-default" @click="openExportModal">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              {{ t('common.export') }}
+            <div class="toolbar-left">
+              <button type="button" class="btn btn-primary" @click="openCreateModal">{{ t('common.create') }}</button>
+              <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">
+                {{ t('common.delete') }}
+              </button>
+              <button type="button" class="btn btn-outline" @click="openImportModal">{{ t('common.import') }}</button>
+              <button type="button" class="btn btn-default" @click="openExportModal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                {{ t('common.export') }}
+              </button>
+            </div>
+            <button type="button" class="btn btn-outline toolbar-config-btn" @click="openColumnHeaderModal">
+              {{ t('pages.programmeVersion.columnHeaderConfig') }}
             </button>
           </div>
 
@@ -605,10 +631,10 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                     <th class="col-check"><input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" /></th>
                     <th class="col-expand"></th>
                     <th>{{ t('common.serialNo') }}</th>
-                    <th>{{ tr('Programme Code') }}</th>
-                    <th>{{ tr('Programme Name') }}</th>
-                    <th>{{ tr('Programme Level') }}</th>
-                    <th>{{ tr('Years') }}</th>
+                    <th>{{ headerLabel('programmeCode') }}</th>
+                    <th>{{ headerLabel('programmeName') }}</th>
+                    <th>{{ headerLabel('programmeLevel') }}</th>
+                    <th>{{ headerLabel('years') }}</th>
                     <th>{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
@@ -660,13 +686,13 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                         <table v-if="item.versions.length" class="nested-table">
                           <thead>
                             <tr>
-                              <th>{{ tr('MQA Code') }}</th>
-                              <th>{{ tr('MQA Validity Start Date') }}</th>
-                              <th>{{ tr('MQA Validity Expiry Date') }}</th>
-                              <th>{{ tr('MOHE Code') }}</th>
-                              <th>{{ tr('Approval Date') }}</th>
-                              <th>{{ tr('MOHE Validity Start Date') }}</th>
-                              <th>{{ tr('MOHE Validity Expiry Date') }}</th>
+                              <th>{{ headerLabel('mqaCode') }}</th>
+                              <th>{{ headerLabel('mqaValidityStart') }}</th>
+                              <th>{{ headerLabel('mqaValidityExpiry') }}</th>
+                              <th>{{ headerLabel('moheCode') }}</th>
+                              <th>{{ headerLabel('approvalDate') }}</th>
+                              <th>{{ headerLabel('moheValidityStart') }}</th>
+                              <th>{{ headerLabel('moheValidityExpiry') }}</th>
                               <th>{{ t('common.actions') }}</th>
                             </tr>
                           </thead>
@@ -758,6 +784,17 @@ function handleExportConfirm({ selectedFields, exportScope }) {
       :programme-name="versionDetailProgramme?.name || ''"
       :version="versionDetailVersion"
       @close="closeVersionDetail"
+    />
+
+    <ColumnHeaderConfigModal
+      :visible="columnHeaderModalVisible"
+      :rows="columnHeaderModalRows"
+      :sections="programmeVersionColumnHeaderSections"
+      :default-rows="defaultProgrammeVersionColumnHeaders"
+      title-key="pages.programmeVersion.columnHeaderConfigTitle"
+      hint-key="pages.programmeVersion.columnHeaderConfigHint"
+      @close="columnHeaderModalVisible = false"
+      @save="handleColumnHeaderSave"
     />
   </div>
 </template>
@@ -900,9 +937,22 @@ function handleExportConfirm({ selectedFields, exportScope }) {
 
 .toolbar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-bottom: 12px;
   flex-shrink: 0;
+}
+
+.toolbar-left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toolbar-config-btn {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .btn {

@@ -11,8 +11,16 @@ import {
 } from '../data/intakeSets.js'
 import { exportIntakeSetsToExcel, intakeSetExportFields } from '../utils/exportIntakeSetExcel.js'
 import { useListPageI18n } from '../composables/useListPageI18n.js'
+import { useColumnHeaderConfig } from '../composables/useColumnHeaderConfig.js'
+import ColumnHeaderConfigModal from '../components/common/ColumnHeaderConfigModal.vue'
+import {
+  intakeSetColumnHeaderStore,
+  intakeSetColumnHeaderSections,
+  defaultIntakeSetColumnHeaders,
+} from '../data/intakeSetColumnHeaders.js'
 
 const { t, tr, translatedExportFields } = useListPageI18n(intakeSetExportFields)
+const { headerLabel, getEditableRows, save: saveColumnHeaders } = useColumnHeaderConfig(intakeSetColumnHeaderStore)
 
 const intakeSets = ref(initialIntakeSets.map((item) => ({ ...item })))
 
@@ -32,6 +40,8 @@ const confirmMessage = ref('')
 const pendingDeleteIds = ref([])
 
 const exportModalVisible = ref(false)
+const columnHeaderModalVisible = ref(false)
+const columnHeaderModalRows = ref([])
 
 const filteredIntakeSets = computed(() => {
   if (!appliedIntake.value) return intakeSets.value
@@ -174,6 +184,17 @@ function handlePaginationChange({ type }) {
 function getRowNumber(index) {
   return (currentPage.value - 1) * pageSize.value + index + 1
 }
+
+function openColumnHeaderModal() {
+  columnHeaderModalRows.value = getEditableRows()
+  columnHeaderModalVisible.value = true
+}
+
+function handleColumnHeaderSave(rows) {
+  saveColumnHeaders(rows)
+  columnHeaderModalVisible.value = false
+  window.alert(t('pages.intakeSet.columnHeaderSaveSuccess'))
+}
 </script>
 
 <template>
@@ -210,11 +231,16 @@ function getRowNumber(index) {
       </div>
 
       <div class="toolbar">
-        <button type="button" class="btn btn-primary" @click="openCreateModal">{{ t('common.create') }}</button>
-        <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">
-          {{ t('common.delete') }}
+        <div class="toolbar-left">
+          <button type="button" class="btn btn-primary" @click="openCreateModal">{{ t('common.create') }}</button>
+          <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">
+            {{ t('common.delete') }}
+          </button>
+          <button type="button" class="btn btn-default" @click="openExportModal">{{ t('common.export') }}</button>
+        </div>
+        <button type="button" class="btn btn-outline toolbar-config-btn" @click="openColumnHeaderModal">
+          {{ t('pages.intakeSet.columnHeaderConfig') }}
         </button>
-        <button type="button" class="btn btn-default" @click="openExportModal">{{ t('common.export') }}</button>
       </div>
 
       <div class="table-section">
@@ -226,9 +252,9 @@ function getRowNumber(index) {
                   <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
                 </th>
                 <th>{{ t('common.serialNo') }}</th>
-                <th>{{ tr('Code') }}</th>
-                <th>{{ tr('Intake') }}</th>
-                <th>{{ tr('Active') }}</th>
+                <th>{{ headerLabel('code') }}</th>
+                <th>{{ headerLabel('intake') }}</th>
+                <th>{{ headerLabel('active') }}</th>
                 <th>{{ t('common.actions') }}</th>
               </tr>
             </thead>
@@ -289,6 +315,17 @@ function getRowNumber(index) {
       @close="exportModalVisible = false"
       @confirm="handleExportConfirm"
     />
+
+    <ColumnHeaderConfigModal
+      :visible="columnHeaderModalVisible"
+      :rows="columnHeaderModalRows"
+      :sections="intakeSetColumnHeaderSections"
+      :default-rows="defaultIntakeSetColumnHeaders"
+      title-key="pages.common.columnHeaderConfigTitle"
+      hint-key="pages.common.columnHeaderConfigHint"
+      @close="columnHeaderModalVisible = false"
+      @save="handleColumnHeaderSave"
+    />
   </div>
 </template>
 
@@ -316,9 +353,22 @@ function getRowNumber(index) {
 
 .toolbar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-bottom: 16px;
   flex-shrink: 0;
+}
+
+.toolbar-left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toolbar-config-btn {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .btn {

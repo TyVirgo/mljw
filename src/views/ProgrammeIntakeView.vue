@@ -5,6 +5,7 @@ import ProgrammeIntakeCreateModal from '../components/programmeIntake/ProgrammeI
 import ProgrammeIntakeFormModal from '../components/programmeIntake/ProgrammeIntakeFormModal.vue'
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import ExportModal from '../components/common/ExportModal.vue'
+import ColumnHeaderConfigModal from '../components/common/ColumnHeaderConfigModal.vue'
 import TablePagination from '../components/common/TablePagination.vue'
 import CollapsibleTreePanel from '../components/common/CollapsibleTreePanel.vue'
 import {
@@ -21,8 +22,15 @@ import {
   programmeIntakeExportFields,
 } from '../utils/exportProgrammeIntakeExcel.js'
 import { useListPageI18n } from '../composables/useListPageI18n.js'
+import { useColumnHeaderConfig } from '../composables/useColumnHeaderConfig.js'
+import {
+  programmeIntakeColumnHeaderStore,
+  programmeIntakeColumnHeaderSections,
+  defaultProgrammeIntakeColumnHeaders,
+} from '../data/programmeIntakeColumnHeaders.js'
 
 const { t, tr, translatedExportFields } = useListPageI18n(programmeIntakeExportFields)
+const { headerLabel, getEditableRows, save: saveColumnHeaders } = useColumnHeaderConfig(programmeIntakeColumnHeaderStore)
 
 const programmeIntakes = ref(initialProgrammeIntakes.map((item) => ({ ...item })))
 
@@ -50,6 +58,8 @@ const confirmMessage = ref('')
 const pendingDeleteIds = ref([])
 
 const exportModalVisible = ref(false)
+const columnHeaderModalVisible = ref(false)
+const columnHeaderModalRows = ref([])
 
 function createEmptySearch() {
   return {
@@ -288,6 +298,17 @@ function openExportModal() {
   exportModalVisible.value = true
 }
 
+function openColumnHeaderModal() {
+  columnHeaderModalRows.value = getEditableRows()
+  columnHeaderModalVisible.value = true
+}
+
+function handleColumnHeaderSave(rows) {
+  saveColumnHeaders(rows)
+  columnHeaderModalVisible.value = false
+  window.alert(t('pages.programmeIntake.columnHeaderSaveSuccess'))
+}
+
 function handleExportConfirm({ selectedFields, exportScope }) {
   let data = []
   if (exportScope === 'currentPage') {
@@ -473,11 +494,16 @@ function getRowNumber(index) {
           </div>
 
           <div class="toolbar">
-            <button type="button" class="btn btn-primary" @click="openCreateModal">{{ t('common.create') }}</button>
-            <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="openCopyModal">{{ t('common.copy') }}</button>
-            <button type="button" class="btn btn-default" @click="openExportModal">{{ t('common.export') }}</button>
-            <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">
-              {{ t('common.delete') }}
+            <div class="toolbar-left">
+              <button type="button" class="btn btn-primary" @click="openCreateModal">{{ t('common.create') }}</button>
+              <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="openCopyModal">{{ t('common.copy') }}</button>
+              <button type="button" class="btn btn-default" @click="openExportModal">{{ t('common.export') }}</button>
+              <button type="button" class="btn btn-default" :disabled="!hasSelection" @click="requestDelete(selectedIds)">
+                {{ t('common.delete') }}
+              </button>
+            </div>
+            <button type="button" class="btn btn-outline toolbar-config-btn" @click="openColumnHeaderModal">
+              {{ t('pages.programmeIntake.columnHeaderConfig') }}
             </button>
           </div>
 
@@ -490,13 +516,13 @@ function getRowNumber(index) {
                       <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
                     </th>
                     <th>{{ t('common.serialNo') }}</th>
-                    <th>{{ tr('Programme Intake') }}</th>
-                    <th>{{ tr('Intake') }}</th>
-                    <th>{{ tr('Years') }}</th>
-                    <th>{{ tr('Programme Code') }}</th>
-                    <th>{{ tr('Programme Name') }}</th>
-                    <th>{{ tr('School') }}</th>
-                    <th>{{ t('common.active') }}</th>
+                    <th>{{ headerLabel('programmeIntake') }}</th>
+                    <th>{{ headerLabel('intake') }}</th>
+                    <th>{{ headerLabel('years') }}</th>
+                    <th>{{ headerLabel('programmeCode') }}</th>
+                    <th>{{ headerLabel('programmeName') }}</th>
+                    <th>{{ headerLabel('school') }}</th>
+                    <th>{{ headerLabel('active') }}</th>
                     <th>{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
@@ -577,6 +603,17 @@ function getRowNumber(index) {
       :has-selected-rows="hasSelection"
       @close="exportModalVisible = false"
       @confirm="handleExportConfirm"
+    />
+
+    <ColumnHeaderConfigModal
+      :visible="columnHeaderModalVisible"
+      :rows="columnHeaderModalRows"
+      :sections="programmeIntakeColumnHeaderSections"
+      :default-rows="defaultProgrammeIntakeColumnHeaders"
+      title-key="pages.common.columnHeaderConfigTitle"
+      hint-key="pages.common.columnHeaderConfigHint"
+      @close="columnHeaderModalVisible = false"
+      @save="handleColumnHeaderSave"
     />
   </div>
 </template>
@@ -728,9 +765,22 @@ function getRowNumber(index) {
 
 .toolbar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-bottom: 12px;
   flex-shrink: 0;
+}
+
+.toolbar-left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toolbar-config-btn {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .btn {
@@ -771,6 +821,16 @@ function getRowNumber(index) {
 .btn-default:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.btn-outline {
+  background: #fff;
+  border: 1px solid #2563eb;
+  color: #2563eb;
+}
+
+.btn-outline:hover {
+  background: #eff6ff;
 }
 
 .table-section {

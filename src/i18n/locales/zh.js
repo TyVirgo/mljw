@@ -176,6 +176,20 @@ export default {
     subtitle: '请稍后再试。',
   },
   pages: {
+    common: {
+      columnHeaderConfig: '表头语言配置',
+      columnHeaderConfigTitle: '表头语言配置',
+      columnHeaderConfigHint:
+        '配置本模块字段标签在中、英、马来语三种语言下的显示文本。字段 id 不可修改；每种语言的名称均不能为空。',
+      columnHeaderValidationFailed: '请填写所有字段的中文、英文和马来语名称，不能为空。',
+      columnHeaderFieldRequired: '不能为空',
+      columnHeaderFieldId: '字段 id',
+      columnHeaderNameZh: '中文名称',
+      columnHeaderNameEn: '英文名称',
+      columnHeaderNameMs: '马来语名称',
+      columnHeaderResetDefault: '恢复默认',
+      columnHeaderSaveSuccess: '表头语言配置已保存。',
+    },
     department: {
       deleteOne: '确定要删除该院系吗？此操作无法撤销。',
       deleteMany: '确定要删除选中的 {count} 个院系吗？此操作无法撤销。',
@@ -183,6 +197,12 @@ export default {
     intake: {
       deleteOne: '确定要删除该入学批次吗？',
       deleteMany: '确定要删除选中的 {count} 个入学批次吗？',
+    },
+    intakeSet: {
+      columnHeaderConfig: '表头语言配置',
+      columnHeaderList: '列表',
+      columnHeaderForm: '新增/编辑',
+      columnHeaderSaveSuccess: '表头语言配置已保存。',
     },
     block: {
       deleteOne: '确定要删除该楼栋吗？此操作无法撤销。',
@@ -200,10 +220,31 @@ export default {
       deleteOne: '确定要删除该培养方案吗？',
       deleteMany: '确定要删除选中的 {count} 个培养方案吗？',
       deleteVersionOne: '确定要删除该版本吗？',
+      columnHeaderConfig: '表头语言配置',
+      columnHeaderConfigTitle: '表头语言配置',
+      columnHeaderConfigHint:
+        '配置本模块列表及新增表单字段在中、英、马来语三种语言下的显示文本。字段 id 不可修改；每种语言的名称均不能为空。',
+      columnHeaderListMain: '列表主表',
+      columnHeaderListNested: '列表版本明细',
+      columnHeaderProgrammeInfo: '新增 - 培养方案信息',
+      columnHeaderApprovalMqa: '新增 - MQA 信息',
+      columnHeaderApprovalMohe: '新增 - MOHE 信息',
+      columnHeaderEntryRequirements: '新增 - 入学要求',
+      columnHeaderThresholdMarks: '新增 - 门槛分数',
+      columnHeaderFeeStructure: '新增 - 费用结构',
+      columnHeaderFeeLocal: '新增 - 本地学生费用',
+      columnHeaderFeeInternational: '新增 - 国际学生费用',
+      columnHeaderSaveSuccess: '表头语言配置已保存。',
     },
     programmeIntake: {
       deleteOne: '确定要删除该培养方案入学记录吗？',
       deleteMany: '确定要删除选中的 {count} 条培养方案入学记录吗？',
+      columnHeaderConfig: '表头语言配置',
+      columnHeaderList: '列表',
+      columnHeaderCreate: '新增',
+      columnHeaderForm: '编辑/表单',
+      columnHeaderCopy: '复制',
+      columnHeaderSaveSuccess: '表头语言配置已保存。',
     },
     semester: {
       tabYearSemester: '学年学期',
