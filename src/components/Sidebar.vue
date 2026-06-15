@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
-import { menuItems, findParentId } from '../config/menu.js'
+import { menuItems } from '../config/menu.js'
+import { findParentId as findParentIdInMenu } from '../config/menuBreadcrumb.js'
 import { useAppI18n } from '../composables/useAppI18n.js'
 
 const { t } = useAppI18n()
@@ -10,16 +11,24 @@ const props = defineProps({
     type: String,
     default: 'dashboard',
   },
+  items: {
+    type: Array,
+    default: () => menuItems,
+  },
+  defaultExpandedGroups: {
+    type: Array,
+    default: () => ['basic-info', 'programme-info', 'site-resources', 'course-info', 'lecturer-info', 'semester-calendar'],
+  },
 })
 
 const emit = defineEmits(['select'])
 
-const expandedGroups = ref(['basic-info', 'programme-info', 'site-resources', 'course-info', 'lecturer-info', 'semester-calendar'])
+const expandedGroups = ref([...props.defaultExpandedGroups])
 
 watch(
   () => props.activeId,
   (id) => {
-    const parentId = findParentId(id)
+    const parentId = findParentIdInMenu(id, props.items)
     if (parentId && !expandedGroups.value.includes(parentId)) {
       expandedGroups.value.push(parentId)
     }
@@ -60,7 +69,7 @@ function isChildActive(item) {
 <template>
   <aside class="sidebar">
     <nav class="sidebar-nav">
-      <template v-for="item in menuItems" :key="item.id">
+      <template v-for="item in items" :key="item.id">
         <div v-if="item.children" class="nav-group">
           <button
             type="button"
@@ -129,6 +138,34 @@ function isChildActive(item) {
               <rect x="14" y="3" width="7" height="7" rx="1" />
               <rect x="3" y="14" width="7" height="7" rx="1" />
               <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            <svg v-else-if="item.icon === 'user'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            <svg v-else-if="item.icon === 'users'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            <svg v-else-if="item.icon === 'transfer'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="17 1 21 5 17 9" />
+              <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+              <polyline points="7 23 3 19 7 15" />
+              <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+            </svg>
+            <svg v-else-if="item.icon === 'pause'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="6" y="4" width="4" height="16" />
+              <rect x="14" y="4" width="4" height="16" />
+            </svg>
+            <svg v-else-if="item.icon === 'play'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            <svg v-else-if="item.icon === 'exit'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
             <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <ellipse cx="12" cy="5" rx="9" ry="3" />

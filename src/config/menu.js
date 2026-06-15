@@ -1,3 +1,9 @@
+import {
+  buildMenuBreadcrumbKeys as buildBreadcrumbKeys,
+  findMenuLabelKey as findLabelKey,
+  findParentId as findMenuParentId,
+} from './menuBreadcrumb.js'
+
 /** Portal / header title for the admin shell (all pages in this app belong to this module). */
 export const basicDataModuleKey = 'menu.basicData'
 
@@ -87,34 +93,14 @@ export const developedPages = new Set([
 ])
 
 export function findMenuLabelKey(id) {
-  for (const item of menuItems) {
-    if (item.id === id) return item.labelKey
-    if (item.children) {
-      const child = item.children.find((c) => c.id === id)
-      if (child) return child.labelKey
-    }
-  }
-  return 'menu.dashboard'
+  return findLabelKey(id, menuItems)
 }
 
 export function findParentId(id) {
-  for (const item of menuItems) {
-    if (item.children?.some((c) => c.id === id)) return item.id
-  }
-  return null
+  return findMenuParentId(id, menuItems)
 }
 
 /** Breadcrumb i18n keys: module → parent group (if any) → current page */
 export function buildMenuBreadcrumbKeys(pageId) {
-  const keys = [basicDataModuleKey]
-  if (pageId === 'dashboard') {
-    keys.push(findMenuLabelKey('dashboard'))
-    return keys
-  }
-  const parentId = findParentId(pageId)
-  if (parentId) {
-    keys.push(findMenuLabelKey(parentId))
-  }
-  keys.push(findMenuLabelKey(pageId))
-  return keys
+  return buildBreadcrumbKeys(pageId, basicDataModuleKey, menuItems)
 }

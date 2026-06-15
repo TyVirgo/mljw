@@ -4,7 +4,7 @@ import UserProfileMenu from '../components/UserProfileMenu.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import { useAppI18n } from '../composables/useAppI18n.js'
 
-const emit = defineEmits(['open-basic-data'])
+const emit = defineEmits(['open-basic-data', 'open-student-records'])
 
 const { t } = useAppI18n()
 
@@ -25,7 +25,7 @@ const applications = [
     id: 'student-records',
     nameKey: 'portal.apps.studentRecords',
     category: 'basic',
-    developed: false,
+    developed: true,
     icon: 'student',
   },
 ]
@@ -52,6 +52,10 @@ const filteredApplications = computed(() => {
 function openApplication(app) {
   if (app.developed && app.id === 'basic-data') {
     emit('open-basic-data')
+    return
+  }
+  if (app.developed && app.id === 'student-records') {
+    emit('open-student-records')
     return
   }
   if (!app.developed) {

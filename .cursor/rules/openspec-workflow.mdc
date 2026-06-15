@@ -1,0 +1,16 @@
+---
+description: OpenSpec 规格驱动开发 — 对话框可用 /opsx-* 斜杠命令或 @openspec skill
+alwaysApply: true
+---
+
+# OpenSpec 已启用
+
+本仓库使用 OpenSpec 管理 `openspec/changes/` 下的功能变更。
+
+**在 Cursor 对话框中可这样使用：**
+
+1. 输入斜杠命令：`/opsx-propose`、`/opsx-apply`、`/opsx-explore`、`/opsx-archive`、`/opsx-sync`
+2. 在输入框 @ 引用 **openspec** skill（`.cursor/skills/openspec/SKILL.md`）
+3. 直接说「用 OpenSpec 实现 add-course-application」等 — Agent 应 Read openspec 相关 skill 后执行
+
+涉及 OpenSpec 变更时，优先 Read `.cursor/skills/openspec/SKILL.md` 并按意图加载对应子 skill，不要跳过规格步骤直接改代码。

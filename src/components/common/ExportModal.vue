@@ -60,8 +60,12 @@ watch(
   () => props.visible,
   (visible) => {
     if (!visible) return
-    selectedFields.value = props.fields.map((item) => ({ ...item }))
-    availableFields.value = []
+    selectedFields.value = props.fields
+      .filter((item) => item.selectedByDefault !== false)
+      .map((item) => ({ ...item }))
+    availableFields.value = props.fields
+      .filter((item) => item.selectedByDefault === false)
+      .map((item) => ({ ...item }))
     availableChecked.value = []
     selectedChecked.value = []
     exportScope.value = 'currentPage'

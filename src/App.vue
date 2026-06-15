@@ -21,12 +21,22 @@ import CourseApplicationView from './views/CourseApplicationView.vue'
 import CourseApprovalView from './views/CourseApprovalView.vue'
 import CourseChangeApplicationView from './views/CourseChangeApplicationView.vue'
 import CourseChangeReviewView from './views/CourseChangeReviewView.vue'
+import StudentProfileView from './views/studentRecords/StudentProfileView.vue'
+import StudentMovementApplicationView from './views/studentRecords/StudentMovementApplicationView.vue'
+import MovementApprovalView from './views/studentRecords/MovementApprovalView.vue'
 import UnderConstructionView from './views/UnderConstructionView.vue'
 import AcademicPortalView from './views/AcademicPortalView.vue'
 import { developedPages, basicDataModuleKey } from './config/menu.js'
+import {
+  studentRecordsDevelopedPages,
+  studentRecordsMenuItems,
+  studentRecordsModuleKey,
+} from './config/studentRecordsMenu.js'
 
-const appView = ref('admin')
-const currentPageId = ref('dashboard')
+const appView = ref('student-records')
+const currentPageId = ref('sr-student-profile')
+
+const isStudentRecordsApp = computed(() => appView.value === 'student-records')
 
 const isDashboard = computed(() => currentPageId.value === 'dashboard')
 const isBlockManagement = computed(() => currentPageId.value === 'block-management')
@@ -48,12 +58,35 @@ const isLecturerInformation = computed(() => currentPageId.value === 'lecturer-i
 const isEvaluationSettings = computed(() => currentPageId.value === 'evaluation-settings')
 const isUnderConstruction = computed(() => !developedPages.has(currentPageId.value))
 
+const isStudentProfile = computed(() => currentPageId.value === 'sr-student-profile')
+const isMovementApplication = computed(() => currentPageId.value === 'sr-movement-application')
+const isMovementApproval = computed(() => currentPageId.value === 'sr-movement-approval')
+const isSrUnderConstruction = computed(() => !studentRecordsDevelopedPages.has(currentPageId.value))
+
+const headerModuleKey = computed(() =>
+  isStudentRecordsApp.value ? studentRecordsModuleKey : basicDataModuleKey,
+)
+
+const sidebarItems = computed(() =>
+  isStudentRecordsApp.value ? studentRecordsMenuItems : undefined,
+)
+
+const sidebarExpandedGroups = computed(() =>
+  isStudentRecordsApp.value
+    ? ['sr-mgmt-group', 'sr-movement-group', 'sr-study-plan-group']
+    : undefined,
+)
+
 function handleSelect(id) {
   currentPageId.value = id
 }
 
 function handleBack() {
   currentPageId.value = 'dashboard'
+}
+
+function handleSrBack() {
+  currentPageId.value = 'sr-student-profile'
 }
 
 function goToPortal() {
@@ -64,37 +97,64 @@ function openBasicDataAdmin() {
   appView.value = 'admin'
   currentPageId.value = 'dashboard'
 }
+
+function openStudentRecordsApp() {
+  appView.value = 'student-records'
+  currentPageId.value = 'sr-student-profile'
+}
 </script>
 
 <template>
-  <AcademicPortalView v-if="appView === 'portal'" @open-basic-data="openBasicDataAdmin" />
+  <AcademicPortalView
+    v-if="appView === 'portal'"
+    @open-basic-data="openBasicDataAdmin"
+    @open-student-records="openStudentRecordsApp"
+  />
 
   <div v-else class="app-layout">
-    <HeaderBar :title-key="basicDataModuleKey" @back-to-portal="goToPortal" @go-home="goToPortal" />
+    <HeaderBar :title-key="headerModuleKey" @back-to-portal="goToPortal" @go-home="goToPortal" />
     <div class="app-body">
-      <Sidebar :active-id="currentPageId" @select="handleSelect" />
+      <Sidebar
+        :active-id="currentPageId"
+        :items="sidebarItems"
+        :default-expanded-groups="sidebarExpandedGroups"
+        @select="handleSelect"
+      />
       <div class="content-column">
-        <PageBreadcrumb :page-id="currentPageId" />
+        <PageBreadcrumb
+          :page-id="currentPageId"
+          :module-key="headerModuleKey"
+          :items="sidebarItems ?? undefined"
+        />
         <main class="main-content">
-          <DashboardView v-if="isDashboard" @navigate="handleSelect" />
-          <BlockManagementView v-else-if="isBlockManagement" />
-          <ClassroomInfoView v-else-if="isClassroomInfo" />
-          <UniversityInfoView v-else-if="isUniversityInfo" />
-          <DepartmentInfoView v-else-if="isDepartmentInfo" />
-          <CodeSetManagementView v-else-if="isCodeSetManagement" />
-          <ProgrammeVersionView v-else-if="isProgrammeVersion" />
-          <IntakeSetView v-else-if="isIntakeSet" />
-          <ProgrammeIntakeView v-else-if="isProgrammeIntake" />
-          <SemesterInformationView v-else-if="isSemesterInformation" />
-          <CalendarView v-else-if="isCalendar" />
-          <CourseInformationView v-else-if="isCourseInformation" />
-          <CourseApplicationView v-else-if="isCourseApplication" />
-          <CourseApprovalView v-else-if="isCourseApproval" />
-          <CourseChangeApplicationView v-else-if="isCourseChangeApplication" />
-          <CourseChangeReviewView v-else-if="isCourseChangeReview" />
-          <LecturerInformationView v-else-if="isLecturerInformation" />
-          <EvaluationSettingsView v-else-if="isEvaluationSettings" />
-          <UnderConstructionView v-else-if="isUnderConstruction" @back="handleBack" />
+          <template v-if="isStudentRecordsApp">
+            <StudentProfileView v-if="isStudentProfile" />
+            <StudentMovementApplicationView v-else-if="isMovementApplication" />
+            <MovementApprovalView v-else-if="isMovementApproval" />
+            <UnderConstructionView v-else-if="isSrUnderConstruction" @back="handleSrBack" />
+          </template>
+
+          <template v-else>
+            <DashboardView v-if="isDashboard" @navigate="handleSelect" />
+            <BlockManagementView v-else-if="isBlockManagement" />
+            <ClassroomInfoView v-else-if="isClassroomInfo" />
+            <UniversityInfoView v-else-if="isUniversityInfo" />
+            <DepartmentInfoView v-else-if="isDepartmentInfo" />
+            <CodeSetManagementView v-else-if="isCodeSetManagement" />
+            <ProgrammeVersionView v-else-if="isProgrammeVersion" />
+            <IntakeSetView v-else-if="isIntakeSet" />
+            <ProgrammeIntakeView v-else-if="isProgrammeIntake" />
+            <SemesterInformationView v-else-if="isSemesterInformation" />
+            <CalendarView v-else-if="isCalendar" />
+            <CourseInformationView v-else-if="isCourseInformation" />
+            <CourseApplicationView v-else-if="isCourseApplication" />
+            <CourseApprovalView v-else-if="isCourseApproval" />
+            <CourseChangeApplicationView v-else-if="isCourseChangeApplication" />
+            <CourseChangeReviewView v-else-if="isCourseChangeReview" />
+            <LecturerInformationView v-else-if="isLecturerInformation" />
+            <EvaluationSettingsView v-else-if="isEvaluationSettings" />
+            <UnderConstructionView v-else-if="isUnderConstruction" @back="handleBack" />
+          </template>
         </main>
       </div>
     </div>

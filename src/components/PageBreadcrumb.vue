@@ -1,6 +1,11 @@
 <script setup>
 import { computed } from 'vue'
-import { buildMenuBreadcrumbKeys } from '../config/menu.js'
+import { buildMenuBreadcrumbKeys, basicDataModuleKey, menuItems } from '../config/menu.js'
+import { buildMenuBreadcrumbKeys as buildKeys } from '../config/menuBreadcrumb.js'
+import {
+  buildStudentRecordsBreadcrumbKeys,
+  studentRecordsModuleKey,
+} from '../config/studentRecordsMenu.js'
 import { useAppI18n } from '../composables/useAppI18n.js'
 
 const props = defineProps({
@@ -8,11 +13,29 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  moduleKey: {
+    type: String,
+    default: basicDataModuleKey,
+  },
+  items: {
+    type: Array,
+    default: () => menuItems,
+  },
 })
 
 const { t } = useAppI18n()
 
-const crumbs = computed(() => buildMenuBreadcrumbKeys(props.pageId).map((key) => t(key)))
+const crumbs = computed(() => {
+  let keys
+  if (props.moduleKey === basicDataModuleKey && props.items === menuItems) {
+    keys = buildMenuBreadcrumbKeys(props.pageId)
+  } else if (props.moduleKey === studentRecordsModuleKey) {
+    keys = buildStudentRecordsBreadcrumbKeys(props.pageId)
+  } else {
+    keys = buildKeys(props.pageId, props.moduleKey, props.items)
+  }
+  return keys.map((key) => t(key))
+})
 </script>
 
 <template>
