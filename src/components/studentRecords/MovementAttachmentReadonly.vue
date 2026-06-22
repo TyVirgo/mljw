@@ -1,5 +1,8 @@
 <script setup>
+import { computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
+import { initialStudents } from '../../data/students.js'
+import { downloadStudentConsentTemplate } from '../../utils/consentFormDownload.js'
 
 const props = defineProps({
   fileName: {
@@ -16,7 +19,19 @@ const props = defineProps({
   },
   consentHintKey: {
     type: String,
-    required: true,
+    default: '',
+  },
+  movementType: {
+    type: String,
+    default: '',
+  },
+  studentCategory: {
+    type: String,
+    default: '',
+  },
+  studentId: {
+    type: String,
+    default: '',
   },
   required: {
     type: Boolean,
@@ -26,8 +41,24 @@ const props = defineProps({
 
 const { t } = useAppI18n()
 
+const resolvedStudentCategory = computed(() => {
+  if (props.studentCategory) return props.studentCategory
+  if (!props.studentId) return 'Local'
+  const student = initialStudents.find(
+    (item) =>
+      item.studentId === props.studentId || item.basicInfo?.studentId === props.studentId,
+  )
+  return student?.studentCategory || 'Local'
+})
+
 function downloadConsentLetter() {
-  window.alert(t(props.consentHintKey))
+  if (props.movementType) {
+    downloadStudentConsentTemplate(props.movementType, resolvedStudentCategory.value, t)
+    return
+  }
+  if (props.consentHintKey) {
+    window.alert(t(props.consentHintKey))
+  }
 }
 
 function previewAttachment() {

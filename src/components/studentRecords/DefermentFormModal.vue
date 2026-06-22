@@ -13,6 +13,11 @@ import {
   canResubmitDeferment,
 } from '../../data/deferments.js'
 import { initialStudents } from '../../data/students.js'
+import {
+  downloadStudentConsentTemplate,
+  downloadParentConsentTemplate,
+  hasParentConsentTemplate,
+} from '../../utils/consentFormDownload.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -38,6 +43,18 @@ const modalTitle = computed(() =>
 
 const dateOfApplicationDisplay = computed(() =>
   formatApplicationDateDisplay(form.value.dateOfApplication),
+)
+
+function getSelectedStudentCategory() {
+  const student = initialStudents.find(
+    (item) =>
+      item.studentId === form.value.studentId || item.basicInfo?.studentId === form.value.studentId,
+  )
+  return student?.studentCategory || 'Local'
+}
+
+const showParentConsentDownload = computed(() =>
+  hasParentConsentTemplate('deferment', getSelectedStudentCategory()),
 )
 
 const studentOptions = computed(() => {
@@ -97,7 +114,11 @@ function onFileChange(event) {
 }
 
 function downloadConsentLetter() {
-  window.alert(t('deferment.consentLetterHint'))
+  downloadStudentConsentTemplate('deferment', getSelectedStudentCategory(), t)
+}
+
+function downloadParentConsentLetter() {
+  downloadParentConsentTemplate('deferment', getSelectedStudentCategory(), t)
 }
 
 function validateAndEmit(mode, emitter) {
@@ -261,6 +282,16 @@ function handleClose() {
           <div class="form-field span-2">
             <label>{{ t('deferment.fields.parentEmail') }}</label>
             <input v-model="form.parentEmail" type="text" class="form-control" />
+          </div>
+          <div v-if="showParentConsentDownload" class="form-field span-2 parent-download-row">
+            <button type="button" class="btn btn-outline consent-btn" @click="downloadParentConsentLetter">
+              {{ t('consentForm.downloadParentConsent') }}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
           </div>
         </div>
 

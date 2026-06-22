@@ -104,9 +104,11 @@ function formatAttendanceDate(value) {
         <div class="section-bar">{{ t('withdrawal.sections.documents') }}</div>
         <MovementAttachmentReadonly
           :file-name="item.attachment?.fileName || ''"
+          movement-type="withdrawal"
+          :student-category="item.studentCategory"
+          :student-id="item.studentId"
           label-key="withdrawal.fields.uploadAttachment"
           download-label-key="withdrawal.fields.downloadConsent"
-          consent-hint-key="withdrawal.consentLetterHint"
         />
       </div>
 

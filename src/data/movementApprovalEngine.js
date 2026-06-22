@@ -5,6 +5,8 @@ import {
   stageMatchesRole,
 } from './movementApprovalWorkflows.js'
 import { upsertInStore } from './movementStore.js'
+import { getInitialImplementedStatus, resolveMovementCategoryConfig } from './movementCategories.js'
+import { applyStudentProfileFromMovement } from './students.js'
 import { formatTransferDateTime } from './programmeTransfers.js'
 import { formatDefermentDateTime } from './deferments.js'
 import { formatResumptionDateTime } from './resumptions.js'
@@ -119,6 +121,13 @@ export function validateApprovalForm(action, comment, item = null) {
   return errors
 }
 
+function applyAutoImplementationProfile(sourceKey, item, category) {
+  const config = resolveMovementCategoryConfig(sourceKey, category)
+  if (config) {
+    applyStudentProfileFromMovement(item.studentId, config)
+  }
+}
+
 export function applyMovementDecision(sourceKey, item, action, comment, actor, adminFields = {}) {
   if (!item || item.status !== 'In Progress') return item
   if (!stageMatchesRole(item.approvalStage, actor)) return item
@@ -167,17 +176,23 @@ export function applyMovementDecision(sourceKey, item, action, comment, actor, a
     })
 
     if (isFinalWorkflowStage(sourceKey, merged.approvalStage, category)) {
+      const implemented = getInitialImplementedStatus(sourceKey, category)
       updated = {
         ...updated,
         status: 'Approved',
         approvalStage: 'Approved',
         archived: true,
-        implemented: updated.implemented || 'Pending',
+        implemented,
         adminNewProgramme:
           updated.adminNewProgramme || updated.newProgrammeFirstChoice || '',
         adminNewIntake: updated.adminNewIntake || updated.startSemester || '',
         adminDate: updated.adminDate || new Date().toISOString().slice(0, 10),
       }
+      upsertInStore(sourceKey, updated)
+      if (implemented === 'Implemented') {
+        applyAutoImplementationProfile(sourceKey, updated, category)
+      }
+      return updated
     } else {
       const next = getNextStage(sourceKey, merged.approvalStage, category)
       updated = {
@@ -186,9 +201,15 @@ export function applyMovementDecision(sourceKey, item, action, comment, actor, a
         approvalStage: next === 'Approved' ? 'Approved' : next,
       }
       if (next === 'Approved') {
+        const implemented = getInitialImplementedStatus(sourceKey, category)
         updated.status = 'Approved'
         updated.archived = true
-        updated.implemented = updated.implemented || 'Pending'
+        updated.implemented = implemented
+        upsertInStore(sourceKey, updated)
+        if (implemented === 'Implemented') {
+          applyAutoImplementationProfile(sourceKey, updated, category)
+        }
+        return updated
       }
     }
     upsertInStore(sourceKey, updated)

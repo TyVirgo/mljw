@@ -1245,5 +1245,21 @@ export const zhFlat = {
   Deferred: '休学',
   Withdrawn: '退学',
 
+  'Category code is required.': '类别编码为必填项',
+  'Category name is required.': '类别名称为必填项',
+  'Student Status is required.': '学籍状态为必填项',
+  'Category is required.': '类别为必填项',
+  'Category is not allowed for the selected Student Status.': '所选学籍状态下不允许该类别。',
+  'Student Type is required.': '学生类型为必填项',
+  'Category code and Student Type combination already exists.': '类别编码与学生类型组合已存在。',
+  'Reason name is required.': '原因名称为必填项',
+  'Form name is required.': '知情同意书名称为必填项',
+  'Applicable movement type is required.': '适用异动类别为必填项',
+  'Student consent file is required.': '学生知情同意书为必填项',
+  'Study duration rule is required for programme transfer.': '转专业须配置修读时长规则。',
+  'Movement type and Student Type combination already exists.': '适用异动类别与学生类型组合已存在。',
+  'Programme transfer requires at least one academic year since intake.': '转专业申请需满足修读时长要求（入学满一学年）。',
+  Chinese: '中国',
+
   ...zhOrganisationLabels,
 }

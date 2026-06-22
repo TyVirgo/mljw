@@ -23,6 +23,7 @@ import {
 } from '../../data/resumptions.js'
 
 import { initialStudents } from '../../data/students.js'
+import { downloadStudentConsentTemplate } from '../../utils/consentFormDownload.js'
 
 
 
@@ -190,10 +191,13 @@ function onFileChange(event) {
 
 
 
+function getSelectedStudentCategory() {
+  const student = initialStudents.find((item) => item.studentId === form.value.studentId)
+  return student?.studentCategory || 'Local'
+}
+
 function downloadConsentLetter() {
-
-  window.alert(t('resumption.consentLetterHint'))
-
+  downloadStudentConsentTemplate('resumption', getSelectedStudentCategory(), t)
 }
 
 

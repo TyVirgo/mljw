@@ -48,15 +48,20 @@ export function pBody(text) {
   return `<w:p w14:paraId="${nextParaId()}"><w:pPr><w:jc w:val="both"/><w:rPr><w:rFonts w:hint="eastAsia"/><w:lang w:val="en-US" w:eastAsia="zh-CN"/></w:rPr></w:pPr>${runText(text)}</w:p>`
 }
 
-/** 模板标题样式 2–8 */
-export function pHeading(style, text, { numbered = false } = {}) {
-  const num =
-    numbered && style === '6'
-      ? '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="3"/></w:numPr>'
-      : style === '7' && text.includes('菜单内容简介')
-        ? '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="4"/></w:numPr>'
-        : ''
+/** 模板标题样式 2–8；suppressNum 显式关闭样式继承的自动编号（用于菜单介绍 1–6 固定序号） */
+export function pHeading(style, text, { numbered = false, suppressNum = false } = {}) {
+  let num = ''
+  if (suppressNum) {
+    num = '<w:numPr><w:numId w:val="0"/></w:numPr>'
+  } else if (numbered && style === '6') {
+    num = '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="3"/></w:numPr>'
+  }
   return `<w:p w14:paraId="${nextParaId()}"><w:pPr><w:pStyle w:val="${style}"/>${num}<w:bidi w:val="0"/><w:rPr><w:rFonts w:hint="default" w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/><w:lang w:val="en-US" w:eastAsia="zh-CN"/></w:rPr></w:pPr>${runText(text)}</w:p>`
+}
+
+/** 菜单介绍固定序号标题（每模块独立 1–6，不触发 Word 自动编号） */
+export function pMenuIntroHeading(index, title) {
+  return pHeading('7', `${index}、${title}`, { suppressNum: true })
 }
 
 export function pBulletItem(text) {
@@ -154,7 +159,7 @@ export function dataFlowBlock({ explanation, preconditions, downstream }) {
 }
 
 export function functionButtonXml(index, nameZh, nameEn, { description, interaction, remarks, drillDown }) {
-  const drill = drillDown || interaction || '无下钻页面'
+  const drill = drillDown ?? '无下钻页面'
   return [
     pHeading('7', `${index}、功能按钮/开关——${nameZh}（英文名称：${nameEn}）`),
     pHeading('8', 'a.功能说明（描述、业务的事件交互、备注信息等）：'),
@@ -169,8 +174,7 @@ export function functionButtonXml(index, nameZh, nameEn, { description, interact
 
 export function buildModuleXml({
   menuTitle,
-  intro,
-  summary,
+  menuSummary,
   listFieldNote,
   listFields,
   searchFieldNote,
@@ -185,23 +189,22 @@ export function buildModuleXml({
   const parts = [
     pHeading('5', menuTitle),
     pHeading('6', '菜单介绍'),
-    pHeading('7', '菜单内容简介'),
-    pBody(summary || intro),
-    pBody(intro),
-    pHeading('7', '1、页面展示字段信息'),
+    pMenuIntroHeading(1, '菜单内容简介'),
+    pBody(menuSummary),
+    pMenuIntroHeading(2, '页面展示字段信息'),
     pBody(listFieldNote || '列表页表格展示字段如下：'),
     buildFieldTable(listFields, { align: 'left' }),
+    pMenuIntroHeading(3, '支持查询检索的字段信息'),
+    pBody(searchFieldNote || (searchFields?.length ? '搜索区支持以下字段检索：' : '本模块列表页暂无独立检索字段。')),
   ]
   if (searchFields?.length) {
-    parts.push(pHeading('7', '2、支持查询检索的字段信息'))
-    parts.push(pBody(searchFieldNote || '搜索区支持以下字段检索：'))
     parts.push(buildFieldTable(searchFields, { align: 'left' }))
   }
-  parts.push(pHeading('7', '3、数据前后流转关系（说明、前置条件、下游输出）'))
+  parts.push(pMenuIntroHeading(4, '数据前后流转关系(说明、前置条件、下游输出)'))
   parts.push(dataFlowBlock(dataFlow))
-  parts.push(pHeading('7', '4、业务流关系（操作流程）'))
+  parts.push(pMenuIntroHeading(5, '业务流关系(操作流程)'))
   parts.push(pBody(`操作流程：${businessFlow}`))
-  parts.push(pHeading('7', '5、原型参考链接'))
+  parts.push(pMenuIntroHeading(6, '原型参考链接'))
   parts.push(pBody(prototypeLink || '可交互原型演示环境（学籍管理模块）。'))
   parts.push(pHeading('6', '新增—字段信息表'))
   parts.push(buildGroupedFormFieldTable(formPageTitle, formFieldGroups))
@@ -222,30 +225,35 @@ ${innerXml}
 </w:document>`
 }
 
-export function buildCoverSection() {
+export function buildCoverSection({
+  version = 'V1.6',
+  date = '2026年6月15日',
+  note = 'V1.6 按公司 PRD 模板结构生成；含丰富菜单介绍、Tab 分组字段表、扩展表单内功能按钮说明；业务描述纯中文，技术标识括号备注。',
+} = {}) {
   return [
     `<w:p w14:paraId="${nextParaId()}"><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:hint="eastAsia" w:ascii="宋体" w:hAnsi="宋体" w:cs="宋体"/><w:sz w:val="44"/><w:szCs w:val="44"/><w:lang w:val="en-US" w:eastAsia="zh-CN"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:hint="eastAsia" w:ascii="宋体" w:hAnsi="宋体" w:cs="宋体"/><w:sz w:val="44"/><w:szCs w:val="44"/><w:lang w:val="en-US" w:eastAsia="zh-CN"/></w:rPr><w:t>厦大马来分校本科教务系统产品需求文档</w:t></w:r></w:p>`,
     `<w:p w14:paraId="${nextParaId()}"><w:pPr><w:jc w:val="center"/><w:rPr><w:sz w:val="32"/></w:rPr></w:pPr><w:r><w:rPr><w:sz w:val="32"/></w:rPr><w:t>学籍管理模块（学生基本信息 + 学籍异动）</w:t></w:r></w:p>`,
-    pBody('文档版本：V1.5'),
-    pBody('创建日期：2026年6月12日'),
+    pBody(`文档版本：${version}`),
+    pBody(`创建日期：${date}`),
     pBody('需求确认状态：已确认'),
-    pBody(
-      '说明：V1.2 整合 V1.0/V1.1 完整内容，按公司 PRD 空白模板章节结构填充；含字段信息表、菜单功能清单（含下钻页面说明）、数据流转与 OpenSpec 附录。',
-    ),
+    pBody(`说明：${note}`),
   ].join('')
 }
 
-export function buildOverviewSection() {
+export function buildOverviewSection({ scopeExtra = '' } = {}) {
+  const scope =
+    '本文档描述厦大马来分校本科教务系统「学籍管理」模块产品需求，覆盖学生基本信息维护、异动类别配置、四类学籍异动申请（转专业/休学/复学/退学）、统一异动审批、异动维护与异动查询。' +
+    scopeExtra
   return [
     pHeading('2', '1 文档概述'),
     pHeading('3', '1.1 文档目的'),
     pBody(
-      '本文档描述厦大马来分校本科教务系统「学籍管理」模块产品需求，覆盖学生基本信息维护、四类学籍异动申请（转专业/休学/复学/退学）及统一异动审批工作台。文档为 AI 可交互原型生成与需求评审的标准化输入，确保原型符合业务逻辑、本地化规范与设计约定。',
+      `${scope}文档为 AI 可交互原型生成与需求评审的标准化输入，确保原型符合业务逻辑、本地化规范与设计约定。`,
     ),
     pHeading('3', '1.2 开发背景'),
-    pBody('开发模式：边分析边迭代，分模块生成可交互原型（当前为纯前端 Mock 数据演示）。'),
-    pBody('目标用户：教务管理人员、学籍异动审批角色（含 Pending Review 等审批环节）、学生（申请侧）。'),
-    pBody('覆盖范围：本科生学籍管理；门户二级应用「学籍管理（Student Status Management）」。'),
+    pBody('开发模式：边分析边迭代，分模块生成可交互原型（当前为纯前端演示数据，无后端接口）。'),
+    pBody('目标用户：教务管理人员、学籍异动审批角色、学生（申请侧）。'),
+    pBody('覆盖范围：本科生学籍管理；门户二级应用「学籍管理」。'),
     pHeading('3', '1.3 文档说明'),
     pBody('本文档依据《厦大马来分校本科教务系统产品需求文档模板（带参考数据版）0610》章节结构编写。'),
     pBody('每个二级菜单模块均包含：菜单介绍、页面展示字段、检索字段、数据流转、业务流、原型链接、新增字段表、菜单功能清单。'),
@@ -253,17 +261,33 @@ export function buildOverviewSection() {
   ].join('')
 }
 
-export function buildSeparationTable() {
-  return [
+export function buildSeparationTable({ extended = false } = {}) {
+  const parts = [
     pHeading('3', '2.3 申请与审批职责分离'),
     buildSimpleTable(
       ['能力', '学生基本信息', '异动申请', '异动审批'],
       [
-        ['详情入口', 'Detail Drawer 七 Tab', 'DetailModal 只读无审批', 'View 全页 ReviewView'],
-        ['Section VII 教务核定', '—', 'Form 不含（审批人填写）', 'Pending View 含 Section VII'],
-        ['流转日志', '—', '列表 Approval Log', '列表 Approval Log'],
-        ['Recall 撤回', '—', '—', 'History Tab View 后 Recall'],
+        ['详情入口', '只读详情抽屉（七页签）', '只读详情弹窗（无审批）', '全页审批详情（含审批表单）'],
+        ['教务核定分区', '—', '表单不含（审批人填写）', '待我审批查看时含教务核定字段'],
+        ['流转日志', '—', '列表独立日志弹窗', '列表独立日志弹窗'],
+        ['撤回', '—', '—', '已处理历史查看后撤回'],
       ],
     ),
-  ].join('')
+  ]
+  if (extended) {
+    parts.push(
+      pHeading('3', '2.4 维护与查询职责分离'),
+      buildSimpleTable(
+        ['能力', '异动维护', '异动查询', '说明'],
+        [
+          ['数据范围', '仅 Approved', '全部非 Draft', '查询含进行中/拒绝等全态'],
+          ['工具栏', '实施·改编号·导出·删除', '仅导出', '查询只读'],
+          ['行操作', 'Edit | Details | Log', 'Details | Log', '查询无 Edit'],
+          ['导出', 'ExportModal → xlsx', 'ExportModal → xlsx', '共用字段与导出逻辑'],
+          ['搜索布局', '单行五字段', '双行+收起', '查询次行默认展开'],
+        ],
+      ),
+    )
+  }
+  return parts.join('')
 }

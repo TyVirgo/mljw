@@ -1,3 +1,5 @@
+import { ref } from 'vue'
+
 export const studentCategoryOptions = ['Local', 'China', 'International']
 /** @deprecated use studentCategoryOptions */
 export const studentTypeOptions = studentCategoryOptions
@@ -414,3 +416,60 @@ export const initialStudents = [
     },
   }),
 ]
+
+const CATEGORY_STATUS_TO_PROFILE = {
+  Active: 'Active',
+  Deferment: 'Deferred',
+  Withdrawal: 'Withdrawn',
+  Offered: 'Active',
+  Unregistered: 'Inactive',
+  'Defer Registration': 'Inactive',
+  Completion: 'Active',
+  Graduated: 'Active',
+  'Completion without Graduation': 'Active',
+  Incomplete: 'Inactive',
+  Expel: 'Withdrawn',
+}
+
+export const studentRecords = ref(initialStudents.map((item) => normalizeStudent({ ...item })))
+
+export function findStudentByStudentId(studentId) {
+  const normalized = String(studentId || '').trim()
+  if (!normalized) return null
+  return (
+    studentRecords.value.find(
+      (item) => String(item.basicInfo?.studentId || item.studentId || '').trim() === normalized,
+    ) || null
+  )
+}
+
+export function applyStudentProfileFromMovement(studentId, categoryConfig) {
+  if (!categoryConfig || !studentId) return false
+  const index = studentRecords.value.findIndex(
+    (item) =>
+      String(item.basicInfo?.studentId || item.studentId || '').trim() ===
+      String(studentId || '').trim(),
+  )
+  if (index === -1) return false
+
+  const current = studentRecords.value[index]
+  const patch = {}
+
+  if (categoryConfig.modifyStudentStatus && categoryConfig.studentStatus) {
+    patch.enrollment = {
+      ...current.enrollment,
+      status:
+        CATEGORY_STATUS_TO_PROFILE[categoryConfig.studentStatus] || categoryConfig.studentStatus,
+    }
+  }
+
+  if (categoryConfig.modifyStudentType && categoryConfig.studentType) {
+    patch.studentCategory =
+      categoryConfig.studentType === 'Chinese' ? 'China' : categoryConfig.studentType
+  }
+
+  if (!patch.enrollment && !patch.studentCategory) return false
+
+  studentRecords.value[index] = normalizeStudent({ ...current, ...patch })
+  return true
+}

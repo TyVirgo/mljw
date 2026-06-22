@@ -75,9 +75,10 @@ function displayDate(item) {
         <div class="section-bar">{{ t('programmeTransfer.sections.documents') }}</div>
         <MovementAttachmentReadonly
           :file-name="item.attachment?.fileName || ''"
+          movement-type="programme-transfer"
+          :student-id="item.studentId"
           label-key="programmeTransfer.fields.uploadAttachment"
           download-label-key="programmeTransfer.fields.downloadConsent"
-          consent-hint-key="programmeTransfer.consentLetterHint"
         />
       </div>
 

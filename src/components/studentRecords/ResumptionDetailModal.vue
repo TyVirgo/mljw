@@ -74,9 +74,10 @@ function displayDate(item) {
         <div class="section-bar">{{ t('resumption.sections.documents') }}</div>
         <MovementAttachmentReadonly
           :file-name="item.attachment?.fileName || ''"
+          movement-type="resumption"
+          :student-id="item.studentId"
           label-key="resumption.fields.uploadAttachment"
           download-label-key="resumption.fields.downloadConsent"
-          consent-hint-key="resumption.consentLetterHint"
         />
 
         <div class="section-bar">{{ tr('Declaration') }}</div>

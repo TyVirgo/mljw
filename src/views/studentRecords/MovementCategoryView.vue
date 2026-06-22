@@ -1,0 +1,469 @@
+<script setup>
+import { ref, computed } from 'vue'
+import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
+import TablePagination from '../../components/common/TablePagination.vue'
+import MovementCategoryFormModal from '../../components/studentRecords/MovementCategoryFormModal.vue'
+import MovementCategoryReasonModal from '../../components/studentRecords/MovementCategoryReasonModal.vue'
+import {
+  movementCategories,
+  studentStatusOptions,
+  createMovementCategory,
+  updateMovementCategory,
+  deleteMovementCategories,
+  getDistinctCategoryNames,
+} from '../../data/movementCategories.js'
+import { useAppI18n } from '../../composables/useAppI18n.js'
+
+const { t, tr } = useAppI18n()
+
+const searchForm = ref(createEmptySearch())
+const appliedSearch = ref(createEmptySearch())
+
+const selectedIds = ref([])
+const currentPage = ref(1)
+const pageSize = ref(10)
+
+const formVisible = ref(false)
+const formMode = ref('create')
+const editingItem = ref(null)
+
+const reasonModalVisible = ref(false)
+const reasonCategoryId = ref(null)
+
+const confirmVisible = ref(false)
+const confirmMessage = ref('')
+const pendingDeleteIds = ref([])
+
+function createEmptySearch() {
+  return {
+    categoryName: '',
+    categoryCode: '',
+    studentStatus: '',
+  }
+}
+
+function matchText(value, keyword) {
+  if (!keyword) return true
+  return String(value ?? '')
+    .toLowerCase()
+    .includes(keyword.trim().toLowerCase())
+}
+
+function matchSelect(value, selected) {
+  if (!selected) return true
+  return value === selected
+}
+
+const categoryNameOptions = computed(() => getDistinctCategoryNames())
+
+const filteredRows = computed(() => {
+  const s = appliedSearch.value
+  return movementCategories.value.filter(
+    (row) =>
+      matchSelect(row.categoryName, s.categoryName) &&
+      matchText(row.categoryCode, s.categoryCode) &&
+      matchSelect(row.studentStatus, s.studentStatus),
+  )
+})
+
+const totalCount = computed(() => filteredRows.value.length)
+const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / pageSize.value)))
+
+const paginatedRows = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredRows.value.slice(start, start + pageSize.value)
+})
+
+const allPageSelected = computed(() => {
+  if (!paginatedRows.value.length) return false
+  return paginatedRows.value.every((item) => selectedIds.value.includes(item.id))
+})
+
+const hasSelection = computed(() => selectedIds.value.length > 0)
+
+function handleSearch() {
+  appliedSearch.value = { ...searchForm.value }
+  currentPage.value = 1
+  selectedIds.value = []
+}
+
+function handleReset() {
+  searchForm.value = createEmptySearch()
+  appliedSearch.value = createEmptySearch()
+  currentPage.value = 1
+  selectedIds.value = []
+}
+
+function toggleSelectAll(event) {
+  const pageIds = paginatedRows.value.map((item) => item.id)
+  if (event.target.checked) {
+    selectedIds.value = [...new Set([...selectedIds.value, ...pageIds])]
+  } else {
+    selectedIds.value = selectedIds.value.filter((id) => !pageIds.includes(id))
+  }
+}
+
+function toggleSelect(id) {
+  const index = selectedIds.value.indexOf(id)
+  if (index === -1) selectedIds.value.push(id)
+  else selectedIds.value.splice(index, 1)
+}
+
+function openCreate() {
+  formMode.value = 'create'
+  editingItem.value = null
+  formVisible.value = true
+}
+
+function openEdit(item) {
+  formMode.value = 'edit'
+  editingItem.value = { ...item }
+  formVisible.value = true
+}
+
+function closeForm() {
+  formVisible.value = false
+  editingItem.value = null
+}
+
+function handleFormSave(formData) {
+  if (formMode.value === 'edit' && editingItem.value) {
+    updateMovementCategory(editingItem.value.id, formData)
+  } else {
+    createMovementCategory(formData)
+  }
+  closeForm()
+}
+
+function openReasonModal(item) {
+  reasonCategoryId.value = item.id
+  reasonModalVisible.value = true
+}
+
+function requestDelete(ids) {
+  const uniqueIds = [...new Set(ids)]
+  if (!uniqueIds.length) return
+  pendingDeleteIds.value = uniqueIds
+  confirmMessage.value =
+    uniqueIds.length === 1
+      ? t('movementCategory.deleteOne')
+      : t('movementCategory.deleteMany', { count: uniqueIds.length })
+  confirmVisible.value = true
+}
+
+function confirmDelete() {
+  deleteMovementCategories(pendingDeleteIds.value)
+  selectedIds.value = selectedIds.value.filter((id) => !pendingDeleteIds.value.includes(id))
+  pendingDeleteIds.value = []
+  confirmVisible.value = false
+  if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
+}
+
+function getRowNumber(index) {
+  return (currentPage.value - 1) * pageSize.value + index + 1
+}
+
+function formatStudentStatus(status) {
+  const key = `movementCategory.studentStatus.${status}`
+  const translated = t(key)
+  return translated !== key ? translated : tr(status)
+}
+
+function formatTrackCategory(category) {
+  const key = `movementCategory.trackCategory.${category}`
+  const translated = t(key)
+  return translated !== key ? translated : tr(category)
+}
+
+function formatStudentType(type) {
+  const key = `movementCategory.studentType.${type}`
+  const translated = t(key)
+  return translated !== key ? translated : tr(type)
+}
+</script>
+
+<template>
+  <div class="movement-category-page">
+    <div class="page-card">
+      <div class="search-bar">
+        <div class="search-row">
+          <div class="search-fields">
+            <div class="search-item">
+              <label>{{ t('movementCategory.search.categoryName') }}</label>
+              <select
+                v-model="searchForm.categoryName"
+                class="search-select"
+                :class="{ 'is-empty': !searchForm.categoryName }"
+              >
+                <option value="">{{ t('common.pleaseSelect') }}</option>
+                <option v-for="name in categoryNameOptions" :key="name" :value="name">{{ name }}</option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ t('movementCategory.search.categoryCode') }}</label>
+              <input
+                v-model="searchForm.categoryCode"
+                type="text"
+                class="search-input"
+                :placeholder="t('common.pleaseInput')"
+                @keyup.enter="handleSearch"
+              />
+            </div>
+            <div class="search-item">
+              <label>{{ t('movementCategory.fields.studentStatus') }}</label>
+              <select
+                v-model="searchForm.studentStatus"
+                class="search-select"
+                :class="{ 'is-empty': !searchForm.studentStatus }"
+              >
+                <option value="">{{ t('common.pleaseSelect') }}</option>
+                <option v-for="opt in studentStatusOptions" :key="opt" :value="opt">
+                  {{ t(`movementCategory.studentStatus.${opt}`) }}
+                </option>
+              </select>
+            </div>
+          </div>
+          <div class="search-actions">
+            <button type="button" class="btn btn-primary" @click="handleSearch">{{ t('common.search') }}</button>
+            <button type="button" class="btn btn-default" @click="handleReset">{{ t('common.reset') }}</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button type="button" class="btn btn-primary" @click="openCreate">{{ t('common.create') }}</button>
+        <button
+          type="button"
+          class="btn btn-danger-outline"
+          :disabled="!hasSelection"
+          @click="requestDelete(selectedIds)"
+        >
+          {{ t('common.delete') }}
+        </button>
+      </div>
+
+      <div class="table-section">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="col-check">
+                  <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
+                </th>
+                <th class="col-no sortable">{{ t('common.serialNo') }}</th>
+                <th class="sortable">{{ t('movementCategory.columns.categoryCode') }}</th>
+                <th class="sortable">{{ t('movementCategory.columns.categoryName') }}</th>
+                <th class="sortable">{{ t('movementCategory.fields.studentStatus') }}</th>
+                <th class="sortable">{{ t('movementCategory.fields.category') }}</th>
+                <th class="sortable">{{ t('movementCategory.fields.studentType') }}</th>
+                <th class="col-sticky-right">{{ t('common.actions') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(item, index) in paginatedRows" :key="item.id">
+                <td class="col-check">
+                  <input type="checkbox" :checked="selectedIds.includes(item.id)" @change="toggleSelect(item.id)" />
+                </td>
+                <td class="col-no">{{ getRowNumber(index) }}</td>
+                <td>{{ item.categoryCode }}</td>
+                <td>{{ item.categoryName }}</td>
+                <td>{{ formatStudentStatus(item.studentStatus) }}</td>
+                <td>{{ formatTrackCategory(item.category) }}</td>
+                <td>{{ formatStudentType(item.studentType) }}</td>
+                <td class="actions-cell col-sticky-right">
+                  <div class="actions-inner">
+                    <button type="button" class="link-btn" @click="openEdit(item)">{{ t('common.edit') }}</button>
+                    <span class="sep">|</span>
+                    <button type="button" class="link-btn" @click="openReasonModal(item)">
+                      {{ t('movementCategory.setReason') }}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <TablePagination :total="totalCount" v-model="currentPage" v-model:page-size="pageSize" />
+      </div>
+    </div>
+
+    <MovementCategoryFormModal
+      :visible="formVisible"
+      :mode="formMode"
+      :initial-data="editingItem"
+      @close="closeForm"
+      @save="handleFormSave"
+    />
+
+    <MovementCategoryReasonModal
+      :visible="reasonModalVisible"
+      :category-id="reasonCategoryId"
+      @close="reasonModalVisible = false"
+    />
+
+    <ConfirmDialog
+      :visible="confirmVisible"
+      :title="t('common.deleteConfirmation')"
+      :message="confirmMessage"
+      :confirm-text="t('common.delete')"
+      @confirm="confirmDelete"
+      @cancel="confirmVisible = false"
+    />
+  </div>
+</template>
+
+<style scoped>
+.movement-category-page {
+  height: calc(100vh - 56px);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 28px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.page-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #f3f4f6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: 20px 24px 16px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-primary {
+  border: none;
+  background: #2563eb;
+  color: #fff;
+}
+
+.btn-danger-outline {
+  border: 1px solid #fca5a5;
+  background: #fff;
+  color: #dc2626;
+}
+
+.btn-danger-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-default {
+  background: #fff;
+  border: 1px solid #d1d5db;
+  color: #374151;
+}
+
+.table-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid #f3f4f6;
+  border-radius: 8px;
+}
+
+.data-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+
+.data-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.data-table th.sortable::after {
+  content: '⇅';
+  margin-left: 4px;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.col-check {
+  width: 44px;
+  text-align: center;
+}
+
+.col-no {
+  width: 56px;
+}
+
+.col-sticky-right {
+  position: sticky;
+  right: 0;
+  background: #fff;
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.04);
+  z-index: 1;
+}
+
+.data-table thead .col-sticky-right {
+  background: #f9fafb;
+  z-index: 2;
+}
+
+.actions-cell {
+  min-width: 140px;
+}
+
+.actions-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.link-btn {
+  border: none;
+  background: none;
+  color: #2563eb;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sep {
+  color: #d1d5db;
+}
+</style>

@@ -3,6 +3,7 @@ import { initialProgrammeTransfers, normalizeTransfer } from './programmeTransfe
 import { initialDeferments, normalizeDeferment } from './deferments.js'
 import { initialResumptions, normalizeResumption } from './resumptions.js'
 import { initialWithdrawals, normalizeWithdrawal } from './withdrawals.js'
+import { seedMaintenanceShowcaseRecords } from './movementMaintenanceFields.js'
 
 function cloneList(initial, normalize) {
   return initial.map((item) => normalize({ ...item }))
@@ -12,6 +13,8 @@ export const programmeTransfers = ref(cloneList(initialProgrammeTransfers, norma
 export const deferments = ref(cloneList(initialDeferments, normalizeDeferment))
 export const resumptions = ref(cloneList(initialResumptions, normalizeResumption))
 export const withdrawals = ref(cloneList(initialWithdrawals, normalizeWithdrawal))
+
+seedMaintenanceShowcaseRecords()
 
 export function upsertInStore(sourceKey, updated) {
   const listRef = getStoreList(sourceKey)

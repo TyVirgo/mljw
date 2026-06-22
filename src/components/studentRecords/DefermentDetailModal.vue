@@ -86,9 +86,10 @@ function displayDate(item) {
         <div class="section-bar">{{ t('deferment.sections.documents') }}</div>
         <MovementAttachmentReadonly
           :file-name="item.attachment?.fileName || ''"
+          movement-type="deferment"
+          :student-id="item.studentId"
           label-key="deferment.fields.uploadAttachment"
           download-label-key="deferment.fields.downloadConsent"
-          consent-hint-key="deferment.consentLetterHint"
         />
       </div>
 

@@ -12,6 +12,11 @@ import {
   semesterOptions,
 } from '../../data/programmeTransfers.js'
 import { initialStudents } from '../../data/students.js'
+import {
+  resolveConsentTemplate,
+  checkProgrammeTransferStudyDurationEligibility,
+} from '../../data/consentForms.js'
+import { downloadStudentConsentTemplate } from '../../utils/consentFormDownload.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -91,8 +96,19 @@ function onFileChange(event) {
   form.value.attachment = { fileName: file.name, size: file.size }
 }
 
+function getSelectedStudent() {
+  return initialStudents.find(
+    (item) =>
+      item.studentId === form.value.studentId || item.basicInfo?.studentId === form.value.studentId,
+  )
+}
+
+function getSelectedStudentCategory() {
+  return getSelectedStudent()?.studentCategory || 'Local'
+}
+
 function downloadConsentLetter() {
-  window.alert(t('programmeTransfer.consentLetterHint'))
+  downloadStudentConsentTemplate('programme-transfer', getSelectedStudentCategory(), t)
 }
 
 function validateAndEmit(mode, emitter) {
@@ -112,10 +128,24 @@ function handleSaveDraft() {
 }
 
 function handleSubmit() {
+  const student = getSelectedStudent()
+  const template = resolveConsentTemplate('programme-transfer', student?.studentCategory)
+  const eligibility = checkProgrammeTransferStudyDurationEligibility(student, template)
+  if (!eligibility.valid) {
+    window.alert(tr(eligibility.error) || t('consentForm.studyDurationNotMet'))
+    return
+  }
   validateAndEmit('submit', (payload) => emit('submit', payload))
 }
 
 function handleResubmit() {
+  const student = getSelectedStudent()
+  const template = resolveConsentTemplate('programme-transfer', student?.studentCategory)
+  const eligibility = checkProgrammeTransferStudyDurationEligibility(student, template)
+  if (!eligibility.valid) {
+    window.alert(tr(eligibility.error) || t('consentForm.studyDurationNotMet'))
+    return
+  }
   validateAndEmit('submit', (payload) => emit('resubmit', payload))
 }
 

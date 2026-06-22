@@ -41,8 +41,12 @@ export const studentRecordsMenuItems = [
 
 export const studentRecordsDevelopedPages = new Set([
   'sr-student-profile',
+  'sr-movement-category',
+  'sr-consent-form',
   'sr-movement-application',
   'sr-movement-approval',
+  'sr-movement-maintenance',
+  'sr-movement-query',
 ])
 
 export function findStudentRecordsLabelKey(id) {

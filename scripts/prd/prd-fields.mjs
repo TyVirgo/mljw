@@ -207,3 +207,33 @@ export const approvalFormFieldEntries = [
   { zh: '新专业（教务核定）', en: 'New Programme (Admin)', type: '文本', required: '条件必填', remark: '转专业 Dean/HoP 节点；ReviewView Section VII', codeSet: '否' },
   { zh: '新入学批次（教务核定）', en: 'New Intake (Admin)', type: '下拉', required: '否', remark: '转专业 Dean/HoP 节点', codeSet: '否' },
 ]
+
+export const categoryFormFieldEntries = [
+  { zh: '类别编码', en: 'Category Code', type: '文本', required: '是', validation: '与 Student Type 组合唯一', remark: '新增/编辑异动类别弹窗', codeSet: '否', sample: 'PT001' },
+  { zh: '类别名称', en: 'Category Name', type: '文本', required: '是', remark: '新增/编辑异动类别弹窗', codeSet: '否', sample: 'Programme Transfer' },
+  { zh: '学籍状态', en: 'Student Status', type: '下拉', required: '是', remark: '新增/编辑；联动 Category 选项', codeSet: '是', sample: 'Active' },
+  { zh: '类别', en: 'Category', type: '下拉', required: '是', remark: '随 Student Status 过滤', codeSet: '是', sample: 'Programme Transfer' },
+  { zh: '学生类型', en: 'Student Type', type: '下拉', required: '是', remark: 'Create 可选；Edit 只读', codeSet: '是', sample: 'Local' },
+  { zh: '允许学生申请', en: 'Allow Student Apply', type: '单选', required: '是', validation: 'Yes/No；默认 Yes', remark: '新增/编辑异动类别弹窗', codeSet: '是', sample: 'Yes' },
+  { zh: '修改学籍状态', en: 'Modify Student Status', type: '开关', required: '否', validation: '默认关', remark: '实施行为开关；hint 说明实施时是否回写档案学籍状态', codeSet: '否' },
+  { zh: '修改学籍类型', en: 'Modify Student Type', type: '开关', required: '否', validation: '默认关', remark: '实施行为开关；hint 说明实施时是否回写档案学生类型', codeSet: '否' },
+  { zh: '是否自动实施', en: 'Auto Implement', type: '开关', required: '否', validation: '默认关', remark: '审批通过后是否自动标记已实施', codeSet: '否' },
+]
+
+export const categoryReasonFieldEntries = [
+  { zh: '原因名称', en: 'Reason Name', type: '文本', required: '是', validation: '非空', remark: '设置原因弹窗内小弹窗', codeSet: '否', sample: 'Health Issue' },
+]
+
+export const maintenanceEditFieldEntries = [
+  { zh: '异动编号', en: 'Movement Number', type: '文本', required: '否', remark: '维护编辑弹窗 / 修改异动编号弹窗', codeSet: '否', sample: 'MV2025001' },
+  { zh: '备注', en: 'Remark', type: '长文本', required: '否', remark: '维护编辑弹窗 maintenanceRemark', codeSet: '否' },
+  { zh: 'CGPA', en: 'CGPA', type: '文本', required: '否', remark: '维护编辑弹窗', codeSet: '否' },
+  { zh: '预计毕业时间', en: 'Expected Graduation Time', type: '文本', required: '否', remark: '维护编辑弹窗', codeSet: '否' },
+  { zh: '新学院', en: 'New School', type: '文本', required: '否', remark: '维护编辑弹窗；仅转专业显示', codeSet: '否' },
+  { zh: '新专业代码', en: 'New Programme Code', type: '文本', required: '否', remark: '维护编辑弹窗；仅转专业显示', codeSet: '否' },
+  { zh: '新专业名称', en: 'New Programme Name', type: '文本', required: '否', remark: '维护编辑弹窗；仅转专业显示', codeSet: '否' },
+]
+
+export const queryReadonlyNoteFieldEntries = [
+  { zh: '（无新增表单）', en: '(No create/edit form)', type: '—', required: '—', remark: '查询页为只读宽表，无新增/编辑表单；详情与流转日志复用审批模块只读组件', codeSet: '否' },
+]

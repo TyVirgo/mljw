@@ -24,6 +24,10 @@ import CourseChangeReviewView from './views/CourseChangeReviewView.vue'
 import StudentProfileView from './views/studentRecords/StudentProfileView.vue'
 import StudentMovementApplicationView from './views/studentRecords/StudentMovementApplicationView.vue'
 import MovementApprovalView from './views/studentRecords/MovementApprovalView.vue'
+import MovementCategoryView from './views/studentRecords/MovementCategoryView.vue'
+import ConsentFormView from './views/studentRecords/ConsentFormView.vue'
+import MovementMaintenanceView from './views/studentRecords/MovementMaintenanceView.vue'
+import MovementQueryView from './views/studentRecords/MovementQueryView.vue'
 import UnderConstructionView from './views/UnderConstructionView.vue'
 import AcademicPortalView from './views/AcademicPortalView.vue'
 import { developedPages, basicDataModuleKey } from './config/menu.js'
@@ -61,6 +65,10 @@ const isUnderConstruction = computed(() => !developedPages.has(currentPageId.val
 const isStudentProfile = computed(() => currentPageId.value === 'sr-student-profile')
 const isMovementApplication = computed(() => currentPageId.value === 'sr-movement-application')
 const isMovementApproval = computed(() => currentPageId.value === 'sr-movement-approval')
+const isMovementCategory = computed(() => currentPageId.value === 'sr-movement-category')
+const isConsentForm = computed(() => currentPageId.value === 'sr-consent-form')
+const isMovementMaintenance = computed(() => currentPageId.value === 'sr-movement-maintenance')
+const isMovementQuery = computed(() => currentPageId.value === 'sr-movement-query')
 const isSrUnderConstruction = computed(() => !studentRecordsDevelopedPages.has(currentPageId.value))
 
 const headerModuleKey = computed(() =>
@@ -129,8 +137,12 @@ function openStudentRecordsApp() {
         <main class="main-content">
           <template v-if="isStudentRecordsApp">
             <StudentProfileView v-if="isStudentProfile" />
+            <MovementCategoryView v-else-if="isMovementCategory" />
+            <ConsentFormView v-else-if="isConsentForm" />
             <StudentMovementApplicationView v-else-if="isMovementApplication" />
             <MovementApprovalView v-else-if="isMovementApproval" />
+            <MovementMaintenanceView v-else-if="isMovementMaintenance" />
+            <MovementQueryView v-else-if="isMovementQuery" />
             <UnderConstructionView v-else-if="isSrUnderConstruction" @back="handleSrBack" />
           </template>
 

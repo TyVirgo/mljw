@@ -7,9 +7,9 @@ import StudentProfileFormDrawer from '../../components/studentRecords/StudentPro
 import StudentProfileDetailDrawer from '../../components/studentRecords/StudentProfileDetailDrawer.vue'
 import StudentProfileImportModal from '../../components/studentRecords/StudentProfileImportModal.vue'
 import {
-  initialStudents,
   studentCategoryOptions,
   normalizeStudent,
+  studentRecords,
 } from '../../data/students.js'
 import {
   exportStudentProfilesToExcel,
@@ -19,7 +19,7 @@ import { useListPageI18n } from '../../composables/useListPageI18n.js'
 
 const { t, tr, translatedExportFields } = useListPageI18n(studentProfileExportFields)
 
-const students = ref(initialStudents.map((item) => normalizeStudent({ ...item })))
+const students = studentRecords
 
 const searchForm = ref(createEmptySearch())
 const appliedSearch = ref(createEmptySearch())
