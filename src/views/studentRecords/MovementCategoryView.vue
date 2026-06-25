@@ -1,15 +1,12 @@
 <script setup>
 import { ref, computed } from 'vue'
-import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import MovementCategoryFormModal from '../../components/studentRecords/MovementCategoryFormModal.vue'
 import MovementCategoryReasonModal from '../../components/studentRecords/MovementCategoryReasonModal.vue'
 import {
   movementCategories,
   studentStatusOptions,
-  createMovementCategory,
   updateMovementCategory,
-  deleteMovementCategories,
   getDistinctCategoryNames,
 } from '../../data/movementCategories.js'
 import { useAppI18n } from '../../composables/useAppI18n.js'
@@ -19,20 +16,14 @@ const { t, tr } = useAppI18n()
 const searchForm = ref(createEmptySearch())
 const appliedSearch = ref(createEmptySearch())
 
-const selectedIds = ref([])
 const currentPage = ref(1)
 const pageSize = ref(10)
 
 const formVisible = ref(false)
-const formMode = ref('create')
 const editingItem = ref(null)
 
 const reasonModalVisible = ref(false)
 const reasonCategoryId = ref(null)
-
-const confirmVisible = ref(false)
-const confirmMessage = ref('')
-const pendingDeleteIds = ref([])
 
 function createEmptySearch() {
   return {
@@ -74,49 +65,18 @@ const paginatedRows = computed(() => {
   return filteredRows.value.slice(start, start + pageSize.value)
 })
 
-const allPageSelected = computed(() => {
-  if (!paginatedRows.value.length) return false
-  return paginatedRows.value.every((item) => selectedIds.value.includes(item.id))
-})
-
-const hasSelection = computed(() => selectedIds.value.length > 0)
-
 function handleSearch() {
   appliedSearch.value = { ...searchForm.value }
   currentPage.value = 1
-  selectedIds.value = []
 }
 
 function handleReset() {
   searchForm.value = createEmptySearch()
   appliedSearch.value = createEmptySearch()
   currentPage.value = 1
-  selectedIds.value = []
-}
-
-function toggleSelectAll(event) {
-  const pageIds = paginatedRows.value.map((item) => item.id)
-  if (event.target.checked) {
-    selectedIds.value = [...new Set([...selectedIds.value, ...pageIds])]
-  } else {
-    selectedIds.value = selectedIds.value.filter((id) => !pageIds.includes(id))
-  }
-}
-
-function toggleSelect(id) {
-  const index = selectedIds.value.indexOf(id)
-  if (index === -1) selectedIds.value.push(id)
-  else selectedIds.value.splice(index, 1)
-}
-
-function openCreate() {
-  formMode.value = 'create'
-  editingItem.value = null
-  formVisible.value = true
 }
 
 function openEdit(item) {
-  formMode.value = 'edit'
   editingItem.value = { ...item }
   formVisible.value = true
 }
@@ -127,10 +87,8 @@ function closeForm() {
 }
 
 function handleFormSave(formData) {
-  if (formMode.value === 'edit' && editingItem.value) {
+  if (editingItem.value) {
     updateMovementCategory(editingItem.value.id, formData)
-  } else {
-    createMovementCategory(formData)
   }
   closeForm()
 }
@@ -138,25 +96,6 @@ function handleFormSave(formData) {
 function openReasonModal(item) {
   reasonCategoryId.value = item.id
   reasonModalVisible.value = true
-}
-
-function requestDelete(ids) {
-  const uniqueIds = [...new Set(ids)]
-  if (!uniqueIds.length) return
-  pendingDeleteIds.value = uniqueIds
-  confirmMessage.value =
-    uniqueIds.length === 1
-      ? t('movementCategory.deleteOne')
-      : t('movementCategory.deleteMany', { count: uniqueIds.length })
-  confirmVisible.value = true
-}
-
-function confirmDelete() {
-  deleteMovementCategories(pendingDeleteIds.value)
-  selectedIds.value = selectedIds.value.filter((id) => !pendingDeleteIds.value.includes(id))
-  pendingDeleteIds.value = []
-  confirmVisible.value = false
-  if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
 }
 
 function getRowNumber(index) {
@@ -173,12 +112,6 @@ function formatTrackCategory(category) {
   const key = `movementCategory.trackCategory.${category}`
   const translated = t(key)
   return translated !== key ? translated : tr(category)
-}
-
-function formatStudentType(type) {
-  const key = `movementCategory.studentType.${type}`
-  const translated = t(key)
-  return translated !== key ? translated : tr(type)
 }
 </script>
 
@@ -230,46 +163,29 @@ function formatStudentType(type) {
         </div>
       </div>
 
-      <div class="toolbar">
-        <button type="button" class="btn btn-primary" @click="openCreate">{{ t('common.create') }}</button>
-        <button
-          type="button"
-          class="btn btn-danger-outline"
-          :disabled="!hasSelection"
-          @click="requestDelete(selectedIds)"
-        >
-          {{ t('common.delete') }}
-        </button>
-      </div>
-
       <div class="table-section">
         <div class="table-wrap">
           <table class="data-table">
             <thead>
               <tr>
-                <th class="col-check">
-                  <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
-                </th>
-                <th class="col-no sortable">{{ t('common.serialNo') }}</th>
-                <th class="sortable">{{ t('movementCategory.columns.categoryCode') }}</th>
-                <th class="sortable">{{ t('movementCategory.columns.categoryName') }}</th>
-                <th class="sortable">{{ t('movementCategory.fields.studentStatus') }}</th>
-                <th class="sortable">{{ t('movementCategory.fields.category') }}</th>
-                <th class="sortable">{{ t('movementCategory.fields.studentType') }}</th>
+                <th class="col-no">{{ t('common.serialNo') }}</th>
+                <th>{{ t('movementCategory.columns.categoryCode') }}</th>
+                <th>{{ t('movementCategory.columns.categoryName') }}</th>
+                <th>{{ t('movementCategory.fields.studentStatus') }}</th>
+                <th>{{ t('movementCategory.fields.category') }}</th>
                 <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
+              <tr v-if="!paginatedRows.length">
+                <td colspan="6" class="empty-cell">{{ t('common.noData') }}</td>
+              </tr>
               <tr v-for="(item, index) in paginatedRows" :key="item.id">
-                <td class="col-check">
-                  <input type="checkbox" :checked="selectedIds.includes(item.id)" @change="toggleSelect(item.id)" />
-                </td>
                 <td class="col-no">{{ getRowNumber(index) }}</td>
                 <td>{{ item.categoryCode }}</td>
                 <td>{{ item.categoryName }}</td>
                 <td>{{ formatStudentStatus(item.studentStatus) }}</td>
                 <td>{{ formatTrackCategory(item.category) }}</td>
-                <td>{{ formatStudentType(item.studentType) }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
                     <button type="button" class="link-btn" @click="openEdit(item)">{{ t('common.edit') }}</button>
@@ -290,7 +206,7 @@ function formatStudentType(type) {
 
     <MovementCategoryFormModal
       :visible="formVisible"
-      :mode="formMode"
+      mode="edit"
       :initial-data="editingItem"
       @close="closeForm"
       @save="handleFormSave"
@@ -300,15 +216,6 @@ function formatStudentType(type) {
       :visible="reasonModalVisible"
       :category-id="reasonCategoryId"
       @close="reasonModalVisible = false"
-    />
-
-    <ConfirmDialog
-      :visible="confirmVisible"
-      :title="t('common.deleteConfirmation')"
-      :message="confirmMessage"
-      :confirm-text="t('common.delete')"
-      @confirm="confirmDelete"
-      @cancel="confirmVisible = false"
     />
   </div>
 </template>
@@ -333,48 +240,6 @@ function formatStudentType(type) {
   border: 1px solid #f3f4f6;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 20px 24px 16px;
-}
-
-.toolbar {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-  flex-shrink: 0;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 32px;
-  padding: 0 14px;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-primary {
-  border: none;
-  background: #2563eb;
-  color: #fff;
-}
-
-.btn-danger-outline {
-  border: 1px solid #fca5a5;
-  background: #fff;
-  color: #dc2626;
-}
-
-.btn-danger-outline:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-default {
-  background: #fff;
-  border: 1px solid #d1d5db;
-  color: #374151;
 }
 
 .table-section {
@@ -415,20 +280,14 @@ function formatStudentType(type) {
   color: #374151;
 }
 
-.data-table th.sortable::after {
-  content: '⇅';
-  margin-left: 4px;
-  font-size: 11px;
-  color: #9ca3af;
-}
-
-.col-check {
-  width: 44px;
-  text-align: center;
-}
-
 .col-no {
   width: 56px;
+}
+
+.empty-cell {
+  text-align: center;
+  color: #9ca3af;
+  padding: 40px !important;
 }
 
 .col-sticky-right {
@@ -465,5 +324,29 @@ function formatStudentType(type) {
 
 .sep {
   color: #d1d5db;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-primary {
+  border: none;
+  background: #2563eb;
+  color: #fff;
+}
+
+.btn-default {
+  background: #fff;
+  border: 1px solid #d1d5db;
+  color: #374151;
 }
 </style>

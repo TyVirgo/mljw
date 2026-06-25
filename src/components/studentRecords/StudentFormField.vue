@@ -12,19 +12,29 @@ defineProps({
 
 const { tr } = useAppI18n()
 
+function isEmptyValue(value) {
+  return value === null || value === undefined || value === ''
+}
+
 function showValue(value) {
-  if (value === null || value === undefined || value === '') return '—'
+  if (isEmptyValue(value)) return '—'
   return value
 }
 </script>
 
 <template>
-  <div class="form-field" :class="{ 'full-width': fullWidth, 'has-error': error }">
+  <div class="form-field" :class="{ 'full-width': fullWidth, 'has-error': error, 'is-readonly': readOnly }">
     <label class="field-label">
       {{ tr(label) }}
       <span v-if="required && !readOnly" class="required">*</span>
     </label>
-    <div v-if="readOnly" class="field-readonly">{{ showValue(displayValue) }}</div>
+    <div
+      v-if="readOnly"
+      class="field-readonly"
+      :class="{ 'is-empty': isEmptyValue(displayValue) }"
+    >
+      {{ showValue(displayValue) }}
+    </div>
     <slot v-else />
     <p v-if="error && !readOnly" class="field-error">{{ tr(error) }}</p>
   </div>
@@ -48,6 +58,13 @@ function showValue(value) {
   color: #374151;
 }
 
+.form-field.is-readonly .field-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: #6b7280;
+  letter-spacing: 0.01em;
+}
+
 .required {
   color: #ef4444;
   margin-left: 2px;
@@ -55,12 +72,25 @@ function showValue(value) {
 
 .field-readonly {
   min-height: 32px;
-  padding: 6px 0;
+  padding: 4px 0 2px;
   font-size: 14px;
   color: #111827;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.form-field.is-readonly .field-readonly {
+  font-size: 15px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.field-readonly.is-empty {
+  font-size: 13px;
+  font-weight: 400;
+  color: #9ca3af;
+  font-style: italic;
 }
 
 .field-error {

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import Sidebar from './components/Sidebar.vue'
 import HeaderBar from './components/HeaderBar.vue'
 import PageBreadcrumb from './components/PageBreadcrumb.vue'
@@ -28,6 +28,7 @@ import MovementCategoryView from './views/studentRecords/MovementCategoryView.vu
 import ConsentFormView from './views/studentRecords/ConsentFormView.vue'
 import MovementMaintenanceView from './views/studentRecords/MovementMaintenanceView.vue'
 import MovementQueryView from './views/studentRecords/MovementQueryView.vue'
+import MovementStatisticsView from './views/studentRecords/MovementStatisticsView.vue'
 import UnderConstructionView from './views/UnderConstructionView.vue'
 import AcademicPortalView from './views/AcademicPortalView.vue'
 import { developedPages, basicDataModuleKey } from './config/menu.js'
@@ -36,6 +37,11 @@ import {
   studentRecordsMenuItems,
   studentRecordsModuleKey,
 } from './config/studentRecordsMenu.js'
+import { processDueImplementations } from './data/movementImplementationScheduler.js'
+
+onMounted(() => {
+  processDueImplementations()
+})
 
 const appView = ref('student-records')
 const currentPageId = ref('sr-student-profile')
@@ -63,12 +69,18 @@ const isEvaluationSettings = computed(() => currentPageId.value === 'evaluation-
 const isUnderConstruction = computed(() => !developedPages.has(currentPageId.value))
 
 const isStudentProfile = computed(() => currentPageId.value === 'sr-student-profile')
-const isMovementApplication = computed(() => currentPageId.value === 'sr-movement-application')
+const isMovementApplicationTeacher = computed(
+  () => currentPageId.value === 'sr-movement-application-teacher',
+)
+const isMovementApplicationStudent = computed(
+  () => currentPageId.value === 'sr-movement-application-student',
+)
 const isMovementApproval = computed(() => currentPageId.value === 'sr-movement-approval')
 const isMovementCategory = computed(() => currentPageId.value === 'sr-movement-category')
 const isConsentForm = computed(() => currentPageId.value === 'sr-consent-form')
 const isMovementMaintenance = computed(() => currentPageId.value === 'sr-movement-maintenance')
 const isMovementQuery = computed(() => currentPageId.value === 'sr-movement-query')
+const isMovementStatistics = computed(() => currentPageId.value === 'sr-movement-statistics')
 const isSrUnderConstruction = computed(() => !studentRecordsDevelopedPages.has(currentPageId.value))
 
 const headerModuleKey = computed(() =>
@@ -81,7 +93,7 @@ const sidebarItems = computed(() =>
 
 const sidebarExpandedGroups = computed(() =>
   isStudentRecordsApp.value
-    ? ['sr-mgmt-group', 'sr-movement-group', 'sr-study-plan-group']
+    ? ['sr-mgmt-group', 'sr-movement-group']
     : undefined,
 )
 
@@ -139,10 +151,18 @@ function openStudentRecordsApp() {
             <StudentProfileView v-if="isStudentProfile" />
             <MovementCategoryView v-else-if="isMovementCategory" />
             <ConsentFormView v-else-if="isConsentForm" />
-            <StudentMovementApplicationView v-else-if="isMovementApplication" />
+            <StudentMovementApplicationView
+              v-else-if="isMovementApplicationTeacher"
+              applicant-mode="teacher"
+            />
+            <StudentMovementApplicationView
+              v-else-if="isMovementApplicationStudent"
+              applicant-mode="student"
+            />
             <MovementApprovalView v-else-if="isMovementApproval" />
             <MovementMaintenanceView v-else-if="isMovementMaintenance" />
             <MovementQueryView v-else-if="isMovementQuery" />
+            <MovementStatisticsView v-else-if="isMovementStatistics" />
             <UnderConstructionView v-else-if="isSrUnderConstruction" @back="handleSrBack" />
           </template>
 

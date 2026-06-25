@@ -152,7 +152,7 @@ const children = [
 
   heading('2.2 模块名称——系统需求', 2),
   heading('2.2.1 一级菜单：学籍管理（Student Status Management）', 3),
-  body('门户二级应用；侧边栏三组：学籍管理、学籍异动、学生个人学习计划。'),
+  body('门户二级应用；侧边栏两组：学籍管理、学籍异动。'),
 
   ...buildModuleSection({
     headingText: '2.2.1.1 学生基本信息（Student Basic Information）（已确认）',

@@ -47,7 +47,7 @@ const allPageSelected = computed(() => {
 const hasSelection = computed(() => selectedReasonIds.value.length > 0)
 const subtitle = computed(() => {
   if (!categoryRow.value) return ''
-  return `${categoryRow.value.categoryCode} · ${categoryRow.value.categoryName} · ${formatStudentType(categoryRow.value.studentType)}`
+  return `${categoryRow.value.categoryCode} · ${categoryRow.value.categoryName}`
 })
 
 watch(
@@ -60,12 +60,6 @@ watch(
     confirmVisible.value = false
   },
 )
-
-function formatStudentType(type) {
-  const key = `movementCategory.studentType.${type}`
-  const translated = t(key)
-  return translated !== key ? translated : tr(type)
-}
 
 function handleClose() {
   emit('close')

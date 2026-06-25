@@ -1,4 +1,13 @@
 import { isLocalCategory } from './students.js'
+import { resolveApplicationSessionFromStudent } from './movementApplicationSession.js'
+import { validateAcademicSessionOrder, normalizeAcademicSession } from '../utils/normalizeAcademicSession.js'
+import {
+  resolveReasonIdByName,
+  resolveReasonLabel,
+  isValidReasonIdForCategory,
+} from './movementCategories.js'
+
+const WDR_CATEGORY_CODE = 'WDR001'
 
 export const withdrawalStatusOptions = [
   'Draft',
@@ -32,6 +41,22 @@ export function getMainReasonLabel(reason, t) {
   return translated !== `withdrawal.mainReasons.${key}` ? translated : reason
 }
 
+export function getWithdrawalReasonDisplay(item, t) {
+  const fromConfig = resolveReasonLabel(WDR_CATEGORY_CODE, item?.reasonId)
+  if (fromConfig) return fromConfig
+  return getMainReasonLabel(item?.mainReason, t) || item?.mainReason || ''
+}
+
+function syncWithdrawalReasonFields(base) {
+  let reasonId = base.reasonId
+  if (!isValidReasonIdForCategory(WDR_CATEGORY_CODE, reasonId)) {
+    reasonId = resolveReasonIdByName(WDR_CATEGORY_CODE, base.mainReason || base.reason) ?? null
+  }
+  const mainReason =
+    resolveReasonLabel(WDR_CATEGORY_CODE, reasonId) || base.mainReason || base.reason || ''
+  return { reasonId, mainReason }
+}
+
 export function shouldShowIsaoNote(category) {
   return category === 'International'
 }
@@ -54,16 +79,14 @@ export function formatWithdrawalDateTime(date = new Date()) {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+import { formatMovementDate } from '../utils/formatMovementDate.js'
+
 export function formatWithdrawalListDate(value) {
-  const date = value ? new Date(value) : new Date()
-  if (Number.isNaN(date.getTime())) return String(value || '')
-  return `${date.getDate()} ${MONTH_LABELS[date.getMonth()]} ${date.getFullYear()}`
+  return formatMovementDate(value)
 }
 
 export function formatApplicationDateDisplay(value) {
-  const date = value ? new Date(value) : new Date()
-  if (Number.isNaN(date.getTime())) return String(value || '')
-  return `${date.getDate()} ${MONTH_LABELS[date.getMonth()]} ${date.getFullYear()}`
+  return formatMovementDate(value)
 }
 
 export function createEmptyWithdrawal() {
@@ -77,6 +100,7 @@ export function createEmptyWithdrawal() {
     archived: false,
     submittedAt: null,
     dateOfApplication: today,
+    applicationSession: '',
     fullName: '',
     intake: '',
     nricPassport: '',
@@ -88,6 +112,7 @@ export function createEmptyWithdrawal() {
     phoneNumber: '',
     lastDateOfAttendance: '',
     destinationAfterLeaving: '',
+    reasonId: null,
     mainReason: '',
     currentWhereabout: '',
     detailedReason: '',
@@ -114,12 +139,15 @@ export function getWithdrawalFormData(record) {
 
 export function normalizeWithdrawal(raw) {
   const base = { ...createEmptyWithdrawal(), ...raw }
+  const { reasonId, mainReason } = syncWithdrawalReasonFields(base)
   return {
     ...base,
     id: base.id ?? createWithdrawalId(),
     applicationId: base.applicationId || createApplicationId(),
+    reasonId,
     name: base.fullName || base.name || '',
-    reason: base.mainReason || base.reason || '',
+    mainReason,
+    reason: mainReason,
     applicationDate: base.submittedAt || base.applicationDate || base.dateOfApplication || null,
     archived:
       base.archived === true ||
@@ -155,6 +183,7 @@ export function buildStudentSnapshotForWithdrawal(student) {
     parentNricPassport: family.icPassport || '',
     parentRelationship: family.relationship || '',
     parentEmail: family.email || '',
+    applicationSession: resolveApplicationSessionFromStudent(student),
   }
 }
 
@@ -258,8 +287,8 @@ export function validateWithdrawalForm(data, mode = 'submit', existingList = [],
   if (!String(data.destinationAfterLeaving || '').trim()) {
     requireField('destinationAfterLeaving', 'Destination after Leaving is required.')
   }
-  if (!String(data.mainReason || '').trim()) {
-    requireField('mainReason', 'Main Reason for Withdrawal is required.')
+  if (!isValidReasonIdForCategory(WDR_CATEGORY_CODE, data.reasonId)) {
+    requireField('reasonId', 'Main Reason for Withdrawal is required.')
   }
   if (!String(data.currentWhereabout || '').trim()) {
     requireField('currentWhereabout', 'Current Whereabout is required.')
@@ -295,6 +324,16 @@ export function validateWithdrawalForm(data, mode = 'submit', existingList = [],
   ) {
     requireField('studentId', 'This student already has an active withdrawal application.')
   }
+
+  validateAcademicSessionOrder(
+    {
+      intake: data.intake,
+      applicationSession: data.applicationSession,
+      effectiveSession: normalizeAcademicSession(data.lastDateOfAttendance),
+    },
+    requireField,
+    { effectiveSession: 'lastDateOfAttendance' },
+  )
 
   return { valid: Object.keys(errors).length === 0, errors }
 }
@@ -418,6 +457,7 @@ export const initialWithdrawals = [
     attachment: { fileName: 'consent-letter.pdf', size: 180000 },
     status: 'Approved',
     approvalStage: 'Approved',
+    implemented: 'Implemented',
     archived: true,
     submittedAt: '2025-06-20T10:00:00.000Z',
     dateOfApplication: '2025-06-18',

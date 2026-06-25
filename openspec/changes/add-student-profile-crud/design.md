@@ -344,3 +344,94 @@ src/views/studentRecords/StudentProfileView.vue — 改（handleExportConfirm）
 待办（转专业 Mock，programme-transfer change）:
   src/data/programmeTransfers.js — 6 态 ×2 mock
 ```
+
+---
+
+## §14 Enrollment Tab 学籍字段主数据下拉
+
+### 27. 问题与原则
+
+当前 `EnrollmentTab.vue` 中 Programme Code / Programme / Faculty / Intake / Academic Session 为 `<input>`，与基础数据模块已维护的专业、学院、入学批次、学期信息脱节。
+
+**原则（explore 2026-06 定稿）：**
+
+1. **独立下拉** — 五字段各自 `<select>`，用户分别选取；不级联、不校验 `(programmeCode + intake)` 是否在 `initialProgrammeIntakes` 存在
+2. **三处同显** — 存库 `enrollment` → 列表投影 → Details `display-value` → Edit `v-model` 同一字符串
+3. **option 精确匹配** — `v-model` 值必须等于某 `<option value>`，否则编辑态显示空白
+
+```
+enrollment { programmeCode, programme, faculty, intake, academicSession }
+      │
+      ├─► normalizeStudent() → 列表列
+      ├─► Detail readOnly → display-value
+      └─► Edit select → v-model（value ∈ options）
+```
+
+### 28. 数据源映射
+
+| UI 字段 | enrollment 键 | 选项来源 | 备注 |
+|---------|--------------|---------|------|
+| Programme Code | `programmeCode` | `programmeCatalogue[].programmeCode` 去重 | IBU, SWE, ACC… |
+| Programme | `programme` | `programmeCatalogue[].programmeName` 去重 | 含 `(Honours)` 全名 |
+| Faculty | `faculty` | `programmeIntakeSchools[].label` | School of Business… |
+| Intake | `intake` | `getActiveIntakeOptions()` | active=Yes 的 intakeSets |
+| Academic Session | `academicSession` | `startingSemesterOptions` | semesterInfo 派生 |
+
+建议新建 `studentEnrollmentOptions.js`：
+
+```javascript
+export function getEnrollmentProgrammeCodeOptions() { ... }
+export function getEnrollmentProgrammeNameOptions() { ... }
+export function getEnrollmentFacultyOptions() { ... }
+export function getEnrollmentIntakeOptions() { ... }
+export function getEnrollmentAcademicSessionOptions() { ... }
+```
+
+Tab 仅 import 上述 helper，不直接散落引用多个 data 文件。
+
+### 29. UI 行为
+
+- Create：五下拉默认空（`please select`），各自主选；仍校验 `programmeCode`、`programme` 必填（沿用 `validateStudentForm`）
+- Edit：打开时 `v-model` 绑定已有值；依赖 mock 与主数据对齐保证选中态
+- Details：不变（readOnly + display-value）
+- 样式：与 Tab 内 Status / Study Mode 等既有 `<select>` 一致（`StudentFormField` 包裹）
+
+**刻意不做：**
+
+- 选 Programme Code 自动填 Programme / Faculty
+- 选 Intake 过滤 Academic Session
+- 保存时 Programme Intake 存在性校验
+
+### 30. Mock 对齐（showcase 三条）
+
+当前 mock 与 catalogue / intakeSets 不一致会导致编辑下拉空白，须一并修正：
+
+| 问题 | 现状示例 | 对齐方向 |
+|------|---------|---------|
+| 专业名缺 `(Honours)` | `Bachelor of Software Engineering` | catalogue 全名 |
+| 学院名不一致 | `School of Computing` | SWE → `School of Information` |
+| 代码不在 catalogue | `FIN`、`IB` | 改用 `ACC`、`IBU` 等已有 code |
+| intake 不在 intakeSets | `2023/09`、`2023/04` | 改用 `2024/09`、`2024/04` 等 active 批次 |
+
+示意（实现时可微调，须满足 option 精确匹配）：
+
+| Student ID | programmeCode | intake | academicSession |
+|------------|---------------|--------|-----------------|
+| XMUM2309001 | SWE | 2024/09 | 2025/09 |
+| XMUM2309002 | ACC | 2024/09 | 2025/09 |
+| XMUM2309003 | IBU | 2024/04 | 2025/04 |
+
+programme / faculty 同步为所选 catalogue 项的 `programmeName` / `school`。
+
+### 31. 文件影响（§14）
+
+```
+新增:
+  src/data/studentEnrollmentOptions.js
+
+修改:
+  src/components/studentRecords/tabs/EnrollmentTab.vue
+  src/data/students.js — initialStudents enrollment 段
+```
+
+**Non-Goals（§14）**：Import 主数据校验；Programme Intake 级联；扩展 catalogue 补 FIN。

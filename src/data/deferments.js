@@ -1,4 +1,12 @@
 import { isLocalCategory } from './students.js'
+import { validateAcademicSessionOrder } from '../utils/normalizeAcademicSession.js'
+import {
+  resolveReasonIdByName,
+  resolveReasonLabel,
+  isValidReasonIdForCategory,
+} from './movementCategories.js'
+
+const DEF_CATEGORY_CODE = 'DEF001'
 
 export const defermentStatusOptions = [
   'Draft',
@@ -9,7 +17,7 @@ export const defermentStatusOptions = [
   'Cancelled',
 ]
 
-export const defermentPeriodOptions = ['2024/02', '2024/09', '2025/01', '2025/09', '2026/01']
+export const defermentPeriodOptions = ['2024/02', '2024/09', '2025/02', '2025/09', '2026/02']
 
 export const mainReasonOptions = [
   'Personal Reason',
@@ -34,6 +42,22 @@ export function getMainReasonLabel(reason, t) {
   return translated !== `deferment.mainReasons.${key}` ? translated : reason
 }
 
+export function getDefermentReasonDisplay(item, t) {
+  const fromConfig = resolveReasonLabel(DEF_CATEGORY_CODE, item?.reasonId)
+  if (fromConfig) return fromConfig
+  return getMainReasonLabel(item?.mainReason, t) || item?.mainReason || ''
+}
+
+function syncDefermentReasonFields(base) {
+  let reasonId = base.reasonId
+  if (!isValidReasonIdForCategory(DEF_CATEGORY_CODE, reasonId)) {
+    reasonId = resolveReasonIdByName(DEF_CATEGORY_CODE, base.mainReason || base.reason) ?? null
+  }
+  const mainReason =
+    resolveReasonLabel(DEF_CATEGORY_CODE, reasonId) || base.mainReason || base.reason || ''
+  return { reasonId, mainReason }
+}
+
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 let nextId = 16
@@ -52,17 +76,17 @@ export function formatDefermentDateTime(date = new Date()) {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+import { formatMovementDate } from '../utils/formatMovementDate.js'
+
 export function formatDefermentListDate(value) {
-  const date = value ? new Date(value) : new Date()
-  if (Number.isNaN(date.getTime())) return String(value || '')
-  return `${date.getDate()} ${MONTH_LABELS[date.getMonth()]} ${date.getFullYear()}`
+  return formatMovementDate(value)
 }
 
 export function formatApplicationDateDisplay(value) {
-  const date = value ? new Date(value) : new Date()
-  if (Number.isNaN(date.getTime())) return String(value || '')
-  return `${date.getDate()} ${MONTH_LABELS[date.getMonth()]} ${date.getFullYear()}`
+  return formatMovementDate(value)
 }
+
+import { resolveApplicationSessionFromStudent } from './movementApplicationSession.js'
 
 export function createEmptyDeferment() {
   const today = new Date().toISOString().slice(0, 10)
@@ -76,6 +100,7 @@ export function createEmptyDeferment() {
     submittedAt: null,
     dateOfApplication: today,
     applicationDeadline: '2026-12-31',
+    applicationSession: '',
     fullName: '',
     intake: '',
     nricPassport: '',
@@ -86,6 +111,7 @@ export function createEmptyDeferment() {
     phoneNumber: '',
     accommodationRoomNo: '',
     defermentPeriod: '',
+    reasonId: null,
     mainReason: '',
     detailedReason: '',
     parentGuardianName: '',
@@ -110,12 +136,15 @@ export function getDefermentFormData(record) {
 
 export function normalizeDeferment(raw) {
   const base = { ...createEmptyDeferment(), ...raw }
+  const { reasonId, mainReason } = syncDefermentReasonFields(base)
   return {
     ...base,
     id: base.id ?? createDefermentId(),
     applicationId: base.applicationId || createApplicationId(),
+    reasonId,
     name: base.fullName || base.name || '',
-    reason: base.mainReason || base.reason || '',
+    mainReason,
+    reason: mainReason,
     applicationDate: base.submittedAt || base.applicationDate || base.dateOfApplication || null,
     archived:
       base.archived === true ||
@@ -158,6 +187,7 @@ export function buildStudentSnapshotForDeferment(student) {
     parentNricPassport: family.icPassport || '',
     parentRelationship: family.relationship || '',
     parentEmail: family.email || '',
+    applicationSession: resolveApplicationSessionFromStudent(student),
   }
 }
 
@@ -252,8 +282,8 @@ export function validateDefermentForm(data, mode = 'submit', existingList = [], 
   if (!String(data.defermentPeriod || '').trim()) {
     requireField('defermentPeriod', 'Deferment Period is required.')
   }
-  if (!String(data.mainReason || '').trim()) {
-    requireField('mainReason', 'Main Reason for Deferment is required.')
+  if (!isValidReasonIdForCategory(DEF_CATEGORY_CODE, data.reasonId)) {
+    requireField('reasonId', 'Main Reason for Deferment is required.')
   }
   if (!String(data.parentGuardianName || '').trim()) {
     requireField('parentGuardianName', 'Parent/Guardian Name is required.')
@@ -271,6 +301,16 @@ export function validateDefermentForm(data, mode = 'submit', existingList = [], 
   ) {
     requireField('studentId', 'This student already has an active deferment application.')
   }
+
+  validateAcademicSessionOrder(
+    {
+      intake: data.intake,
+      applicationSession: data.applicationSession,
+      effectiveSession: data.defermentPeriod,
+    },
+    requireField,
+    { effectiveSession: 'defermentPeriod' },
+  )
 
   return { valid: Object.keys(errors).length === 0, errors }
 }
@@ -391,6 +431,7 @@ export const initialDeferments = [
     attachment: { fileName: 'deferment-support.pdf', size: 198000 },
     status: 'Approved',
     approvalStage: 'Approved',
+    implemented: 'Implemented',
     archived: true,
     submittedAt: '2025-09-29T08:00:00.000Z',
     dateOfApplication: '2025-09-15',
@@ -413,7 +454,7 @@ export const initialDeferments = [
     personalEmail: 'john.doe@student.xmum.edu.my',
     phoneNumber: '0145566778',
     accommodationRoomNo: 'D-102',
-    defermentPeriod: '2025/01',
+    defermentPeriod: '2025/02',
     mainReason: 'Health Issue',
     detailedReason: 'Medical treatment abroad.',
     parentGuardianName: 'Jane Doe',
@@ -477,7 +518,7 @@ export const initialDeferments = [
     personalEmail: 'ahmad.rizal@student.xmum.edu.my',
     phoneNumber: '0112233445',
     accommodationRoomNo: 'C-110',
-    defermentPeriod: '2025/01',
+    defermentPeriod: '2025/02',
     mainReason: 'Military Service',
     detailedReason: 'National service deferment request.',
     parentGuardianName: 'Rizal Bin Ahmad',
@@ -488,6 +529,7 @@ export const initialDeferments = [
     attachment: { fileName: 'rizal-ns.pdf', size: 185000 },
     status: 'In Progress',
     approvalStage: 'Pending Review',
+    applicationSession: '2024/09',
     submittedAt: '2024-08-01T08:00:00.000Z',
     dateOfApplication: '2024-07-28',
     approvalLog: [
@@ -543,7 +585,7 @@ export const initialDeferments = [
     personalEmail: 'lee.recall@student.xmum.edu.my',
     phoneNumber: '0198877665',
     accommodationRoomNo: 'E-302',
-    defermentPeriod: '2025/01',
+    defermentPeriod: '2025/02',
     mainReason: 'Health Issue',
     detailedReason: 'Demo record for approval recall.',
     parentGuardianName: 'Lee Parent',
@@ -555,7 +597,7 @@ export const initialDeferments = [
     status: 'In Progress',
     approvalStage: 'AA HOD',
     applicationSession: '2024/09',
-    effectiveSession: '2025/01',
+    effectiveSession: '2025/02',
     submittedAt: '2024-10-01T09:00:00.000Z',
     dateOfApplication: '2024-09-28',
     approvalLog: [
@@ -613,7 +655,7 @@ export const initialDeferments = [
     personalEmail: 'ng.jiahui@student.xmum.edu.my',
     phoneNumber: '0189900112',
     accommodationRoomNo: 'E-312',
-    defermentPeriod: '2025/01',
+    defermentPeriod: '2025/02',
     mainReason: 'Personal Reason',
     detailedReason: 'Please update supporting documents.',
     parentGuardianName: 'Ng Siew Leng',
@@ -701,7 +743,7 @@ export const initialDeferments = [
     programme: 'Bachelor of Finance',
     programmeLevel: 'Undergraduate',
     personalEmail: 'chen.yuting@student.xmum.edu.my',
-    defermentPeriod: '2025/01',
+    defermentPeriod: '2025/02',
     mainReason: 'Others',
     parentGuardianName: 'Chen Ming',
     parentContactNo: '0134455667',
@@ -753,7 +795,7 @@ export const initialDeferments = [
     programme: 'Bachelor of Computer Science',
     programmeLevel: 'Undergraduate',
     personalEmail: 'priya.sharma@student.xmum.edu.my',
-    defermentPeriod: '2025/01',
+    defermentPeriod: '2025/02',
     mainReason: 'Health Issue',
     parentGuardianName: 'Sharma Raj',
     parentContactNo: '0167788990',

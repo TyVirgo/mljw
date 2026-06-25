@@ -87,3 +87,19 @@
 
 - [x] 12.1 扩展 `programmeTransfers.js`：Draft / In Progress / Cancelled / Update Required / Rejected / Approved 各 ≥2 条 mock
 - [x] 12.2 验证列表 Actions 与 6 态规则一致；`npm run build` 通过
+
+## 13. 详情只读层级与 Mock 丰富度
+
+- [x] 13.1 `student-profile/spec.md` §13：label/value 层级、空值弱化、showcase mock 丰富度
+- [x] 13.2 `StudentFormField.vue`：readOnly label 12px 灰 / value 15px 强调 / `—` 弱化
+- [x] 13.3 `StudentProfileDetailDrawer.vue`：学生类别 label/value 对齐
+- [x] 13.4 `students.js`：丰富 XMUM2309001/9002/9003 各 Tab mock（每 Tab 留少量 intentional 空项）
+- [x] 13.5 冒烟：Details 七 Tab 可读性；`npm run build` 通过
+
+## 14. Enrollment Tab 学籍字段主数据下拉（§14）
+
+- [x] 14.1 `student-profile/spec.md` §14：五字段主数据下拉、独立不关联、列表/详情/编辑一致
+- [x] 14.2 新建 `studentEnrollmentOptions.js`：programmeCode / programmeName / faculty / intake / academicSession 五类 options
+- [x] 14.3 `EnrollmentTab.vue`：Programme Code、Programme、Faculty、Intake、Academic Session 改 `<select>`
+- [x] 14.4 `students.js`：XMUM2309001/9002/9003 enrollment 对齐 catalogue + intakeSets + semester canonical 值
+- [x] 14.5 冒烟：列表 → Details → Edit 五字段与列表一致且下拉有选中；Create 各下拉可选；`npm run build` 通过

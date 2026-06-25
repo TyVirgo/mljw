@@ -11,7 +11,7 @@
 - 数据：四 Tab 合并非 Draft + 维护扩展列 normalize
 - ExportModal → xlsx（当前页 / 全部 / 选中行）
 - Details / Approval log 只读下钻
-- 表头 sortable CSS 装饰
+- ~~表头 sortable CSS 装饰~~（§9 移除；与维护一致无假排序）
 - 注册 `sr-movement-query`
 
 **Non-goals:**
@@ -93,7 +93,7 @@ MovementQueryView
 
 **行 Actions**：`Details | Approval log`（无 Edit）。
 
-**表头**：各数据列加 `class="sortable"` + CSS `::after` 装饰；**无** `@click` 排序。
+**表头**：普通 `<th>`，无 sortable 装饰（§9 与维护一致）。
 
 ### 4. 导出 — xlsx + ExportModal
 
@@ -169,3 +169,120 @@ studentRecordsDevelopedPages.add('sr-movement-query')
 ## Open Questions
 
 （探索阶段已全部确认，无遗留）
+
+### 8. §8 异动类型搜索
+
+**首行布局（§7 后）：**
+
+```
+学年学期 | 专业代码 | 状态 | 异动类型 | [查询] [重置] [收起]
+次行：学号 | 姓名
+```
+
+**数据层：**
+
+```javascript
+export const movementQueryTypeOptions = [
+  'programme-transfer',
+  'deferment',
+  'resumption',
+  'withdrawal',
+]
+
+// filterQueryBySearch
+if (s.movementType && row.sourceKey !== s.movementType) return false
+```
+
+队列行已有 `sourceKey`（`normalizeQueueItem`），无需 normalize 增量字段。
+
+**i18n：** `movementQuery.search.movementType`（中文「异动类型」）；选项文案 `t('menu.sr*')`。
+
+### 9. §9 列表 UI 与维护对齐
+
+**目标表格列（与 `MovementMaintenanceView` §8 一致）：**
+
+```
+勾选 | 序号 | 状态 | 审批环节 | 是否实施(Y/N) | 学号 | 姓名 | 异动日期
+| Passport/IC(脱敏) | Student Type | Intake | 申请/生效学期 | 类别 | 原因 | 预计毕业 | Actions
+```
+
+**列表实现要点：**
+
+- 从 `MovementMaintenanceView.vue` 对齐表头顺序与 tbody 渲染
+- `displayPassportIc` → `maskPassportIc`；`implementedDisplay` → `formatImplementedYn`
+- 移除 9 列宽表字段（校/专业五列 + English + CGPA + 编号 + Remark）
+- 移除所有 `<th class="sortable">` 及 scoped `.data-table th.sortable::after` 规则
+- `colspan` 空态改为 17
+
+**Details：**
+
+```vue
+<MovementApprovalReviewView
+  :mask-sensitive-fields="true"
+  ...
+/>
+```
+
+校/专业等扩展字段仍在 ReviewView / DetailModal 内展示，仅列表隐藏。
+
+**Export — 两层列集：**
+
+```javascript
+// movementQueryExportFields.js
+import { movementMaintenanceExportColumnMeta } from './movementMaintenanceExportFields.js'
+
+const queryOptionalColumns = [
+  { key: 'currentSchool', ... },
+  { key: 'currentProgrammeCode', ... },
+  { key: 'newSchool', ... },
+  { key: 'newProgrammeCode', ... },
+  { key: 'newProgrammeName', ... },
+  { key: 'englishName', ... },
+  { key: 'cgpa', ... },
+  { key: 'movementNumber', ... },
+  { key: 'remark', ... },
+]
+
+export const movementQueryExportColumnMeta = [
+  ...movementMaintenanceExportColumnMeta,
+  ...queryOptionalColumns,
+]
+```
+
+**handleExportConfirm：**
+
+```javascript
+exportMovementQueryToExcel(data, filename, selectedFields, { t, tr }, sheetName, {
+  columnMeta: movementQueryExportColumnMeta,
+  implementedAsYn: true,
+  maskPassport: true,
+})
+```
+
+`formatQueryExportRow` 已支持全部 key，无需队列层变更。
+
+**与维护差异（刻意保留）：**
+
+| 维度 | 维护 | 查询 §9 后 |
+|------|------|------------|
+| 数据范围 | Approved only | 非 Draft 全部 |
+| 列表列 | 17 列精简 | 17 列精简（同） |
+| Export 可选列 | 无 | 9 个额外可选 |
+| 工具栏 | 实施/Export/Delete | Export only |
+| sortable 装饰 | 无 | 无（§9 移除） |
+
+### 10. §10 状态 Badge 与申请页一致
+
+与 `add-movement-maintenance` §9 共用 `movement-status-badge.css`（pill + 申请色板）。
+
+```vue
+// MovementQueryView.vue
+import '../../styles/movement-status-badge.css'
+
+function listStatusBadgeClass(status) {
+  if (status === 'Expired') return 'status-expired'
+  return defermentStatusBadgeClass(status)
+}
+```
+
+移除 scoped `.status-badge { color: #fff; }`。查询页多状态（In Progress / Rejected 等），对齐后视觉收益最大。

@@ -177,6 +177,7 @@ export function buildModuleXml({
   menuSummary,
   listFieldNote,
   listFields,
+  listAppendix = '',
   searchFieldNote,
   searchFields,
   formPageTitle,
@@ -194,9 +195,12 @@ export function buildModuleXml({
     pMenuIntroHeading(2, '页面展示字段信息'),
     pBody(listFieldNote || '列表页表格展示字段如下：'),
     buildFieldTable(listFields, { align: 'left' }),
+  ]
+  if (listAppendix) parts.push(listAppendix)
+  parts.push(
     pMenuIntroHeading(3, '支持查询检索的字段信息'),
     pBody(searchFieldNote || (searchFields?.length ? '搜索区支持以下字段检索：' : '本模块列表页暂无独立检索字段。')),
-  ]
+  )
   if (searchFields?.length) {
     parts.push(buildFieldTable(searchFields, { align: 'left' }))
   }
@@ -267,8 +271,8 @@ export function buildSeparationTable({ extended = false } = {}) {
     buildSimpleTable(
       ['能力', '学生基本信息', '异动申请', '异动审批'],
       [
-        ['详情入口', '只读详情抽屉（七页签）', '只读详情弹窗（无审批）', '全页审批详情（含审批表单）'],
-        ['教务核定分区', '—', '表单不含（审批人填写）', '待我审批查看时含教务核定字段'],
+        ['详情入口', '只读详情抽屉（七页签）', '只读 DetailModal（无审批）', 'ReviewView 嵌入 DetailModal + [审批] 打开 Modal'],
+        ['教务核定分区', '—', 'Section VII 申请侧 disabled', 'MovementApprovalModal（转专业 Dean/HoP）'],
         ['流转日志', '—', '列表独立日志弹窗', '列表独立日志弹窗'],
         ['撤回', '—', '—', '已处理历史查看后撤回'],
       ],
@@ -281,13 +285,35 @@ export function buildSeparationTable({ extended = false } = {}) {
         ['能力', '异动维护', '异动查询', '说明'],
         [
           ['数据范围', '仅 Approved', '全部非 Draft', '查询含进行中/拒绝等全态'],
-          ['工具栏', '实施·改编号·导出·删除', '仅导出', '查询只读'],
-          ['行操作', 'Edit | Details | Log', 'Details | Log', '查询无 Edit'],
-          ['导出', 'ExportModal → xlsx', 'ExportModal → xlsx', '共用字段与导出逻辑'],
-          ['搜索布局', '单行五字段', '双行+收起', '查询次行默认展开'],
+          ['工具栏', '实施·导出·删除', '仅导出', '查询只读'],
+          ['行操作', 'Details | Log', 'Details | Log', '均无 Edit'],
+          ['导出', 'ExportModal → xlsx（15 列默认+9 可选）', 'ExportModal → xlsx（15 列默认+9 可选）', '查询导出护照脱敏、是否实施 Y/N'],
+          ['搜索布局', '单行五字段（含专业代码）', '双行+收起（含异动类型）', '查询次行默认展开'],
         ],
       ),
     )
   }
   return parts.join('')
+}
+
+/** V1.8+ 异动展示与格式约定 */
+export function buildDisplayConventionsSection() {
+  return [
+    pHeading('3', '2.5 异动展示与格式约定'),
+    pBody(
+      'V1.8 起日历日期 YYYY-MM-DD；V1.9 补充生效学期 YYYY/MM 与审批列表是否实施列规则。申请学年学期（applicationSession）仍用 YYYY/MM。',
+    ),
+    buildSimpleTable(
+      ['约定项', '适用范围', '规则说明'],
+      [
+        ['日历日期', '申请日期、异动日期、签证到期、最后出勤、流转日志等', 'YYYY-MM-DD（formatMovementDate）'],
+        ['申请学年学期', '四 Tab Form/Detail Section I、审批/维护/查询列表', 'YYYY/MM；选学生后写入 enrollment.intake'],
+        ['生效学期', '审批/维护/查询列表 effectiveSession 列', 'YYYY/MM（formatEffectiveSession，ISO 日期取年月）'],
+        ['状态 Badge', '申请/审批/维护/查询 Status 列', 'pill 圆角色块；含 Expired'],
+        ['是否实施', '维护/查询列表与导出；审批列表', 'Y/N（Pending→—）；审批列表仅已处理历史 Tab 显示'],
+        ['护照/IC 脱敏', '维护/查询列表、查询导出、查询/维护详情', 'maskPassportIc'],
+      ],
+    ),
+    pBody('V1.9 Non-goals：学籍异动统计页已实现但侧边栏菜单暂缓，不在本期应用目录交付。'),
+  ].join('')
 }

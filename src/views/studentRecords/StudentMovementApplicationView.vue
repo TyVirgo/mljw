@@ -6,6 +6,14 @@ import DefermentView from './DefermentView.vue'
 import ResumptionView from './ResumptionView.vue'
 import WithdrawalView from './WithdrawalView.vue'
 
+defineProps({
+  applicantMode: {
+    type: String,
+    default: 'teacher',
+    validator: (value) => ['teacher', 'student'].includes(value),
+  },
+})
+
 const { t } = useAppI18n()
 
 const activeTab = ref('deferment')
@@ -34,10 +42,13 @@ const tabs = [
     </nav>
 
     <div class="movement-tab-panel">
-      <ProgrammeTransferView v-show="activeTab === 'programme-transfer'" />
-      <DefermentView v-show="activeTab === 'deferment'" />
-      <ResumptionView v-show="activeTab === 'resumption'" />
-      <WithdrawalView v-show="activeTab === 'withdrawal'" />
+      <ProgrammeTransferView
+        v-show="activeTab === 'programme-transfer'"
+        :applicant-mode="applicantMode"
+      />
+      <DefermentView v-show="activeTab === 'deferment'" :applicant-mode="applicantMode" />
+      <ResumptionView v-show="activeTab === 'resumption'" :applicant-mode="applicantMode" />
+      <WithdrawalView v-show="activeTab === 'withdrawal'" :applicant-mode="applicantMode" />
     </div>
   </div>
 </template>

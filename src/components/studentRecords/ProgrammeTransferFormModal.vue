@@ -1,7 +1,6 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import DatePickerEn from '../common/DatePickerEn.vue'
 import {
   createEmptyTransfer,
   getTransferFormData,
@@ -11,18 +10,28 @@ import {
   intakeOptions,
   semesterOptions,
 } from '../../data/programmeTransfers.js'
+import { getReasonOptionsBySourceKey } from '../../data/movementCategories.js'
 import { initialStudents } from '../../data/students.js'
 import {
   resolveConsentTemplate,
-  checkProgrammeTransferStudyDurationEligibility,
 } from '../../data/consentForms.js'
 import { downloadStudentConsentTemplate } from '../../utils/consentFormDownload.js'
+import StudentSelectModal from './StudentSelectModal.vue'
+import { getCurrentStudent } from '../../data/mockCurrentStudent.js'
+import { formatMovementDate } from '../../utils/formatMovementDate.js'
+import { formatApplicationSessionField } from '../../data/movementApplicationSession.js'
+import '../../styles/movement-form.css'
 
 const props = defineProps({
   visible: Boolean,
   mode: { type: String, default: 'create' },
   initialData: { type: Object, default: null },
   existingTransfers: { type: Array, default: () => [] },
+  applicantMode: {
+    type: String,
+    default: 'teacher',
+    validator: (value) => ['teacher', 'student'].includes(value),
+  },
 })
 
 const emit = defineEmits(['close', 'save-draft', 'submit', 'resubmit'])
@@ -31,48 +40,46 @@ const { t, tr } = useAppI18n()
 
 const form = ref(createEmptyTransfer())
 const errors = ref({})
-const studentFilter = ref('')
+const studentSelectVisible = ref(false)
 const fileInputRef = ref(null)
 
 const isEditMode = computed(() => props.mode === 'edit')
 const isResubmitMode = computed(() => props.initialData?.status === 'Update Required')
+const canSelectStudent = computed(() => props.applicantMode === 'teacher' && !isEditMode.value)
 const modalTitle = computed(() =>
   isEditMode.value ? t('programmeTransfer.form.editTitle') : t('programmeTransfer.form.createTitle'),
 )
 
-const studentOptions = computed(() => {
-  const keyword = studentFilter.value.trim().toLowerCase()
-  return initialStudents.filter((item) => {
-    if (!keyword) return true
-    const id = String(item.studentId || '').toLowerCase()
-    const name = String(item.name || '').toLowerCase()
-    const nameCn = String(item.nameCn || '').toLowerCase()
-    return id.includes(keyword) || name.includes(keyword) || nameCn.includes(keyword)
-  })
-})
+const reasonOptions = computed(() => getReasonOptionsBySourceKey('programme-transfer'))
+
+function applyStudentProfile(student) {
+  if (!student) return
+  const snapshot = buildStudentSnapshotFromProfile(student)
+  form.value = { ...form.value, ...snapshot }
+}
+
+function onStudentSelected(student) {
+  applyStudentProfile(student)
+  studentSelectVisible.value = false
+}
 
 watch(
-  () => [props.visible, props.mode, props.initialData],
+  () => [props.visible, props.mode, props.initialData, props.applicantMode],
   () => {
     if (!props.visible) return
     errors.value = {}
-    studentFilter.value = ''
     form.value =
       isEditMode.value && props.initialData
         ? getTransferFormData(props.initialData)
         : createEmptyTransfer()
+    if (!isEditMode.value && props.applicantMode === 'student') {
+      applyStudentProfile(getCurrentStudent())
+    }
   },
 )
 
 function fieldError(key) {
   return errors.value[key] ? 'error' : ''
-}
-
-function onStudentChange() {
-  const student = initialStudents.find((item) => item.studentId === form.value.studentId)
-  if (!student) return
-  const snapshot = buildStudentSnapshotFromProfile(student)
-  form.value = { ...form.value, ...snapshot }
 }
 
 function onFileChange(event) {
@@ -111,16 +118,35 @@ function downloadConsentLetter() {
   downloadStudentConsentTemplate('programme-transfer', getSelectedStudentCategory(), t)
 }
 
+function buildApplicationPayload() {
+  const { adminNewProgramme, adminNewIntake, adminDate, ...applicationFields } = form.value
+  if (isEditMode.value && props.initialData) {
+    return {
+      ...applicationFields,
+      adminNewProgramme: props.initialData.adminNewProgramme || '',
+      adminNewIntake: props.initialData.adminNewIntake || '',
+      adminDate: props.initialData.adminDate || '',
+    }
+  }
+  return {
+    ...applicationFields,
+    adminNewProgramme: '',
+    adminNewIntake: '',
+    adminDate: '',
+  }
+}
+
 function validateAndEmit(mode, emitter) {
+  const payload = buildApplicationPayload()
   const result = validateTransferForm(
-    form.value,
+    payload,
     mode,
     props.existingTransfers,
     props.initialData?.id ?? null,
   )
   errors.value = result.errors
   if (!result.valid) return
-  emitter({ ...form.value })
+  emitter(payload)
 }
 
 function handleSaveDraft() {
@@ -128,24 +154,10 @@ function handleSaveDraft() {
 }
 
 function handleSubmit() {
-  const student = getSelectedStudent()
-  const template = resolveConsentTemplate('programme-transfer', student?.studentCategory)
-  const eligibility = checkProgrammeTransferStudyDurationEligibility(student, template)
-  if (!eligibility.valid) {
-    window.alert(tr(eligibility.error) || t('consentForm.studyDurationNotMet'))
-    return
-  }
   validateAndEmit('submit', (payload) => emit('submit', payload))
 }
 
 function handleResubmit() {
-  const student = getSelectedStudent()
-  const template = resolveConsentTemplate('programme-transfer', student?.studentCategory)
-  const eligibility = checkProgrammeTransferStudyDurationEligibility(student, template)
-  if (!eligibility.valid) {
-    window.alert(tr(eligibility.error) || t('consentForm.studyDurationNotMet'))
-    return
-  }
   validateAndEmit('submit', (payload) => emit('resubmit', payload))
 }
 
@@ -178,30 +190,35 @@ function handleClose() {
         <div class="section-bar">{{ t('programmeTransfer.sections.studentDetails') }}</div>
         <div class="form-grid">
           <div class="form-field span-2">
-            <label>{{ tr('Student ID') }} <span class="required">*</span></label>
-            <div class="student-select-row">
-              <input
-                v-model="studentFilter"
-                type="text"
-                class="filter-input"
-                :placeholder="tr('Search')"
-              />
-              <select
-                v-model="form.studentId"
-                :class="['form-control', fieldError('studentId')]"
-                @change="onStudentChange"
+            <div
+              class="student-picker-row"
+              :class="{ 'student-picker-row--with-button': canSelectStudent }"
+            >
+              <div class="picker-field">
+                <label>{{ tr('Student ID') }} <span class="required">*</span></label>
+                <input
+                  :value="form.studentId"
+                  type="text"
+                  class="form-control"
+                  readonly
+                  :class="fieldError('studentId')"
+                  :placeholder="canSelectStudent ? t('studentSelect.selectPlaceholder') : ''"
+                />
+                <p v-if="errors.studentId" class="field-error">{{ tr(errors.studentId) }}</p>
+              </div>
+              <div class="picker-field">
+                <label>{{ tr('Full Name') }}</label>
+                <input v-model="form.fullName" type="text" class="form-control" readonly />
+              </div>
+              <button
+                v-if="canSelectStudent"
+                type="button"
+                class="btn-select-student"
+                @click="studentSelectVisible = true"
               >
-                <option value="">{{ t('programmeTransfer.fields.selectStudent') }}</option>
-                <option v-for="s in studentOptions" :key="s.studentId" :value="s.studentId">
-                  {{ s.studentId }} — {{ s.name }}
-                </option>
-              </select>
+                {{ t('studentSelect.selectButton') }}
+              </button>
             </div>
-            <p v-if="errors.studentId" class="field-error">{{ tr(errors.studentId) }}</p>
-          </div>
-          <div class="form-field">
-            <label>{{ tr('Full Name') }}</label>
-            <input v-model="form.fullName" type="text" class="form-control" readonly />
           </div>
           <div class="form-field">
             <label>{{ tr('NRIC/Passport No.') }}</label>
@@ -222,6 +239,10 @@ function handleClose() {
           <div class="form-field">
             <label>{{ t('programmeTransfer.fields.visaExpiry') }}</label>
             <input v-model="form.visaExpiryDate" type="text" class="form-control" readonly />
+          </div>
+          <div class="form-field">
+            <label>{{ t('movementCommon.fields.applicationAcademicSession') }}</label>
+            <input :value="formatApplicationSessionField(form.applicationSession)" type="text" class="form-control" readonly />
           </div>
         </div>
 
@@ -264,13 +285,13 @@ function handleClose() {
           </div>
           <div class="form-field span-2">
             <label>{{ t('programmeTransfer.fields.transferReason') }} <span class="required">*</span></label>
-            <textarea
-              v-model="form.transferReason"
-              rows="4"
-              :class="['form-control', fieldError('transferReason')]"
-              :placeholder="t('programmeTransfer.fields.transferReasonPlaceholder')"
-            />
-            <p v-if="errors.transferReason" class="field-error">{{ tr(errors.transferReason) }}</p>
+            <select v-model="form.reasonId" :class="['form-control', fieldError('reasonId')]">
+              <option :value="null">{{ tr('please select') }}</option>
+              <option v-for="opt in reasonOptions" :key="opt.id" :value="opt.id">
+                {{ opt.reasonName }}
+              </option>
+            </select>
+            <p v-if="errors.reasonId" class="field-error">{{ tr(errors.reasonId) }}</p>
           </div>
         </div>
 
@@ -318,24 +339,30 @@ function handleClose() {
         </div>
 
         <div class="section-bar">{{ t('programmeTransfer.sections.officeUse') }}</div>
-        <div class="form-grid section-seven-grid">
+        <div class="form-grid section-seven-grid section-seven-readonly">
           <div class="form-field">
             <label>{{ t('programmeTransfer.fields.adminNewProgramme') }}</label>
-            <select v-model="form.adminNewProgramme" class="form-control">
+            <select v-model="form.adminNewProgramme" class="form-control" disabled>
               <option value="">{{ t('programmeTransfer.fields.selectProgramme') }}</option>
               <option v-for="opt in programmeOptions" :key="`a-${opt}`" :value="opt">{{ opt }}</option>
             </select>
           </div>
           <div class="form-field">
             <label>{{ t('programmeTransfer.fields.adminNewIntake') }}</label>
-            <select v-model="form.adminNewIntake" class="form-control">
+            <select v-model="form.adminNewIntake" class="form-control" disabled>
               <option value="">{{ t('programmeTransfer.fields.selectIntake') }}</option>
               <option v-for="opt in intakeOptions" :key="opt" :value="opt">{{ opt }}</option>
             </select>
           </div>
           <div class="form-field section-seven-date">
             <label>{{ t('programmeTransfer.fields.adminDate') }}</label>
-            <DatePickerEn v-model="form.adminDate" :placeholder="tr('pleaseSelect')" />
+            <input
+              :value="form.adminDate ? formatMovementDate(form.adminDate) : ''"
+              type="text"
+              class="form-control"
+              readonly
+              :placeholder="tr('pleaseSelect')"
+            />
           </div>
         </div>
       </div>
@@ -370,6 +397,13 @@ function handleClose() {
         </template>
       </footer>
     </div>
+
+    <StudentSelectModal
+      :visible="studentSelectVisible"
+      :selected-student-id="form.studentId"
+      @close="studentSelectVisible = false"
+      @confirm="onStudentSelected"
+    />
   </div>
 </template>
 
@@ -491,30 +525,18 @@ function handleClose() {
   grid-column: 1 / 2;
 }
 
+.section-seven-readonly .form-control:disabled,
+.section-seven-readonly select.form-control:disabled {
+  background: #f3f4f6;
+  color: #6b7280;
+  border-color: #e5e7eb;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
 .form-field label {
   font-size: 13px;
   color: #374151;
-}
-
-.form-control {
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-size: 14px;
-  background: #f9fafb;
-}
-
-.form-control.error {
-  border-color: #ef4444;
-}
-
-.form-control:not([readonly]) {
-  background: #fff;
-}
-
-textarea.form-control {
-  resize: vertical;
-  min-height: 96px;
 }
 
 .required {
@@ -525,19 +547,6 @@ textarea.form-control {
   margin: 0;
   font-size: 12px;
   color: #ef4444;
-}
-
-.student-select-row {
-  display: grid;
-  grid-template-columns: 140px 1fr;
-  gap: 8px;
-}
-
-.filter-input {
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-size: 14px;
 }
 
 .declaration-box {

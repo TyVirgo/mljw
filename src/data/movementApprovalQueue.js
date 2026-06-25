@@ -6,8 +6,10 @@ import {
   resumptions,
   withdrawals,
 } from './movementStore.js'
-import { getMainReasonLabel as getDefermentReasonLabel } from './deferments.js'
-import { getMainReasonLabel as getWithdrawalReasonLabel } from './withdrawals.js'
+import { getMainReasonLabel as getDefermentReasonLabel, formatDefermentListDate } from './deferments.js'
+import { getMainReasonLabel as getWithdrawalReasonLabel, formatWithdrawalListDate } from './withdrawals.js'
+import { formatTransferListDate } from './programmeTransfers.js'
+import { formatResumptionListDate } from './resumptions.js'
 
 export const movementApprovalStatusOptions = [
   'In Progress',
@@ -24,50 +26,93 @@ const MOVEMENT_CATEGORY_KEYS = {
   withdrawal: 'menu.srWithdrawal',
 }
 
+import {
+  MOVEMENT_SOURCE_TO_CATEGORY_CODE,
+  resolveReasonLabel,
+} from './movementCategories.js'
+import { resolveStatDimensions } from './movementStatisticsDimensions.js'
+import { normalizeAcademicSession } from '../utils/normalizeAcademicSession.js'
+
 function extractMovementReason(sourceKey, item, t) {
+  const categoryCode = MOVEMENT_SOURCE_TO_CATEGORY_CODE[sourceKey]
   switch (sourceKey) {
     case 'programme-transfer':
-      return item.transferReason || '—'
     case 'deferment':
-      return getDefermentReasonLabel(item.mainReason, t) || item.detailedReason || '—'
+    case 'withdrawal': {
+      const label = resolveReasonLabel(categoryCode, item.reasonId)
+      if (label) return label
+      if (sourceKey === 'programme-transfer') return item.transferReason || '—'
+      if (sourceKey === 'deferment') {
+        return getDefermentReasonLabel(item.mainReason, t) || item.detailedReason || '—'
+      }
+      return getWithdrawalReasonLabel(item.mainReason, t) || item.detailedReason || '—'
+    }
     case 'resumption':
       return item.defermentSemester
         ? `${item.defermentSemester} → ${item.resumptionSemester || '—'}`
         : '—'
-    case 'withdrawal':
-      return getWithdrawalReasonLabel(item.mainReason, t) || item.detailedReason || '—'
     default:
       return '—'
   }
 }
 
 function extractApplicationSession(item) {
-  return (
-    item.applicationSession ||
-    item.intake ||
-    item.dateOfApplication ||
-    item.startSemester ||
-    '—'
-  )
+  return normalizeAcademicSession(item.applicationSession || item.intake || item.originalIntake)
 }
 
-function extractEffectiveSession(sourceKey, item) {
-  if (item.effectiveSession) return item.effectiveSession
+export function extractEffectiveSession(sourceKey, item) {
+  let raw
+  if (item.effectiveSession) {
+    raw = item.effectiveSession
+  } else {
+    switch (sourceKey) {
+      case 'programme-transfer':
+        raw = item.adminNewIntake || item.startSemester || '—'
+        break
+      case 'deferment':
+        raw = item.defermentPeriod || '—'
+        break
+      case 'resumption':
+        raw = item.resumptionSemester || '—'
+        break
+      case 'withdrawal':
+        raw = item.lastDateOfAttendance || '—'
+        break
+      default:
+        raw = '—'
+    }
+  }
+  return normalizeAcademicSession(raw)
+}
+
+export { formatEffectiveSession } from '../utils/formatEffectiveSession.js'
+
+export function resolveImplementedStatus(item) {
+  return item.implemented || (item.status === 'Approved' ? 'Pending' : '—')
+}
+
+export function formatImplementedYn(value) {
+  return value === 'Implemented' ? 'Y' : 'N'
+}
+
+export function formatApprovalApplicationDate(sourceKey, item) {
+  const raw = item.submittedAt || item.applicationDate || item.dateOfApplication
   switch (sourceKey) {
     case 'programme-transfer':
-      return item.adminNewIntake || item.startSemester || '—'
+      return formatTransferListDate(raw)
     case 'deferment':
-      return item.defermentPeriod || '—'
+      return formatDefermentListDate(raw)
     case 'resumption':
-      return item.resumptionSemester || '—'
+      return formatResumptionListDate(raw)
     case 'withdrawal':
-      return item.lastDateOfAttendance || '—'
+      return formatWithdrawalListDate(raw)
     default:
-      return '—'
+      return raw || '—'
   }
 }
 
 export function normalizeQueueItem(sourceKey, item, t) {
+  const implemented = resolveImplementedStatus(item)
   return {
     queueKey: `${sourceKey}:${item.id}`,
     id: item.id,
@@ -75,7 +120,8 @@ export function normalizeQueueItem(sourceKey, item, t) {
     applicationId: item.applicationId,
     status: item.status,
     approvalStage: item.approvalStage,
-    implemented: item.implemented || (item.status === 'Approved' ? 'Pending' : '—'),
+    implemented,
+    implementedYn: formatImplementedYn(implemented),
     studentId: item.studentId,
     fullName: item.fullName || item.name || '',
     studentCategory: inferStudentCategory(item),
@@ -83,6 +129,8 @@ export function normalizeQueueItem(sourceKey, item, t) {
     effectiveSession: extractEffectiveSession(sourceKey, item),
     movementCategoryKey: MOVEMENT_CATEGORY_KEYS[sourceKey],
     movementReason: extractMovementReason(sourceKey, item, t),
+    programmeCode: resolveStatDimensions(sourceKey, item).programmeCode,
+    applicationDateDisplay: formatApprovalApplicationDate(sourceKey, item),
     submittedAt: item.submittedAt || item.applicationDate,
     raw: item,
   }
@@ -116,8 +164,8 @@ export function filterByBucket(items, bucket, currentRole) {
 export function filterBySearch(items, search) {
   const s = search || {}
   return items.filter((row) => {
-    if (s.academicSession && !matchText(row.applicationSession, s.academicSession)) return false
-    if (s.movementReason && !matchText(row.movementReason, s.movementReason)) return false
+    if (s.academicSession && row.applicationSession !== String(s.academicSession).trim()) return false
+    if (s.programmeCode && !matchText(row.programmeCode, s.programmeCode)) return false
     if (s.status && row.status !== s.status) return false
     if (s.studentId && !matchText(row.studentId, s.studentId)) return false
     if (s.studentName && !matchText(row.fullName, s.studentName)) return false

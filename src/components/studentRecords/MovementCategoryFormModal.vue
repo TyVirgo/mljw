@@ -5,8 +5,7 @@ import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   createEmptyMovementCategoryForm,
   studentStatusOptions,
-  movementCategoryStudentTypes,
-  getCategoriesForStatus,
+  trackCategoryOptions,
   validateMovementCategoryForm,
 } from '../../data/movementCategories.js'
 
@@ -24,10 +23,25 @@ const form = ref(createEmptyMovementCategoryForm())
 const errors = ref({})
 
 const isEditMode = computed(() => props.mode === 'edit')
-const categoryOptions = computed(() => getCategoriesForStatus(form.value.studentStatus))
 const modalTitle = computed(() =>
   isEditMode.value ? t('movementCategory.form.editTitle') : t('movementCategory.form.createTitle'),
 )
+
+function applyInitialForm(data) {
+  return {
+    categoryCode: data.categoryCode || '',
+    categoryName: data.categoryName || '',
+    studentStatus: data.studentStatus || '',
+    category: data.category || '',
+    allowStudentApply: data.allowStudentApply !== false,
+    modifyStudentStatus: data.modifyStudentStatus === true,
+    modifyStudentType: data.modifyStudentType === true,
+    autoImplement: data.autoImplement === true,
+    deleteOriginalCourseList: data.deleteOriginalCourseList === true,
+    presetNewProgrammeBatchList: data.presetNewProgrammeBatchList === true,
+    excludeGradedFromPreset: data.excludeGradedFromPreset === true,
+  }
+}
 
 watch(
   () => [props.visible, props.mode, props.initialData],
@@ -35,38 +49,15 @@ watch(
     if (!props.visible) return
     errors.value = {}
     if (isEditMode.value && props.initialData) {
-      form.value = {
-        categoryCode: props.initialData.categoryCode || '',
-        categoryName: props.initialData.categoryName || '',
-        studentStatus: props.initialData.studentStatus || '',
-        category: props.initialData.category || '',
-        studentType: props.initialData.studentType || '',
-        allowStudentApply: props.initialData.allowStudentApply !== false,
-        modifyStudentStatus: props.initialData.modifyStudentStatus === true,
-        modifyStudentType: props.initialData.modifyStudentType === true,
-        autoImplement: props.initialData.autoImplement === true,
-      }
+      form.value = applyInitialForm(props.initialData)
     } else {
       form.value = createEmptyMovementCategoryForm()
     }
   },
 )
 
-function onStudentStatusChange() {
-  const allowed = getCategoriesForStatus(form.value.studentStatus)
-  if (form.value.category && !allowed.includes(form.value.category)) {
-    form.value.category = ''
-  }
-}
-
 function fieldError(key) {
   return errors.value[key] ? 'is-error' : ''
-}
-
-function studentTypeLabel(type) {
-  const key = `movementCategory.studentType.${type}`
-  const translated = t(key)
-  return translated !== key ? translated : tr(type)
 }
 
 function handleClose() {
@@ -108,6 +99,8 @@ function handleSave() {
                   type="text"
                   :class="['control-input', fieldError('categoryCode')]"
                   :placeholder="t('common.pleaseInput')"
+                  :readonly="isEditMode"
+                  :disabled="isEditMode"
                 />
                 <p v-if="errors.categoryCode" class="field-error">{{ tr(errors.categoryCode) }}</p>
               </div>
@@ -127,12 +120,32 @@ function handleSave() {
             </div>
 
             <div class="form-field">
+              <label class="field-label">{{ t('movementCategory.fields.modifyStudentStatus') }}:</label>
+              <div class="field-control field-control-stacked">
+                <div class="switch-value-row">
+                  <YnSwitch v-model="form.modifyStudentStatus" />
+                </div>
+                <p class="field-hint">{{ t('movementCategory.fields.modifyStudentStatusHint') }}</p>
+              </div>
+            </div>
+
+            <div class="form-field">
+              <label class="field-label">{{ t('movementCategory.fields.modifyStudentType') }}:</label>
+              <div class="field-control field-control-stacked">
+                <div class="switch-value-row">
+                  <YnSwitch v-model="form.modifyStudentType" />
+                </div>
+                <p class="field-hint">{{ t('movementCategory.fields.modifyStudentTypeHint') }}</p>
+              </div>
+            </div>
+
+            <div class="form-field">
               <label class="field-label required">{{ t('movementCategory.fields.studentStatus') }}:</label>
               <div class="field-control">
                 <select
                   v-model="form.studentStatus"
                   :class="['control-input', fieldError('studentStatus'), { 'is-empty': !form.studentStatus }]"
-                  @change="onStudentStatusChange"
+                  :disabled="form.modifyStudentStatus"
                 >
                   <option value="">{{ t('common.pleaseSelect') }}</option>
                   <option v-for="opt in studentStatusOptions" :key="opt" :value="opt">
@@ -149,10 +162,10 @@ function handleSave() {
                 <select
                   v-model="form.category"
                   :class="['control-input', fieldError('category'), { 'is-empty': !form.category }]"
-                  :disabled="!form.studentStatus"
+                  :disabled="form.modifyStudentType"
                 >
                   <option value="">{{ t('common.pleaseSelect') }}</option>
-                  <option v-for="opt in categoryOptions" :key="opt" :value="opt">
+                  <option v-for="opt in trackCategoryOptions" :key="opt" :value="opt">
                     {{ t(`movementCategory.trackCategory.${opt}`) }}
                   </option>
                 </select>
@@ -161,19 +174,12 @@ function handleSave() {
             </div>
 
             <div class="form-field">
-              <label class="field-label required">{{ t('movementCategory.fields.studentType') }}:</label>
-              <div class="field-control">
-                <select
-                  v-model="form.studentType"
-                  :class="['control-input', fieldError('studentType'), { 'is-empty': !form.studentType }]"
-                  :disabled="isEditMode"
-                >
-                  <option value="">{{ t('common.pleaseSelect') }}</option>
-                  <option v-for="opt in movementCategoryStudentTypes" :key="opt" :value="opt">
-                    {{ studentTypeLabel(opt) }}
-                  </option>
-                </select>
-                <p v-if="errors.studentType" class="field-error">{{ tr(errors.studentType) }}</p>
+              <label class="field-label">{{ t('movementCategory.fields.autoImplement') }}:</label>
+              <div class="field-control field-control-stacked">
+                <div class="switch-value-row">
+                  <YnSwitch v-model="form.autoImplement" />
+                </div>
+                <p class="field-hint">{{ t('movementCategory.fields.autoImplementHint') }}</p>
               </div>
             </div>
 
@@ -192,30 +198,24 @@ function handleSave() {
                 </div>
               </div>
             </div>
-          </div>
 
-          <div class="switch-section">
-            <div class="form-field form-field-switch">
-              <label class="field-label">{{ t('movementCategory.fields.modifyStudentStatus') }}:</label>
-              <div class="field-control switch-control">
-                <YnSwitch v-model="form.modifyStudentStatus" />
-                <p class="field-hint">{{ t('movementCategory.fields.modifyStudentStatusHint') }}</p>
+            <div class="course-handling-block">
+              <div class="course-handling-first-row">
+                <span class="course-handling-label">{{ t('movementCategory.fields.courseHandling') }}:</span>
+                <label class="checkbox-row">
+                  <input v-model="form.deleteOriginalCourseList" type="checkbox" />
+                  <span>{{ t('movementCategory.fields.deleteOriginalCourseList') }}</span>
+                </label>
               </div>
-            </div>
-
-            <div class="form-field form-field-switch">
-              <label class="field-label">{{ t('movementCategory.fields.modifyStudentType') }}:</label>
-              <div class="field-control switch-control">
-                <YnSwitch v-model="form.modifyStudentType" />
-                <p class="field-hint">{{ t('movementCategory.fields.modifyStudentTypeHint') }}</p>
-              </div>
-            </div>
-
-            <div class="form-field form-field-switch">
-              <label class="field-label">{{ t('movementCategory.fields.autoImplement') }}:</label>
-              <div class="field-control switch-control">
-                <YnSwitch v-model="form.autoImplement" />
-                <p class="field-hint">{{ t('movementCategory.fields.autoImplementHint') }}</p>
+              <div class="course-handling-follow-rows">
+                <label class="checkbox-row">
+                  <input v-model="form.presetNewProgrammeBatchList" type="checkbox" />
+                  <span>{{ t('movementCategory.fields.presetNewProgrammeBatchList') }}</span>
+                </label>
+                <label class="checkbox-row">
+                  <input v-model="form.excludeGradedFromPreset" type="checkbox" />
+                  <span>{{ t('movementCategory.fields.excludeGradedFromPreset') }}</span>
+                </label>
               </div>
             </div>
           </div>
@@ -296,6 +296,40 @@ function handleSave() {
   min-width: 0;
 }
 
+.form-field-full {
+  grid-column: 1 / -1;
+}
+
+.course-handling-block {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.course-handling-first-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.course-handling-label {
+  flex-shrink: 0;
+  width: 132px;
+  font-size: 13px;
+  color: #374151;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.course-handling-follow-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: 140px;
+}
+
 .field-label {
   flex-shrink: 0;
   width: 132px;
@@ -317,6 +351,18 @@ function handleSave() {
   min-width: 0;
 }
 
+.field-control-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.switch-value-row {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+}
+
 .control-input {
   width: 100%;
   height: 32px;
@@ -327,13 +373,14 @@ function handleSave() {
   box-sizing: border-box;
 }
 
-.control-input.is-empty {
-  color: #9ca3af;
+.control-input:disabled {
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
 }
 
-.control-input:disabled {
-  background: #f9fafb;
-  color: #6b7280;
+.control-input.is-empty {
+  color: #9ca3af;
 }
 
 .control-input.is-error {
@@ -341,9 +388,31 @@ function handleSave() {
 }
 
 .field-error {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 12px;
   color: #ef4444;
+}
+
+.field-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.4;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.checkbox-row input[type='checkbox'] {
+  flex-shrink: 0;
 }
 
 .radio-group {
@@ -387,37 +456,5 @@ function handleSave() {
   border: none;
   background: #2563eb;
   color: #fff;
-}
-
-.switch-section {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid #f3f4f6;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.form-field-switch {
-  align-items: center;
-}
-
-.switch-control {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-  min-height: 32px;
-  flex: 1;
-  min-width: 0;
-}
-
-.field-hint {
-  margin: 0;
-  font-size: 12px;
-  color: #9ca3af;
-  line-height: 1.4;
-  flex: 1;
-  min-width: 0;
 }
 </style>

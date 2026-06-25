@@ -44,6 +44,8 @@ export default {
     srMovementCategory: '异动类别',
     srConsentForm: '知情同意书',
     srMovementApplication: '学籍异动申请',
+    srMovementApplicationTeacher: '学籍异动申请（管理端）',
+    srMovementApplicationStudent: '学籍异动申请（学生）',
     srMovementApproval: '学籍异动审批',
     srMovementMaintenance: '学籍异动维护',
     srMovementQuery: '学籍异动查询',
@@ -54,6 +56,25 @@ export default {
     srDeferment: '休学',
     srResumption: '复学',
     srWithdrawal: '退学',
+  },
+  studentSelect: {
+    title: '选择学生',
+    searchLabel: '搜索：',
+    searchPlaceholder: '学号或姓名',
+    selectButton: '选择',
+    selectPlaceholder: '请选择学生',
+    columns: {
+      studentId: '学号',
+      name: '姓名',
+      programme: '专业',
+      faculty: '学院',
+    },
+  },
+  movementApplication: {
+    search: {
+      programmeCode: '专业代码',
+      implemented: '是否实施',
+    },
   },
   common: {
     search: '查询',
@@ -264,7 +285,6 @@ export default {
       submit: '提交',
       resubmit: '再次提交',
       cancelApplication: '撤销申请',
-      simulateExpire: '模拟过期',
     },
     notes: {
       title: '说明',
@@ -327,7 +347,6 @@ export default {
     deleteOne: '确定要删除该草稿申请吗？此操作无法撤销。',
     cancelOne: '确定要撤销该申请吗？撤销后将归档且不可编辑。',
     resubmitOne: '确定要再次提交该申请吗？',
-    expireOne: '确定要将该申请标记为过期吗？过期后将归档且不可编辑。',
     activeApplicationExists: '该学生已有进行中的转专业申请。',
     consentLetterHint: 'Consent letter template download is not yet connected to a backend file.',
   },
@@ -617,6 +636,10 @@ export default {
       modifyStudentStatusHint: '开启后，表示该异动会修改学生档案的学籍状态。',
       modifyStudentTypeHint: '开启后，表示该异动会修改学生档案的学籍类型。',
       autoImplementHint: '开启后，该异动审批通过后将自动标记为已实施。',
+      courseHandling: '处理选课',
+      deleteOriginalCourseList: '删除原课程名单（已获得成绩的不删）',
+      presetNewProgrammeBatchList: '预置新专业批次名单',
+      excludeGradedFromPreset: '已获得成绩课程不预置到新专业批次名单',
     },
     form: {
       createTitle: '新增异动类别',
@@ -715,7 +738,8 @@ export default {
   movementQuery: {
     search: {
       academicSession: '学年学期',
-      movementReason: '异动原因',
+      programmeCode: '专业代码',
+      movementType: '异动类型',
     },
     export: {
       no: '序号',
@@ -726,17 +750,45 @@ export default {
       studentName: '姓名',
     },
   },
+  movementStatistics: {
+    search: {
+      academicSession: '学年学期',
+      programmeCode: '专业代码',
+    },
+    export: {
+      no: '序号',
+    },
+    columns: {
+      schoolCode: 'School Code',
+      programmeCode: 'Programme Code',
+      intake: 'Intake',
+      programmeTransfer: 'Programme Transfer',
+      deferment: 'Deferment',
+      withdrawal: 'Withdrawal',
+      resumption: 'Resumption',
+      outboundMobility: 'Outbound Mobility',
+      expel: 'Expel',
+      incomplete: 'Incomplete',
+      completion: 'Completion',
+      completionWithoutGraduation: 'Completion without Graduation',
+      inboundMobility: 'Inbound Mobility',
+      iep: 'IEP',
+    },
+  },
   movementMaintenance: {
     implement: '实施',
     modifyMovementNumber: '修改异动编号',
     deleteMany: '确定要删除选中的 {count} 条异动维护记录吗？此操作无法撤销。',
     implementConfirm: '确定将选中的 {count} 条记录标记为已实施吗？',
+    implementConfirmScheduled: '选中的 {count} 条记录将在 {effectiveSession} 学年学期自动生效，是否继续？',
+    implementConfirmScheduledMulti: '选中的 {count} 条记录将在各自生效学年学期自动生效，是否继续？',
+    implementConfirmMixed: '选中的记录中，{immediate} 条将立即生效，{scheduled} 条将延迟至生效学期自动实施，是否继续？',
     implementNoneEligible: '所选记录中没有待实施项。',
     editTitle: '编辑异动维护',
     numberModalTitle: '修改异动编号',
     search: {
-      academicSession: 'Academic Session',
-      movementReason: '异动原因',
+      academicSession: '学年学期',
+      programmeCode: '专业代码',
     },
     columns: {
       movementDate: '异动日期',
@@ -773,9 +825,15 @@ export default {
       Implemented: '已实施',
     },
   },
+  movementCommon: {
+    fields: {
+      applicationAcademicSession: '申请学年学期',
+    },
+  },
   movementApproval: {
     currentRole: '当前审批角色',
     submitDecision: '提交审批',
+    approve: '审批',
     recall: '撤回',
     recallHint: '仅当下一审批环节尚未处理时可撤回上一笔「通过」决定。',
     recallConfirmTitle: '确认撤回',
@@ -791,14 +849,15 @@ export default {
       history: '申请历史',
     },
     columns: {
-      applicationSession: '申请学期',
+      applicationSession: '申请学年学期',
       effectiveSession: '生效学期',
       movementCategory: '异动类别',
       movementReason: '异动原因',
+      applicationDate: '申请日期',
     },
     search: {
       academicSession: '学年学期',
-      movementReason: '异动原因',
+      programmeCode: '专业代码',
     },
   },
   pages: {

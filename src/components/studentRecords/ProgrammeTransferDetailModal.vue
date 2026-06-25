@@ -4,14 +4,20 @@ import MovementAttachmentReadonly from './MovementAttachmentReadonly.vue'
 import {
   formatTransferListDate,
   statusBadgeClass,
+  getTransferReasonDisplay,
 } from '../../data/programmeTransfers.js'
+import { resolveApplicationSessionForDisplay } from '../../data/movementApplicationSession.js'
+import { maskPassportIc } from '../../utils/maskPassportIc.js'
+import { formatMovementDate } from '../../utils/formatMovementDate.js'
 
 const props = defineProps({
   visible: Boolean,
   item: { type: Object, default: null },
+  showApprovalAction: { type: Boolean, default: false },
+  maskSensitiveFields: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'approve'])
 
 const { t, tr } = useAppI18n()
 
@@ -30,6 +36,11 @@ function statusLabel(status) {
 
 function displayDate(item) {
   return formatTransferListDate(item?.submittedAt || item?.applicationDate)
+}
+
+function displayPassport(value) {
+  if (!value) return '—'
+  return props.maskSensitiveFields ? maskPassportIc(value) : value
 }
 </script>
 
@@ -51,11 +62,12 @@ function displayDate(item) {
         <dl class="detail-grid">
           <div><dt>{{ tr('Student ID') }}</dt><dd>{{ item.studentId }}</dd></div>
           <div><dt>{{ tr('Full Name') }}</dt><dd>{{ item.fullName }}</dd></div>
-          <div><dt>{{ tr('NRIC/Passport No.') }}</dt><dd>{{ item.nricPassport || '—' }}</dd></div>
+          <div><dt>{{ tr('NRIC/Passport No.') }}</dt><dd>{{ displayPassport(item.nricPassport) }}</dd></div>
           <div><dt>{{ tr('Nationality') }}</dt><dd>{{ item.nationality || '—' }}</dd></div>
           <div><dt>{{ tr('Email') }}</dt><dd>{{ item.email || '—' }}</dd></div>
           <div><dt>{{ tr('Contact No.') }}</dt><dd>{{ item.contactNo || '—' }}</dd></div>
-          <div><dt>{{ t('programmeTransfer.fields.visaExpiry') }}</dt><dd>{{ item.visaExpiryDate || '—' }}</dd></div>
+          <div><dt>{{ t('programmeTransfer.fields.visaExpiry') }}</dt><dd>{{ formatMovementDate(item.visaExpiryDate) }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
         </dl>
 
         <div class="section-bar">{{ t('programmeTransfer.sections.transferInfo') }}</div>
@@ -66,7 +78,7 @@ function displayDate(item) {
           <div><dt>{{ t('programmeTransfer.fields.newProgrammeFirst') }}</dt><dd>{{ item.newProgrammeFirstChoice || '—' }}</dd></div>
           <div><dt>{{ t('programmeTransfer.fields.newProgrammeSecond') }}</dt><dd>{{ item.newProgrammeSecondChoice || '—' }}</dd></div>
           <div><dt>{{ t('programmeTransfer.fields.startSemester') }}</dt><dd>{{ item.startSemester || '—' }}</dd></div>
-          <div class="span-2"><dt>{{ t('programmeTransfer.fields.transferReason') }}</dt><dd class="multiline">{{ item.transferReason || '—' }}</dd></div>
+          <div class="span-2"><dt>{{ t('programmeTransfer.fields.transferReason') }}</dt><dd>{{ getTransferReasonDisplay(item) || '—' }}</dd></div>
         </dl>
 
         <div class="section-bar">{{ t('programmeTransfer.sections.declaration') }}</div>
@@ -85,6 +97,14 @@ function displayDate(item) {
       <footer class="modal-footer">
         <span class="date-hint">{{ t('programmeTransfer.columns.date') }}: {{ displayDate(item) }}</span>
         <div class="footer-actions">
+          <button
+            v-if="showApprovalAction"
+            type="button"
+            class="btn btn-primary"
+            @click="emit('approve')"
+          >
+            {{ t('movementApproval.approve') }}
+          </button>
           <button type="button" class="btn btn-default" @click="emit('close')">{{ t('common.close') }}</button>
         </div>
       </footer>

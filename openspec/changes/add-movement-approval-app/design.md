@@ -203,9 +203,43 @@ recallMovementApproval({ sourceKey, id, currentRole })
 4. `MovementApprovalDetailPanel` + 批量 `MovementApprovalModal`
 5. Recall + Export mock
 6. 注册 App + i18n + build 冒烟
+7. §8：ExportModal + xlsx 替换 CSV（见 tasks §8）
 
 ## Open Questions
 
 1. **Cancelled 可见性**：History 是否对所有审批角色可见？→ 首版 **是**（便于审计）
 2. **Export 字段**：是否与列表列一致？→ 首版是
 3. **是否实施**：AAO 终审后手动改 Yes/No，还是 Approved 自动 Pending？→ 首版默认 Pending，AAO 可改
+
+### 10. §8 Export via ExportModal
+
+**替换** `handleExport()` CSV Blob 为 ExportModal 流程：
+
+```
+MovementApprovalView
+  ├── openExportModal() → 无数据 alert
+  ├── ExportModal（useListPageI18n(movementApprovalExportFields)）
+  └── handleExportConfirm({ selectedFields, exportScope })
+        → exportMovementApprovalToExcel(..., columnMeta, { implementedAsYn: true })
+```
+
+**字段定义** — `movementApprovalExportFields.js`：
+
+```javascript
+export const movementApprovalExportColumnMeta = [
+  { key: 'no', ... },
+  { key: 'status', selectedByDefault: true },
+  { key: 'approvalStage', selectedByDefault: true },
+  { key: 'studentId', ... },
+  { key: 'fullName', ... },
+  { key: 'applicationSession', ... },
+  { key: 'effectiveSession', ... },
+  { key: 'movementCategory', ... },
+  { key: 'applicationDate', ... },
+  { key: 'implemented', selectedByDefault: false }, // History 列表列；Export 可选
+]
+```
+
+**formatApprovalExportRow**：status i18n、`tr(approvalStage)`、`t(movementCategoryKey)`、`applicationDateDisplay`；implemented 用 Y/N（`formatImplementedYn`）。
+
+**Non-goals**：Passport/IC 脱敏、超出列表的扩展 Export 列（以后加列再议）。

@@ -24,19 +24,21 @@ import {
 
 import { initialStudents } from '../../data/students.js'
 import { downloadStudentConsentTemplate } from '../../utils/consentFormDownload.js'
-
-
+import StudentSelectModal from './StudentSelectModal.vue'
+import { getCurrentStudent } from '../../data/mockCurrentStudent.js'
+import { formatApplicationSessionField } from '../../data/movementApplicationSession.js'
+import '../../styles/movement-form.css'
 
 const props = defineProps({
-
   visible: Boolean,
-
   mode: { type: String, default: 'create' },
-
   initialData: { type: Object, default: null },
-
   existingResumptions: { type: Array, default: () => [] },
-
+  applicantMode: {
+    type: String,
+    default: 'teacher',
+    validator: (value) => ['teacher', 'student'].includes(value),
+  },
 })
 
 
@@ -53,7 +55,7 @@ const form = ref(createEmptyResumption())
 
 const errors = ref({})
 
-const studentFilter = ref('')
+const studentSelectVisible = ref(false)
 
 const fileInputRef = ref(null)
 
@@ -62,6 +64,8 @@ const fileInputRef = ref(null)
 const isEditMode = computed(() => props.mode === 'edit')
 
 const isResubmitMode = computed(() => props.initialData && canResubmitResumption(props.initialData))
+
+const canSelectStudent = computed(() => props.applicantMode === 'teacher' && !isEditMode.value)
 
 const modalTitle = computed(() =>
 
@@ -79,75 +83,35 @@ const dateOfApplicationDisplay = computed(() =>
 
 
 
-const studentOptions = computed(() => {
+function applyStudentProfile(student) {
+  if (!student) return
+  const snapshot = buildStudentSnapshotForResumption(student)
+  form.value = { ...form.value, ...snapshot }
+}
 
-  const keyword = studentFilter.value.trim().toLowerCase()
-
-  return initialStudents.filter((item) => {
-
-    if (!keyword) return true
-
-    const id = String(item.studentId || '').toLowerCase()
-
-    const name = String(item.name || '').toLowerCase()
-
-    const nameCn = String(item.nameCn || '').toLowerCase()
-
-    return id.includes(keyword) || name.includes(keyword) || nameCn.includes(keyword)
-
-  })
-
-})
-
-
+function onStudentSelected(student) {
+  applyStudentProfile(student)
+  studentSelectVisible.value = false
+}
 
 watch(
-
-  () => [props.visible, props.mode, props.initialData],
-
+  () => [props.visible, props.mode, props.initialData, props.applicantMode],
   () => {
-
     if (!props.visible) return
-
     errors.value = {}
-
-    studentFilter.value = ''
-
     form.value =
-
       isEditMode.value && props.initialData
-
         ? getResumptionFormData(props.initialData)
-
         : createEmptyResumption()
-
+    if (!isEditMode.value && props.applicantMode === 'student') {
+      applyStudentProfile(getCurrentStudent())
+    }
   },
-
 )
 
-
-
 function fieldError(key) {
-
   return errors.value[key] ? 'error' : ''
-
 }
-
-
-
-function onStudentChange() {
-
-  const student = initialStudents.find((item) => item.studentId === form.value.studentId)
-
-  if (!student) return
-
-  const snapshot = buildStudentSnapshotForResumption(student)
-
-  form.value = { ...form.value, ...snapshot }
-
-}
-
-
 
 function onFileChange(event) {
 
@@ -282,48 +246,36 @@ function handleClose() {
 
         <div class="form-grid">
 
-          <div class="form-field">
-
-            <label>{{ tr('Student ID') }} <span class="required">*</span></label>
-
-            <div class="student-select-row">
-
-              <input
-
-                v-model="studentFilter"
-
-                type="text"
-
-                class="filter-input"
-
-                :placeholder="tr('Search')"
-
-              />
-
-              <select
-
-                v-model="form.studentId"
-
-                :class="['form-control', fieldError('studentId')]"
-
-                @change="onStudentChange"
-
+          <div class="form-field span-2">
+            <div
+              class="student-picker-row"
+              :class="{ 'student-picker-row--with-button': canSelectStudent }"
+            >
+              <div class="picker-field">
+                <label>{{ tr('Student ID') }} <span class="required">*</span></label>
+                <input
+                  :value="form.studentId"
+                  type="text"
+                  class="form-control"
+                  readonly
+                  :class="fieldError('studentId')"
+                  :placeholder="canSelectStudent ? t('studentSelect.selectPlaceholder') : ''"
+                />
+                <p v-if="errors.studentId" class="field-error">{{ tr(errors.studentId) }}</p>
+              </div>
+              <div class="picker-field">
+                <label>{{ t('resumption.fields.name') }}</label>
+                <input v-model="form.fullName" type="text" class="form-control" readonly />
+              </div>
+              <button
+                v-if="canSelectStudent"
+                type="button"
+                class="btn-select-student"
+                @click="studentSelectVisible = true"
               >
-
-                <option value="">{{ t('resumption.fields.selectStudent') }}</option>
-
-                <option v-for="s in studentOptions" :key="s.studentId" :value="s.studentId">
-
-                  {{ s.studentId }} — {{ s.name }}
-
-                </option>
-
-              </select>
-
+                {{ t('studentSelect.selectButton') }}
+              </button>
             </div>
-
-            <p v-if="errors.studentId" class="field-error">{{ tr(errors.studentId) }}</p>
-
           </div>
 
           <div class="form-field">
@@ -331,14 +283,6 @@ function handleClose() {
             <label>{{ t('resumption.fields.dateOfApplication') }}</label>
 
             <input :value="dateOfApplicationDisplay" type="text" class="form-control" readonly />
-
-          </div>
-
-          <div class="form-field">
-
-            <label>{{ t('resumption.fields.name') }}</label>
-
-            <input v-model="form.fullName" type="text" class="form-control" readonly />
 
           </div>
 
@@ -379,6 +323,14 @@ function handleClose() {
             <label>{{ t('resumption.fields.nationality') }}</label>
 
             <input v-model="form.nationality" type="text" class="form-control" readonly />
+
+          </div>
+
+          <div class="form-field">
+
+            <label>{{ t('movementCommon.fields.applicationAcademicSession') }}</label>
+
+            <input :value="formatApplicationSessionField(form.applicationSession)" type="text" class="form-control" readonly />
 
           </div>
 
@@ -596,6 +548,13 @@ function handleClose() {
 
     </div>
 
+    <StudentSelectModal
+      :visible="studentSelectVisible"
+      :selected-student-id="form.studentId"
+      @close="studentSelectVisible = false"
+      @confirm="onStudentSelected"
+    />
+
   </div>
 
 </template>
@@ -762,6 +721,10 @@ function handleClose() {
 
 }
 
+.form-field.span-2 {
+  grid-column: span 2;
+}
+
 
 
 .form-field label {
@@ -771,38 +734,6 @@ function handleClose() {
   color: #374151;
 
   font-weight: 600;
-
-}
-
-
-
-.form-control {
-
-  border: 1px solid #d1d5db;
-
-  border-radius: 6px;
-
-  padding: 8px 10px;
-
-  font-size: 14px;
-
-  background: #f9fafb;
-
-}
-
-
-
-.form-control.error {
-
-  border-color: #ef4444;
-
-}
-
-
-
-.form-control:not([readonly]) {
-
-  background: #fff;
 
 }
 
@@ -823,32 +754,6 @@ function handleClose() {
   font-size: 12px;
 
   color: #ef4444;
-
-}
-
-
-
-.student-select-row {
-
-  display: grid;
-
-  grid-template-columns: 140px 1fr;
-
-  gap: 8px;
-
-}
-
-
-
-.filter-input {
-
-  border: 1px solid #d1d5db;
-
-  border-radius: 6px;
-
-  padding: 8px 10px;
-
-  font-size: 14px;
 
 }
 

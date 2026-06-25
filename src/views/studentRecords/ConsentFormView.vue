@@ -172,12 +172,6 @@ function formatStudentType(type) {
   const translated = t(key)
   return translated !== key ? translated : tr(type)
 }
-
-function formatStudyDuration(rule) {
-  const key = `consentForm.studyDurationRule.${rule || 'none'}`
-  const translated = t(key)
-  return translated !== key ? translated : tr(rule)
-}
 </script>
 
 <template>
@@ -250,12 +244,11 @@ function formatStudyDuration(rule) {
                 <th class="col-check">
                   <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
                 </th>
-                <th class="col-no sortable">{{ t('common.serialNo') }}</th>
-                <th class="sortable">{{ t('consentForm.columns.formName') }}</th>
-                <th class="sortable">{{ t('consentForm.columns.movementType') }}</th>
-                <th class="sortable">{{ t('consentForm.columns.studentType') }}</th>
-                <th class="sortable">{{ t('consentForm.columns.studyDuration') }}</th>
-                <th class="sortable">{{ t('consentForm.columns.remark') }}</th>
+                <th class="col-no">{{ t('common.serialNo') }}</th>
+                <th>{{ t('consentForm.columns.formName') }}</th>
+                <th>{{ t('consentForm.columns.movementType') }}</th>
+                <th>{{ t('consentForm.columns.studentType') }}</th>
+                <th>{{ t('consentForm.columns.remark') }}</th>
                 <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
             </thead>
@@ -268,7 +261,6 @@ function formatStudyDuration(rule) {
                 <td>{{ item.formName }}</td>
                 <td>{{ formatMovementType(item.movementType) }}</td>
                 <td>{{ formatStudentType(item.studentType) }}</td>
-                <td>{{ formatStudyDuration(item.studyDurationRule) }}</td>
                 <td>{{ item.remark || '—' }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
@@ -407,13 +399,6 @@ function formatStudyDuration(rule) {
   background: #f9fafb;
   font-weight: 600;
   color: #374151;
-}
-
-.data-table th.sortable::after {
-  content: '⇅';
-  margin-left: 4px;
-  font-size: 11px;
-  color: #9ca3af;
 }
 
 .col-check {

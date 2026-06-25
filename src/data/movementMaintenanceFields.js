@@ -58,17 +58,23 @@ export function extractPassportIc(item) {
 }
 
 export function extractIntake(sourceKey, item) {
+  let raw = ''
   switch (sourceKey) {
     case 'programme-transfer':
-      return item.currentIntake || MAINTENANCE_EMPTY
+      raw = item.currentIntake || ''
+      break
     case 'deferment':
     case 'withdrawal':
-      return item.intake || MAINTENANCE_EMPTY
+      raw = item.intake || ''
+      break
     case 'resumption':
-      return item.originalIntake || MAINTENANCE_EMPTY
+      raw = item.originalIntake || ''
+      break
     default:
-      return MAINTENANCE_EMPTY
+      raw = ''
   }
+  const normalized = normalizeAcademicSession(raw)
+  return normalized === '—' ? MAINTENANCE_EMPTY : normalized
 }
 
 export function extractCurrentSchool(sourceKey, item) {
@@ -96,12 +102,15 @@ export function extractNewProgrammeName(sourceKey, item) {
   return item.adminNewProgramme || item.newProgrammeFirstChoice || MAINTENANCE_EMPTY
 }
 
+import { formatMovementDate } from '../utils/formatMovementDate.js'
+import { normalizeAcademicSession } from '../utils/normalizeAcademicSession.js'
+import { getCurrentApplicationSession } from './movementApplicationSession.js'
+import { extractEffectiveSession } from './movementApprovalQueue.js'
+
 export function formatMovementDateDisplay(item) {
-  if (item.movementDate) return item.movementDate
-  if (!item.submittedAt) return MAINTENANCE_EMPTY
-  const date = new Date(item.submittedAt)
-  if (Number.isNaN(date.getTime())) return String(item.submittedAt)
-  return date.toISOString().slice(0, 10)
+  if (item.movementDate) return formatMovementDate(item.movementDate)
+  if (!item.submittedAt) return '—'
+  return formatMovementDate(item.submittedAt)
 }
 
 export function updateMaintenanceFields(sourceKey, id, patch) {
@@ -123,12 +132,22 @@ export function applyImplementationEffect(sourceKey, item) {
   return updateMaintenanceFields(sourceKey, item.id, { implemented: 'Implemented' })
 }
 
+export function requestImplementation(sourceKey, item) {
+  if (!item || item.implemented !== 'Pending') return null
+  const current = getCurrentApplicationSession()
+  const effective = extractEffectiveSession(sourceKey, item)
+  if (current && effective && current === effective) {
+    return applyImplementationEffect(sourceKey, item)
+  }
+  return updateMaintenanceFields(sourceKey, item.id, { implemented: 'Scheduled' })
+}
+
 export function implementMaintenanceRecords(rows) {
   const updated = []
   for (const row of rows) {
     if (row.implemented !== 'Pending') continue
     const raw = row.raw || row
-    const next = applyImplementationEffect(row.sourceKey, raw)
+    const next = requestImplementation(row.sourceKey, raw)
     if (next) updated.push(next)
   }
   return updated
@@ -243,6 +262,7 @@ export function seedMaintenanceShowcaseRecords() {
   patchRecord('deferment', 1, {
     studentCategory: 'Local',
     implemented: 'Pending',
+    defermentPeriod: '2026/02',
     movementNumber: 'MV2025004',
     cgpa: '3.10',
     expectedGraduationTime: '2028-06',

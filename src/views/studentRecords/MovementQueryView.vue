@@ -10,11 +10,17 @@ import {
   mergeMovementQueryQueue,
   filterQueryBySearch,
   movementQueryStatusOptions,
+  movementQueryTypeOptions,
+  movementQueryTypeLabelKeys,
 } from '../../data/movementQueryQueue.js'
-import { movementQueryExportFields } from '../../data/movementQueryExportFields.js'
+import { getDistinctApplicationSessions } from '../../data/movementListSearchOptions.js'
+import { movementQueryExportFields, movementQueryExportColumnMeta } from '../../data/movementQueryExportFields.js'
 import { MAINTENANCE_EMPTY } from '../../data/movementMaintenanceFields.js'
-import { statusBadgeClass as defermentStatusBadgeClass } from '../../data/deferments.js'
+import { formatImplementedYn } from '../../data/movementApprovalQueue.js'
 import { exportMovementQueryToExcel } from '../../utils/exportMovementQueryExcel.js'
+import { maskPassportIc } from '../../utils/maskPassportIc.js'
+import { movementListStatusBadgeClass } from '../../utils/movementListStatusBadge.js'
+import '../../styles/movement-status-badge.css'
 
 const { t, tr, translatedExportFields } = useListPageI18n(movementQueryExportFields)
 
@@ -36,14 +42,17 @@ const exportModalVisible = ref(false)
 function createEmptySearch() {
   return {
     academicSession: '',
-    movementReason: '',
+    programmeCode: '',
     status: '',
+    movementType: '',
     studentId: '',
     studentName: '',
   }
 }
 
 const fullQueue = computed(() => mergeMovementQueryQueue(t))
+
+const sessionOptions = computed(() => getDistinctApplicationSessions(fullQueue.value))
 
 const filteredItems = computed(() => filterQueryBySearch(fullQueue.value, appliedSearch.value))
 
@@ -145,6 +154,12 @@ function handleExportConfirm({ selectedFields, exportScope }) {
     `movement-query-${timestamp}.xlsx`,
     selectedFields,
     { t, tr },
+    'Movement Query',
+    {
+      columnMeta: movementQueryExportColumnMeta,
+      implementedAsYn: true,
+      maskPassport: true,
+    },
   )
   exportModalVisible.value = false
 }
@@ -165,14 +180,13 @@ function statusLabel(status) {
     Approved: t('deferment.status.approved'),
     Rejected: t('deferment.status.rejected'),
     Cancelled: t('deferment.status.cancelled'),
+    Expired: t('programmeTransfer.status.expired'),
   }
   return map[status] || status
 }
 
-function implementedLabel(value) {
-  const key = `movementMaintenance.implemented.${value}`
-  const translated = t(key)
-  return translated !== key ? translated : value
+function implementedDisplay(value) {
+  return formatImplementedYn(value)
 }
 
 function studentTypeLabel(type) {
@@ -185,6 +199,12 @@ function displayCell(value) {
   if (value === '' || value == null) return MAINTENANCE_EMPTY
   return value
 }
+
+function displayPassportIc(value) {
+  const raw = displayCell(value)
+  if (raw === MAINTENANCE_EMPTY) return raw
+  return maskPassportIc(raw)
+}
 </script>
 
 <template>
@@ -193,6 +213,7 @@ function displayCell(value) {
     :queue-item="reviewItem"
     mode="readonly"
     :current-role="currentRole"
+    :mask-sensitive-fields="true"
     @back="closeReview"
   />
 
@@ -203,17 +224,21 @@ function displayCell(value) {
           <div class="search-fields">
             <div class="search-item">
               <label>{{ t('movementQuery.search.academicSession') }}</label>
-              <input
+              <select
                 v-model="searchForm.academicSession"
-                type="text"
-                class="search-input"
-                :placeholder="t('common.pleaseInput')"
-              />
+                class="search-select"
+                :class="{ 'is-empty': !searchForm.academicSession }"
+              >
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="session in sessionOptions" :key="session" :value="session">
+                  {{ session }}
+                </option>
+              </select>
             </div>
             <div class="search-item">
-              <label>{{ t('movementQuery.search.movementReason') }}</label>
+              <label>{{ t('movementQuery.search.programmeCode') }}</label>
               <input
-                v-model="searchForm.movementReason"
+                v-model="searchForm.programmeCode"
                 type="text"
                 class="search-input"
                 :placeholder="t('common.pleaseInput')"
@@ -225,6 +250,19 @@ function displayCell(value) {
                 <option value="">{{ t('common.all') }}</option>
                 <option v-for="opt in movementQueryStatusOptions" :key="opt" :value="opt">
                   {{ statusLabel(opt) }}
+                </option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ t('movementQuery.search.movementType') }}</label>
+              <select
+                v-model="searchForm.movementType"
+                class="search-select"
+                :class="{ 'is-empty': !searchForm.movementType }"
+              >
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in movementQueryTypeOptions" :key="opt" :value="opt">
+                  {{ t(movementQueryTypeLabelKeys[opt]) }}
                 </option>
               </select>
             </div>
@@ -286,36 +324,26 @@ function displayCell(value) {
                 <th class="col-check">
                   <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
                 </th>
-                <th class="col-no sortable">{{ t('common.serialNo') }}</th>
-                <th class="sortable">{{ tr('Status') }}</th>
-                <th class="sortable">{{ tr('Approval Stage') }}</th>
-                <th class="sortable">{{ tr('Implemented') }}</th>
-                <th class="sortable">{{ tr('Student ID') }}</th>
-                <th class="sortable">{{ tr('Student Name') }}</th>
-                <th class="sortable">{{ t('movementApproval.columns.applicationSession') }}</th>
-                <th class="sortable">{{ t('movementApproval.columns.effectiveSession') }}</th>
-                <th class="sortable">{{ t('movementApproval.columns.movementCategory') }}</th>
-                <th class="sortable">{{ t('movementApproval.columns.movementReason') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.movementDate') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.passportIc') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.studentType') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.intake') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.currentSchool') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.currentProgrammeCode') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.newSchool') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.newProgrammeCode') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.newProgrammeName') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.englishName') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.cgpa') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.expectedGraduationTime') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.movementNumber') }}</th>
-                <th class="sortable">{{ t('movementMaintenance.columns.remark') }}</th>
+                <th>{{ t('common.serialNo') }}</th>
+                <th>{{ tr('Status') }}</th>
+                <th>{{ tr('Approval Stage') }}</th>
+                <th>{{ tr('Implemented') }}</th>
+                <th>{{ tr('Student ID') }}</th>
+                <th>{{ tr('Student Name') }}</th>
+                <th>{{ t('movementMaintenance.columns.movementDate') }}</th>
+                <th>{{ t('movementMaintenance.columns.passportIc') }}</th>
+                <th>{{ t('movementMaintenance.columns.studentType') }}</th>
+                <th>{{ t('movementMaintenance.columns.intake') }}</th>
+                <th>{{ t('movementApproval.columns.applicationSession') }}</th>
+                <th>{{ t('movementApproval.columns.effectiveSession') }}</th>
+                <th>{{ t('movementApproval.columns.movementCategory') }}</th>
+                <th>{{ t('movementApproval.columns.movementReason') }}</th>
                 <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!paginatedItems.length">
-                <td colspan="26" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="16" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedItems" :key="item.queueKey">
                 <td class="col-check">
@@ -327,32 +355,22 @@ function displayCell(value) {
                 </td>
                 <td>{{ getRowNumber(index) }}</td>
                 <td>
-                  <span class="status-badge" :class="defermentStatusBadgeClass(item.status)">
+                  <span class="status-badge" :class="movementListStatusBadgeClass(item.status)">
                     {{ statusLabel(item.status) }}
                   </span>
                 </td>
                 <td>{{ tr(item.approvalStage) }}</td>
-                <td>{{ implementedLabel(item.implemented) }}</td>
+                <td>{{ implementedDisplay(item.implemented) }}</td>
                 <td>{{ item.studentId }}</td>
                 <td>{{ item.fullName }}</td>
+                <td>{{ displayCell(item.movementDate) }}</td>
+                <td>{{ displayPassportIc(item.passportIc) }}</td>
+                <td>{{ studentTypeLabel(item.studentType) }}</td>
+                <td>{{ displayCell(item.intake) }}</td>
                 <td>{{ item.applicationSession }}</td>
                 <td>{{ item.effectiveSession }}</td>
                 <td>{{ t(item.movementCategoryKey) }}</td>
                 <td class="reason-cell">{{ item.movementReason }}</td>
-                <td>{{ displayCell(item.movementDate) }}</td>
-                <td>{{ displayCell(item.passportIc) }}</td>
-                <td>{{ studentTypeLabel(item.studentType) }}</td>
-                <td>{{ displayCell(item.intake) }}</td>
-                <td>{{ displayCell(item.currentSchool) }}</td>
-                <td>{{ displayCell(item.currentProgrammeCode) }}</td>
-                <td>{{ displayCell(item.newSchool) }}</td>
-                <td>{{ displayCell(item.newProgrammeCode) }}</td>
-                <td>{{ displayCell(item.newProgrammeName) }}</td>
-                <td>{{ displayCell(item.englishName) }}</td>
-                <td>{{ displayCell(item.cgpa) }}</td>
-                <td>{{ displayCell(item.expectedGraduationTime) }}</td>
-                <td>{{ displayCell(item.movementNumber) }}</td>
-                <td class="remark-cell">{{ displayCell(item.remark) }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
                     <button type="button" class="link-btn" @click="openDetails(item)">{{ tr('Details') }}</button>
@@ -492,23 +510,11 @@ function displayCell(value) {
   font-size: 13px;
 }
 
-.data-table th.sortable::after {
-  content: '⇅';
-  margin-left: 4px;
-  font-size: 11px;
-  color: #9ca3af;
-}
-
 .col-check {
   width: 48px;
 }
 
-.col-no {
-  width: 56px;
-}
-
-.reason-cell,
-.remark-cell {
+.reason-cell {
   max-width: 180px;
   white-space: normal;
 }
@@ -517,15 +523,6 @@ function displayCell(value) {
   text-align: center;
   color: #9ca3af;
   padding: 40px !important;
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #fff;
 }
 
 .actions-inner {

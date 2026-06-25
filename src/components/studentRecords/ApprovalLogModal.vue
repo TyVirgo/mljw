@@ -1,5 +1,6 @@
 <script setup>
 import { useAppI18n } from '../../composables/useAppI18n.js'
+import { formatMovementDate } from '../../utils/formatMovementDate.js'
 
 defineProps({
   visible: Boolean,
@@ -43,7 +44,7 @@ function handleOverlayClick(event) {
                 <td>{{ tr(item.stage) }}</td>
                 <td>{{ item.actor }}</td>
                 <td>{{ tr(item.action) }}</td>
-                <td>{{ item.dateTime }}</td>
+                <td>{{ formatMovementDate(item.dateTime) }}</td>
                 <td>{{ item.comment ? tr(item.comment) : tr('--') }}</td>
               </tr>
             </tbody>

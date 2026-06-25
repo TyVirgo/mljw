@@ -44,3 +44,11 @@
 ## 7. 文档（可选）
 
 - [ ] 7.1 与 `update-movement-application-details` 交叉引用：申请只读 / 审批进本模块
+
+## 8. Export 接入 ExportModal + xlsx
+
+- [x] 8.1 创建 `movementApprovalExportFields.js`（列表列 + 可选 `implemented`）
+- [x] 8.2 创建 `exportMovementApprovalExcel.js`（或复用 `exportMovementQueryToExcel` + approval columnMeta）
+- [x] 8.3 `MovementApprovalView.vue`：移除 CSV `handleExport`；接入 `ExportModal` + 三 scope
+- [x] 8.4 `formatApprovalExportRow`：status/类别 i18n；implemented 可选 Y/N
+- [x] 8.5 冒烟：Export 当前页/全部/选中行 → xlsx + `npm run build` 通过

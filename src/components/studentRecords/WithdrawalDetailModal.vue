@@ -7,16 +7,21 @@ import {
   formatApplicationDateDisplay,
   canEditWithdrawal,
   statusBadgeClass,
-  getMainReasonLabel,
+  getWithdrawalReasonDisplay,
   shouldShowIsaoNote,
 } from '../../data/withdrawals.js'
+import { resolveApplicationSessionForDisplay } from '../../data/movementApplicationSession.js'
+import { maskPassportIc } from '../../utils/maskPassportIc.js'
+import { formatMovementDate } from '../../utils/formatMovementDate.js'
 
 const props = defineProps({
   visible: Boolean,
   item: { type: Object, default: null },
+  showApprovalAction: { type: Boolean, default: false },
+  maskSensitiveFields: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'edit'])
+const emit = defineEmits(['close', 'edit', 'approve'])
 
 const { t, tr } = useAppI18n()
 
@@ -40,11 +45,12 @@ function displayDate(item) {
 }
 
 function formatAttendanceDate(value) {
+  return formatMovementDate(value)
+}
+
+function displayPassport(value) {
   if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`
+  return props.maskSensitiveFields ? maskPassportIc(value) : value
 }
 </script>
 
@@ -68,10 +74,11 @@ function formatAttendanceDate(value) {
           <div><dt>{{ t('withdrawal.fields.dateOfApplication') }}</dt><dd>{{ formatApplicationDateDisplay(item.dateOfApplication) }}</dd></div>
           <div><dt>{{ t('withdrawal.fields.name') }}</dt><dd>{{ item.fullName || '—' }}</dd></div>
           <div><dt>{{ t('withdrawal.fields.intake') }}</dt><dd>{{ item.intake || '—' }}</dd></div>
-          <div><dt>{{ t('withdrawal.fields.nricPassport') }}</dt><dd>{{ item.nricPassport || '—' }}</dd></div>
+          <div><dt>{{ t('withdrawal.fields.nricPassport') }}</dt><dd>{{ displayPassport(item.nricPassport) }}</dd></div>
           <div><dt>{{ t('withdrawal.fields.nationality') }}</dt><dd>{{ item.nationality || '—' }}</dd></div>
           <div><dt>{{ t('withdrawal.fields.programme') }}</dt><dd>{{ item.programme || '—' }}</dd></div>
           <div><dt>{{ t('withdrawal.fields.programmeLevel') }}</dt><dd>{{ item.programmeLevel || '—' }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
         </dl>
 
         <div class="section-bar">{{ t('withdrawal.sections.studentApplication') }}</div>
@@ -80,7 +87,7 @@ function formatAttendanceDate(value) {
           <div><dt>{{ t('withdrawal.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || '—' }}</dd></div>
           <div><dt>{{ t('withdrawal.fields.lastDateOfAttendance') }}</dt><dd>{{ formatAttendanceDate(item.lastDateOfAttendance) }}</dd></div>
           <div><dt>{{ t('withdrawal.fields.destinationAfterLeaving') }}</dt><dd>{{ item.destinationAfterLeaving || '—' }}</dd></div>
-          <div><dt>{{ t('withdrawal.fields.mainReason') }}</dt><dd>{{ getMainReasonLabel(item.mainReason, t) || '—' }}</dd></div>
+          <div><dt>{{ t('withdrawal.fields.mainReason') }}</dt><dd>{{ getWithdrawalReasonDisplay(item, t) || '—' }}</dd></div>
           <div><dt>{{ t('withdrawal.fields.currentWhereabout') }}</dt><dd>{{ item.currentWhereabout || '—' }}</dd></div>
           <div class="span-2"><dt>{{ t('withdrawal.fields.detailedReason') }}</dt><dd class="multiline">{{ item.detailedReason || '—' }}</dd></div>
         </dl>
@@ -94,7 +101,7 @@ function formatAttendanceDate(value) {
         <dl class="detail-grid">
           <div><dt>{{ t('withdrawal.fields.parentGuardianName') }}</dt><dd>{{ item.parentGuardianName || '—' }}</dd></div>
           <div><dt>{{ t('withdrawal.fields.parentContactNo') }}</dt><dd>{{ item.parentContactNo || '—' }}</dd></div>
-          <div><dt>{{ t('withdrawal.fields.parentNricPassport') }}</dt><dd>{{ item.parentNricPassport || '—' }}</dd></div>
+          <div><dt>{{ t('withdrawal.fields.parentNricPassport') }}</dt><dd>{{ displayPassport(item.parentNricPassport) }}</dd></div>
           <div><dt>{{ t('withdrawal.fields.parentRelationship') }}</dt><dd>{{ item.parentRelationship || '—' }}</dd></div>
           <div class="span-2"><dt>{{ t('withdrawal.fields.parentEmail') }}</dt><dd>{{ item.parentEmail || '—' }}</dd></div>
         </dl>
@@ -117,6 +124,14 @@ function formatAttendanceDate(value) {
         <div class="footer-actions">
           <button v-if="showEditInDetail" type="button" class="btn btn-primary" @click="emit('edit', item)">
             {{ t('common.edit') }}
+          </button>
+          <button
+            v-if="showApprovalAction"
+            type="button"
+            class="btn btn-primary"
+            @click="emit('approve')"
+          >
+            {{ t('movementApproval.approve') }}
           </button>
           <button type="button" class="btn btn-default" @click="emit('close')">{{ t('common.close') }}</button>
         </div>

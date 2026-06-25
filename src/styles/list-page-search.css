@@ -112,6 +112,30 @@
   cursor: pointer;
 }
 
+.search-bar .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.search-bar .btn-primary {
+  border: none;
+  background: #2563eb;
+  color: #fff;
+}
+
+.search-bar .btn-default {
+  background: #fff;
+  border: 1px solid #d1d5db;
+  color: #374151;
+}
+
 .search-bar .range-inputs {
   display: flex;
   align-items: center;

@@ -10,7 +10,8 @@ import {
   approvalFormFieldEntries,
   categoryFormFieldEntries,
   categoryReasonFieldEntries,
-  maintenanceEditFieldEntries,
+  consentFormFieldEntries,
+  maintenanceReadonlyNoteFieldEntries,
   queryReadonlyNoteFieldEntries,
 } from './prd-fields.mjs'
 
@@ -105,15 +106,23 @@ export const approvalFormFieldGroups = [
 export const CATEGORY_FORM_PAGE = '新增/编辑异动类别页面'
 
 export const categoryFormFieldGroups = [
-  { title: 'Tab1（基本信息、英文名：Category Basic Info）', entries: categoryFormFieldEntries.slice(0, 6) },
-  { title: 'Tab2（实施行为开关、英文名：Implementation Switches）', entries: categoryFormFieldEntries.slice(6) },
+  { title: 'Row1（类别编码 + 类别名称）', entries: categoryFormFieldEntries.slice(0, 2) },
+  { title: 'Row2（学籍状态 + 类别）', entries: categoryFormFieldEntries.slice(2, 4) },
+  { title: 'Row3（修改学籍状态 + 修改学籍类型）', entries: categoryFormFieldEntries.slice(4, 6) },
+  { title: 'Row4（是否自动实施 + 允许学生申请）', entries: categoryFormFieldEntries.slice(6, 8) },
   { title: 'Tab3（异动原因、英文名：Movement Reasons）', entries: categoryReasonFieldEntries },
 ]
 
-export const MAINTENANCE_EDIT_PAGE = '编辑异动维护页面'
+export const CONSENT_FORM_PAGE = '新增/编辑知情同意书页面'
+
+export const consentFormFieldGroups = [
+  { title: 'Tab1（基本信息、英文名：Consent Form Basic Info）', entries: consentFormFieldEntries },
+]
+
+export const MAINTENANCE_EDIT_PAGE = '学籍异动维护页面（无行内编辑）'
 
 export const maintenanceEditFieldGroups = [
-  { title: 'Tab1（维护字段、英文名：Maintenance Fields）', entries: maintenanceEditFieldEntries },
+  { title: 'Tab1（只读说明、英文名：Maintenance Read-only）', entries: maintenanceReadonlyNoteFieldEntries },
 ]
 
 export const QUERY_FORM_PAGE = '学籍异动查询页面'

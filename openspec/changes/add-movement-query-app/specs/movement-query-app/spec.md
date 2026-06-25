@@ -100,3 +100,116 @@ The system SHALL paginate the query list using the same pagination pattern as ot
 #### Scenario: Pagination controls
 - **WHEN** more query rows exist than the page size
 - **THEN** the list shows pagination controls
+
+## MODIFIED Requirements
+
+### Requirement: Movement query search with collapse
+The system SHALL provide a two-row search area with collapse support. The first row SHALL include Academic Session, Programme Code, status, and Movement Type. The Movement Reason search field SHALL NOT be shown.
+
+#### Scenario: Primary search row always visible
+- **WHEN** the query page loads
+- **THEN** the first search row shows Academic Session, Programme Code, status, and Movement Type fields with Search and Reset actions
+
+#### Scenario: No movement reason search
+- **WHEN** user views the query search area
+- **THEN** the system does not display a Movement Reason search input
+
+#### Scenario: Filter by programme code
+- **WHEN** user enters a programme code keyword and clicks Search
+- **THEN** the list shows only rows whose resolved programme code matches the keyword
+
+#### Scenario: Movement type on first row
+- **WHEN** user views the query search area
+- **THEN** the Movement Type dropdown appears after Status on the first row
+
+#### Scenario: Filter by movement type
+- **WHEN** user selects Deferment and clicks Search
+- **THEN** the list shows only deferment application rows
+
+#### Scenario: All movement types
+- **WHEN** user leaves Movement Type at All and clicks Search
+- **THEN** the list is not filtered by movement type
+
+#### Scenario: Secondary search row collapsible
+- **WHEN** user toggles collapse
+- **THEN** the second search row showing Student ID and Student Name is shown or hidden
+- **AND** the toggle label switches between collapse and expand text
+
+#### Scenario: Search filters list
+- **WHEN** user applies search criteria and clicks Search
+- **THEN** the list shows only matching rows and resets to page 1
+
+#### Scenario: Reset search
+- **WHEN** user clicks Reset
+- **THEN** all search fields clear and the full query list is restored
+
+### Requirement: Movement query list aligned with maintenance display
+The system SHALL display a streamlined query table matching the maintenance list column set, column order, passport/IC masking, and implemented Y/N display defined in movement maintenance §8.
+
+#### Scenario: Streamlined table columns match maintenance
+- **WHEN** the query list is displayed
+- **THEN** the table shows the same streamlined columns as the maintenance list including status, approval stage, implemented flag as Y/N, student identifiers, movement date, masked passport/IC, student type, intake, sessions, movement category, and movement reason
+- **AND** the table does not show columns for CGPA, English name, expected graduation time, movement number, remark, or current/new school and programme fields
+
+#### Scenario: Passport/IC masked on query list
+- **WHEN** a query row displays passport/IC in the list
+- **THEN** the value is partially masked using the shared maskPassportIc helper
+
+#### Scenario: Implemented displayed as Y/N on query list
+- **WHEN** a query row displays the implemented flag in the list
+- **THEN** the column shows Y or N using the same formatImplementedYn helper as the maintenance list
+
+#### Scenario: Query details mask sensitive fields
+- **WHEN** user opens Details on a query row
+- **THEN** the read-only review view enables maskSensitiveFields
+- **AND** passport/IC and parent NRIC/passport fields in the detail view are masked
+- **AND** current and new school/programme fields remain visible in the detail view
+
+#### Scenario: No sortable header decoration on query list
+- **WHEN** the query table headers are rendered
+- **THEN** data column headers do not show sortable visual styling
+
+### Requirement: Movement query export with maintenance defaults and optional extended fields
+The system SHALL export query results using the maintenance export default field set with masking and Y/N formatting, and SHALL offer additional optional export-only extended fields.
+
+#### Scenario: Export default fields match maintenance
+- **WHEN** user opens ExportModal on the query page
+- **THEN** the default selected export fields match movementMaintenanceExportColumnMeta
+- **AND** passport/IC values in the export file are masked when exported
+- **AND** implemented values in the export file use Y/N
+
+#### Scenario: Optional extended export fields
+- **WHEN** user opens ExportModal on the query page
+- **THEN** optional export fields are available for current/new school and programme, English name, CGPA, movement number, and remark
+- **AND** those optional fields are not selected by default
+- **AND** those optional fields are not shown as list table columns
+
+### Requirement: Query list status badges match application styling
+The system SHALL render status badges on the query list using the same pill styling and color tokens as the four movement application list pages.
+
+#### Scenario: Status badge uses shared stylesheet
+- **WHEN** the query list displays a status badge
+- **THEN** the badge uses movement-status-badge.css with pill border radius and light-background color tokens matching application lists
+
+#### Scenario: Expired status styling on query list
+- **WHEN** a query row has status Expired
+- **THEN** the badge uses the status-expired class
+
+#### Scenario: No white-text override on query badges
+- **WHEN** the query list renders status badges
+- **THEN** scoped page styles do not force white text on status badges
+
+## REMOVED Requirements
+
+### Requirement: Wide table prototype columns on query list
+**Reason**: §9 aligns query list with maintenance §8 streamlined table; extended school/programme and trailing maintenance fields are export-only optional fields.
+**Migration**: Use Movement query list aligned with maintenance display and Movement query export with maintenance defaults and optional extended fields.
+
+#### Scenario: Wide table columns match prototype
+- **REMOVED** — superseded by Streamlined table columns match maintenance
+
+#### Scenario: Non-applicable extended columns on list
+- **REMOVED** — programme-transfer extended columns are no longer list columns; optional in export only
+
+#### Scenario: Decorative sortable headers
+- **REMOVED** — superseded by No sortable header decoration on query list

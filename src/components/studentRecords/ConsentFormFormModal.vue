@@ -5,7 +5,6 @@ import {
   createEmptyConsentForm,
   movementTypeKeys,
   consentFormStudentTypes,
-  studyDurationRules,
   validateConsentFormForm,
 } from '../../data/consentForms.js'
 
@@ -25,13 +24,8 @@ const studentFileInputRef = ref(null)
 const parentFileInputRef = ref(null)
 
 const isEditMode = computed(() => props.mode === 'edit')
-const isProgrammeTransfer = computed(() => form.value.movementType === 'programme-transfer')
-const showStudyDuration = computed(() => isProgrammeTransfer.value)
 const modalTitle = computed(() =>
   isEditMode.value ? t('consentForm.form.editTitle') : t('consentForm.form.createTitle'),
-)
-const studyDurationOptions = computed(() =>
-  studyDurationRules.filter((rule) => rule !== 'none' || !isProgrammeTransfer.value),
 )
 
 watch(
@@ -44,7 +38,6 @@ watch(
         formName: props.initialData.formName || '',
         movementType: props.initialData.movementType || '',
         studentType: props.initialData.studentType || '',
-        studyDurationRule: props.initialData.studyDurationRule || 'none',
         remark: props.initialData.remark || '',
         studentConsentFile: props.initialData.studentConsentFile
           ? { ...props.initialData.studentConsentFile }
@@ -55,19 +48,6 @@ watch(
       }
     } else {
       form.value = createEmptyConsentForm()
-    }
-  },
-)
-
-watch(
-  () => form.value.movementType,
-  (movementType) => {
-    if (movementType === 'programme-transfer') {
-      if (!form.value.studyDurationRule || form.value.studyDurationRule === 'none') {
-        form.value.studyDurationRule = 'afterOneYear'
-      }
-    } else {
-      form.value.studyDurationRule = 'none'
     }
   },
 )
@@ -169,19 +149,6 @@ function handleSave() {
                 </option>
               </select>
               <p v-if="errors.studentType" class="field-error">{{ tr(errors.studentType) }}</p>
-            </div>
-
-            <div v-if="showStudyDuration" class="form-field">
-              <label class="field-label required">{{ t('consentForm.fields.studyDurationRule') }}</label>
-              <select
-                v-model="form.studyDurationRule"
-                :class="['control-input', fieldError('studyDurationRule')]"
-              >
-                <option v-for="rule in studyDurationOptions" :key="rule" :value="rule">
-                  {{ t(`consentForm.studyDurationRule.${rule}`) }}
-                </option>
-              </select>
-              <p v-if="errors.studyDurationRule" class="field-error">{{ tr(errors.studyDurationRule) }}</p>
             </div>
 
             <div class="form-field">

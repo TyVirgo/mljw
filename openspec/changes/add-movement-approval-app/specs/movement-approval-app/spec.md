@@ -100,3 +100,27 @@ The system SHALL keep student application CRUD in Status Change Application and 
 #### Scenario: Approval updates shared mock data
 - **WHEN** an approver submits a decision from the approval module
 - **THEN** the corresponding movement record in the shared data store updates status, approval stage, and approval log visible in both modules' lists and logs
+
+### Requirement: Movement approval export via ExportModal
+The system SHALL export approval list results to Excel using the shared ExportModal component, consistent with movement query and maintenance modules.
+
+#### Scenario: Open export modal
+- **WHEN** user clicks Export and filtered results exist on the approval page
+- **THEN** the system opens ExportModal with selectable export fields matching the approval list columns
+
+#### Scenario: Export to xlsx with scope options
+- **WHEN** user confirms export with scope current page, all results, or selected rows
+- **THEN** the system downloads an xlsx file containing the chosen rows and selected fields
+
+#### Scenario: Export default fields match list columns
+- **WHEN** user opens ExportModal on the approval page
+- **THEN** default selected fields include status, approval stage, student identifiers, sessions, movement category, and application date
+- **AND** implemented is available as an optional field not selected by default
+
+#### Scenario: Export blocked when no data
+- **WHEN** user clicks Export with no filtered results
+- **THEN** the system shows a no-data message and does not open the export modal
+
+#### Scenario: No sensitive-field masking in first export version
+- **WHEN** user exports approval results
+- **THEN** the export does not apply passport/IC masking because those fields are not on the approval list

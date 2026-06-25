@@ -3,7 +3,7 @@
 `add-student-records-app` 交付扁平 6 项侧边栏；后续 `add-programme-transfer-app`、`add-deferment-app`、`add-resumption-app`、`add-withdrawal-app` 已将四异动实现为独立 sidebar 页面。
 
 产品目录（图1）要求：
-- **学籍管理** / **学籍异动** / **学生个人学习计划** 三个一级模块
+- **学籍管理** / **学籍异动** 两个一级模块（§8 起移除「学生个人学习计划」）
 - 四异动属于 **学籍异动申请** 二级页内的 Tab（图2 红框）
 
 现有技术栈：`App.vue` 用 `currentPageId` + `v-if` 切换；`Sidebar.vue` 已支持 `{ children: [] }` 分组（Basic Data 模式）；`menuBreadcrumb.js` 支持 **一层 parent + leaf** 面包屑。
@@ -12,7 +12,7 @@
 
 **Goals:**
 
-- 3 分组侧边栏 IA，对齐图1 二级菜单清单
+- **2 分组**侧边栏 IA（学籍管理 + 学籍异动；§8 移除学生个人学习计划）
 - 「学籍异动申请」Tab 壳层嵌入四异动 View（薄壳）
 - 移除 Family Info；学生档案改名为学生基本信息
 - 默认 landing 仍为 `sr-student-basic-info`（或保留 id `sr-student-profile` 仅改 label，见 Decision 2）
@@ -26,6 +26,7 @@
 - 异动审批会签等业务
 - vue-router
 - 修改四异动 data / modal 业务逻辑
+- **学生个人培养方案**菜单（§8 整组移除）
 
 ## Decisions
 
@@ -52,19 +53,12 @@ export const studentRecordsMenuItems = [
       { id: 'sr-movement-approval', labelKey: 'menu.srMovementApproval' },
       { id: 'sr-movement-maintenance', labelKey: 'menu.srMovementMaintenance' },
       { id: 'sr-movement-query', labelKey: 'menu.srMovementQuery' },
-      { id: 'sr-movement-statistics', labelKey: 'menu.srMovementStatistics' },
-    ],
-  },
-  {
-    id: 'sr-study-plan-group',
-    labelKey: 'menu.srStudyPlanGroup',
-    icon: 'book',
-    children: [
-      { id: 'sr-personal-curriculum', labelKey: 'menu.srPersonalCurriculum' },
     ],
   },
 ]
 ```
+
+**§8 变更：** 删除原 `sr-study-plan-group` 整组及 `sr-personal-curriculum` 子项。
 
 **`studentRecordsDevelopedPages`**（首版）：
 
@@ -75,8 +69,10 @@ new Set(['sr-student-profile', 'sr-movement-application'])
 **`defaultExpandedGroups`**（App.vue 传入 Sidebar）：
 
 ```javascript
-['sr-mgmt-group', 'sr-movement-group', 'sr-study-plan-group']
+['sr-mgmt-group', 'sr-movement-group']
 ```
+
+**§8：** 不再默认展开 `sr-study-plan-group`。
 
 ### 2. pageId 保留策略
 

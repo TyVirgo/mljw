@@ -44,6 +44,8 @@ export default {
     srMovementCategory: 'Change Category',
     srConsentForm: 'Informed Consent Form',
     srMovementApplication: 'Status Change Application',
+    srMovementApplicationTeacher: 'Status Change Application (Management)',
+    srMovementApplicationStudent: 'Status Change Application (Student)',
     srMovementApproval: 'Status Change Approval',
     srMovementMaintenance: 'Status Change Maintenance',
     srMovementQuery: 'Status Change Inquiry',
@@ -54,6 +56,25 @@ export default {
     srDeferment: 'Deferment',
     srResumption: 'Resumption',
     srWithdrawal: 'Withdrawal',
+  },
+  studentSelect: {
+    title: 'Select Student',
+    searchLabel: 'Search:',
+    searchPlaceholder: 'Student ID or name',
+    selectButton: 'Select',
+    selectPlaceholder: 'Please select a student',
+    columns: {
+      studentId: 'Student ID',
+      name: 'Name',
+      programme: 'Programme',
+      faculty: 'Faculty',
+    },
+  },
+  movementApplication: {
+    search: {
+      programmeCode: 'Programme Code',
+      implemented: 'Implemented',
+    },
   },
   common: {
     search: 'Search',
@@ -266,7 +287,6 @@ export default {
       submit: 'Submit',
       resubmit: 'Resubmit',
       cancelApplication: 'Cancel',
-      simulateExpire: 'Simulate Expire',
     },
     notes: {
       title: 'Notes',
@@ -329,7 +349,6 @@ export default {
     deleteOne: 'Are you sure you want to delete this draft application? This cannot be undone.',
     cancelOne: 'Are you sure you want to cancel this application? It will be archived and cannot be edited.',
     resubmitOne: 'Are you sure you want to resubmit this application?',
-    expireOne: 'Mark this application as expired? It will be archived and cannot be edited or resubmitted.',
     activeApplicationExists: 'This student already has an active transfer application.',
     consentLetterHint: 'Consent letter template download is not yet connected to a backend file.',
   },
@@ -625,6 +644,10 @@ export default {
         'When enabled, this movement type will update the student profile student type.',
       autoImplementHint:
         'When enabled, approved applications of this movement type are automatically marked as implemented.',
+      courseHandling: 'Course Handling',
+      deleteOriginalCourseList: 'Delete original course list (courses with grades are retained)',
+      presetNewProgrammeBatchList: 'Preset new programme batch course list',
+      excludeGradedFromPreset: 'Do not preset courses that already have grades into the new programme batch list',
     },
     form: {
       createTitle: 'Create Movement Category',
@@ -723,7 +746,8 @@ export default {
   movementQuery: {
     search: {
       academicSession: 'Academic Session',
-      movementReason: 'Movement Reason',
+      programmeCode: 'Programme Code',
+      movementType: 'Movement Type',
     },
     export: {
       no: 'No.',
@@ -734,17 +758,48 @@ export default {
       studentName: 'Student Name',
     },
   },
+  movementStatistics: {
+    search: {
+      academicSession: 'Academic Session',
+      programmeCode: 'Programme Code',
+    },
+    export: {
+      no: 'No.',
+    },
+    columns: {
+      schoolCode: 'School Code',
+      programmeCode: 'Programme Code',
+      intake: 'Intake',
+      programmeTransfer: 'Programme Transfer',
+      deferment: 'Deferment',
+      withdrawal: 'Withdrawal',
+      resumption: 'Resumption',
+      outboundMobility: 'Outbound Mobility',
+      expel: 'Expel',
+      incomplete: 'Incomplete',
+      completion: 'Completion',
+      completionWithoutGraduation: 'Completion without Graduation',
+      inboundMobility: 'Inbound Mobility',
+      iep: 'IEP',
+    },
+  },
   movementMaintenance: {
     implement: 'Implement',
     modifyMovementNumber: 'Modify Movement Number',
     deleteMany: 'Delete {count} selected maintenance record(s)? This cannot be undone.',
     implementConfirm: 'Mark {count} selected record(s) as implemented?',
+    implementConfirmScheduled:
+      'The selected {count} record(s) will take effect automatically in academic session {effectiveSession}. Continue?',
+    implementConfirmScheduledMulti:
+      'The selected {count} record(s) will take effect automatically in their respective effective sessions. Continue?',
+    implementConfirmMixed:
+      '{immediate} record(s) will take effect immediately and {scheduled} will be deferred until their effective session. Continue?',
     implementNoneEligible: 'No pending implementation records in the selection.',
     editTitle: 'Edit Movement Maintenance',
     numberModalTitle: 'Modify Movement Number',
     search: {
       academicSession: 'Academic Session',
-      movementReason: 'Movement Reason',
+      programmeCode: 'Programme Code',
     },
     columns: {
       movementDate: 'Movement Date',
@@ -781,9 +836,15 @@ export default {
       Implemented: 'Implemented',
     },
   },
+  movementCommon: {
+    fields: {
+      applicationAcademicSession: 'Application Academic Session',
+    },
+  },
   movementApproval: {
     currentRole: 'Current approver role',
     submitDecision: 'Submit Decision',
+    approve: 'Review',
     recall: 'Recall',
     recallHint: 'Recall is available when the next stage has not yet acted on this application.',
     recallConfirmTitle: 'Confirm Recall',
@@ -799,14 +860,15 @@ export default {
       history: 'Application History',
     },
     columns: {
-      applicationSession: 'Application Session',
+      applicationSession: 'Application Academic Session',
       effectiveSession: 'Effective Session',
       movementCategory: 'Movement Category',
       movementReason: 'Movement Reason',
+      applicationDate: 'Application Date',
     },
     search: {
       academicSession: 'Academic Session',
-      movementReason: 'Movement Reason',
+      programmeCode: 'Programme Code',
     },
   },
   pages: {

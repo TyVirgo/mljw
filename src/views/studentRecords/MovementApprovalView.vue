@@ -1,10 +1,11 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import ApprovalLogModal from '../../components/studentRecords/ApprovalLogModal.vue'
 import MovementApprovalModal from '../../components/studentRecords/MovementApprovalModal.vue'
 import MovementApprovalReviewView from '../../components/studentRecords/MovementApprovalReviewView.vue'
-import { useAppI18n } from '../../composables/useAppI18n.js'
+import { useListPageI18n } from '../../composables/useListPageI18n.js'
 import {
   applyMovementDecision,
   canBatchApproveSelection,
@@ -17,13 +18,20 @@ import {
   filterBySearch,
   movementApprovalStatusOptions,
 } from '../../data/movementApprovalQueue.js'
-import { statusBadgeClass as defermentStatusBadgeClass } from '../../data/deferments.js'
+import { getDistinctApplicationSessions } from '../../data/movementListSearchOptions.js'
+import {
+  movementApprovalExportFields,
+  movementApprovalExportColumnMeta,
+} from '../../data/movementApprovalExportFields.js'
+import { exportMovementApprovalToExcel } from '../../utils/exportMovementApprovalExcel.js'
+import { movementListStatusBadgeClass } from '../../utils/movementListStatusBadge.js'
+import '../../styles/movement-status-badge.css'
 
-const { t, tr } = useAppI18n()
+const { t, tr, translatedExportFields } = useListPageI18n(movementApprovalExportFields)
 
 const APPROVAL_TABS = [
-  { id: 'submitted', labelKey: 'movementApproval.tabs.submitted' },
   { id: 'pending', labelKey: 'movementApproval.tabs.pending' },
+  { id: 'submitted', labelKey: 'movementApproval.tabs.submitted' },
   { id: 'history', labelKey: 'movementApproval.tabs.history' },
 ]
 
@@ -44,11 +52,12 @@ const approvalLogItem = ref(null)
 const approvalModalVisible = ref(false)
 const pendingApprovalRows = ref([])
 const approvalModalStage = ref('')
+const exportModalVisible = ref(false)
 
 function createEmptySearch() {
   return {
     academicSession: '',
-    movementReason: '',
+    programmeCode: '',
     status: '',
     studentId: '',
     studentName: '',
@@ -56,6 +65,8 @@ function createEmptySearch() {
 }
 
 const fullQueue = computed(() => mergeMovementApprovalQueue(t))
+
+const sessionOptions = computed(() => getDistinctApplicationSessions(fullQueue.value))
 
 const tabCounts = computed(() => {
   const counts = { submitted: 0, pending: 0, history: 0 }
@@ -89,11 +100,22 @@ const selectedRows = computed(() =>
     .filter(Boolean),
 )
 
+const hasSelection = computed(() => selectedRows.value.length > 0)
+
 const canApproveSelection = computed(
   () => activeTab.value === 'pending' && canBatchApproveSelection(selectedRows.value, currentRole),
 )
 
 const showApproveToolbar = computed(() => activeTab.value === 'pending')
+
+const showImplementedColumn = computed(() => activeTab.value === 'history')
+
+const tableColspan = computed(() => {
+  let cols = 10
+  if (showApproveToolbar.value) cols += 1
+  if (showImplementedColumn.value) cols += 1
+  return cols
+})
 
 watch(activeTab, () => {
   currentPage.value = 1
@@ -173,45 +195,39 @@ function handleApprovalConfirm({ action, comment }) {
   if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
 }
 
-function handleExport() {
+function openExportModal() {
   if (!filteredItems.value.length) {
     window.alert(t('common.noDataExport'))
     return
   }
-  const headers = [
-    tr('Status'),
-    tr('Approval Stage'),
-    tr('Implemented'),
-    tr('Student ID'),
-    tr('Student Name'),
-    tr('Application Session'),
-    tr('Effective Session'),
-    t('movementApproval.columns.movementCategory'),
-    t('movementApproval.columns.movementReason'),
-  ]
-  const lines = filteredItems.value.map((row) =>
-    [
-      row.status,
-      row.approvalStage,
-      row.implemented,
-      row.studentId,
-      row.fullName,
-      row.applicationSession,
-      row.effectiveSession,
-      t(row.movementCategoryKey),
-      row.movementReason,
-    ]
-      .map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`)
-      .join(','),
+  exportModalVisible.value = true
+}
+
+function handleExportConfirm({ selectedFields, exportScope }) {
+  let data = []
+  if (exportScope === 'currentPage') {
+    data = paginatedItems.value
+  } else if (exportScope === 'allResults') {
+    data = filteredItems.value
+  } else {
+    data = filteredItems.value.filter((item) => selectedKeys.value.includes(item.queueKey))
+  }
+
+  if (!data.length) {
+    window.alert(t('common.noDataExport'))
+    return
+  }
+
+  const timestamp = new Date().toISOString().slice(0, 10)
+  exportMovementApprovalToExcel(
+    data,
+    `movement-approval-${timestamp}.xlsx`,
+    selectedFields,
+    { t, tr },
+    'Movement Approval',
+    { columnMeta: movementApprovalExportColumnMeta },
   )
-  const csv = [headers.map((h) => `"${h}"`).join(','), ...lines].join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `movement-approval-${new Date().toISOString().slice(0, 10)}.csv`
-  link.click()
-  URL.revokeObjectURL(url)
+  exportModalVisible.value = false
 }
 
 function handlePaginationChange({ type }) {
@@ -230,6 +246,7 @@ function statusLabel(status) {
     Approved: t('deferment.status.approved'),
     Rejected: t('deferment.status.rejected'),
     Cancelled: t('deferment.status.cancelled'),
+    Expired: t('programmeTransfer.status.expired'),
   }
   return map[status] || status
 }
@@ -258,7 +275,7 @@ function statusLabel(status) {
           @click="activeTab = tab.id"
         >
           {{ t(tab.labelKey) }}
-          <span class="tab-count">{{ tabCounts[tab.id] }}</span>
+          <span v-if="tab.id === 'pending'" class="tab-count">{{ tabCounts[tab.id] }}</span>
         </button>
       </div>
 
@@ -267,17 +284,21 @@ function statusLabel(status) {
           <div class="search-fields">
             <div class="search-item">
               <label>{{ t('movementApproval.search.academicSession') }}</label>
-              <input
+              <select
                 v-model="searchForm.academicSession"
-                type="text"
-                class="search-input"
-                :placeholder="t('common.pleaseInput')"
-              />
+                class="search-select"
+                :class="{ 'is-empty': !searchForm.academicSession }"
+              >
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="session in sessionOptions" :key="session" :value="session">
+                  {{ session }}
+                </option>
+              </select>
             </div>
             <div class="search-item">
-              <label>{{ t('movementApproval.search.movementReason') }}</label>
+              <label>{{ t('movementApproval.search.programmeCode') }}</label>
               <input
-                v-model="searchForm.movementReason"
+                v-model="searchForm.programmeCode"
                 type="text"
                 class="search-input"
                 :placeholder="t('common.pleaseInput')"
@@ -331,7 +352,7 @@ function statusLabel(status) {
         >
           {{ tr('Review') }}
         </button>
-        <button type="button" class="btn btn-outline" @click="handleExport">{{ t('common.export') }}</button>
+        <button type="button" class="btn btn-outline" @click="openExportModal">{{ t('common.export') }}</button>
       </div>
 
       <div class="table-section">
@@ -345,19 +366,19 @@ function statusLabel(status) {
                 <th>{{ t('common.serialNo') }}</th>
                 <th>{{ tr('Status') }}</th>
                 <th>{{ tr('Approval Stage') }}</th>
-                <th>{{ tr('Implemented') }}</th>
+                <th v-if="showImplementedColumn">{{ tr('Implemented') }}</th>
                 <th>{{ tr('Student ID') }}</th>
                 <th>{{ tr('Student Name') }}</th>
                 <th>{{ t('movementApproval.columns.applicationSession') }}</th>
                 <th>{{ t('movementApproval.columns.effectiveSession') }}</th>
                 <th>{{ t('movementApproval.columns.movementCategory') }}</th>
-                <th>{{ t('movementApproval.columns.movementReason') }}</th>
+                <th>{{ t('movementApproval.columns.applicationDate') }}</th>
                 <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!paginatedItems.length">
-                <td :colspan="showApproveToolbar ? 12 : 11" class="empty-cell">{{ t('common.noData') }}</td>
+                <td :colspan="tableColspan" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedItems" :key="item.queueKey">
                 <td v-if="showApproveToolbar" class="col-check">
@@ -369,18 +390,18 @@ function statusLabel(status) {
                 </td>
                 <td>{{ getRowNumber(index) }}</td>
                 <td>
-                  <span class="status-badge" :class="defermentStatusBadgeClass(item.status)">
+                  <span class="status-badge" :class="movementListStatusBadgeClass(item.status)">
                     {{ statusLabel(item.status) }}
                   </span>
                 </td>
                 <td>{{ tr(item.approvalStage) }}</td>
-                <td>{{ tr(item.implemented) }}</td>
+                <td v-if="showImplementedColumn">{{ item.implementedYn }}</td>
                 <td>{{ item.studentId }}</td>
                 <td>{{ item.fullName }}</td>
                 <td>{{ item.applicationSession }}</td>
                 <td>{{ item.effectiveSession }}</td>
                 <td>{{ t(item.movementCategoryKey) }}</td>
-                <td class="reason-cell">{{ item.movementReason }}</td>
+                <td>{{ item.applicationDateDisplay }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
                     <button type="button" class="link-btn" @click="openReview(item)">{{ tr('View') }}</button>
@@ -416,6 +437,14 @@ function statusLabel(status) {
       :target-count="pendingApprovalRows.length"
       @close="approvalModalVisible = false"
       @confirm="handleApprovalConfirm"
+    />
+
+    <ExportModal
+      :visible="exportModalVisible"
+      :fields="translatedExportFields"
+      :has-selected-rows="hasSelection"
+      @close="exportModalVisible = false"
+      @confirm="handleExportConfirm"
     />
   </div>
 </template>
@@ -567,24 +596,10 @@ function statusLabel(status) {
   width: 48px;
 }
 
-.reason-cell {
-  max-width: 220px;
-  white-space: normal;
-}
-
 .empty-cell {
   text-align: center;
   color: #9ca3af;
   padding: 40px !important;
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #fff;
 }
 
 .actions-inner {

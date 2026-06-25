@@ -9,8 +9,6 @@ export const movementTypeKeys = [
 
 export const consentFormStudentTypes = ['Local', 'Chinese', 'International']
 
-export const studyDurationRules = ['none', 'afterOneYear', 'withinMaxDuration']
-
 let nextConsentFormId = 10
 
 function normalizeFile(raw) {
@@ -22,16 +20,11 @@ function normalizeFile(raw) {
 }
 
 function normalizeRow(raw) {
-  const movementType = raw.movementType || ''
-  const isProgrammeTransfer = movementType === 'programme-transfer'
   return {
     id: raw.id,
     formName: String(raw.formName || '').trim(),
-    movementType,
+    movementType: raw.movementType || '',
     studentType: raw.studentType || 'Local',
-    studyDurationRule: isProgrammeTransfer
-      ? raw.studyDurationRule || 'afterOneYear'
-      : raw.studyDurationRule || 'none',
     remark: String(raw.remark || '').trim(),
     studentConsentFile: normalizeFile(raw.studentConsentFile),
     parentConsentFile: normalizeFile(raw.parentConsentFile),
@@ -44,7 +37,6 @@ export const initialConsentForms = [
     formName: 'Programme Transfer Consent - Local',
     movementType: 'programme-transfer',
     studentType: 'Local',
-    studyDurationRule: 'afterOneYear',
     remark: '',
     studentConsentFile: { fileName: 'pt-consent-local.pdf', size: 245000 },
     parentConsentFile: null,
@@ -54,7 +46,6 @@ export const initialConsentForms = [
     formName: 'Programme Transfer Consent - Chinese',
     movementType: 'programme-transfer',
     studentType: 'Chinese',
-    studyDurationRule: 'afterOneYear',
     remark: '',
     studentConsentFile: { fileName: 'pt-consent-chinese.pdf', size: 248000 },
     parentConsentFile: null,
@@ -64,7 +55,6 @@ export const initialConsentForms = [
     formName: 'Programme Transfer Consent - International',
     movementType: 'programme-transfer',
     studentType: 'International',
-    studyDurationRule: 'afterOneYear',
     remark: '',
     studentConsentFile: { fileName: 'pt-consent-intl.pdf', size: 251000 },
     parentConsentFile: null,
@@ -74,7 +64,6 @@ export const initialConsentForms = [
     formName: 'Deferment Consent - Local',
     movementType: 'deferment',
     studentType: 'Local',
-    studyDurationRule: 'none',
     remark: 'Includes parent consent template',
     studentConsentFile: { fileName: 'def-consent-local-student.pdf', size: 180000 },
     parentConsentFile: { fileName: 'def-consent-local-parent.pdf', size: 165000 },
@@ -84,7 +73,6 @@ export const initialConsentForms = [
     formName: 'Deferment Consent - Chinese',
     movementType: 'deferment',
     studentType: 'Chinese',
-    studyDurationRule: 'none',
     remark: 'Includes parent consent template',
     studentConsentFile: { fileName: 'def-consent-chinese-student.pdf', size: 182000 },
     parentConsentFile: { fileName: 'def-consent-chinese-parent.pdf', size: 168000 },
@@ -94,7 +82,6 @@ export const initialConsentForms = [
     formName: 'Deferment Consent - International',
     movementType: 'deferment',
     studentType: 'International',
-    studyDurationRule: 'none',
     remark: '',
     studentConsentFile: { fileName: 'def-consent-intl-student.pdf', size: 175000 },
     parentConsentFile: null,
@@ -104,7 +91,6 @@ export const initialConsentForms = [
     formName: 'Withdrawal Consent - International',
     movementType: 'withdrawal',
     studentType: 'International',
-    studyDurationRule: 'none',
     remark: 'ISAO approval may apply',
     studentConsentFile: { fileName: 'wdr-consent-intl-student.pdf', size: 190000 },
     parentConsentFile: { fileName: 'wdr-consent-intl-parent.pdf', size: 172000 },
@@ -114,7 +100,6 @@ export const initialConsentForms = [
     formName: 'Withdrawal Consent - Local',
     movementType: 'withdrawal',
     studentType: 'Local',
-    studyDurationRule: 'none',
     remark: '',
     studentConsentFile: { fileName: 'wdr-consent-local-student.pdf', size: 188000 },
     parentConsentFile: { fileName: 'wdr-consent-local-parent.pdf', size: 170000 },
@@ -124,7 +109,6 @@ export const initialConsentForms = [
     formName: 'Resumption Consent - Local',
     movementType: 'resumption',
     studentType: 'Local',
-    studyDurationRule: 'none',
     remark: '',
     studentConsentFile: { fileName: 'res-consent-local.pdf', size: 160000 },
     parentConsentFile: null,
@@ -152,7 +136,6 @@ export function createEmptyConsentForm() {
     formName: '',
     movementType: '',
     studentType: '',
-    studyDurationRule: 'none',
     remark: '',
     studentConsentFile: null,
     parentConsentFile: null,
@@ -182,11 +165,6 @@ export function validateConsentFormForm(data, excludeId = null) {
   }
   if (!data.studentType) {
     requireField('studentType', 'Student Type is required.')
-  }
-  if (data.movementType === 'programme-transfer') {
-    if (!data.studyDurationRule || data.studyDurationRule === 'none') {
-      requireField('studyDurationRule', 'Study duration rule is required for programme transfer.')
-    }
   }
   if (!data.studentConsentFile?.fileName) {
     requireField('studentConsentFile', 'Student consent file is required.')
@@ -242,29 +220,4 @@ export function getDistinctFormNames() {
     if (row.formName) names.add(row.formName)
   }
   return [...names].sort()
-}
-
-function parseIntakeDate(intake) {
-  const match = String(intake || '').match(/^(\d{4})\/(\d{2})$/)
-  if (!match) return null
-  return new Date(Number(match[1]), Number(match[2]) - 1, 1)
-}
-
-export function checkProgrammeTransferStudyDurationEligibility(student, template) {
-  if (!template || !template.studyDurationRule || template.studyDurationRule === 'none') {
-    return { valid: true, error: '' }
-  }
-  if (template.studyDurationRule === 'withinMaxDuration') {
-    return { valid: true, error: '' }
-  }
-  if (template.studyDurationRule === 'afterOneYear') {
-    const start = parseIntakeDate(student?.enrollment?.intake)
-    if (!start) return { valid: true, error: '' }
-    const elapsedMs = Date.now() - start.getTime()
-    const oneYearMs = 365 * 24 * 60 * 60 * 1000
-    if (elapsedMs < oneYearMs) {
-      return { valid: false, error: 'Programme transfer requires at least one academic year since intake.' }
-    }
-  }
-  return { valid: true, error: '' }
 }

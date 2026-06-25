@@ -40,3 +40,16 @@
 
 - [x] 7.1 冒烟：管理页 CRUD/View → 四 Tab 下载匹配不同模板 → 休学/退学家长下载 → PT 修读时长拦截
 - [x] 7.2 `npm run build` 通过
+
+## 8. 移除修读时长（增量）
+
+- [x] 8.1 `consentForms.js`：删除 `studyDurationRule`/`studyDurationRules`/`checkProgrammeTransferStudyDurationEligibility`；seed 简化
+- [x] 8.2 `ConsentFormView.vue`：删除修读时长列
+- [x] 8.3 `ConsentFormFormModal.vue` / `ConsentFormViewModal.vue`：删除修读时长字段展示
+- [x] 8.4 `ProgrammeTransferFormModal.vue`：删除 Submit/Resubmit 修读时长校验
+- [x] 8.5 `npm run build` 通过
+
+## 9. 列表表头去掉排序箭头
+
+- [x] 9.1 `ConsentFormView.vue`：移除 `<th>` 的 `sortable` class 及 `.data-table th.sortable::after` CSS
+- [x] 9.2 冒烟：知情同意书列表表头无 ⇅ 箭头；`npm run build` 通过

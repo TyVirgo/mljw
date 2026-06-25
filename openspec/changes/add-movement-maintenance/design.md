@@ -155,3 +155,149 @@ Edit Footer：**Cancel + Save**
 
 - Export 用 ExportModal 还是 alert：首版与审批页一致（alert mock）即可
 - CGPA 格式：自由文本，不做数值校验
+
+### 10. §8 表格精简与脱敏
+
+**目标表格列：**
+
+```
+勾选 | 序号 | 状态 | 审批环节 | 是否实施(Y/N) | 学号 | 姓名 | 异动日期
+| Passport/IC(脱敏) | Student Type | Intake | 申请/生效学期 | 类别 | 原因 | 预计毕业 | Actions
+```
+
+**脱敏：**
+
+```javascript
+// src/utils/maskPassportIc.js — 列表 / 详情 / Export 共用
+// MaintenanceView → ReviewView :mask-sensitive-fields="true"
+// DetailModal: nricPassport + parentNricPassport
+```
+
+**Export：** `movementMaintenanceExportFields.js`（无隐藏列）；`exportMovementQueryToExcel(..., { implementedAsYn: true, maskPassport: true })`
+
+**移除组件引用：** `MovementMaintenanceEditModal`、`MovementMaintenanceNumberModal`（文件可保留）
+
+### 11. §9 状态 Badge 与申请页一致
+
+**问题：** `MovementMaintenanceView` 使用 `defermentStatusBadgeClass` 但未 import 状态色 CSS；scoped `color: #fff` 导致与申请页 pill 标签不一致。
+
+**方案：**
+
+```javascript
+// 可抽 movementListStatusBadgeClass(status) 或复用 approval 模式
+function listStatusBadgeClass(status) {
+  if (status === 'Expired') return 'status-expired'
+  return statusBadgeClass(status) // deferments.js
+}
+```
+
+```vue
+import '../../styles/movement-status-badge.css'
+<span class="status-badge" :class="listStatusBadgeClass(item.status)">
+```
+
+**CSS 更新（`movement-status-badge.css`）：**
+
+- `border-radius: 999px`（pill，对齐申请 View）
+- `padding: 2px 10px`；`font-weight: 600`
+- 保留现有色板 token；含 `status-expired`
+
+**删除** MaintenanceView scoped 内 `.status-badge { color: #fff }`。
+
+---
+
+## §11 批量勾选、学年学期下拉、延迟实施
+
+### 12. 可勾选行
+
+```javascript
+function isRowSelectable(row) {
+  return row.implemented === 'Pending'
+}
+```
+
+- `allPageSelected`：当前页 selectable 行是否全在 `selectedKeys`
+- `toggleSelectAll`：只增删 selectable 行的 `queueKey`
+- 行 checkbox：`:disabled="!isRowSelectable(item)"`
+
+### 13. 学年学期下拉
+
+```javascript
+// src/data/movementListSearchOptions.js（建议）
+export function getDistinctApplicationSessions(items) {
+  return [...new Set(items.map((r) => r.applicationSession).filter(Boolean))].sort()
+}
+```
+
+三 View 搜索模板：
+
+```html
+<select v-model="searchForm.academicSession" class="search-select">
+  <option value="">{{ t('common.all') }}</option>
+  <option v-for="s in sessionOptions" :key="s" :value="s">{{ s }}</option>
+</select>
+```
+
+`sessionOptions` 来自对应 `merge*Queue(t)` 全量（非仅当前页）。
+
+Filter：
+
+```javascript
+if (s.academicSession && row.applicationSession !== s.academicSession) return false
+```
+
+### 14. implemented 状态扩展
+
+```javascript
+// 'Pending' | 'Scheduled' | 'Implemented' | '—'
+```
+
+| 值 | 列 Y/N | 可勾选 | 档案写入 |
+|----|--------|--------|----------|
+| Pending | N | ✓ | — |
+| Scheduled | N | ✗ | 未写入 |
+| Implemented | Y | ✗ | 已写入 |
+
+```javascript
+export function formatImplementedYn(value) {
+  return value === 'Implemented' ? 'Y' : 'N'
+}
+```
+
+### 15. 实施与调度
+
+```javascript
+export function requestImplementation(sourceKey, item) {
+  const current = getCurrentApplicationSession()
+  const effective = extractEffectiveSession(sourceKey, item) // 或 row.effectiveSession
+  if (current && effective && current === effective) {
+    return applyImplementationEffect(sourceKey, item)
+  }
+  return updateMaintenanceFields(sourceKey, item.id, { implemented: 'Scheduled' })
+}
+
+export function processDueImplementations() {
+  // 四 store Approved 行：implemented === 'Scheduled'
+  // current >= effective → applyImplementationEffect
+}
+```
+
+`implementMaintenanceRecords` 改为调用 `requestImplementation`。
+
+审批 `autoImplement` 分支同样调用 `requestImplementation` 而非直接 `applyImplementationEffect`。
+
+### 16. Migration（§11）
+
+1. 数据层 Scheduled + scheduler + filter 精确匹配
+2. MaintenanceView 勾选；三 View 下拉
+3. i18n：Scheduled confirm 文案
+4. seed：至少 1 条 Pending 且 effectiveSession > current 便于 demo
+5. 冒烟 + build
+
+## Risks / Trade-offs（§11）
+
+| 风险 | 缓解 |
+|------|------|
+| YYYY/MM 字符串比较跨年级 | 与现有 unify-movement-date-format 一致；同格式可比 |
+| Scheduled 用户不知已排队 | Confirm 与可选 toast 说明生效学期 |
+| 三模块下拉选项不一致 | 各模块从自身 merge 队列 distinct，语义一致 |

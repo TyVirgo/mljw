@@ -169,13 +169,14 @@ function handleEdit() {
 }
 
 .category-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
+  font-size: 12px;
+  font-weight: 400;
+  color: #6b7280;
 }
 
 .category-value {
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 500;
   color: #111827;
 }
 

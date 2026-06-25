@@ -22,19 +22,11 @@ export const studentRecordsMenuItems = [
     children: [
       { id: 'sr-movement-category', labelKey: 'menu.srMovementCategory' },
       { id: 'sr-consent-form', labelKey: 'menu.srConsentForm' },
-      { id: 'sr-movement-application', labelKey: 'menu.srMovementApplication' },
+      { id: 'sr-movement-application-teacher', labelKey: 'menu.srMovementApplicationTeacher' },
+      { id: 'sr-movement-application-student', labelKey: 'menu.srMovementApplicationStudent' },
       { id: 'sr-movement-approval', labelKey: 'menu.srMovementApproval' },
       { id: 'sr-movement-maintenance', labelKey: 'menu.srMovementMaintenance' },
       { id: 'sr-movement-query', labelKey: 'menu.srMovementQuery' },
-      { id: 'sr-movement-statistics', labelKey: 'menu.srMovementStatistics' },
-    ],
-  },
-  {
-    id: 'sr-study-plan-group',
-    labelKey: 'menu.srStudyPlanGroup',
-    icon: 'book',
-    children: [
-      { id: 'sr-personal-curriculum', labelKey: 'menu.srPersonalCurriculum' },
     ],
   },
 ]
@@ -43,7 +35,8 @@ export const studentRecordsDevelopedPages = new Set([
   'sr-student-profile',
   'sr-movement-category',
   'sr-consent-form',
-  'sr-movement-application',
+  'sr-movement-application-teacher',
+  'sr-movement-application-student',
   'sr-movement-approval',
   'sr-movement-maintenance',
   'sr-movement-query',
@@ -62,10 +55,6 @@ export function buildStudentRecordsBreadcrumbKeys(pageId) {
 
   if (parentId === 'sr-movement-group') {
     return ['menu.srMovementGroup', findStudentRecordsLabelKey(pageId)]
-  }
-
-  if (parentId === 'sr-study-plan-group') {
-    return ['menu.srStudyPlanGroup', findStudentRecordsLabelKey(pageId)]
   }
 
   if (pageId === 'sr-student-profile') {

@@ -70,4 +70,103 @@
 - 数据范围：**全部非 Draft**
 - 导出格式：**xlsx**（与专业信息一致）
 - 搜索收起：**首版要**（双行布局，默认展开）
-- 列排序：**首版仅 UI 装饰**
+- 列排序：**首版仅 UI 装饰**（§9 已移除 sortable 装饰）
+
+---
+
+## §7 搜索：专业代码替换异动原因（增量）
+
+与审批 / 维护 / 统计四模块搜索对齐：首行 **异动原因 → 专业代码**（紧挨学年学期）；展开行学号/姓名不变。
+
+| 变更 | 说明 |
+|------|------|
+| 删除 | 首行「异动原因」搜索 |
+| 新增 | **专业代码** 文本搜索 |
+| 过滤 | `filterQueryBySearch`：`programmeCode` 替换 `movementReason` |
+
+表格异动原因列不变；仅搜索区变更。
+
+---
+
+## §8 搜索增加异动类型（增量）
+
+产品图示：首行 **状态** 旁增加 **异动类型** 下拉，与表格「异动类别」列语义一致。
+
+### 查询搜索（本 change）
+
+| 变更 | 说明 |
+|------|------|
+| 新增 | **异动类型** 下拉（全部 / 转专业 / 休学 / 复学 / 退学），紧挨状态 |
+| 首行字段 | 学年学期、专业代码、状态、异动类型 |
+| 过滤 | `filterQueryBySearch`：`movementType` 精确匹配 `row.sourceKey` |
+
+### Decisions（§8 已确认）
+
+| 项 | 决策 |
+|----|------|
+| 控件 | select，非文本 |
+| 选项 value | `programme-transfer` / `deferment` / `resumption` / `withdrawal` |
+| 选项 label | 复用 `menu.srProgrammeTransfer` 等 |
+| Export | 不受异动类型字段影响（仅列表过滤） |
+
+---
+
+## §9 列表 UI 与维护对齐（增量）
+
+查询页主要检索维护同源数据；列表展示、脱敏与 Y/N 规则应与 `add-movement-maintenance` §8 一致。Export 在默认列基础上额外提供可选扩展字段；移除表头 sortable 装饰。
+
+### 列表表格（与维护 §8 同结构）
+
+| 变更 | 说明 |
+|------|------|
+| 列精简 | 移除 CGPA、English、异动编号、Remark；列表不展示 Current/New School、Current/New Programme Code、New Programme Name |
+| 列顺序 | 对齐维护：… → 异动日期 → Passport/IC → Student Type → Intake → 申请/生效学期 → 类别 → 原因 → 预计毕业 → Actions |
+| Passport/IC | 列表脱敏（`maskPassportIc`） |
+| 是否实施 | **Y/N**（`formatImplementedYn`），非 Pending/Implemented 文案 |
+| 表头 | **移除** sortable class 与 ↑↓ 装饰 CSS |
+
+### 三端一致（列表 / Export 默认 / Details）
+
+| 端 | 规则 |
+|----|------|
+| 列表 | 17 列精简表；脱敏 + Y/N |
+| Export 默认勾选 | 与 `movementMaintenanceExportColumnMeta` 相同（16 项）；`implementedAsYn: true`、`maskPassport: true` |
+| Details | `MovementApprovalReviewView` 传 `:mask-sensitive-fields="true"`；校/专业字段仍在详情内完整展示 |
+
+### Export 额外可选列（仅查询）
+
+在维护 Export 默认列之外，`movementQueryExportFields.js` 追加以下 **selectedByDefault: false** 可选字段：
+
+- `currentSchool`、`currentProgrammeCode`、`newSchool`、`newProgrammeCode`、`newProgrammeName`
+- `englishName`、`cgpa`、`movementNumber`、`remark`
+
+列表不展示上述列；用户可在 ExportModal 勾选后导出。
+
+### Decisions（§9 已确认）
+
+| 项 | 决策 |
+|----|------|
+| 与维护对齐 | 列表列集、顺序、脱敏、Y/N 与维护 §8 一致 |
+| 详情脱敏 | 查询 Details 启用 `maskSensitiveFields`（撤销首版「查询详情不脱敏」） |
+| Export 默认 | 复用维护 export meta 默认勾选策略 |
+| Export 扩展 | 9 个详情级可选列，默认不勾选 |
+| sortable | 移除（查询与维护均无假排序装饰） |
+
+---
+
+## §10 状态 Badge 与申请页一致（增量）
+
+与 `add-movement-maintenance` §9 同规则：查询列表 Status 列与四 Tab 申请页 pill 标签色板一致；支持 `Expired`。
+
+| 项 | 说明 |
+|----|------|
+| CSS | 复用 `movement-status-badge.css`（§9 已更新为 pill） |
+| View | `MovementQueryView` import CSS + `listStatusBadgeClass`；移除 scoped 白字覆盖 |
+| Expired | `status === 'Expired'` → `status-expired` |
+
+### Decisions（§10 已确认）
+
+| 项 | 决策 |
+|----|------|
+| 与申请对齐 | 色板 + pill 圆角 |
+| Expired | 是 |

@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Student Records sidebar grouped menu
-The system SHALL provide a grouped sidebar menu with three top-level expandable sections: Student Records Management, Student Status Change, and Personal Study Plan.
+The system SHALL provide a grouped sidebar menu with two top-level expandable sections: Student Records Management and Student Status Change. The Personal Study Plan section SHALL NOT be displayed in the current phase.
 
 #### Scenario: Management group items
 - **WHEN** user expands the Student Records Management group in the sidebar
@@ -11,9 +11,9 @@ The system SHALL provide a grouped sidebar menu with three top-level expandable 
 - **WHEN** user expands the Student Status Change group in the sidebar
 - **THEN** the system lists Change Category, Informed Consent Form, Status Change Application, Status Change Approval, Status Change Maintenance, Status Change Inquiry, and Status Change Statistics in that order
 
-#### Scenario: Study plan group items
-- **WHEN** user expands the Personal Study Plan group in the sidebar
-- **THEN** the system lists Personal Curriculum Plan as the only child item
+#### Scenario: Personal study plan group not shown
+- **WHEN** user opens the Student Records Application sidebar
+- **THEN** the system does not display a Personal Study Plan group or Personal Curriculum Plan menu item
 
 #### Scenario: Family Info removed
 - **WHEN** user opens the Student Records Application sidebar
@@ -50,22 +50,24 @@ The system SHALL render student-records sidebar groups with expand/collapse beha
 
 #### Scenario: Default expanded groups
 - **WHEN** user first opens the Student Records Application
-- **THEN** all three top-level sidebar groups are expanded by default
+- **THEN** the Student Records Management and Student Status Change sidebar groups are expanded by default
 
 #### Scenario: Breadcrumb for grouped leaf
 - **WHEN** user selects Status Change Application
 - **THEN** the breadcrumb shows the module name, the Student Status Change group label, and the Status Change Application page label
 
-### Requirement: Undeveloped movement and study plan pages
+### Requirement: Undeveloped movement pages
 The system SHALL show the in-app under-construction page for menu items that are not yet developed.
 
 #### Scenario: Undeveloped movement submenu
 - **WHEN** user selects Change Category, Informed Consent Form, Status Change Approval, Status Change Maintenance, Status Change Inquiry, or Status Change Statistics
 - **THEN** the system shows the under-construction page with a back action to Student Basic Information
 
-#### Scenario: Undeveloped study plan submenu
-- **WHEN** user selects Personal Curriculum Plan
-- **THEN** the system shows the under-construction page with a back action to Student Basic Information
+## REMOVED Requirements
+
+### Requirement: Undeveloped study plan submenu
+**Reason**: Personal Curriculum Plan is out of scope for the current phase; the entire Personal Study Plan group is removed from the sidebar.
+**Migration**: Reintroduce via a future change when the personal curriculum feature is implemented.
 
 ## ADDED Requirements
 

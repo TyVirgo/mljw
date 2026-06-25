@@ -41,12 +41,6 @@ function formatStudentType(type) {
   return translated !== key ? translated : tr(type)
 }
 
-function formatStudyDuration(rule) {
-  const key = `consentForm.studyDurationRule.${rule || 'none'}`
-  const translated = t(key)
-  return translated !== key ? translated : tr(rule)
-}
-
 function downloadFile(fileMeta, label) {
   if (!fileMeta?.fileName) return
   downloadMockConsentFile(fileMeta, label)
@@ -75,10 +69,6 @@ function downloadFile(fileMeta, label) {
             <div class="detail-row">
               <dt>{{ t('consentForm.fields.studentType') }}</dt>
               <dd>{{ formatStudentType(row.studentType) }}</dd>
-            </div>
-            <div class="detail-row">
-              <dt>{{ t('consentForm.fields.studyDurationRule') }}</dt>
-              <dd>{{ formatStudyDuration(row.studyDurationRule) }}</dd>
             </div>
             <div class="detail-row">
               <dt>{{ t('consentForm.fields.remark') }}</dt>

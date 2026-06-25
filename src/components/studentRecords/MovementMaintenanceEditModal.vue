@@ -25,7 +25,6 @@ watch(
       movementNumber: raw.movementNumber || '',
       maintenanceRemark: raw.maintenanceRemark || '',
       cgpa: raw.cgpa || '',
-      expectedGraduationTime: raw.expectedGraduationTime || '',
       newSchool: raw.newSchool || props.row.newSchool || '',
       newProgrammeCode: raw.newProgrammeCode || props.row.newProgrammeCode || '',
       newProgrammeName: raw.newProgrammeName || props.row.newProgrammeName || '',
@@ -38,7 +37,6 @@ function createEmptyForm() {
     movementNumber: '',
     maintenanceRemark: '',
     cgpa: '',
-    expectedGraduationTime: '',
     newSchool: '',
     newProgrammeCode: '',
     newProgrammeName: '',
@@ -59,7 +57,6 @@ function handleSave() {
     movementNumber: String(form.value.movementNumber || '').trim(),
     maintenanceRemark: form.value.maintenanceRemark || '',
     cgpa: form.value.cgpa || '',
-    expectedGraduationTime: form.value.expectedGraduationTime || '',
   }
   if (isProgrammeTransfer.value) {
     patch.newSchool = form.value.newSchool || ''
@@ -107,16 +104,6 @@ function handleSave() {
               <label class="field-label">{{ t('movementMaintenance.fields.cgpa') }}</label>
               <input
                 v-model="form.cgpa"
-                type="text"
-                class="control-input"
-                :placeholder="t('common.pleaseInput')"
-              />
-            </div>
-
-            <div class="form-field">
-              <label class="field-label">{{ t('movementMaintenance.fields.expectedGraduationTime') }}</label>
-              <input
-                v-model="form.expectedGraduationTime"
                 type="text"
                 class="control-input"
                 :placeholder="t('common.pleaseInput')"

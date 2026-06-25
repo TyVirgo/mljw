@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Consent form list page
-The system SHALL display a paginated informed consent form configuration table under the Informed Consent Form menu with columns: selection checkbox, serial number, form name, applicable movement type, Student Type, study duration rule, remark, and Actions.
+The system SHALL display a paginated informed consent form configuration table under the Informed Consent Form menu with columns: selection checkbox, serial number, form name, applicable movement type, Student Type, remark, and Actions.
 
 #### Scenario: Initial list with seed data
 - **WHEN** user opens Informed Consent Form for the first time
@@ -22,14 +22,6 @@ The system SHALL provide a Create/Edit modal to maintain consent form templates 
 - **WHEN** user clicks Create on the list page
 - **THEN** the system opens the Create/Edit modal with empty fields and Cancel + Save footer actions
 
-#### Scenario: Study duration required for programme transfer
-- **WHEN** user selects Programme Transfer as the applicable movement type in the Create/Edit modal
-- **THEN** the system shows a required study duration rule field
-
-#### Scenario: Study duration default for other movement types
-- **WHEN** user selects Deferment, Resumption, or Withdrawal as the applicable movement type
-- **THEN** the study duration rule defaults to none (no restriction) and the list displays the unrestricted label
-
 #### Scenario: Optional parent consent upload
 - **WHEN** user uploads a parent consent file in Create/Edit
 - **THEN** the system stores the parent file metadata on the template record
@@ -47,7 +39,7 @@ The system SHALL provide a View action that opens a read-only modal showing all 
 
 #### Scenario: Open view modal
 - **WHEN** user clicks View on a list row
-- **THEN** the system opens a read-only modal with form name, movement type, Student Type, study duration rule, remark, and file names
+- **THEN** the system opens a read-only modal with form name, movement type, Student Type, remark, and file names
 
 #### Scenario: Mock download from view
 - **WHEN** user clicks a file name link in the View modal
@@ -72,19 +64,11 @@ The system SHALL expose a lookup helper that returns the consent form template m
 - **WHEN** lookup finds no matching template
 - **THEN** the helper returns null
 
+## REMOVED Requirements
+
 ### Requirement: Study duration eligibility for programme transfer
-The system SHALL enforce a mock study duration eligibility check when submitting a programme transfer application if the matched template specifies a non-none study duration rule.
-
-#### Scenario: Block submit before one academic year
-- **WHEN** user submits a programme transfer application
-- **AND** the matched template study duration rule is after one academic year
-- **AND** the selected student's enrollment date is less than one year ago (mock calculation)
-- **THEN** the system prevents submit and shows an eligibility message
-
-#### Scenario: Allow submit when rule satisfied
-- **WHEN** user submits a programme transfer application
-- **AND** the matched template study duration rule is satisfied by mock calculation
-- **THEN** the system proceeds with normal submit validation
+**Reason**: Product defers study duration configuration and eligibility checks to a later phase.
+**Migration**: Remove study duration from consent form admin UI and programme transfer submit validation; template lookup and download unchanged.
 
 ### Requirement: Consent form page pagination
 The system SHALL paginate the consent form list using the same pagination pattern as other student-records list pages.

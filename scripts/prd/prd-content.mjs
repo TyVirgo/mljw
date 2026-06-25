@@ -37,7 +37,7 @@ export const transferListFields = [
   ['5', '原专业', 'Old Programme', '文本', '—', '—', 'currentProgramme', '否', ''],
   ['6', '新专业', 'New Programme', '文本', '—', '—', 'adminNewProgramme 优先', '否', ''],
   ['7', '状态', 'Status', '枚举', '—', '—', '7 态含 Expired', '是', 'In Progress'],
-  ['8', '日期', 'Date', '日期时间', '—', '—', 'submittedAt', '否', '01 Nov 2023'],
+  ['8', '日期', 'Date', '日期', '—', '—', 'submittedAt；YYYY-MM-DD', '否', '2025-09-20'],
 ]
 
 export const transferFormFields = toFieldRows(transferFormFieldEntries)
@@ -51,7 +51,7 @@ export const defermentListFields = [
   ['6', '休学期间', 'Deferment Period', '文本', '—', '—', 'YYYY/MM', '否', '2025/09'],
   ['7', '原因', 'Reason', '文本', '—', '—', 'mainReason 摘要', '是', 'Health Issue'],
   ['8', '状态', 'Status', '枚举', '—', '—', '6 态生命周期', '是', 'In Progress'],
-  ['9', '日期', 'Date', '日期时间', '—', '—', 'submittedAt', '否', '01 Nov 2023'],
+  ['9', '日期', 'Date', '日期', '—', '—', 'submittedAt；YYYY-MM-DD', '否', '2025-09-20'],
 ]
 
 export const defermentFormFields = toFieldRows(defermentFormFieldEntries)
@@ -76,20 +76,20 @@ export const withdrawalListFields = [
 export const withdrawalFormFields = toFieldRows(withdrawalFormFieldEntries)
 
 export const approvalListFields = [
-  ['1', '状态', 'Status', '枚举', '—', '—', 'Draft 不在队列', '是', 'In Progress'],
+  ['1', '状态', 'Status', '枚举', '—', '—', 'pill Badge；Draft 不在队列', '是', 'In Progress'],
   ['2', '审批环节', 'Approval Stage', '文本', '—', '—', 'workflow 节点', '否', 'Pending Review'],
-  ['3', '是否实施', 'Implemented', '枚举', '—', '—', 'Pending/Yes/No', '是', 'Pending'],
+  ['3', '是否实施', 'Implemented', '枚举', '—', '—', '仅已处理历史 Tab 显示；Y/N（Implemented→Y）', '是', 'N'],
   ['4', '学号', 'Student ID', '文本', '—', '—', '—', '否', ''],
   ['5', '学生姓名', 'Student Name', '文本', '—', '—', '—', '否', ''],
-  ['6', '申请学期', 'Application Session', '文本', '—', '—', 'intake 等', '否', '2023/09'],
-  ['7', '生效学期', 'Effective Session', '文本', '—', '—', '按类型映射', '否', '2025/09'],
+  ['6', '申请学年学期', 'Application Academic Session', '文本', '—', '—', 'applicationSession；YYYY/MM', '否', '2023/09'],
+  ['7', '生效学期', 'Effective Session', '文本', '—', '—', 'formatEffectiveSession；YYYY/MM', '否', '2025/09'],
   ['8', '异动类别', 'Movement Category', '枚举', '—', '—', '四异动', '是', 'Deferment'],
-  ['9', '异动原因', 'Movement Reason', '文本', '—', '—', '摘要', '否', ''],
+  ['9', '申请日期', 'Application Date', '日期', '—', '—', 'YYYY-MM-DD', '否', '2025-09-20'],
 ]
 
 export const approvalSearchFields = [
   ['1', '学年学期', 'Academic Session', '文本', '否', '模糊', 'applicationSession', '否', ''],
-  ['2', '异动原因', 'Movement Reason', '文本', '否', '模糊', '—', '否', ''],
+  ['2', '专业代码', 'Programme Code', '文本', '否', '模糊', 'programmeCode', '否', ''],
   ['3', '状态', 'Status', '下拉', '否', '—', '6 态', '是', ''],
   ['4', '学号', 'Student ID', '文本', '否', '模糊', '—', '否', ''],
   ['5', '学生姓名', 'Student Name', '文本', '否', '模糊', '—', '否', ''],
@@ -106,11 +106,11 @@ export const profileDataFlow = {
 
 export const movementAppDataFlow = {
   explanation:
-    '学籍异动申请页按四个页签（转专业/休学/复学/退学）各自维护列表与表单弹窗，四类数据分别存入异动存储（movementStore）四个集合，与审批模块共享同一存储，审批写回后申请页签列表同步更新。保存草稿将状态置为草稿并保留在对应页签列表；提交校验分区必填、声明勾选与附件规则后，将状态置为进行中、审批环节置为待审核，并追加首条流转日志。详情打开只读详情弹窗以分区结构展示申请全文与附件，不含审批操作区与内嵌流转日志。编辑仅对草稿或需修改材料记录开放。删除仅允许草稿。撤销在待审核阶段将状态置为已撤销。流转日志独立弹窗展示完整审批日志。系统约束同一学号在同一异动类型下仅允许存在一条非终态申请。操作成功后当前页签列表、计数与审批队列均即时刷新。',
+    '学籍异动申请通过侧边栏「学籍异动申请（老师）」与「学籍异动申请（学生）」两个入口进入同一 Tab 壳层（StudentMovementApplicationView），页顶水平 Tab 切换转专业/休学/复学/退学（默认休学），各 Tab 嵌入对应 View 维护列表与表单弹窗。四类数据分别存入 movementStore 四个集合，与审批模块共享存储。搜索区双行布局（MovementApplicationSearchBar）：老师入口首行含学号或姓名关键字、专业代码、申请学年学期、状态（含 Draft）；学生入口隐藏关键字；次行（可收起）为是否实施（全部/待实施/已实施/—）。老师入口列表展示学号、姓名列；学生入口隐藏两列。Section I 学号与姓名同行，老师新建时行末「选择」打开 StudentSelectModal；只读联动字段灰底。Section I 末「申请学年学期」（applicationSession）只读 YYYY/MM：选学生后写入 enrollment.intake；新建未选学生为空。转专业 Section VII 教务核定三字段申请侧 disabled 置灰。转专业原因改为下拉，选项来自 PT001 类别 reasons，存 reasonId。休学/退学主要原因下拉来自对应类别配置。列表日期 YYYY-MM-DD；生效学期列 YYYY/MM。详情纯只读无审批区；流转日志独立弹窗。',
   preconditions:
-    '学号须存在于学生基本信息档案；提交须满足各分区必填、声明勾选与附件上传规则；同一异动类型下该学号无其他进行中的非终态申请。转专业提交须勾选声明分区并上传支持性文件；教务核定新专业与批次由审批人在审批页填写而非申请侧。',
+    '学号须存在于学生基本信息；提交须满足各分区必填、声明与附件；同一异动类型下该学号无其他非终态申请。知情同意书模板按 movementType+studentType 解析下载（resolveConsentTemplate）。',
   downstream:
-    '状态为进行中且审批环节非终态的记录进入学籍异动审批统一队列，按角色分桶至已提交/待我审批/已处理历史三个视图。终态记录在申请侧归档展示；流转日志在申请与审批两侧共用只读展示。通过后实施状态默认待实施，后续可扩展回写学生档案学籍状态与专业信息。',
+    '非 Draft 记录进入学籍异动审批三视图（待我审批→已提交→已处理历史）；审批写回后申请 Tab 同步刷新。',
 }
 
 export const defermentDataFlow = {
@@ -138,24 +138,24 @@ export const profileBusinessFlow =
   '进入【学籍管理】→【学籍管理】→【学生基本信息】→ 填写搜索条件后查询或重置 → 点击新增打开七页签抽屉填写并保存 → 或行内编辑/详情查看 → 勾选后批量删除 → 导入下载模板并上传文件 → 导出选择字段与范围 → 列表自动刷新。'
 
 export const transferBusinessFlow =
-  '进入【学籍异动】→【异动申请】→ 切换【转专业】页签 → 查询筛选 → 点击新建申请填写各分区与附件 → 保存草稿或提交 → 列表刷新 → 详情只读查看 → 流转日志查看记录 → 草稿可编辑/删除，待审核前可撤销，需修改材料后可编辑并再次提交；审批在【异动审批】模块完成。'
+  '进入【学籍异动】→【学籍异动申请（老师|学生）】→ 切换页内 Tab【转专业】→ 双行搜索查询或重置 → 老师入口可关键字筛选学号/姓名 → 新建申请（老师可选学生）→ 保存草稿或提交 → 详情只读 → 流转日志 → 审批在【学籍异动审批】完成。'
 
 export const defermentBusinessFlow =
-  '进入【学籍管理】→【学籍异动】→【异动申请】→ 切换【休学】页签 → 查看列表 → 可按学号/姓名查询筛选 → 点击新建申请填写各分区与附件 → 保存草稿或提交 → 列表刷新 → 点击详情只读查看 → 点击流转日志查看记录 → 草稿可编辑/删除，待审核前可撤销，需修改材料后可编辑并再次提交。'
+  '进入【学籍异动】→【学籍异动申请（老师|学生）】→ 切换【休学】Tab → 搜索筛选 → 新建申请 → 保存草稿或提交 → 详情/流转日志 → 草稿可编辑/删除，待审核前可撤销。'
 
 export const resumptionBusinessFlow =
-  '进入【异动申请】→【复学】页签 → 查询筛选 → 新建申请 → 选择学号联动 → 选择休学/复学学期 → 勾选双声明 → 上传附件 → 保存草稿或提交 → 详情只读查看 → 流转日志查看审批历史。'
+  '进入【学籍异动申请】→【复学】Tab → 搜索筛选 → 新建申请 → 选择休学/复学学期 → 提交 → 详情/流转日志。'
 
 export const withdrawalBusinessFlow =
-  '进入【异动申请】→【退学】页签 → 查询筛选 → 新建申请 → 填写离校信息与原因（国际生见提示）→ 家长信息 → 附件 → 提交 → 详情/流转日志 → 审批在【异动审批】模块完成。'
+  '进入【学籍异动申请】→【退学】Tab → 搜索筛选 → 新建申请 → 提交 → 详情/流转日志 → 审批在【学籍异动审批】完成。'
 
 export const approvalDataFlow = {
   explanation:
-    '审批页合并四类异动存储中所有非草稿记录，按审批分桶规则与默认审批角色（待审核）分桶至已提交、待我审批、已处理历史三个视图。列表统一展示状态、审批环节、是否实施、学号、姓名、申请/生效学期、异动类别与原因等字段。搜索区五字段标签与输入框同行布局，查询过滤当前视图列表，重置清空恢复。待我审批视图支持勾选多条同异动类型且同审批环节的记录批量审批，打开审批弹窗选择通过/拒绝/需修改材料并填写办理意见，写回对应存储的状态、环节、实施标记与流转日志。查看进入全页审批详情，嵌入对应异动类型只读详情区；待我审批模式下底部展示审批表单（含转专业教务核定分区）；已处理历史模式下已通过记录可撤回。导出当前筛选结果为逗号分隔文件；无数据时提示。任一写回后申请页签与审批视图计数同步刷新。',
+    '审批页合并四类异动非 Draft 记录，按 DEFAULT_APPROVER_ROLE（Pending Review）分桶至待我审批、已提交、已处理历史三视图（Tab 顺序：待我审批→已提交→历史；仅待我审批显示角标）。搜索五字段标签与输入框同行（list-page-search.css）：学年学期、专业代码、状态、学号、学生姓名。列表展示状态 Badge、审批环节、学号、姓名、申请/生效学期（YYYY/MM）、异动类别、申请日期（YYYY-MM-DD）；已处理历史 Tab 额外显示是否实施 Y/N 列；不含异动原因列。待我审批支持批量审批（MovementApprovalModal）；查看进入 MovementApprovalReviewView 嵌入只读 DetailModal，底部 [审批] 打开 Modal（无内联审批表单）。导出 ExportModal xlsx；流转日志日期 YYYY-MM-DD。',
   preconditions:
-    '草稿状态记录不在审批队列中；批量审批须勾选记录同属一种异动类型且审批环节一致；拒绝/需修改材料须填写办理意见；转专业院长/专业负责人节点须在查看详情中填写教务核定新专业与批次。',
+    'Draft 不在队列；批量审批须同 sourceKey 且同 approvalStage；转专业 Dean/HoP 教务核定在 MovementApprovalModal 填写。',
   downstream:
-    '通过/拒绝/需修改材料决策驱动申请侧状态与审批环节变更；流转日志永久保留供审计；通过且实施状态为待实施的记录待后续回写学生档案；撤回将已处理历史中通过决策恢复为待审核。',
+    '决策写回申请存储与流转日志；autoImplement 决定初始实施状态；Recall 恢复待审核。',
 }
 
 export function movementAppButtons(moduleName) {
@@ -351,13 +351,13 @@ export const approvalButtons = [
       'Pending Tab 勾选行 → 点击 Review → 打开 MovementApprovalModal → 选择 Approved / Rejected / Update Required → 填写 Comment（Reject/Update Required 必填）→ Confirm → applyMovementDecision 写回 store → Modal 关闭 → 列表与申请 Tab 同步刷新。',
     remarks: 'canBatchApproveSelection 校验 sourceKey 与 stage 一致性；转专业 Dean/HoP 节点须先 View 填写 Section VII。',
   },
-  {
-    nameZh: '导出',
-    nameEn: 'Export',
-    description: '将当前 Tab 经搜索过滤后的审批列表导出为 CSV 文件。',
-    interaction: '点击 Export → 若无数据则 alert 提示 → 否则生成 CSV 并触发浏览器下载。',
-    remarks: '导出列含列表主要字段；文件名含 Tab 标识。',
-  },
+    {
+      nameZh: '导出',
+      nameEn: 'Export',
+      description: '将当前 Tab 经搜索过滤后的审批列表通过 ExportModal 导出为 xlsx 文件，支持字段选择与三档范围。',
+      interaction: '点击 Export → 打开 ExportModal 穿梭框选择字段与范围（当前页/全部/选中行）→ 确认导出 → 若无数据则 alert 提示 → 否则生成 xlsx 并下载。',
+      remarks: '默认列含状态/环节/学号/姓名/申请学年学期/生效学期/异动类别/申请日期；是否实施为可选列且导出 Y/N；日期列 YYYY-MM-DD。',
+    },
   {
     nameZh: '查看',
     nameEn: 'View',
@@ -384,43 +384,55 @@ export const approvalButtons = [
   },
 ]
 
-export const movementSearchField = [['1', '学号或姓名', 'Student ID or Name', '文本', '否', '模糊', '单关键字', '否', '']]
+export const movementSearchField = [['1', '学号或姓名', 'Student ID or Name', '文本', '否', '模糊', '仅老师入口首行', '否', '']]
 
-/** 维护/查询宽表共用列表字段 */
+/** 异动申请搜索（老师/学生双入口；次行是否实施可收起） */
+export const movementApplicationSearchFields = [
+  ['1', '学号或姓名', 'Student ID or Name', '文本', '否', '模糊', '仅老师入口首行', '否', ''],
+  ['2', '专业代码', 'Programme Code', '文本', '否', '模糊', '首行', '否', 'SE'],
+  ['3', '申请学年学期', 'Application Academic Session', '文本', '否', '模糊', '首行；YYYY/MM', '否', '2023/09'],
+  ['4', '审批状态', 'Status', '下拉', '否', '—', '首行；含 Draft', '是', ''],
+  ['5', '是否实施', 'Implemented', '下拉', '否', '—', '次行可收起；全部/待实施/已实施/—', '是', ''],
+]
+
+/** 维护/查询列表共用 15 个数据列（不含勾选与操作列；横向滚动，Actions sticky） */
 export const movementWideListFields = [
   ['1', '序号', 'No.', '序号', '—', '—', '分页自动编号', '否', ''],
-  ['2', '状态', 'Status', '枚举', '—', '—', '查询含全态；维护仅 Approved', '是', 'Approved'],
+  ['2', '状态', 'Status', '枚举', '—', '—', 'pill Badge；查询全态含 Expired；维护仅 Approved', '是', 'Approved'],
   ['3', '审批环节', 'Approval Stage', '文本', '—', '—', 'workflow 节点', '否', '已通过'],
-  ['4', '是否实施', 'Implemented', '枚举', '—', '—', 'Pending/Implemented/—', '是', 'Pending'],
+  ['4', '是否实施', 'Implemented', '枚举', '—', '—', '列表与导出显示 Y/N（Pending→—）', '是', 'N'],
   ['5', '学号', 'Student ID', '文本', '—', '—', '—', '否', 'XMUM2309001'],
   ['6', '学生姓名', 'Student Name', '文本', '—', '—', '—', '否', 'Tan Wei Ming'],
-  ['7', '申请学期', 'Application Session', '文本', '—', '—', 'applicationSession', '否', '2024/02'],
-  ['8', '生效学期', 'Effective Session', '文本', '—', '—', '按类型映射', '否', '2025/09'],
-  ['9', '异动类别', 'Movement Category', '枚举', '—', '—', '四异动类型', '是', '休学'],
-  ['10', '异动原因', 'Movement Reason', '文本', '—', '—', '摘要', '否', ''],
-  ['11', '异动日期', 'Movement Date', '日期', '—', '—', 'movementDate 或 submittedAt', '否', '2025-09-29'],
-  ['12', 'Passport/IC', 'Passport Number / IC', '文本', '—', '—', '扩展列', '否', ''],
-  ['13', '学生类型', 'Student Type', '枚举', '—', '—', 'Local/Chinese/International；中文「中国」', '是', 'Local'],
-  ['14', 'Intake', 'Intake', '文本', '—', '—', '入学批次', '否', '2024/02'],
-  ['15', '现学院', 'Current School', '文本', '—', '—', '扩展列', '否', ''],
-  ['16', '现专业代码', 'Current Programme Code', '文本', '—', '—', '扩展列', '否', ''],
-  ['17', '新学院', 'New School', '文本', '—', '—', '转专业适用', '否', ''],
-  ['18', '新专业代码', 'New Programme Code', '文本', '—', '—', '转专业适用', '否', ''],
-  ['19', '新专业名称', 'New Programme Name', '文本', '—', '—', '转专业适用', '否', ''],
-  ['20', '英文名', 'English Name', '文本', '—', '—', 'fullName', '否', ''],
-  ['21', 'CGPA', 'CGPA', '文本', '—', '—', '维护字段', '否', ''],
-  ['22', '预计毕业时间', 'Expected Graduation Time', '文本', '—', '—', '维护字段', '否', ''],
-  ['23', '异动编号', 'Movement Number', '文本', '—', '—', '维护字段', '否', 'MV2025001'],
-  ['24', '备注', 'Remark', '文本', '—', '—', 'maintenanceRemark', '否', ''],
+  ['7', '异动日期', 'Movement Date', '日期', '—', '—', 'movementDate；YYYY-MM-DD', '否', '2025-09-29'],
+  ['8', 'Passport/IC', 'Passport Number / IC', '文本', '—', '—', '列表脱敏 maskPassportIc', '否', '900***001'],
+  ['9', '学生类型', 'Student Type', '枚举', '—', '—', 'Local/Chinese/International；中文「中国」', '是', 'Local'],
+  ['10', 'Intake', 'Intake', '文本', '—', '—', '入学批次；YYYY/MM', '否', '2024/02'],
+  ['11', '申请学年学期', 'Application Academic Session', '文本', '—', '—', 'applicationSession；YYYY/MM', '否', '2024/02'],
+  ['12', '生效学期', 'Effective Session', '文本', '—', '—', '按类型映射；YYYY/MM', '否', '2025/09'],
+  ['13', '异动类别', 'Movement Category', '枚举', '—', '—', '四异动类型', '是', '休学'],
+  ['14', '异动原因', 'Movement Reason', '文本', '—', '—', '摘要', '否', ''],
+  ['15', '预计毕业时间', 'Expected Graduation Time', '文本', '—', '—', '维护字段；非 Approved 多为 —', '否', ''],
+]
+
+/** 查询/维护导出可选扩展列（默认未勾选，维护页导出亦可选） */
+export const movementQueryOptionalExportFields = [
+  ['1', '现学院', 'Current School', '文本', '—', '—', '导出可选', '否', ''],
+  ['2', '现专业代码', 'Current Programme Code', '文本', '—', '—', '导出可选', '否', ''],
+  ['3', '新学院', 'New School', '文本', '—', '—', '导出可选；转专业适用', '否', ''],
+  ['4', '新专业代码', 'New Programme Code', '文本', '—', '—', '导出可选', '否', ''],
+  ['5', '新专业名称', 'New Programme Name', '文本', '—', '—', '导出可选', '否', ''],
+  ['6', '英文名', 'English Name', '文本', '—', '—', '导出可选', '否', ''],
+  ['7', 'CGPA', 'CGPA', '文本', '—', '—', '导出可选', '否', ''],
+  ['8', '异动编号', 'Movement Number', '文本', '—', '—', '导出可选', '否', 'MV2025001'],
+  ['9', '备注', 'Remark', '文本', '—', '—', '导出可选', '否', ''],
 ]
 
 export const categoryListFields = [
   ['1', '序号', 'No.', '序号', '—', '—', '分页自动编号', '否', ''],
-  ['2', '类别编码', 'Category Code', '文本', '是', '与 Student Type 唯一', 'PT001/DEF001 等', '否', 'PT001'],
+  ['2', '类别编码', 'Category Code', '文本', '是', '全局唯一', 'PT001/DEF001/WDR001/RES001', '否', 'PT001'],
   ['3', '类别名称', 'Category Name', '文本', '是', '—', '—', '否', 'Programme Transfer'],
   ['4', '学籍状态', 'Student Status', '枚举', '是', '—', 'Offered–Expel 轨道', '是', 'Active'],
-  ['5', '类别', 'Category', '枚举', '是', '随 Student Status 过滤', 'Normal/Programme Transfer 等', '是', 'Programme Transfer'],
-  ['6', '学生类型', 'Student Type', '枚举', '是', '—', 'Local/Chinese/International', '是', 'Local'],
+  ['5', '类别', 'Category', '枚举', '是', '全量 trackCategory', 'Normal/Programme Transfer 等', '是', 'Programme Transfer'],
 ]
 
 export const categorySearchFields = [
@@ -431,7 +443,7 @@ export const categorySearchFields = [
 
 export const movementMaintenanceSearchFields = [
   ['1', '学年学期', 'Academic Session', '文本', '否', '模糊', 'applicationSession', '否', ''],
-  ['2', '异动原因', 'Movement Reason', '文本', '否', '模糊', '—', '否', ''],
+  ['2', '专业代码', 'Programme Code', '文本', '否', '模糊', 'programmeCode', '否', ''],
   ['3', '状态', 'Status', '下拉', '否', '—', '维护页固定 Approved', '是', 'Approved'],
   ['4', '学号', 'Student ID', '文本', '否', '模糊', '—', '否', ''],
   ['5', '学生姓名', 'Student Name', '文本', '否', '模糊', '—', '否', ''],
@@ -439,39 +451,64 @@ export const movementMaintenanceSearchFields = [
 
 export const movementQuerySearchFields = [
   ['1', '学年学期', 'Academic Session', '文本', '否', '模糊', '首行', '否', ''],
-  ['2', '异动原因', 'Movement Reason', '文本', '否', '模糊', '首行', '否', ''],
+  ['2', '专业代码', 'Programme Code', '文本', '否', '模糊', '首行', '否', ''],
   ['3', '状态', 'Status', '下拉', '否', '—', '首行；非 Draft 全态', '是', ''],
-  ['4', '学号', 'Student ID', '文本', '否', '模糊', '次行（可收起）', '否', ''],
-  ['5', '学生姓名', 'Student Name', '文本', '否', '模糊', '次行（可收起）', '否', ''],
+  ['4', '异动类型', 'Movement Type', '下拉', '否', '—', '首行；全部/转专业/休学/复学/退学', '是', ''],
+  ['5', '学号', 'Student ID', '文本', '否', '模糊', '次行（可收起）', '否', ''],
+  ['6', '学生姓名', 'Student Name', '文本', '否', '模糊', '次行（可收起）', '否', ''],
+]
+
+export const consentListFields = [
+  ['1', '序号', 'No.', '序号', '—', '—', '分页自动编号', '否', ''],
+  ['2', '知情同意书名称', 'Consent Form Name', '文本', '是', '—', '—', '否', 'Deferment Consent - Local'],
+  ['3', '适用异动类别', 'Applicable Movement Type', '枚举', '是', '—', '四 Tab', '是', 'Deferment'],
+  ['4', 'Student Type', 'Student Type', '枚举', '是', '—', 'Local/Chinese/International', '是', 'Local'],
+  ['5', 'Remark', 'Remark', '文本', '否', '—', '—', '否', ''],
+]
+
+export const consentSearchFields = [
+  ['1', '适用异动类别', 'Applicable Movement Type', '下拉', '否', '—', '四 Tab 枚举', '是', ''],
+  ['2', '知情同意书名称', 'Consent Form Name', '文本', '否', '模糊', '—', '否', ''],
+  ['3', 'Student Type', 'Student Type', '下拉', '否', '—', 'Local/Chinese/International', '是', ''],
 ]
 
 export const categoryDataFlow = {
   explanation:
-    '异动类别配置页提供分页列表与搜索，支持新增、编辑、删除类别行及为每行配置异动原因。Create 一次写入一行（含所选 Student Type）；Edit 时 Student Type 只读。表单除六项基础配置外，新增三个实施行为开关（修改学籍状态、修改学籍类型、是否自动实施），默认关闭，说明文案置于开关右侧。审批引擎在最终 Approved 时按 sourceKey 与学生类别 lookup 对应类别行，读取 autoImplement 决定初始实施状态；维护/自动实施时按 modify 开关 mock 回写学生档案。Set Reason 打开原因弹窗，支持原因增删改与分页。演示数据预置 12 行（PT001/DEF001/WDR001/RES001 各 × Local/Chinese/International）。',
-  preconditions: '类别编码与 Student Type 组合须唯一；Student Status 变更时 Category 下拉自动过滤并清除无效选项。',
+    '异动类别配置页提供分页列表与搜索，支持新增、编辑、删除及设置原因。每行以 categoryCode 全局唯一标识（演示 4 行：PT001/DEF001/WDR001/RES001）。表单双列四行布局：编码/名称、学籍状态/类别（类别下拉为全量 trackCategoryOptions，不与学籍状态联动）、两对实施开关（修改学籍状态/修改学籍类型/是否自动实施/允许学生申请），hint 置于开关右侧。resolveMovementCategoryConfig(sourceKey) 仅按 categoryCode lookup。reasons[] 为四异动申请原因单一数据源：转专业/休学/退学存 reasonId，展示 resolveReasonLabel；复学 RES001 本阶段不同步申请原因下拉。Set Reason 弹窗维护原因列表。',
+  preconditions: '类别编码须唯一；原因名称非空。',
   downstream:
-    '类别配置供审批通过与维护实施读取策略；本期不驱动四 Tab 申请表单动态化。原因列表供后续申请侧下拉扩展预留。',
+    '审批 autoImplement/modify 开关供引擎与维护实施读取；申请 Form 主要原因/转专业原因下拉消费 reasons。',
+}
+
+export const consentDataFlow = {
+  explanation:
+    '知情同意书配置页维护 (适用异动类别 + Student Type) 唯一模板行，含学生/家长附件 mock。四 Tab 申请 Form/Detail 及休学/退学家长区通过 resolveConsentTemplate(movementType, studentCategory) 提供 Download Consent Letter；未配置时提示。列表支持按异动类别、名称、Student Type 搜索；Create/Edit Modal 校验唯一性与必填附件。',
+  preconditions: '(movementType, studentType) 组合不可重复；学生知情同意书必填。',
+  downstream: '四类异动申请表单与详情只读附件区消费模板下载链接。',
 }
 
 export const maintenanceDataFlow = {
   explanation:
-    '维护页合并四类异动存储中 status=Approved 的记录为宽表列表，normalize 附加护照/IC、学生类型、学院专业扩展列及维护字段（异动编号、CGPA、预计毕业时间、备注、异动日期、是否实施）。搜索五字段过滤；勾选 Pending 行可批量实施（ConfirmDialog），写回 implemented=Implemented 并按类别 modify 开关回写学生档案。修改异动编号弹窗批量编辑 movementNumber；Edit 弹窗维护 CGPA 等字段，转专业额外可改 New School/Programme。Export 与查询页共用 ExportModal+xlsx 导出；Delete 确认后物理删除 store 记录。Details/Approval log 复用审批只读组件。',
-  preconditions: '仅 Approved 记录进入维护列表；自动实施记录在审批通过时已为 Implemented，实施按钮对其不可用但仍展示。',
-  downstream: '实施完成后学生档案 mock 更新学籍状态/类型；已删除记录从查询列表同步消失。',
+    '维护页合并四类 status=Approved 记录为 15 列宽表（与查询列序一致）；状态 Badge、是否实施 Y/N、护照/IC 脱敏、异动日期 YYYY-MM-DD、生效学期 YYYY/MM。搜索：学年学期、专业代码、状态、学号、姓名。工具栏：实施、导出、删除（无修改异动编号）。行操作：详情、流转日志（无 Edit）。Details 脱敏（maskSensitiveFields）。Export ExportModal 默认 15 列+9 可选。',
+  preconditions: '仅 Approved 进入列表；autoImplement 已通过记录为 Implemented。',
+  downstream: '实施按 modify 开关 mock 回写档案；删除后查询同步消失。',
 }
 
 export const queryDataFlow = {
   explanation:
-    '查询页合并四类异动全部非 Draft 记录，复用维护 normalize 逻辑展示宽表。搜索区双行布局，首行 Academic Session/异动原因/Status，次行学号/姓名，默认展开且可收起。工具栏仅 Export，打开 ExportModal 选择字段与范围（当前页/全部/选中行）生成 xlsx。行操作仅 Details 与 Approval log，无 Edit/实施/删除。表头 sortable 为 UI 装饰，首版无真实排序。',
-  preconditions: 'Draft 不在查询范围；非 Approved 记录扩展维护列多为「—」。',
-  downstream: '导出 xlsx 供教务线下核对归档；只读下钻不产生数据写回。',
+    '查询页合并四类非 Draft 记录，15 列宽表与维护一致（无 sortable）。搜索双行：首行学年学期/专业代码/状态/异动类型，次行学号/姓名可收起。工具栏仅导出；行操作详情（脱敏）与流转日志。Export ExportModal 默认 15 列+9 可选。',
+  preconditions: 'Draft 不在范围。',
+  downstream: '导出 xlsx 供教务核对；只读无写回。',
 }
 
 export const categoryBusinessFlow =
-  '进入【学籍异动】→【异动类别】→ 按类别名称/编码/学籍状态查询或重置 → 点击新增填写六项基础字段与三个实施开关后保存 → 或行内编辑/设置原因/删除 → 设置原因弹窗内新增/编辑/删除原因 → 列表分页浏览。'
+  '进入【学籍异动】→【异动类别】→ 查询或重置 → 新增/编辑四行表单与实施开关 → 设置原因 → 列表分页。'
+
+export const consentBusinessFlow =
+  '进入【学籍异动】→【知情同意书】→ 按异动类别/名称/Student Type 查询 → 新增或编辑模板与附件 → 行内查看/编辑 → 批量删除。'
 
 export const maintenanceBusinessFlow =
-  '进入【学籍异动】→【学籍异动维护】→ 填写搜索条件查询或重置 → 勾选待实施记录点击实施并确认 → 或勾选后修改异动编号 → 行内编辑维护字段 → 详情/流转日志只读查看 → 导出选择字段与范围下载 xlsx → 勾选删除并确认。'
+  '进入【学籍异动】→【学籍异动维护】→ 搜索查询或重置 → 勾选待实施记录实施 → 详情/流转日志 → 导出 xlsx → 删除。'
 
 export const queryBusinessFlow =
-  '进入【学籍异动】→【学籍异动查询】→ 首行填写学年学期/异动原因/状态，次行填写学号/姓名（可收起）→ 查询或重置 → 浏览宽表 → 行内详情/流转日志 → 导出打开字段弹窗选择范围下载 xlsx。'
+  '进入【学籍异动】→【学籍异动查询】→ 首行学年学期/专业代码/状态/异动类型，次行学号/姓名（可收起）→ 查询 → 详情/流转日志 → 导出 xlsx。'

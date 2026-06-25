@@ -1,4 +1,6 @@
 import { isLocalCategory } from './students.js'
+import { resolveApplicationSessionFromStudent } from './movementApplicationSession.js'
+import { validateAcademicSessionOrder } from '../utils/normalizeAcademicSession.js'
 
 export const resumptionStatusOptions = [
   'Draft',
@@ -9,7 +11,7 @@ export const resumptionStatusOptions = [
   'Cancelled',
 ]
 
-export const semesterOptions = ['2023/04', '2023/09', '2024/02', '2024/04', '2024/09', '2025/01', '2025/09', '2026/01']
+export const semesterOptions = ['2023/04', '2023/09', '2024/02', '2024/04', '2024/09', '2025/02', '2025/09', '2026/02']
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -29,16 +31,14 @@ export function formatResumptionDateTime(date = new Date()) {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+import { formatMovementDate } from '../utils/formatMovementDate.js'
+
 export function formatResumptionListDate(value) {
-  const date = value ? new Date(value) : new Date()
-  if (Number.isNaN(date.getTime())) return String(value || '')
-  return `${date.getDate()} ${MONTH_LABELS[date.getMonth()]} ${date.getFullYear()}`
+  return formatMovementDate(value)
 }
 
 export function formatApplicationDateDisplay(value) {
-  const date = value ? new Date(value) : new Date()
-  if (Number.isNaN(date.getTime())) return String(value || '')
-  return `${date.getDate()} ${MONTH_LABELS[date.getMonth()]} ${date.getFullYear()}`
+  return formatMovementDate(value)
 }
 
 export function createEmptyResumption() {
@@ -52,6 +52,7 @@ export function createEmptyResumption() {
     archived: false,
     submittedAt: null,
     dateOfApplication: today,
+    applicationSession: '',
     fullName: '',
     originalIntake: '',
     programme: '',
@@ -114,6 +115,7 @@ export function buildStudentSnapshotForResumption(student) {
     programmeLevel: enrollment.programmeLevel || '',
     personalEmail: contact.email || '',
     phoneNumber: contact.mobilePhone || '',
+    applicationSession: resolveApplicationSessionFromStudent(student),
   }
 }
 
@@ -228,6 +230,16 @@ export function validateResumptionForm(data, mode = 'submit', existingList = [],
     requireField('studentId', 'This student already has an active resumption application.')
   }
 
+  validateAcademicSessionOrder(
+    {
+      intake: data.originalIntake,
+      applicationSession: data.applicationSession,
+      effectiveSession: data.resumptionSemester,
+    },
+    requireField,
+    { effectiveSession: 'resumptionSemester' },
+  )
+
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
@@ -336,12 +348,13 @@ export const initialResumptions = [
     personalEmail: 'tan.weiming@student.xmum.edu.my',
     phoneNumber: '0123456789',
     defermentSemester: '2024/02',
-    resumptionSemester: '2025/01',
+    resumptionSemester: '2025/02',
     attachment: { fileName: 'payment-receipt.pdf', size: 180000 },
     declarationCorrect: true,
     declarationMaxDuration: true,
     status: 'Approved',
     approvalStage: 'Approved',
+    implemented: 'Implemented',
     archived: true,
     submittedAt: '2024-06-01T10:00:00.000Z',
     dateOfApplication: '2024-05-28',
@@ -417,7 +430,7 @@ export const initialResumptions = [
     programmeLevel: 'Undergraduate',
     personalEmail: 'ahmad.rizal@student.xmum.edu.my',
     phoneNumber: '0112233445',
-    defermentSemester: '2025/01',
+    defermentSemester: '2025/02',
     resumptionSemester: '2025/09',
     attachment: { fileName: 'rizal-payment.pdf', size: 185000 },
     declarationCorrect: true,
@@ -444,7 +457,7 @@ export const initialResumptions = [
     personalEmail: 'sarah.chen@student.xmum.edu.my',
     phoneNumber: '0131112233',
     defermentSemester: '2024/09',
-    resumptionSemester: '2025/01',
+    resumptionSemester: '2025/02',
     attachment: { fileName: 'sarah-clearance.pdf', size: 210000 },
     declarationCorrect: true,
     declarationMaxDuration: true,
@@ -484,7 +497,7 @@ export const initialResumptions = [
     programmeLevel: 'Undergraduate',
     personalEmail: 'david.tan@student.xmum.edu.my',
     defermentSemester: '2025/09',
-    resumptionSemester: '2026/01',
+    resumptionSemester: '2026/02',
     status: 'Draft',
     approvalStage: '--',
     approvalLog: [],
@@ -502,7 +515,7 @@ export const initialResumptions = [
     programmeLevel: 'Undergraduate',
     personalEmail: 'ng.jiahui@student.xmum.edu.my',
     phoneNumber: '0189900112',
-    defermentSemester: '2025/01',
+    defermentSemester: '2025/02',
     resumptionSemester: '2025/09',
     attachment: { fileName: 'ng-medical.pdf', size: 95000 },
     declarationCorrect: true,
@@ -529,7 +542,7 @@ export const initialResumptions = [
     personalEmail: 'raj.kumar@student.xmum.edu.my',
     phoneNumber: '0145566778',
     defermentSemester: '2024/09',
-    resumptionSemester: '2025/01',
+    resumptionSemester: '2025/02',
     attachment: { fileName: 'raj-medical.pdf', size: 88000 },
     declarationCorrect: true,
     declarationMaxDuration: true,
@@ -556,7 +569,7 @@ export const initialResumptions = [
     personalEmail: 'lim.weijie@student.xmum.edu.my',
     phoneNumber: '0190011223',
     defermentSemester: '2025/09',
-    resumptionSemester: '2026/01',
+    resumptionSemester: '2026/02',
     attachment: { fileName: 'lim-consent.pdf', size: 110000 },
     declarationCorrect: true,
     declarationMaxDuration: true,
@@ -581,7 +594,7 @@ export const initialResumptions = [
     programme: 'Bachelor of Finance',
     programmeLevel: 'Undergraduate',
     personalEmail: 'chen.yuting@student.xmum.edu.my',
-    defermentSemester: '2025/01',
+    defermentSemester: '2025/02',
     resumptionSemester: '2025/09',
     attachment: { fileName: 'chen-consent.pdf', size: 130000 },
     declarationCorrect: true,
@@ -609,7 +622,7 @@ export const initialResumptions = [
     programmeLevel: 'Undergraduate',
     personalEmail: 'siti.aminah@student.xmum.edu.my',
     defermentSemester: '2025/09',
-    resumptionSemester: '2026/01',
+    resumptionSemester: '2026/02',
     attachment: { fileName: 'siti-docs.pdf', size: 102000 },
     declarationCorrect: true,
     declarationMaxDuration: true,
@@ -633,7 +646,7 @@ export const initialResumptions = [
     programme: 'Bachelor of Computer Science',
     programmeLevel: 'Undergraduate',
     personalEmail: 'priya.sharma@student.xmum.edu.my',
-    defermentSemester: '2025/01',
+    defermentSemester: '2025/02',
     resumptionSemester: '2025/09',
     attachment: { fileName: 'priya-medical.pdf', size: 98000 },
     declarationCorrect: true,

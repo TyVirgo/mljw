@@ -1,4 +1,14 @@
 import { isLocalCategory } from './students.js'
+import { resolveApplicationSessionFromStudent } from './movementApplicationSession.js'
+import { validateAcademicSessionOrder } from '../utils/normalizeAcademicSession.js'
+import {
+  PT_OTHERS_REASON_ID,
+  resolveReasonIdByName,
+  resolveReasonLabel,
+  isValidReasonIdForCategory,
+} from './movementCategories.js'
+
+const PT_CATEGORY_CODE = 'PT001'
 
 export const TRANSFER_TYPE = 'Programme Transfer'
 
@@ -21,11 +31,29 @@ export const programmeOptions = [
   'Bachelor of Data Science',
 ]
 
-export const intakeOptions = ['2023/09', '2024/01', '2024/09', '2025/01', '2025/09']
+export const intakeOptions = ['2023/09', '2024/02', '2024/09', '2025/02', '2025/09']
 
-export const semesterOptions = ['2024/09', '2025/01', '2025/09', '2026/01']
+export const semesterOptions = ['2024/09', '2025/02', '2025/09', '2026/02']
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+export function getTransferReasonDisplay(item) {
+  const fromConfig = resolveReasonLabel(PT_CATEGORY_CODE, item?.reasonId)
+  if (fromConfig) return fromConfig
+  return item?.transferReason || ''
+}
+
+function syncTransferReasonFields(base) {
+  let reasonId = base.reasonId
+  if (!isValidReasonIdForCategory(PT_CATEGORY_CODE, reasonId)) {
+    reasonId =
+      resolveReasonIdByName(PT_CATEGORY_CODE, base.transferReason) ??
+      (String(base.transferReason || '').trim() ? PT_OTHERS_REASON_ID : null)
+  }
+  const transferReason =
+    resolveReasonLabel(PT_CATEGORY_CODE, reasonId) || base.transferReason || ''
+  return { reasonId, transferReason }
+}
 
 let nextId = 15
 let nextAppSeq = 15
@@ -43,10 +71,10 @@ export function formatTransferDateTime(date = new Date()) {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+import { formatMovementDate } from '../utils/formatMovementDate.js'
+
 export function formatTransferListDate(value) {
-  const date = value ? new Date(value) : new Date()
-  if (Number.isNaN(date.getTime())) return String(value || '')
-  return `${date.getDate()} ${MONTH_LABELS[date.getMonth()]} ${date.getFullYear()}`
+  return formatMovementDate(value)
 }
 
 export function createEmptyTransfer() {
@@ -62,6 +90,7 @@ export function createEmptyTransfer() {
     cancelledAt: null,
     expiredAt: null,
     applicationDeadline: '2026-12-31',
+    applicationSession: '',
     targetSemester: '',
     fullName: '',
     nricPassport: '',
@@ -75,6 +104,7 @@ export function createEmptyTransfer() {
     newProgrammeFirstChoice: '',
     newProgrammeSecondChoice: '',
     startSemester: '',
+    reasonId: null,
     transferReason: '',
     declarationAgreed: false,
     attachment: null,
@@ -97,6 +127,7 @@ export function getTransferFormData(record) {
 
 export function normalizeTransfer(raw) {
   const base = { ...createEmptyTransfer(), ...raw }
+  const { reasonId, transferReason } = syncTransferReasonFields(base)
   const newProgramme =
     base.adminNewProgramme ||
     base.newProgrammeFirstChoice ||
@@ -108,9 +139,11 @@ export function normalizeTransfer(raw) {
     id: base.id ?? createTransferId(),
     applicationId: base.applicationId || createApplicationId(),
     type: TRANSFER_TYPE,
+    reasonId,
     name: base.fullName || base.name || '',
     oldProgramme: base.currentProgramme || base.oldProgramme || '',
     newProgramme,
+    transferReason,
     applicationDate: base.submittedAt || base.applicationDate || base.createdAt || null,
     archived:
       base.archived === true ||
@@ -140,6 +173,7 @@ export function buildStudentSnapshotFromProfile(student) {
     currentProgramme: enrollment.programme || '',
     currentIntake: enrollment.intake || '',
     currentSchool: enrollment.faculty || '',
+    applicationSession: resolveApplicationSessionFromStudent(student),
   }
 }
 
@@ -238,8 +272,8 @@ export function validateTransferForm(data, mode = 'submit', existingList = [], e
   if (!String(data.startSemester || '').trim()) {
     requireField('startSemester', 'Start Semester is required.')
   }
-  if (!String(data.transferReason || '').trim()) {
-    requireField('transferReason', 'Reasons to transfer are required.')
+  if (!isValidReasonIdForCategory(PT_CATEGORY_CODE, data.reasonId)) {
+    requireField('reasonId', 'Reasons to transfer are required.')
   }
   if (!data.declarationAgreed) {
     requireField('declarationAgreed', 'You must agree to the declaration.')
@@ -254,6 +288,16 @@ export function validateTransferForm(data, mode = 'submit', existingList = [], e
   ) {
     requireField('studentId', 'This student already has an active transfer application.')
   }
+
+  validateAcademicSessionOrder(
+    {
+      intake: data.currentIntake,
+      applicationSession: data.applicationSession,
+      effectiveSession: data.startSemester,
+    },
+    requireField,
+    { effectiveSession: 'startSemester' },
+  )
 
   return { valid: Object.keys(errors).length === 0, errors }
 }
@@ -337,25 +381,6 @@ export function resubmitApplication(item, actor = 'Student') {
   })
 }
 
-export function expireApplication(item) {
-  if (!['Draft', 'Update Required'].includes(item.status)) return item
-  const now = formatTransferDateTime(new Date())
-  let updated = appendLog(item, {
-    stage: item.approvalStage || '--',
-    actor: 'System',
-    action: 'Expired',
-    dateTime: now,
-    comment: 'Application expired due to deadline.',
-  })
-  return normalizeTransfer({
-    ...updated,
-    status: 'Expired',
-    approvalStage: '--',
-    archived: true,
-    expiredAt: new Date().toISOString(),
-  })
-}
-
 export function isTransferExpired(item, referenceDate = new Date()) {
   if (!['Draft', 'Update Required'].includes(item?.status)) return false
   if (!item?.applicationDeadline) return false
@@ -416,7 +441,7 @@ export const initialProgrammeTransfers = [
     currentSchool: 'School of Business',
     newProgrammeFirstChoice: 'Bachelor of Accounting',
     newProgrammeSecondChoice: 'Bachelor of Data Science',
-    startSemester: '2025/01',
+    startSemester: '2025/02',
     transferReason: 'Seeking accounting accreditation for professional certification.',
     declarationAgreed: true,
     attachment: { fileName: 'rizal-consent.pdf', size: 198000 },
@@ -466,6 +491,7 @@ export const initialProgrammeTransfers = [
     adminDate: '2023-09-20',
     status: 'Approved',
     approvalStage: 'Approved',
+    implemented: 'Implemented',
     archived: true,
     submittedAt: '2023-09-01T10:00:00.000Z',
     applicationDeadline: '2026-12-31',
@@ -597,7 +623,7 @@ export const initialProgrammeTransfers = [
     currentIntake: '2023/09',
     currentSchool: 'School of Business',
     newProgrammeFirstChoice: 'Bachelor of Accounting',
-    startSemester: '2025/01',
+    startSemester: '2025/02',
     transferReason: 'Please update the supporting documents and reason details.',
     declarationAgreed: true,
     attachment: { fileName: 'draft-letter.pdf', size: 120000 },
@@ -637,7 +663,7 @@ export const initialProgrammeTransfers = [
     currentIntake: '2023/04',
     currentSchool: 'School of Business',
     newProgrammeFirstChoice: 'Bachelor of Finance',
-    startSemester: '2025/01',
+    startSemester: '2025/02',
     transferReason: 'Incomplete financial supporting documents attached.',
     declarationAgreed: true,
     attachment: { fileName: 'ng-support.pdf', size: 95000 },
@@ -720,7 +746,7 @@ export const initialProgrammeTransfers = [
     currentIntake: '2023/09',
     currentSchool: 'School of Business',
     newProgrammeFirstChoice: 'Bachelor of International Business',
-    startSemester: '2025/01',
+    startSemester: '2025/02',
     transferReason: 'Decided to remain in current programme.',
     declarationAgreed: true,
     attachment: { fileName: 'chen-consent.pdf', size: 130000 },
@@ -763,7 +789,7 @@ export const initialProgrammeTransfers = [
     currentIntake: '2023/09',
     currentSchool: 'School of Business',
     newProgrammeFirstChoice: 'Bachelor of Finance',
-    startSemester: '2025/01',
+    startSemester: '2025/02',
     transferReason: 'Seeking finance specialisation.',
     declarationAgreed: true,
     attachment: { fileName: 'raj-docs.pdf', size: 88000 },

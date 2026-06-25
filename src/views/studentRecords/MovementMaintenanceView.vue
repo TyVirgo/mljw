@@ -5,25 +5,28 @@ import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import ApprovalLogModal from '../../components/studentRecords/ApprovalLogModal.vue'
 import MovementApprovalReviewView from '../../components/studentRecords/MovementApprovalReviewView.vue'
-import MovementMaintenanceEditModal from '../../components/studentRecords/MovementMaintenanceEditModal.vue'
-import MovementMaintenanceNumberModal from '../../components/studentRecords/MovementMaintenanceNumberModal.vue'
 import { useListPageI18n } from '../../composables/useListPageI18n.js'
 import { DEFAULT_APPROVER_ROLE } from '../../data/movementApprovalEngine.js'
+import { formatImplementedYn } from '../../data/movementApprovalQueue.js'
+import { getCurrentApplicationSession } from '../../data/movementApplicationSession.js'
+import { getDistinctApplicationSessions } from '../../data/movementListSearchOptions.js'
 import {
   mergeMovementMaintenanceQueue,
   filterMaintenanceBySearch,
   movementMaintenanceStatusOptions,
 } from '../../data/movementMaintenanceQueue.js'
-import { movementQueryExportFields } from '../../data/movementQueryExportFields.js'
+import { movementMaintenanceExportFields, movementMaintenanceExportColumnMeta } from '../../data/movementMaintenanceExportFields.js'
 import {
   implementMaintenanceRecords,
   deleteMaintenanceRecords,
   MAINTENANCE_EMPTY,
 } from '../../data/movementMaintenanceFields.js'
-import { statusBadgeClass as defermentStatusBadgeClass } from '../../data/deferments.js'
 import { exportMovementQueryToExcel } from '../../utils/exportMovementQueryExcel.js'
+import { maskPassportIc } from '../../utils/maskPassportIc.js'
+import { movementListStatusBadgeClass } from '../../utils/movementListStatusBadge.js'
+import '../../styles/movement-status-badge.css'
 
-const { t, tr, translatedExportFields } = useListPageI18n(movementQueryExportFields)
+const { t, tr, translatedExportFields } = useListPageI18n(movementMaintenanceExportFields)
 
 const currentRole = DEFAULT_APPROVER_ROLE
 
@@ -37,8 +40,6 @@ const pageSize = ref(10)
 const viewMode = ref('list')
 const reviewItem = ref(null)
 const approvalLogItem = ref(null)
-const editRow = ref(null)
-const numberModalVisible = ref(false)
 
 const confirmVisible = ref(false)
 const confirmTitle = ref('')
@@ -49,7 +50,7 @@ const exportModalVisible = ref(false)
 function createEmptySearch() {
   return {
     academicSession: '',
-    movementReason: '',
+    programmeCode: '',
     status: '',
     studentId: '',
     studentName: '',
@@ -57,6 +58,8 @@ function createEmptySearch() {
 }
 
 const fullQueue = computed(() => mergeMovementMaintenanceQueue(t))
+
+const sessionOptions = computed(() => getDistinctApplicationSessions(fullQueue.value))
 
 const filteredItems = computed(() => filterMaintenanceBySearch(fullQueue.value, appliedSearch.value))
 
@@ -68,9 +71,14 @@ const paginatedItems = computed(() => {
   return filteredItems.value.slice(start, start + pageSize.value)
 })
 
+const selectablePageItems = computed(() =>
+  paginatedItems.value.filter((item) => item.implemented === 'Pending'),
+)
+
 const allPageSelected = computed(() => {
-  if (!paginatedItems.value.length) return false
-  return paginatedItems.value.every((item) => selectedKeys.value.includes(item.queueKey))
+  const selectable = selectablePageItems.value
+  if (!selectable.length) return false
+  return selectable.every((item) => selectedKeys.value.includes(item.queueKey))
 })
 
 const selectedRows = computed(() =>
@@ -85,21 +93,28 @@ const canImplement = computed(
   () => hasSelection.value && selectedRows.value.some((row) => row.implemented === 'Pending'),
 )
 
+function pruneSelection() {
+  selectedKeys.value = selectedKeys.value.filter((key) => {
+    const row = fullQueue.value.find((item) => item.queueKey === key)
+    return row && row.implemented === 'Pending'
+  })
+}
+
 function handleSearch() {
   appliedSearch.value = { ...searchForm.value }
   currentPage.value = 1
-  selectedKeys.value = []
+  pruneSelection()
 }
 
 function handleReset() {
   searchForm.value = createEmptySearch()
   appliedSearch.value = createEmptySearch()
   currentPage.value = 1
-  selectedKeys.value = []
+  pruneSelection()
 }
 
 function toggleSelectAll(event) {
-  const pageKeys = paginatedItems.value.map((item) => item.queueKey)
+  const pageKeys = selectablePageItems.value.map((item) => item.queueKey)
   if (event.target.checked) {
     selectedKeys.value = [...new Set([...selectedKeys.value, ...pageKeys])]
   } else {
@@ -108,11 +123,41 @@ function toggleSelectAll(event) {
 }
 
 function toggleSelect(queueKey) {
+  const row = fullQueue.value.find((item) => item.queueKey === queueKey)
+  if (!row || row.implemented !== 'Pending') return
   if (selectedKeys.value.includes(queueKey)) {
     selectedKeys.value = selectedKeys.value.filter((key) => key !== queueKey)
   } else {
     selectedKeys.value = [...selectedKeys.value, queueKey]
   }
+}
+
+function isImmediateImplementRow(row) {
+  const current = getCurrentApplicationSession()
+  const effective = row.effectiveSession
+  return current && effective && effective !== '—' && current === effective
+}
+
+function buildImplementConfirmMessage(eligible) {
+  const immediate = eligible.filter(isImmediateImplementRow)
+  const scheduled = eligible.filter((row) => !isImmediateImplementRow(row))
+  if (immediate.length && !scheduled.length) {
+    return t('movementMaintenance.implementConfirm', { count: immediate.length })
+  }
+  if (scheduled.length && !immediate.length) {
+    const sessions = [...new Set(scheduled.map((row) => row.effectiveSession).filter(Boolean))]
+    if (sessions.length === 1) {
+      return t('movementMaintenance.implementConfirmScheduled', {
+        count: scheduled.length,
+        effectiveSession: sessions[0],
+      })
+    }
+    return t('movementMaintenance.implementConfirmScheduledMulti', { count: scheduled.length })
+  }
+  return t('movementMaintenance.implementConfirmMixed', {
+    immediate: immediate.length,
+    scheduled: scheduled.length,
+  })
 }
 
 function openDetails(row) {
@@ -129,27 +174,6 @@ function openApprovalLog(row) {
   approvalLogItem.value = row
 }
 
-function openEdit(row) {
-  editRow.value = row
-}
-
-function closeEdit() {
-  editRow.value = null
-}
-
-function openNumberModal() {
-  if (!hasSelection.value) return
-  numberModalVisible.value = true
-}
-
-function closeNumberModal() {
-  numberModalVisible.value = false
-}
-
-function handleNumberSaved() {
-  selectedKeys.value = []
-}
-
 function requestImplement() {
   if (!hasSelection.value) return
   const eligible = selectedRows.value.filter((row) => row.implemented === 'Pending')
@@ -158,7 +182,7 @@ function requestImplement() {
     return
   }
   confirmTitle.value = t('movementMaintenance.implement')
-  confirmMessage.value = t('movementMaintenance.implementConfirm', { count: eligible.length })
+  confirmMessage.value = buildImplementConfirmMessage(eligible)
   confirmAction.value = () => {
     implementMaintenanceRecords(eligible)
     selectedKeys.value = []
@@ -220,12 +244,17 @@ function handleExportConfirm({ selectedFields, exportScope }) {
     selectedFields,
     { t, tr },
     'Movement Maintenance',
+    {
+      columnMeta: movementMaintenanceExportColumnMeta,
+      implementedAsYn: true,
+      maskPassport: true,
+    },
   )
   exportModalVisible.value = false
 }
 
-function handlePaginationChange({ type }) {
-  if (type === 'pageSize') selectedKeys.value = []
+function handlePaginationChange() {
+  pruneSelection()
 }
 
 function getRowNumber(index) {
@@ -239,10 +268,8 @@ function statusLabel(status) {
   return map[status] || status
 }
 
-function implementedLabel(value) {
-  const key = `movementMaintenance.implemented.${value}`
-  const translated = t(key)
-  return translated !== key ? translated : value
+function implementedDisplay(value) {
+  return formatImplementedYn(value)
 }
 
 function studentTypeLabel(type) {
@@ -255,6 +282,12 @@ function displayCell(value) {
   if (value === '' || value == null) return MAINTENANCE_EMPTY
   return value
 }
+
+function displayPassportIc(value) {
+  const raw = displayCell(value)
+  if (raw === MAINTENANCE_EMPTY) return raw
+  return maskPassportIc(raw)
+}
 </script>
 
 <template>
@@ -263,6 +296,7 @@ function displayCell(value) {
     :queue-item="reviewItem"
     mode="readonly"
     :current-role="currentRole"
+    :mask-sensitive-fields="true"
     @back="closeReview"
   />
 
@@ -273,17 +307,21 @@ function displayCell(value) {
           <div class="search-fields">
             <div class="search-item">
               <label>{{ t('movementMaintenance.search.academicSession') }}</label>
-              <input
+              <select
                 v-model="searchForm.academicSession"
-                type="text"
-                class="search-input"
-                :placeholder="t('common.pleaseInput')"
-              />
+                class="search-select"
+                :class="{ 'is-empty': !searchForm.academicSession }"
+              >
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="session in sessionOptions" :key="session" :value="session">
+                  {{ session }}
+                </option>
+              </select>
             </div>
             <div class="search-item">
-              <label>{{ t('movementMaintenance.search.movementReason') }}</label>
+              <label>{{ t('movementMaintenance.search.programmeCode') }}</label>
               <input
-                v-model="searchForm.movementReason"
+                v-model="searchForm.programmeCode"
                 type="text"
                 class="search-input"
                 :placeholder="t('common.pleaseInput')"
@@ -333,14 +371,6 @@ function displayCell(value) {
         <button type="button" class="btn btn-primary" :disabled="!canImplement" @click="requestImplement">
           {{ t('movementMaintenance.implement') }}
         </button>
-        <button
-          type="button"
-          class="btn btn-outline"
-          :disabled="!hasSelection"
-          @click="openNumberModal"
-        >
-          {{ t('movementMaintenance.modifyMovementNumber') }}
-        </button>
         <button type="button" class="btn btn-outline" @click="openExportModal">{{ t('common.export') }}</button>
         <button
           type="button"
@@ -358,7 +388,12 @@ function displayCell(value) {
             <thead>
               <tr>
                 <th class="col-check">
-                  <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
+                  <input
+                    type="checkbox"
+                    :checked="allPageSelected"
+                    :disabled="!selectablePageItems.length"
+                    @change="toggleSelectAll"
+                  />
                 </th>
                 <th>{{ t('common.serialNo') }}</th>
                 <th>{{ tr('Status') }}</th>
@@ -374,62 +409,42 @@ function displayCell(value) {
                 <th>{{ t('movementApproval.columns.effectiveSession') }}</th>
                 <th>{{ t('movementApproval.columns.movementCategory') }}</th>
                 <th>{{ t('movementApproval.columns.movementReason') }}</th>
-                <th>{{ t('movementMaintenance.columns.currentSchool') }}</th>
-                <th>{{ t('movementMaintenance.columns.currentProgrammeCode') }}</th>
-                <th>{{ t('movementMaintenance.columns.newSchool') }}</th>
-                <th>{{ t('movementMaintenance.columns.newProgrammeCode') }}</th>
-                <th>{{ t('movementMaintenance.columns.newProgrammeName') }}</th>
-                <th>{{ t('movementMaintenance.columns.englishName') }}</th>
-                <th>{{ t('movementMaintenance.columns.cgpa') }}</th>
-                <th>{{ t('movementMaintenance.columns.expectedGraduationTime') }}</th>
-                <th>{{ t('movementMaintenance.columns.movementNumber') }}</th>
-                <th>{{ t('movementMaintenance.columns.remark') }}</th>
                 <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!paginatedItems.length">
-                <td colspan="26" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="16" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedItems" :key="item.queueKey">
                 <td class="col-check">
                   <input
                     type="checkbox"
                     :checked="selectedKeys.includes(item.queueKey)"
+                    :disabled="item.implemented !== 'Pending'"
                     @change="toggleSelect(item.queueKey)"
                   />
                 </td>
                 <td>{{ getRowNumber(index) }}</td>
                 <td>
-                  <span class="status-badge" :class="defermentStatusBadgeClass(item.status)">
+                  <span class="status-badge" :class="movementListStatusBadgeClass(item.status)">
                     {{ statusLabel(item.status) }}
                   </span>
                 </td>
                 <td>{{ tr(item.approvalStage) }}</td>
-                <td>{{ implementedLabel(item.implemented) }}</td>
+                <td>{{ implementedDisplay(item.implemented) }}</td>
                 <td>{{ item.studentId }}</td>
                 <td>{{ item.fullName }}</td>
                 <td>{{ displayCell(item.movementDate) }}</td>
-                <td>{{ displayCell(item.passportIc) }}</td>
+                <td>{{ displayPassportIc(item.passportIc) }}</td>
                 <td>{{ studentTypeLabel(item.studentType) }}</td>
                 <td>{{ displayCell(item.intake) }}</td>
                 <td>{{ item.applicationSession }}</td>
                 <td>{{ item.effectiveSession }}</td>
                 <td>{{ t(item.movementCategoryKey) }}</td>
                 <td class="reason-cell">{{ item.movementReason }}</td>
-                <td>{{ displayCell(item.currentSchool) }}</td>
-                <td>{{ displayCell(item.currentProgrammeCode) }}</td>
-                <td>{{ displayCell(item.newSchool) }}</td>
-                <td>{{ displayCell(item.newProgrammeCode) }}</td>
-                <td>{{ displayCell(item.newProgrammeName) }}</td>
-                <td>{{ displayCell(item.englishName) }}</td>
-                <td>{{ displayCell(item.cgpa) }}</td>
-                <td>{{ displayCell(item.expectedGraduationTime) }}</td>
-                <td>{{ displayCell(item.movementNumber) }}</td>
-                <td class="remark-cell">{{ displayCell(item.remark) }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
-                    <button type="button" class="link-btn" @click="openEdit(item)">{{ tr('Edit') }}</button>
                     <button type="button" class="link-btn" @click="openDetails(item)">{{ tr('Details') }}</button>
                     <button type="button" class="link-btn" @click="openApprovalLog(item)">
                       {{ tr('Approval Log') }}
@@ -449,20 +464,6 @@ function displayCell(value) {
         />
       </div>
     </div>
-
-    <MovementMaintenanceEditModal
-      :visible="!!editRow"
-      :row="editRow"
-      @close="closeEdit"
-      @saved="closeEdit"
-    />
-
-    <MovementMaintenanceNumberModal
-      :visible="numberModalVisible"
-      :rows="selectedRows"
-      @close="closeNumberModal"
-      @saved="handleNumberSaved"
-    />
 
     <ApprovalLogModal
       :visible="!!approvalLogItem"
@@ -614,8 +615,7 @@ function displayCell(value) {
   width: 48px;
 }
 
-.reason-cell,
-.remark-cell {
+.reason-cell {
   max-width: 180px;
   white-space: normal;
 }
@@ -624,15 +624,6 @@ function displayCell(value) {
   text-align: center;
   color: #9ca3af;
   padding: 40px !important;
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #fff;
 }
 
 .actions-inner {

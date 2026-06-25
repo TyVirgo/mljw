@@ -47,7 +47,8 @@
 ### Modified Capabilities
 
 - `student-records-app`: `sr-movement-maintenance` 从建设中升级为已开发
-- `movement-application-details`: 维护 Edit 弹窗字段与 Details 只读视图的数据来源说明（共用 store 记录）
+- `movement-application-details`: 维护 Edit 弹窗字段与 Details 只读视图的数据来源说明（共用 store 记录）；§11 `Scheduled` 状态
+- `movement-list-academic-session-search`: 审批/维护/查询学年学期下拉（§11）
 
 ## Impact
 
@@ -61,9 +62,157 @@
   - `movementStore` 四 Tab 初始 mock 补 Approved + 维护字段
   - `studentRecordsMenu.js`、`App.vue`
   - `src/i18n/locales/en.js`、`zh.js`、`zh-flat.js`
+- **新增**（§11）
+  - `movementListSearchOptions.js`（或等价 helper）
+  - `movementImplementationScheduler.js` — `processDueImplementations`
+- **修改**（§11）
+  - `MovementApprovalView.vue`、`MovementQueryView.vue` — 学年学期 select
+  - `movementApprovalQueue.js`、`movementMaintenanceQueue.js`、`movementQueryQueue.js` — academicSession 精确匹配
+  - `movementApprovalEngine.js` — autoImplement 延迟
 - **复用**
   - `ApprovalLogModal`、`MovementApprovalReviewView`、`ConfirmDialog`、`TablePagination`、`ExportModal`（可选）
 - **Non-goals**
-  - 真实写入学籍档案 / 后端 API
-  - 异动查询、统计页
+  - 真实写入学籍档案 / 后端 API（mock 档案写入仍限于 `applyStudentProfileFromMovement`）
+  - 异动统计页学年学期下拉（§11 不含）
   - 修改审批流或重新打开已实施记录审批
+  - 真实后端 cron 定时任务
+
+---
+
+## §7 搜索：专业代码替换异动原因（增量）
+
+与审批 / 查询 / 统计四模块搜索字段对齐：**去掉异动原因，增加专业代码**（紧挨学年学期）。
+
+| 变更 | 说明 |
+|------|------|
+| 删除 | 搜索区「异动原因」 |
+| 新增 | **专业代码** 文本搜索 |
+| 过滤 | `filterMaintenanceBySearch`：`programmeCode` substring；依赖队列 `programmeCode`（`normalizeQueueItem` / `resolveStatDimensions`） |
+
+### Decisions（§7 已确认）
+
+- 专业代码语义与统计 `resolveStatDimensions` 一致；转专业仅现专业代码
+- 表格「异动原因」列 **不变**（仅搜索去掉）
+
+---
+
+## §8 维护列表 UI 精简与只读（增量）
+
+产品反馈：维护页表格过宽、含不应展示的列；维护模块**不可编辑**；Passport/IC 需脱敏。
+
+### 工具栏
+
+| 移除 | 保留 |
+|------|------|
+| 修改异动编号 | 实施、Export、Delete |
+
+### 行操作
+
+| 移除 | 保留 |
+|------|------|
+| Edit | Details、Approval log |
+
+### 表格列
+
+| 变更 | 说明 |
+|------|------|
+| 移除列 | CGPA、English、异动编号、Remark |
+| 表格隐藏 | Current/New School、Current/New Programme Code、New Programme Name（**Details 详情仍展示**） |
+| Passport/IC | 列表脱敏 |
+| 是否实施 | **Y/N**（Implemented→Y，其余→N） |
+| 搜索 | zh「学年学期」（对齐其它模块） |
+
+### 脱敏（三端一致）
+
+- 列表 `passportIc`、Details（`maskSensitiveFields`）、Export 均用 `maskPassportIc()`
+- 详情含 `parentNricPassport`（休学/退学家长证件）同样脱敏
+- 审批/查询详情不脱敏
+
+### Decisions（§8 已确认）
+
+| 项 | 决策 |
+|----|------|
+| Edit / 改编号 | 移除 UI；store 字段可保留 |
+| 详情校字段 | 仅表格隐藏，DetailModal 保留 |
+| Export | 专用列集 + 脱敏 + Y/N |
+
+---
+
+## §9 状态 Badge 与申请页一致（增量）
+
+维护列表 Status 列当前类名正确（`statusBadgeClass`），但 scoped 样式 `color: #fff` 覆盖且未加载状态色 CSS，与四 Tab 申请页 pill 标签不一致。
+
+### 变更
+
+| 项 | 说明 |
+|----|------|
+| CSS | `import movement-status-badge.css`；更新为 **pill**（`border-radius: 999px`，与 `DefermentView` 等申请页一致） |
+| 类名 | 继续 `statusBadgeClass(status)`；`Expired` → `status-expired`（与审批 `approvalStatusBadgeClass` 同逻辑） |
+| 移除 | scoped `.status-badge { color: #fff; }` 及重复状态色定义 |
+
+### Decisions（§9 已确认）
+
+| 项 | 决策 |
+|----|------|
+| 色板 | 与四 Tab 申请页相同（浅底 + 深字） |
+| 形态 | pill 圆角 |
+| Expired | 支持 `status-expired` |
+
+---
+
+## §11 批量勾选、学年学期下拉、延迟实施（2026-06）
+
+产品反馈：维护页批量操作需限制可勾选行；审批/维护/查询「学年学期」搜索改为下拉；实施需按**当前学年学期 vs 生效学期**决定是否立即写入学籍档案。
+
+### 11.1 维护列表勾选（批量实施）
+
+| 是否实施列 | store `implemented` | 行勾选 | 表头全选 |
+|-----------|---------------------|--------|----------|
+| N | `Pending` | ✓ 可勾 | 仅选中当前页 Pending |
+| N | `Scheduled`（待生效） | ✗ disabled | 不包含 |
+| Y | `Implemented` | ✗ disabled | 不包含 |
+
+- 已勾选的 Y/Scheduled 行在搜索/翻页时从 `selectedKeys` 清除
+- **Delete** 与 **Implement** 共用同一勾选规则（Y/Scheduled 不可选）
+
+### 11.2 学年学期搜索下拉（审批 + 维护 + 查询）
+
+- 三模块搜索区「学年学期 / Academic Session」由 **文本框 → 下拉**
+- 选项：`merge*Queue` 结果中 **`applicationSession` 去重排序** + 首项「全部」
+- 过滤：**精确匹配**（替换现有 substring `matchText`）
+- 共享 helper：`getDistinctApplicationSessions(items)`；可选组件 `MovementAcademicSessionSelect.vue`
+- **不在范围**：异动申请 Tab 的 `applicationSession` 搜索（仍属申请模块）
+
+### 11.3 延迟实施（生效学期门控）
+
+**当前学期**：`getCurrentApplicationSession()`（`semesterInfo` mock）。
+
+用户点击 **实施** 且确认后，对每条 Pending 行：
+
+```
+currentSession === effectiveSession ?
+  YES → applyImplementationEffect（档案变更 + implemented: Implemented → 列 Y）
+  NO  → implemented: Scheduled；档案与申请业务字段不变；列仍显示 N
+```
+
+**Mock 定时**：`processDueImplementations()` — 扫描 `implemented === 'Scheduled'` 且 `currentSession >= effectiveSession` 的记录，执行 `applyImplementationEffect`。
+
+- 触发点：`App.vue` 或进入维护/学籍模块时调用（本阶段无真实 cron）
+- Confirm 文案区分：立即生效 vs 「将于 {effectiveSession} 学年学期自动生效」
+
+**自动实施对齐**：`movementApprovalEngine` 审批通过且类别 `autoImplement` 时，同样走生效学期门控（非当前学期 → `Scheduled`）。
+
+### Capabilities（§11 增量）
+
+- `movement-maintenance`: 可勾选规则、延迟实施、Scheduled 状态
+- `movement-list-academic-session-search`: 审批/维护/查询学年学期下拉
+
+### Impact（§11 增量）
+
+- **修改** `MovementMaintenanceView.vue` — 勾选逻辑
+- **修改** `MovementApprovalView.vue`、`MovementQueryView.vue` — 学年学期 select
+- **修改** `movementMaintenanceFields.js`、`movementApprovalEngine.js` — Scheduled + processor
+- **新增** `movementImplementationScheduler.js`（或同名 util）
+- **修改** `movementApprovalQueue.js` — `formatImplementedYn`：Scheduled→N
+- **修改** 三处 `filter*BySearch` — academicSession 精确匹配
+- **Non-goals** — 真实后端定时任务；统计页搜索（除非后续单独变更）

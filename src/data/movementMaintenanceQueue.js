@@ -39,7 +39,6 @@ export function normalizeMaintenanceItem(sourceKey, item, t) {
     newProgrammeName: extractNewProgrammeName(sourceKey, item),
     englishName: item.fullName || item.name || MAINTENANCE_EMPTY,
     cgpa: item.cgpa || MAINTENANCE_EMPTY,
-    expectedGraduationTime: item.expectedGraduationTime || MAINTENANCE_EMPTY,
     movementNumber: item.movementNumber || MAINTENANCE_EMPTY,
     remark: item.maintenanceRemark || MAINTENANCE_EMPTY,
     movementDate: formatMovementDateDisplay(item),
@@ -71,8 +70,8 @@ export function mergeMovementMaintenanceQueue(t) {
 export function filterMaintenanceBySearch(items, search) {
   const s = search || {}
   return items.filter((row) => {
-    if (s.academicSession && !matchText(row.applicationSession, s.academicSession)) return false
-    if (s.movementReason && !matchText(row.movementReason, s.movementReason)) return false
+    if (s.academicSession && row.applicationSession !== String(s.academicSession).trim()) return false
+    if (s.programmeCode && !matchText(row.programmeCode, s.programmeCode)) return false
     if (s.status && row.status !== s.status) return false
     if (s.studentId && !matchText(row.studentId, s.studentId)) return false
     if (s.studentName && !matchText(row.fullName, s.studentName)) return false

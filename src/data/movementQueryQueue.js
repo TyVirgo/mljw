@@ -9,6 +9,20 @@ import { movementApprovalStatusOptions } from './movementApprovalQueue.js'
 
 export { movementApprovalStatusOptions as movementQueryStatusOptions }
 
+export const movementQueryTypeOptions = [
+  'programme-transfer',
+  'deferment',
+  'resumption',
+  'withdrawal',
+]
+
+export const movementQueryTypeLabelKeys = {
+  'programme-transfer': 'menu.srProgrammeTransfer',
+  deferment: 'menu.srDeferment',
+  resumption: 'menu.srResumption',
+  withdrawal: 'menu.srWithdrawal',
+}
+
 export function mergeMovementQueryQueue(t) {
   const sources = [
     ['programme-transfer', programmeTransfers.value],
@@ -33,9 +47,10 @@ export function mergeMovementQueryQueue(t) {
 export function filterQueryBySearch(items, search) {
   const s = search || {}
   return items.filter((row) => {
-    if (s.academicSession && !matchText(row.applicationSession, s.academicSession)) return false
-    if (s.movementReason && !matchText(row.movementReason, s.movementReason)) return false
+    if (s.academicSession && row.applicationSession !== String(s.academicSession).trim()) return false
+    if (s.programmeCode && !matchText(row.programmeCode, s.programmeCode)) return false
     if (s.status && row.status !== s.status) return false
+    if (s.movementType && row.sourceKey !== s.movementType) return false
     if (s.studentId && !matchText(row.studentId, s.studentId)) return false
     if (s.studentName && !matchText(row.fullName, s.studentName)) return false
     return true

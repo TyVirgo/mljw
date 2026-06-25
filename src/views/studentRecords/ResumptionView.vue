@@ -12,6 +12,8 @@ import ResumptionDetailModal from '../../components/studentRecords/ResumptionDet
 
 import ApprovalLogModal from '../../components/studentRecords/ApprovalLogModal.vue'
 
+import MovementApplicationSearchBar from '../../components/studentRecords/MovementApplicationSearchBar.vue'
+
 import {
 
   normalizeResumption,
@@ -38,21 +40,36 @@ import {
 
 } from '../../data/resumptions.js'
 
+import {
+  createEmptyApplicationSearch,
+  filterMovementApplications,
+  getApplicationStatusOptions,
+} from '../../data/movementApplicationSearch.js'
+
 import { useAppI18n } from '../../composables/useAppI18n.js'
 
 import { resumptions } from '../../data/movementStore.js'
+import { filterByCurrentStudent } from '../../data/mockCurrentStudent.js'
 
-
+const props = defineProps({
+  applicantMode: {
+    type: String,
+    default: 'teacher',
+    validator: (value) => ['teacher', 'student'].includes(value),
+  },
+})
 
 const { t } = useAppI18n()
 
+const SOURCE_KEY = 'resumption'
+const statusOptions = getApplicationStatusOptions(SOURCE_KEY)
 
+const searchForm = ref(createEmptyApplicationSearch())
 
-const searchKeyword = ref('')
+const appliedSearch = ref(createEmptyApplicationSearch())
 
-const appliedKeyword = ref('')
-
-
+const showStudentColumns = computed(() => props.applicantMode === 'teacher')
+const tableColspan = computed(() => (showStudentColumns.value ? 9 : 7))
 
 const currentPage = ref(1)
 
@@ -86,37 +103,15 @@ const confirmMessage = ref('')
 
 const confirmAction = ref(null)
 
-
-
-function matchKeyword(item, keyword) {
-
-  if (!keyword) return true
-
-  const q = keyword.trim().toLowerCase()
-
-  return (
-
-    String(item.studentId || '').toLowerCase().includes(q) ||
-
-    String(item.fullName || item.name || '').toLowerCase().includes(q)
-
-  )
-
-}
-
-
-
-const filteredResumptions = computed(() =>
-
-  resumptions.value.filter((item) => matchKeyword(item, appliedKeyword.value)),
-
-)
-
-
+const filteredResumptions = computed(() => {
+  let list = filterMovementApplications(SOURCE_KEY, resumptions.value, appliedSearch.value)
+  if (props.applicantMode === 'student') {
+    list = filterByCurrentStudent(list)
+  }
+  return list
+})
 
 const totalCount = computed(() => filteredResumptions.value.length)
-
-
 
 const paginatedResumptions = computed(() => {
 
@@ -153,23 +148,14 @@ function statusLabel(status) {
 
 
 function handleSearch() {
-
-  appliedKeyword.value = searchKeyword.value
-
+  appliedSearch.value = { ...searchForm.value }
   currentPage.value = 1
-
 }
 
-
-
 function handleReset() {
-
-  searchKeyword.value = ''
-
-  appliedKeyword.value = ''
-
+  searchForm.value = createEmptyApplicationSearch()
+  appliedSearch.value = createEmptyApplicationSearch()
   currentPage.value = 1
-
 }
 
 
@@ -422,69 +408,15 @@ function displayDate(item) {
 
     <div class="page-card">
 
-      <div class="search-bar">
-
-        <div class="search-row">
-
-          <div class="search-fields">
-
-            <div class="search-item">
-
-              <label>{{ t('resumption.searchFieldLabel') }}</label>
-
-              <input
-
-                v-model="searchKeyword"
-
-                type="text"
-
-                :placeholder="t('common.pleaseInput')"
-
-                @keyup.enter="handleSearch"
-
-              />
-
-            </div>
-
-          </div>
-
-          <div class="search-actions">
-
-            <button type="button" class="btn btn-primary" @click="handleSearch">
-
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
-                <circle cx="11" cy="11" r="8" />
-
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-
-              </svg>
-
-              {{ t('common.search') }}
-
-            </button>
-
-            <button type="button" class="btn btn-default" @click="handleReset">
-
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
-                <polyline points="23 4 23 10 17 10" />
-
-                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-
-              </svg>
-
-              {{ t('common.reset') }}
-
-            </button>
-
-          </div>
-
-        </div>
-
-      </div>
-
-
+      <MovementApplicationSearchBar
+        v-model="searchForm"
+        :applicant-mode="applicantMode"
+        :status-options="statusOptions"
+        :status-label-fn="statusLabel"
+        keyword-label-key="resumption.searchFieldLabel"
+        @search="handleSearch"
+        @reset="handleReset"
+      />
 
       <div class="history-header">
 
@@ -512,9 +444,9 @@ function displayDate(item) {
 
                 <th>{{ t('resumption.columns.applicationId') }}</th>
 
-                <th>{{ t('resumption.columns.studentId') }}</th>
+                <th v-if="showStudentColumns">{{ t('resumption.columns.studentId') }}</th>
 
-                <th>{{ t('resumption.columns.name') }}</th>
+                <th v-if="showStudentColumns">{{ t('resumption.columns.name') }}</th>
 
                 <th>{{ t('resumption.columns.programme') }}</th>
 
@@ -536,7 +468,7 @@ function displayDate(item) {
 
               <tr v-if="!paginatedResumptions.length">
 
-                <td colspan="9" class="empty-cell">{{ t('common.noData') }}</td>
+                <td :colspan="tableColspan" class="empty-cell">{{ t('common.noData') }}</td>
 
               </tr>
 
@@ -544,9 +476,9 @@ function displayDate(item) {
 
                 <td>{{ item.applicationId }}</td>
 
-                <td>{{ item.studentId }}</td>
+                <td v-if="showStudentColumns">{{ item.studentId }}</td>
 
-                <td>{{ item.fullName || item.name }}</td>
+                <td v-if="showStudentColumns">{{ item.fullName || item.name }}</td>
 
                 <td>{{ item.programme }}</td>
 
@@ -635,7 +567,7 @@ function displayDate(item) {
       :initial-data="editingItem"
 
       :existing-resumptions="resumptions"
-
+      :applicant-mode="applicantMode"
       @close="closeForm"
 
       @save-draft="handleSaveDraft"

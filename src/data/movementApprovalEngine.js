@@ -5,12 +5,11 @@ import {
   stageMatchesRole,
 } from './movementApprovalWorkflows.js'
 import { upsertInStore } from './movementStore.js'
-import { getInitialImplementedStatus, resolveMovementCategoryConfig } from './movementCategories.js'
+import { resolveMovementCategoryConfig } from './movementCategories.js'
 import { applyStudentProfileFromMovement } from './students.js'
-import { formatTransferDateTime } from './programmeTransfers.js'
-import { formatDefermentDateTime } from './deferments.js'
-import { formatResumptionDateTime } from './resumptions.js'
-import { formatWithdrawalDateTime } from './withdrawals.js'
+import { formatMovementDateIso } from '../utils/formatMovementDate.js'
+import { getCurrentApplicationSession } from './movementApplicationSession.js'
+import { extractEffectiveSession } from './movementApprovalQueue.js'
 
 export const DEFAULT_APPROVER_ROLE = 'Pending Review'
 
@@ -24,19 +23,8 @@ export const commonApprovalComments = [
   'Approved with conditions noted in comments.',
 ]
 
-function formatDateTime(sourceKey) {
-  switch (sourceKey) {
-    case 'programme-transfer':
-      return formatTransferDateTime(new Date())
-    case 'deferment':
-      return formatDefermentDateTime(new Date())
-    case 'resumption':
-      return formatResumptionDateTime(new Date())
-    case 'withdrawal':
-      return formatWithdrawalDateTime(new Date())
-    default:
-      return new Date().toISOString()
-  }
+function formatDateTime() {
+  return formatMovementDateIso(new Date())
 }
 
 export function inferStudentCategory(item) {
@@ -92,7 +80,7 @@ function appendLog(item, sourceKey, { stage, action, comment, actor }) {
         stage,
         actor,
         action,
-        dateTime: formatDateTime(sourceKey),
+        dateTime: formatDateTime(),
         comment: comment || '',
       },
     ],
@@ -126,6 +114,15 @@ function applyAutoImplementationProfile(sourceKey, item, category) {
   if (config) {
     applyStudentProfileFromMovement(item.studentId, config)
   }
+}
+
+function resolveApprovedImplementedStatus(sourceKey, item, category) {
+  const config = resolveMovementCategoryConfig(sourceKey, category)
+  if (config?.autoImplement !== true) return 'Pending'
+  const current = getCurrentApplicationSession()
+  const effective = extractEffectiveSession(sourceKey, item)
+  if (current && effective && current === effective) return 'Implemented'
+  return 'Scheduled'
 }
 
 export function applyMovementDecision(sourceKey, item, action, comment, actor, adminFields = {}) {
@@ -176,7 +173,7 @@ export function applyMovementDecision(sourceKey, item, action, comment, actor, a
     })
 
     if (isFinalWorkflowStage(sourceKey, merged.approvalStage, category)) {
-      const implemented = getInitialImplementedStatus(sourceKey, category)
+      const implemented = resolveApprovedImplementedStatus(sourceKey, updated, category)
       updated = {
         ...updated,
         status: 'Approved',
@@ -201,7 +198,7 @@ export function applyMovementDecision(sourceKey, item, action, comment, actor, a
         approvalStage: next === 'Approved' ? 'Approved' : next,
       }
       if (next === 'Approved') {
-        const implemented = getInitialImplementedStatus(sourceKey, category)
+        const implemented = resolveApprovedImplementedStatus(sourceKey, updated, category)
         updated.status = 'Approved'
         updated.archived = true
         updated.implemented = implemented

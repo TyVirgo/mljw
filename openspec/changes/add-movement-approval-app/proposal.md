@@ -74,3 +74,34 @@
 - 回写 Student Profile 学籍字段
 - vue-router、真实后端 API
 - 异动类别 / 维护 / 查询 / 统计菜单
+
+---
+
+## §8 审批 Export 接入 ExportModal（增量）
+
+首版 Export 为手写 CSV 直出；与查询/维护/统计不一致。产品要求对齐 **ExportModal + xlsx** 交互。
+
+### 变更
+
+| 项 | 说明 |
+|----|------|
+| 组件 | `ExportModal`（复用 `components/common/ExportModal.vue`） |
+| 格式 | **xlsx**（`exportMovementApprovalExcel.js` 或复用 `exportMovementQueryToExcel` + 专用 columnMeta） |
+| 范围 | 当前页 / 全部结果 / 选中行（Pending Tab 有勾选时支持选中行） |
+| 字段 | 与列表列一致；`implemented` 为可选字段，默认不勾选（History Tab 列表才展示该列） |
+| 脱敏 | **首版不做**；列表无 Passport/IC 列，以后加列再议 |
+
+### Export 默认字段
+
+`no | status | approvalStage | studentId | fullName | applicationSession | effectiveSession | movementCategory | applicationDate`
+
+可选（`selectedByDefault: false`）：`implemented`
+
+### Decisions（§8 已确认）
+
+| 项 | 决策 |
+|----|------|
+| 格式 | xlsx，与查询/维护一致 |
+| 脱敏 | 首版不做 |
+| 字段范围 | 首版对齐列表列；额外列以后再加 |
+| CSV 直出 | 移除，改 ExportModal |

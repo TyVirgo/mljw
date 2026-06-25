@@ -122,30 +122,32 @@ export const transferFormFieldEntries = [
   { zh: '国籍', en: 'Nationality', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '邮箱', en: 'Email', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '联系电话', en: 'Contact No.', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
-  { zh: '学生签证到期日', en: 'Student Visa Expiry Date', type: '日期', required: '—', remark: 'Section I；只读', codeSet: '否' },
+  { zh: '学生签证到期日', en: 'Student Visa Expiry Date', type: '日期', required: '—', remark: 'Section I；只读；YYYY-MM-DD', codeSet: '否', sample: '2028-12-31' },
+  { zh: '申请学年学期', en: 'Application Academic Session', type: '文本', required: '—', validation: '格式 YYYY/MM', remark: 'Section I 末字段；只读；选学生后写入 enrollment.intake；create 打开时为空', codeSet: '否', sample: '2023/09' },
   { zh: '当前专业', en: 'Current Programme', type: '文本', required: '—', remark: 'Section II；只读', codeSet: '否' },
   { zh: '当前入学批次', en: 'Current Intake', type: '文本', required: '—', remark: 'Section II；只读', codeSet: '否' },
   { zh: '当前学院', en: 'Current School', type: '文本', required: '—', remark: 'Section II；只读', codeSet: '否' },
   { zh: '新专业（第一志愿）', en: 'New Programme (1st Choice)', type: '下拉', required: '是', validation: 'Submit 必填', remark: 'Section II', codeSet: '否' },
   { zh: '新专业（第二志愿）', en: 'New Programme (2nd Choice)', type: '下拉', required: '否', remark: 'Section II', codeSet: '否' },
   { zh: '新专业开始学期', en: 'Start Semester of New Programme', type: '下拉', required: '是', validation: 'Submit 必填', remark: 'Section II', codeSet: '否', sample: '2025/09' },
-  { zh: '转专业原因', en: 'Reasons to Transfer Programme', type: '长文本', required: '是', validation: '最大 2000 字符', remark: 'Section II', codeSet: '否' },
+  { zh: '转专业原因', en: 'Reasons to Transfer Programme', type: '下拉', required: '是', validation: 'Submit 必填', remark: 'Section II；选项来自 PT001 类别配置 reasons；存 reasonId', codeSet: '是' },
   { zh: '同意声明', en: 'Declaration Agree', type: '复选框', required: '是', validation: 'Submit 须勾选', remark: 'Section III', codeSet: '否' },
   { zh: '上传附件', en: 'Upload Attachment', type: '文件', required: '是', validation: '≤5MB', remark: 'Section IV 支持性文件', codeSet: '否' },
-  { zh: '新专业（教务核定）', en: 'New Programme (Admin)', type: '文本', required: '条件必填', remark: 'Section VII；Dean/HoP 审批页填写', codeSet: '否' },
-  { zh: '新入学批次（教务核定）', en: 'New Intake (Admin)', type: '下拉', required: '否', remark: 'Section VII；审批页填写', codeSet: '否' },
-  { zh: '日期（教务）', en: 'Date (Admin)', type: '日期', required: '否', remark: 'Section VII；审批页填写', codeSet: '否' },
+  { zh: '新专业（教务核定）', en: 'New Programme (Admin)', type: '文本', required: '—', remark: 'Section VII；申请侧 disabled 置灰只读；新建清空、编辑保留原值；审批 Modal 填写', codeSet: '否' },
+  { zh: '新入学批次（教务核定）', en: 'New Intake (Admin)', type: '下拉', required: '—', remark: 'Section VII；申请侧 disabled 置灰；审批 Modal 填写', codeSet: '否' },
+  { zh: '日期（教务）', en: 'Date (Admin)', type: '日期', required: '—', remark: 'Section VII；申请侧 disabled 只读 input；审批 Modal 填写；YYYY-MM-DD', codeSet: '否', sample: '2025-09-20' },
 ]
 
 export const defermentFormFieldEntries = [
   { zh: '学号', en: 'Student ID', type: '选择', required: '是', remark: 'Section I 学生信息', codeSet: '否' },
-  { zh: '申请日期', en: 'Date of Application', type: '日期', required: '—', remark: 'Section I；只读', codeSet: '否' },
+  { zh: '申请日期', en: 'Date of Application', type: '日期', required: '—', remark: 'Section I；只读；YYYY-MM-DD', codeSet: '否', sample: '2025-09-20' },
   { zh: '姓名', en: 'Name', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '入学批次', en: 'Intake', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '身份证/护照号', en: 'NRIC/Passport No.', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '国籍', en: 'Nationality', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '专业', en: 'Programme', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '专业层次', en: 'Programme Level', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
+  { zh: '申请学年学期', en: 'Application Academic Session', type: '文本', required: '—', validation: '格式 YYYY/MM', remark: 'Section I 末字段；只读；选学生后写入 enrollment.intake；create 打开时为空', codeSet: '否', sample: '2023/09' },
   { zh: '个人邮箱', en: 'Personal Email', type: '文本', required: '否', remark: 'Section II 学生申请', codeSet: '否' },
   { zh: '联系电话', en: 'Phone Number', type: '文本', required: '否', remark: 'Section II', codeSet: '否' },
   { zh: '宿舍房间号', en: 'Accommodation Room No.', type: '文本', required: '否', remark: 'Section II', codeSet: '否' },
@@ -162,13 +164,14 @@ export const defermentFormFieldEntries = [
 
 export const resumptionFormFieldEntries = [
   { zh: '学号', en: 'Student ID', type: '选择', required: '是', remark: 'Section I 学生信息', codeSet: '否' },
-  { zh: '申请日期', en: 'Date of Application', type: '日期', required: '—', remark: 'Section I；只读', codeSet: '否' },
+  { zh: '申请日期', en: 'Date of Application', type: '日期', required: '—', remark: 'Section I；只读；YYYY-MM-DD', codeSet: '否', sample: '2025-09-20' },
   { zh: '姓名', en: 'Name', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '原入学批次', en: 'Original Intake', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '专业', en: 'Programme', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '专业层次', en: 'Programme Level', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '身份证/护照号', en: 'NRIC/Passport No.', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '国籍', en: 'Nationality', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
+  { zh: '申请学年学期', en: 'Application Academic Session', type: '文本', required: '—', validation: '格式 YYYY/MM', remark: 'Section I 末字段；只读；选学生后写入 enrollment.intake；create 打开时为空', codeSet: '否', sample: '2023/09' },
   { zh: '个人邮箱', en: 'Personal Email', type: '文本', required: '否', remark: 'Section II 复学详情', codeSet: '否' },
   { zh: '联系电话', en: 'Phone Number', type: '文本', required: '否', remark: 'Section II', codeSet: '否' },
   { zh: '休学学期', en: 'Deferment Semester', type: '下拉', required: '是', remark: 'Section II', codeSet: '否' },
@@ -180,13 +183,14 @@ export const resumptionFormFieldEntries = [
 
 export const withdrawalFormFieldEntries = [
   { zh: '学号', en: 'Student ID', type: '选择', required: '是', remark: 'Section I 学生信息', codeSet: '否' },
-  { zh: '申请日期', en: 'Date of Application', type: '日期', required: '—', remark: 'Section I；只读', codeSet: '否' },
+  { zh: '申请日期', en: 'Date of Application', type: '日期', required: '—', remark: 'Section I；只读；YYYY-MM-DD', codeSet: '否', sample: '2025-09-20' },
   { zh: '姓名', en: 'Name', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '入学批次', en: 'Intake', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
   { zh: '专业', en: 'Programme', type: '文本', required: '—', remark: 'Section I；只读', codeSet: '否' },
+  { zh: '申请学年学期', en: 'Application Academic Session', type: '文本', required: '—', validation: '格式 YYYY/MM', remark: 'Section I 末字段；只读；选学生后写入 enrollment.intake；create 打开时为空', codeSet: '否', sample: '2023/09' },
   { zh: '个人邮箱', en: 'Personal Email', type: '文本', required: '是', remark: 'Section II 学生申请', codeSet: '否' },
   { zh: '联系电话', en: 'Phone Number', type: '文本', required: '是', remark: 'Section II', codeSet: '否' },
-  { zh: '最后出勤日期', en: 'Last Date of Attendance', type: '日期', required: '是', remark: 'Section II', codeSet: '否' },
+  { zh: '最后出勤日期', en: 'Last Date of Attendance', type: '日期', required: '是', remark: 'Section II；YYYY-MM-DD', codeSet: '否', sample: '2025-09-20' },
   { zh: '离校去向', en: 'Destination after Leaving', type: '文本', required: '是', remark: 'Section II', codeSet: '否' },
   { zh: '主要退学原因', en: 'Main Reason for Withdrawal', type: '下拉', required: '是', remark: 'Section II', codeSet: '是' },
   { zh: '目前所在地', en: 'Current Whereabout', type: '文本', required: '是', remark: 'Section II', codeSet: '否' },
@@ -202,38 +206,45 @@ export const withdrawalFormFieldEntries = [
 ]
 
 export const approvalFormFieldEntries = [
-  { zh: '审批结果', en: 'Action (Approved/Rejected/Update Required)', type: '单选', required: '是', remark: 'MovementApprovalModal / ReviewView 底部', codeSet: '是' },
-  { zh: '办理意见', en: 'Comments', type: '长文本', required: '条件必填', validation: 'Reject/Update Required 必填；最大 200 字', remark: '审批表单', codeSet: '否' },
-  { zh: '新专业（教务核定）', en: 'New Programme (Admin)', type: '文本', required: '条件必填', remark: '转专业 Dean/HoP 节点；ReviewView Section VII', codeSet: '否' },
-  { zh: '新入学批次（教务核定）', en: 'New Intake (Admin)', type: '下拉', required: '否', remark: '转专业 Dean/HoP 节点', codeSet: '否' },
+  { zh: '审批结果', en: 'Action (Approved/Rejected/Update Required)', type: '单选', required: '是', remark: 'MovementApprovalModal 确认审批', codeSet: '是' },
+  { zh: '办理意见', en: 'Comments', type: '长文本', required: '条件必填', validation: 'Reject/Update Required 必填；最大 200 字', remark: 'MovementApprovalModal', codeSet: '否' },
+  { zh: '新专业（教务核定）', en: 'New Programme (Admin)', type: '文本', required: '条件必填', remark: '转专业 Dean/HoP 节点；MovementApprovalModal 内填写', codeSet: '否' },
+  { zh: '新入学批次（教务核定）', en: 'New Intake (Admin)', type: '下拉', required: '否', remark: '转专业 Dean/HoP 节点；MovementApprovalModal', codeSet: '否' },
 ]
 
 export const categoryFormFieldEntries = [
-  { zh: '类别编码', en: 'Category Code', type: '文本', required: '是', validation: '与 Student Type 组合唯一', remark: '新增/编辑异动类别弹窗', codeSet: '否', sample: 'PT001' },
-  { zh: '类别名称', en: 'Category Name', type: '文本', required: '是', remark: '新增/编辑异动类别弹窗', codeSet: '否', sample: 'Programme Transfer' },
-  { zh: '学籍状态', en: 'Student Status', type: '下拉', required: '是', remark: '新增/编辑；联动 Category 选项', codeSet: '是', sample: 'Active' },
-  { zh: '类别', en: 'Category', type: '下拉', required: '是', remark: '随 Student Status 过滤', codeSet: '是', sample: 'Programme Transfer' },
-  { zh: '学生类型', en: 'Student Type', type: '下拉', required: '是', remark: 'Create 可选；Edit 只读', codeSet: '是', sample: 'Local' },
-  { zh: '允许学生申请', en: 'Allow Student Apply', type: '单选', required: '是', validation: 'Yes/No；默认 Yes', remark: '新增/编辑异动类别弹窗', codeSet: '是', sample: 'Yes' },
-  { zh: '修改学籍状态', en: 'Modify Student Status', type: '开关', required: '否', validation: '默认关', remark: '实施行为开关；hint 说明实施时是否回写档案学籍状态', codeSet: '否' },
-  { zh: '修改学籍类型', en: 'Modify Student Type', type: '开关', required: '否', validation: '默认关', remark: '实施行为开关；hint 说明实施时是否回写档案学生类型', codeSet: '否' },
-  { zh: '是否自动实施', en: 'Auto Implement', type: '开关', required: '否', validation: '默认关', remark: '审批通过后是否自动标记已实施', codeSet: '否' },
+  { zh: '类别编码', en: 'Category Code', type: '文本', required: '是', validation: '全局唯一', remark: 'Row1 左；新增/编辑弹窗', codeSet: '否', sample: 'PT001' },
+  { zh: '类别名称', en: 'Category Name', type: '文本', required: '是', remark: 'Row1 右', codeSet: '否', sample: 'Programme Transfer' },
+  { zh: '学籍状态', en: 'Student Status', type: '下拉', required: '是', remark: 'Row2 左', codeSet: '是', sample: 'Active' },
+  { zh: '类别', en: 'Category', type: '下拉', required: '是', remark: 'Row2 右；全量 trackCategoryOptions，不与学籍状态联动过滤', codeSet: '是', sample: 'Programme Transfer' },
+  { zh: '修改学籍状态', en: 'Modify Student Status', type: '开关', required: '否', validation: '默认关', remark: 'Row3 左；hint 说明实施时是否回写档案学籍状态', codeSet: '否' },
+  { zh: '修改学籍类型', en: 'Modify Student Type', type: '开关', required: '否', validation: '默认关', remark: 'Row3 右；hint 说明实施时是否回写档案 track category', codeSet: '否' },
+  { zh: '是否自动实施', en: 'Auto Implement', type: '开关', required: '否', validation: '默认关', remark: 'Row4 左；审批通过后自动 Implemented', codeSet: '否' },
+  { zh: '允许学生申请', en: 'Allow Student Apply', type: '单选', required: '是', validation: 'Yes/No；默认 Yes', remark: 'Row4 右', codeSet: '是', sample: 'Yes' },
 ]
 
 export const categoryReasonFieldEntries = [
   { zh: '原因名称', en: 'Reason Name', type: '文本', required: '是', validation: '非空', remark: '设置原因弹窗内小弹窗', codeSet: '否', sample: 'Health Issue' },
 ]
 
+export const maintenanceReadonlyNoteFieldEntries = [
+  { zh: '（无行内编辑表单）', en: '(No inline edit form)', type: '—', required: '—', remark: 'V1.9 移除行内 Edit 与「修改异动编号」；工具栏保留实施、导出、删除；行操作仅详情与流转日志', codeSet: '否' },
+]
+
+/** @deprecated V1.9 维护页已无 Edit 弹窗，保留供历史脚本引用 */
 export const maintenanceEditFieldEntries = [
-  { zh: '异动编号', en: 'Movement Number', type: '文本', required: '否', remark: '维护编辑弹窗 / 修改异动编号弹窗', codeSet: '否', sample: 'MV2025001' },
-  { zh: '备注', en: 'Remark', type: '长文本', required: '否', remark: '维护编辑弹窗 maintenanceRemark', codeSet: '否' },
-  { zh: 'CGPA', en: 'CGPA', type: '文本', required: '否', remark: '维护编辑弹窗', codeSet: '否' },
-  { zh: '预计毕业时间', en: 'Expected Graduation Time', type: '文本', required: '否', remark: '维护编辑弹窗', codeSet: '否' },
-  { zh: '新学院', en: 'New School', type: '文本', required: '否', remark: '维护编辑弹窗；仅转专业显示', codeSet: '否' },
-  { zh: '新专业代码', en: 'New Programme Code', type: '文本', required: '否', remark: '维护编辑弹窗；仅转专业显示', codeSet: '否' },
-  { zh: '新专业名称', en: 'New Programme Name', type: '文本', required: '否', remark: '维护编辑弹窗；仅转专业显示', codeSet: '否' },
+  { zh: '异动编号', en: 'Movement Number', type: '文本', required: '否', remark: '已移除', codeSet: '否', sample: 'MV2025001' },
 ]
 
 export const queryReadonlyNoteFieldEntries = [
-  { zh: '（无新增表单）', en: '(No create/edit form)', type: '—', required: '—', remark: '查询页为只读宽表，无新增/编辑表单；详情与流转日志复用审批模块只读组件', codeSet: '否' },
+  { zh: '（无新增表单）', en: '(No create/edit form)', type: '—', required: '—', remark: '查询页为只读宽表，无新增/编辑表单；详情与流转日志复用审批只读组件；详情敏感字段脱敏', codeSet: '否' },
+]
+
+export const consentFormFieldEntries = [
+  { zh: '知情同意书名称', en: 'Consent Form Name', type: '文本', required: '是', validation: '非空', remark: 'Create/Edit Modal', codeSet: '否' },
+  { zh: '适用异动类别', en: 'Applicable Movement Type', type: '下拉', required: '是', validation: '四 Tab 枚举', remark: '转专业/休学/复学/退学', codeSet: '是' },
+  { zh: 'Student Type', en: 'Student Type', type: '下拉', required: '是', validation: 'Local/Chinese/International', remark: '中文界面「中国」', codeSet: '是' },
+  { zh: 'Remark', en: 'Remark', type: '长文本', required: '否', remark: '可选多行', codeSet: '否' },
+  { zh: '学生知情同意书', en: 'Student Consent Letter', type: '文件', required: '是', validation: 'Upload mock', remark: '必填附件', codeSet: '否' },
+  { zh: '家长知情同意书', en: 'Parent Consent Letter', type: '文件', required: '否', validation: 'Upload mock 可选', remark: '休学/退学等场景可选', codeSet: '否' },
 ]

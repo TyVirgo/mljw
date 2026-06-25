@@ -7,15 +7,19 @@ import {
   formatApplicationDateDisplay,
   canEditDeferment,
   statusBadgeClass,
-  getMainReasonLabel,
+  getDefermentReasonDisplay,
 } from '../../data/deferments.js'
+import { resolveApplicationSessionForDisplay } from '../../data/movementApplicationSession.js'
+import { maskPassportIc } from '../../utils/maskPassportIc.js'
 
 const props = defineProps({
   visible: Boolean,
   item: { type: Object, default: null },
+  showApprovalAction: { type: Boolean, default: false },
+  maskSensitiveFields: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'edit'])
+const emit = defineEmits(['close', 'edit', 'approve'])
 
 const { t, tr } = useAppI18n()
 
@@ -35,6 +39,11 @@ function statusLabel(status) {
 
 function displayDate(item) {
   return formatDefermentListDate(item?.submittedAt || item?.applicationDate)
+}
+
+function displayPassport(value) {
+  if (!value) return '—'
+  return props.maskSensitiveFields ? maskPassportIc(value) : value
 }
 </script>
 
@@ -58,10 +67,11 @@ function displayDate(item) {
           <div><dt>{{ t('deferment.fields.dateOfApplication') }}</dt><dd>{{ formatApplicationDateDisplay(item.dateOfApplication) }}</dd></div>
           <div><dt>{{ t('deferment.fields.name') }}</dt><dd>{{ item.fullName || '—' }}</dd></div>
           <div><dt>{{ t('deferment.fields.intake') }}</dt><dd>{{ item.intake || '—' }}</dd></div>
-          <div><dt>{{ t('deferment.fields.nricPassport') }}</dt><dd>{{ item.nricPassport || '—' }}</dd></div>
+          <div><dt>{{ t('deferment.fields.nricPassport') }}</dt><dd>{{ displayPassport(item.nricPassport) }}</dd></div>
           <div><dt>{{ t('deferment.fields.nationality') }}</dt><dd>{{ item.nationality || '—' }}</dd></div>
           <div><dt>{{ t('deferment.fields.programme') }}</dt><dd>{{ item.programme || '—' }}</dd></div>
           <div><dt>{{ t('deferment.fields.programmeLevel') }}</dt><dd>{{ item.programmeLevel || '—' }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
         </dl>
 
         <div class="section-bar">{{ t('deferment.sections.studentApplication') }}</div>
@@ -70,7 +80,7 @@ function displayDate(item) {
           <div><dt>{{ t('deferment.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || '—' }}</dd></div>
           <div><dt>{{ t('deferment.fields.accommodationRoomNo') }}</dt><dd>{{ item.accommodationRoomNo || '—' }}</dd></div>
           <div><dt>{{ t('deferment.fields.defermentPeriod') }}</dt><dd>{{ item.defermentPeriod || '—' }}</dd></div>
-          <div class="span-2"><dt>{{ t('deferment.fields.mainReason') }}</dt><dd>{{ getMainReasonLabel(item.mainReason, t) || '—' }}</dd></div>
+          <div class="span-2"><dt>{{ t('deferment.fields.mainReason') }}</dt><dd>{{ getDefermentReasonDisplay(item, t) || '—' }}</dd></div>
           <div class="span-2"><dt>{{ t('deferment.fields.detailedReason') }}</dt><dd class="multiline">{{ item.detailedReason || '—' }}</dd></div>
         </dl>
 
@@ -78,7 +88,7 @@ function displayDate(item) {
         <dl class="detail-grid">
           <div><dt>{{ t('deferment.fields.parentGuardianName') }}</dt><dd>{{ item.parentGuardianName || '—' }}</dd></div>
           <div><dt>{{ t('deferment.fields.parentContactNo') }}</dt><dd>{{ item.parentContactNo || '—' }}</dd></div>
-          <div><dt>{{ t('deferment.fields.parentNricPassport') }}</dt><dd>{{ item.parentNricPassport || '—' }}</dd></div>
+          <div><dt>{{ t('deferment.fields.parentNricPassport') }}</dt><dd>{{ displayPassport(item.parentNricPassport) }}</dd></div>
           <div><dt>{{ t('deferment.fields.parentRelationship') }}</dt><dd>{{ item.parentRelationship || '—' }}</dd></div>
           <div class="span-2"><dt>{{ t('deferment.fields.parentEmail') }}</dt><dd>{{ item.parentEmail || '—' }}</dd></div>
         </dl>
@@ -98,6 +108,14 @@ function displayDate(item) {
         <div class="footer-actions">
           <button v-if="showEditInDetail" type="button" class="btn btn-primary" @click="emit('edit', item)">
             {{ t('common.edit') }}
+          </button>
+          <button
+            v-if="showApprovalAction"
+            type="button"
+            class="btn btn-primary"
+            @click="emit('approve')"
+          >
+            {{ t('movementApproval.approve') }}
           </button>
           <button type="button" class="btn btn-default" @click="emit('close')">{{ t('common.close') }}</button>
         </div>

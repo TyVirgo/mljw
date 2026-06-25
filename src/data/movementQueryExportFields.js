@@ -1,18 +1,6 @@
-export const movementQueryExportColumnMeta = [
-  { key: 'no', labelKey: 'movementQuery.export.no', width: 8, selectedByDefault: true },
-  { key: 'status', labelKey: 'movementQuery.export.status', width: 14, selectedByDefault: true },
-  { key: 'approvalStage', labelKey: 'movementQuery.export.approvalStage', width: 16, selectedByDefault: true },
-  { key: 'implemented', labelKey: 'movementQuery.export.implemented', width: 14, selectedByDefault: true },
-  { key: 'studentId', labelKey: 'movementQuery.export.studentId', width: 16, selectedByDefault: true },
-  { key: 'fullName', labelKey: 'movementQuery.export.studentName', width: 22, selectedByDefault: true },
-  { key: 'applicationSession', labelKey: 'movementApproval.columns.applicationSession', width: 16, selectedByDefault: true },
-  { key: 'effectiveSession', labelKey: 'movementApproval.columns.effectiveSession', width: 16, selectedByDefault: true },
-  { key: 'movementCategory', labelKey: 'movementApproval.columns.movementCategory', width: 18, selectedByDefault: true },
-  { key: 'movementReason', labelKey: 'movementApproval.columns.movementReason', width: 24, selectedByDefault: true },
-  { key: 'movementDate', labelKey: 'movementMaintenance.columns.movementDate', width: 14, selectedByDefault: true },
-  { key: 'passportIc', labelKey: 'movementMaintenance.columns.passportIc', width: 18, selectedByDefault: false },
-  { key: 'studentType', labelKey: 'movementMaintenance.columns.studentType', width: 14, selectedByDefault: false },
-  { key: 'intake', labelKey: 'movementMaintenance.columns.intake', width: 12, selectedByDefault: false },
+import { movementMaintenanceExportColumnMeta } from './movementMaintenanceExportFields.js'
+
+export const movementQueryOptionalExportColumnMeta = [
   { key: 'currentSchool', labelKey: 'movementMaintenance.columns.currentSchool', width: 20, selectedByDefault: false },
   { key: 'currentProgrammeCode', labelKey: 'movementMaintenance.columns.currentProgrammeCode', width: 18, selectedByDefault: false },
   { key: 'newSchool', labelKey: 'movementMaintenance.columns.newSchool', width: 20, selectedByDefault: false },
@@ -20,9 +8,13 @@ export const movementQueryExportColumnMeta = [
   { key: 'newProgrammeName', labelKey: 'movementMaintenance.columns.newProgrammeName', width: 24, selectedByDefault: false },
   { key: 'englishName', labelKey: 'movementMaintenance.columns.englishName', width: 22, selectedByDefault: false },
   { key: 'cgpa', labelKey: 'movementMaintenance.columns.cgpa', width: 10, selectedByDefault: false },
-  { key: 'expectedGraduationTime', labelKey: 'movementMaintenance.columns.expectedGraduationTime', width: 18, selectedByDefault: false },
   { key: 'movementNumber', labelKey: 'movementMaintenance.columns.movementNumber', width: 16, selectedByDefault: false },
   { key: 'remark', labelKey: 'movementMaintenance.columns.remark', width: 24, selectedByDefault: false },
+]
+
+export const movementQueryExportColumnMeta = [
+  ...movementMaintenanceExportColumnMeta,
+  ...movementQueryOptionalExportColumnMeta,
 ]
 
 export const movementQueryExportFields = movementQueryExportColumnMeta.map((col) => ({

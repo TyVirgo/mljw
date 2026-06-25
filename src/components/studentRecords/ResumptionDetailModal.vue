@@ -8,13 +8,17 @@ import {
   canEditResumption,
   statusBadgeClass,
 } from '../../data/resumptions.js'
+import { resolveApplicationSessionForDisplay } from '../../data/movementApplicationSession.js'
+import { maskPassportIc } from '../../utils/maskPassportIc.js'
 
 const props = defineProps({
   visible: Boolean,
   item: { type: Object, default: null },
+  showApprovalAction: { type: Boolean, default: false },
+  maskSensitiveFields: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'edit'])
+const emit = defineEmits(['close', 'edit', 'approve'])
 
 const { t, tr } = useAppI18n()
 
@@ -34,6 +38,11 @@ function statusLabel(status) {
 
 function displayDate(item) {
   return formatResumptionListDate(item?.submittedAt || item?.applicationDate)
+}
+
+function displayPassport(value) {
+  if (!value) return '—'
+  return props.maskSensitiveFields ? maskPassportIc(value) : value
 }
 </script>
 
@@ -59,8 +68,9 @@ function displayDate(item) {
           <div><dt>{{ t('resumption.fields.originalIntake') }}</dt><dd>{{ item.originalIntake || '—' }}</dd></div>
           <div><dt>{{ t('resumption.fields.programme') }}</dt><dd>{{ item.programme || '—' }}</dd></div>
           <div><dt>{{ t('resumption.fields.programmeLevel') }}</dt><dd>{{ item.programmeLevel || '—' }}</dd></div>
-          <div><dt>{{ t('resumption.fields.nricPassport') }}</dt><dd>{{ item.nricPassport || '—' }}</dd></div>
+          <div><dt>{{ t('resumption.fields.nricPassport') }}</dt><dd>{{ displayPassport(item.nricPassport) }}</dd></div>
           <div><dt>{{ t('resumption.fields.nationality') }}</dt><dd>{{ item.nationality || '—' }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
         </dl>
 
         <div class="section-bar">{{ t('resumption.sections.resumptionDetails') }}</div>
@@ -90,6 +100,14 @@ function displayDate(item) {
         <div class="footer-actions">
           <button v-if="showEditInDetail" type="button" class="btn btn-primary" @click="emit('edit', item)">
             {{ t('common.edit') }}
+          </button>
+          <button
+            v-if="showApprovalAction"
+            type="button"
+            class="btn btn-primary"
+            @click="emit('approve')"
+          >
+            {{ t('movementApproval.approve') }}
           </button>
           <button type="button" class="btn btn-default" @click="emit('close')">{{ t('common.close') }}</button>
         </div>

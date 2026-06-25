@@ -10,6 +10,19 @@ import {
   showsFujianScholarship,
   usesRecruitedByDropdown,
 } from '../../../data/students.js'
+import {
+  getEnrollmentProgrammeCodeOptions,
+  getEnrollmentProgrammeNameOptions,
+  getEnrollmentFacultyOptions,
+  getEnrollmentIntakeOptions,
+  getEnrollmentAcademicSessionOptions,
+} from '../../../data/studentEnrollmentOptions.js'
+
+const programmeCodeOptions = getEnrollmentProgrammeCodeOptions()
+const programmeNameOptions = getEnrollmentProgrammeNameOptions()
+const facultyOptions = getEnrollmentFacultyOptions()
+const intakeOptions = getEnrollmentIntakeOptions()
+const academicSessionOptions = getEnrollmentAcademicSessionOptions()
 
 const props = defineProps({
   form: { type: Object, required: true },
@@ -31,13 +44,22 @@ function err(field) {
 <template>
   <div class="form-grid">
     <StudentFormField label="Programme Code" required :read-only="readOnly" :error="err('programmeCode')" :display-value="form.enrollment.programmeCode">
-      <input v-model="form.enrollment.programmeCode" type="text" />
+      <select v-model="form.enrollment.programmeCode">
+        <option value="">{{ tr('please select') }}</option>
+        <option v-for="opt in programmeCodeOptions" :key="opt" :value="opt">{{ opt }}</option>
+      </select>
     </StudentFormField>
     <StudentFormField label="Programme" required :read-only="readOnly" :error="err('programme')" :display-value="form.enrollment.programme">
-      <input v-model="form.enrollment.programme" type="text" />
+      <select v-model="form.enrollment.programme">
+        <option value="">{{ tr('please select') }}</option>
+        <option v-for="opt in programmeNameOptions" :key="opt" :value="opt">{{ opt }}</option>
+      </select>
     </StudentFormField>
     <StudentFormField label="Faculty" :read-only="readOnly" :display-value="form.enrollment.faculty">
-      <input v-model="form.enrollment.faculty" type="text" />
+      <select v-model="form.enrollment.faculty">
+        <option value="">{{ tr('please select') }}</option>
+        <option v-for="opt in facultyOptions" :key="opt" :value="opt">{{ opt }}</option>
+      </select>
     </StudentFormField>
     <StudentFormField label="Status" :read-only="readOnly" :display-value="tr(form.enrollment.status)">
       <select v-model="form.enrollment.status">
@@ -54,10 +76,16 @@ function err(field) {
       <input v-model="form.enrollment.semester" type="text" />
     </StudentFormField>
     <StudentFormField label="Intake (YYYY/MM)" :read-only="readOnly" :display-value="form.enrollment.intake">
-      <input v-model="form.enrollment.intake" type="text" placeholder="2023/09" />
+      <select v-model="form.enrollment.intake">
+        <option value="">{{ tr('please select') }}</option>
+        <option v-for="opt in intakeOptions" :key="opt" :value="opt">{{ opt }}</option>
+      </select>
     </StudentFormField>
     <StudentFormField label="Academic Session" :read-only="readOnly" :display-value="form.enrollment.academicSession">
-      <input v-model="form.enrollment.academicSession" type="text" />
+      <select v-model="form.enrollment.academicSession">
+        <option value="">{{ tr('please select') }}</option>
+        <option v-for="opt in academicSessionOptions" :key="opt" :value="opt">{{ opt }}</option>
+      </select>
     </StudentFormField>
     <StudentFormField label="Study Mode" :read-only="readOnly" :display-value="tr(form.enrollment.studyMode)">
       <select v-model="form.enrollment.studyMode">

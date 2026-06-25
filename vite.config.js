@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-// 部署在 /high/Academic System/20260529/ 子路径下，需配置 base
-const base = '/high/Academic%20System/20260529/'
+// 部署在 /high/Academic System/20260624/ 子路径下，需配置 base
+const base = '/high/Academic%20System/20260624/'
 
 export default defineConfig({
   base,

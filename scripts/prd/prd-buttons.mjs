@@ -16,7 +16,7 @@ const CONFIRM_DIALOG_PAGE =
   '下钻至「确认对话框」（ConfirmDialog）：系统居中确认弹框，展示操作提示文案与取消、确认两个按钮，无其他表单字段。'
 
 const MOVEMENT_FORM_PAGE = (moduleName) =>
-  `下钻至「${moduleName}申请表单弹窗」：居中弹窗含标题栏与关闭按钮；正文按分区纵向排列（第一分区学号联动只读信息、中间各业务分区表单字段、支持性文件分区含附件选择与已上传文件列表），底部为保存草稿、提交（或再次提交）与关闭按钮。`
+  `下钻至「${moduleName}申请表单弹窗」：Section I 学号姓名同行只读灰底；老师新建 StudentSelectModal；转专业 Section VII disabled；附件与 MovementAttachmentReadonly 对齐。`
 
 const MOVEMENT_DETAIL_PAGE = (moduleName) =>
   `下钻至「${moduleName}申请只读详情弹窗」（DetailModal）：与表单弹窗相同的分区结构，全部字段与附件只读展示（MovementAttachmentReadonly），不含审批表单与底部提交按钮，仅保留关闭按钮。`
@@ -28,7 +28,7 @@ const BATCH_REVIEW_PAGE =
   '下钻至「批量审批弹窗」（MovementApprovalModal）：居中弹窗含标题栏与当前审批环节说明；正文含审批结果单选（通过/拒绝/需修改材料）、办理意见文本框与常用意见快捷插入，底部为取消与确认审批按钮；确认前可能弹出二次确认对话框。'
 
 const REVIEW_VIEW_PAGE =
-  '下钻至「审批详情全页视图」（MovementApprovalReviewView）：全屏页面含面包屑返回与标题；上半部嵌入对应异动类型只读详情（各分区字段与附件），下半部（待我审批时显示）为审批结果选择与办理意见表单，转专业院长/专业负责人节点含教务核定分区；底部为提交审批决策、撤回（已处理历史已通过时）与关闭按钮。'
+  '下钻至「审批详情全页视图」（MovementApprovalReviewView）：嵌入 DetailModal 只读；待我审批底部 [审批] 打开 MovementApprovalModal；History 可 Recall。'
 
 function formRef(start, end, extra = '') {
   return `${PROFILE_DRAWER_PAGE}分区字段见「新增—字段信息表」；表单内操作按钮见本清单第${start}至第${end}项。${extra}`
@@ -183,9 +183,9 @@ function movementListButtons(moduleName) {
     {
       nameZh: '查询',
       nameEn: 'Search',
-      description: `${moduleName}申请列表顶部按学号或姓名关键字筛选当前页签下的申请记录。`,
-      interaction: '输入关键字后点击查询，列表回到第一页并展示匹配结果。',
-      remarks: '前端模糊匹配；切换页签后条件保留直至重置。',
+      description: `${moduleName} Tab 双行搜索：老师入口首行含学号或姓名、专业代码、申请学年学期、状态；次行是否实施可收起；学生入口隐藏关键字。`,
+      interaction: '填写条件后点击查询，列表回到第一页；Reset 清空。',
+      remarks: 'MovementApplicationSearchBar；inline 布局。',
       drillDown: '无下钻页面。',
     },
     {
@@ -199,9 +199,9 @@ function movementListButtons(moduleName) {
     {
       nameZh: '新建申请',
       nameEn: 'New Application',
-      description: `在${moduleName}页签创建新的学籍异动申请，按分区表单填写学生信息、业务字段、声明与附件。`,
-      interaction: '点击新建申请打开表单弹窗；分区填写后通过保存草稿或提交完成操作，详见下钻说明。',
-      remarks: '同一学号在同一异动类型下仅允许一条非终态申请。',
+      description: `在${moduleName}页签创建申请。老师入口 Section I 行末「选择」打开 StudentSelectModal；学生入口无选学生按钮。`,
+      interaction: '点击新建申请打开 Form Modal；分区填写后保存草稿或提交。',
+      remarks: 'Section VII 转专业申请侧 disabled；转专业原因下拉来自类别配置。',
       drillDown: null,
     },
     {
@@ -310,9 +310,9 @@ const approvalListButtons = [
   {
     nameZh: '查询',
     nameEn: 'Search',
-    description: '按学年学期、异动原因、状态、学号、学生姓名五字段组合筛选当前视图列表。',
-    interaction: '填写条件后点击查询，当前视图列表回到第一页并按条件过滤。',
-    remarks: '搜索仅作用于当前激活视图（已提交/待我审批/已处理历史）。',
+    description: '按学年学期、专业代码、状态、学号、学生姓名五字段 inline 筛选当前 Tab 列表。',
+    interaction: '填写后 Search；Reset 清空。',
+    remarks: '已移除 Current approver role 与异动原因搜索。',
     drillDown: '无下钻页面。',
   },
   {
@@ -334,17 +334,17 @@ const approvalListButtons = [
   {
     nameZh: '导出',
     nameEn: 'Export',
-    description: '将当前视图经搜索过滤后的审批列表导出为逗号分隔表格文件。',
-    interaction: '点击导出，无数据时提示，否则触发浏览器下载。',
-    remarks: '导出列含列表主要字段。',
-    drillDown: '无下钻页面。',
+    description: '将当前视图经搜索过滤后的审批列表通过 ExportModal 导出为 xlsx，支持字段选择与三档范围。',
+    interaction: '点击导出打开 ExportModal，选择字段与范围（当前页/全部/选中行）后确认导出；无数据时提示。',
+    remarks: '默认列含状态/环节/学号/姓名/申请学年学期/生效学期/异动类别/申请日期；是否实施为可选列且导出 Y/N。',
+    drillDown: `${EXPORT_MODAL_PAGE}弹窗内「确认导出」见维护/查询模块同类说明。`,
   },
   {
     nameZh: '查看',
     nameEn: 'View',
-    description: '进入全页审批详情视图，嵌入对应异动类型只读详情区；待我审批时可填写办理意见。',
-    interaction: '行内点击查看进入审批详情页（MovementApprovalReviewView），浏览分区内容与附件后提交决策或关闭返回。',
-    remarks: '与申请侧详情入口职责分离；已处理历史中已通过记录可撤回。',
+    description: 'ReviewView 只读详情；待我审批时 [审批] 打开 MovementApprovalModal。',
+    interaction: 'View → ReviewView → [审批] → Modal → 返回列表。',
+    remarks: '无内联 Submit Decision。',
     drillDown: null,
   },
   {
@@ -369,18 +369,10 @@ const approvalFormButtons = [
   {
     nameZh: '确认审批',
     nameEn: 'Confirm Review',
-    description: '在批量审批弹窗内确认所选审批结果与办理意见，写回申请存储并刷新列表。',
-    interaction: '选择审批结果、填写意见（拒绝/需修改材料必填）后点击确认，关闭弹窗并同步申请列表。',
-    remarks: '批量审批须勾选记录同属一种异动类型且审批环节一致。',
-    drillDown: `${BATCH_REVIEW_PAGE}本按钮位于弹窗底部；点击后校验表单，通过则写回审批结果并关闭弹窗，可能先弹出二次确认对话框。`,
-  },
-  {
-    nameZh: '提交审批决策',
-    nameEn: 'Submit Decision',
-    description: '在审批详情页底部提交单条审批决策（含转专业教务核定字段）。',
-    interaction: '填写审批结果与意见后点击提交，写回状态与流转日志并返回列表。',
-    remarks: '转专业院长/专业负责人节点须填写教务核定新专业与批次。',
-    drillDown: `${REVIEW_VIEW_PAGE}本按钮位于全页详情底部审批表单区；点击后校验并写回单条决策，成功后返回审批列表。`,
+    description: 'MovementApprovalModal 内确认批量或单条审批（含转专业教务核定）。',
+    interaction: '选择结果与 Comment → Confirm → 写回 store。',
+    remarks: 'Reject/Update Required 须 Comment。',
+    drillDown: `${BATCH_REVIEW_PAGE}本按钮位于弹窗底部。`,
   },
 ]
 
@@ -388,13 +380,11 @@ export function buildApprovalButtons() {
   const list = [...approvalListButtons]
   const form = [...approvalFormButtons]
   const confirmReviewIdx = list.length + 1
-  const submitDecisionIdx = list.length + 2
   const recallIdx = list.findIndex((b) => b.nameEn === 'Recall') + 1
   list.find((b) => b.nameEn === 'Review').drillDown =
     `${BATCH_REVIEW_PAGE}弹窗内「确认审批」见本清单第${confirmReviewIdx}项。`
   list.find((b) => b.nameEn === 'View').drillDown =
-    `${REVIEW_VIEW_PAGE}待我审批时「提交审批决策」见本清单第${submitDecisionIdx}项；` +
-    `已处理历史撤回说明见第${recallIdx}项。`
+    `${REVIEW_VIEW_PAGE}「确认审批」通过底部 [审批] 打开 Modal，见第${confirmReviewIdx}项；Recall 见第${recallIdx}项。`
   return [...list, ...form]
 }
 
@@ -432,9 +422,9 @@ export function buildCategoryButtons() {
     {
       nameZh: '新增',
       nameEn: 'Create',
-      description: '创建一条新的异动类别配置行，含 Student Type 与三个实施行为开关。',
-      interaction: '点击新增打开表单弹窗，填写后保存写入列表。',
-      remarks: '类别编码+Student Type 须唯一；Create 时 Student Type 可选。',
+      description: '创建异动类别行（categoryCode 唯一），四行双列表单含三实施开关。',
+      interaction: '点击新增打开 MovementCategoryFormModal，保存写入列表。',
+      remarks: '无 Student Type 维度；Category 全量下拉。',
       drillDown: CATEGORY_FORM_PAGE,
     },
     {
@@ -487,9 +477,9 @@ export function buildMaintenanceButtons() {
     {
       nameZh: '查询',
       nameEn: 'Search',
-      description: '按学年学期、异动原因、状态、学号、学生姓名五字段筛选 Approved 维护列表。',
+      description: '按学年学期、专业代码、状态、学号、学生姓名筛选 Approved 列表。',
       interaction: '填写条件后点击查询，列表回到第一页。',
-      remarks: '状态筛选在维护页通常为 Approved。',
+      remarks: '已移除异动原因搜索。',
       drillDown: '无下钻页面。',
     },
     {
@@ -509,44 +499,28 @@ export function buildMaintenanceButtons() {
       drillDown: `${CONFIRM_DIALOG_PAGE}提示即将标记 N 条记录为已实施。`,
     },
     {
-      nameZh: '修改异动编号',
-      nameEn: 'Modify Movement Number',
-      description: '为勾选行批量填写或修改异动编号。',
-      interaction: '勾选后打开编号弹窗，逐行输入后保存。',
-      remarks: '首版不自动生成编号规则。',
-      drillDown: MAINTENANCE_NUMBER_PAGE,
-    },
-    {
       nameZh: '导出',
       nameEn: 'Export',
-      description: '通过字段可选弹窗导出维护列表为 xlsx 文件。',
-      interaction: '点击导出打开 ExportModal，选择字段与范围后确认下载。',
-      remarks: '与查询页共用字段定义与导出逻辑。',
+      description: 'ExportModal 导出维护列表 xlsx。',
+      interaction: '选择字段与范围后确认下载。',
+      remarks: '默认 15 列+9 可选。',
       drillDown: exportModalRef,
     },
     {
       nameZh: '删除',
       nameEn: 'Delete',
-      description: '批量删除勾选的 Approved 维护记录。',
-      interaction: '勾选后点击删除，确认后从对应 store 移除。',
-      remarks: '物理删除 mock 记录。',
+      description: '批量删除勾选 Approved 记录。',
+      interaction: '勾选后删除，确认后移除。',
+      remarks: '物理删除 mock。',
       drillDown: `${CONFIRM_DIALOG_PAGE}提示即将删除所选维护记录条数。`,
-    },
-    {
-      nameZh: '编辑',
-      nameEn: 'Edit',
-      description: '编辑单条记录的维护字段（编号、备注、CGPA、预计毕业时间等）。',
-      interaction: '行内点击编辑打开维护编辑弹窗，保存写回 store。',
-      remarks: '转专业含 New School/Programme 字段。',
-      drillDown: MAINTENANCE_EDIT_PAGE,
     },
     {
       nameZh: '详情',
       nameEn: 'Details',
-      description: '只读查看异动申请全文，复用审批详情视图，无审批操作区。',
-      interaction: '行内点击详情进入全页只读 ReviewView，返回列表。',
-      remarks: '与查询页 Details 一致。',
-      drillDown: `${REVIEW_VIEW_PAGE}mode=readonly，无底部审批表单。`,
+      description: 'ReviewView 只读详情，敏感字段脱敏，无审批区。',
+      interaction: '行内 Details → readonly ReviewView。',
+      remarks: '无 Edit 行操作。',
+      drillDown: `${REVIEW_VIEW_PAGE}mode=readonly。`,
     },
     {
       nameZh: '流转日志',
@@ -574,7 +548,7 @@ export function buildQueryButtons() {
     {
       nameZh: '查询',
       nameEn: 'Search',
-      description: '双行搜索区：首行学年学期/异动原因/状态，次行学号/姓名，组合筛选非 Draft 记录。',
+      description: '双行搜索：首行学年学期/专业代码/状态/异动类型，次行学号/姓名可收起。',
       interaction: '填写条件后点击查询，列表回到第一页。',
       remarks: '次行默认展开，可点击收起隐藏。',
       drillDown: '无下钻页面。',
@@ -626,6 +600,74 @@ export function buildQueryButtons() {
       interaction: '选择字段与范围后点击确认导出触发下载。',
       remarks: '与维护页共用 exportMovementQueryExcel 逻辑。',
       drillDown: exportModalRef,
+    },
+  ]
+}
+
+const CONSENT_FORM_MODAL =
+  '下钻至「知情同意书表单弹窗」（ConsentFormFormModal）：居中弹窗含名称、适用异动类别、Student Type、Remark、学生/家长附件上传，底部取消与保存。'
+
+const CONSENT_VIEW_MODAL =
+  '下钻至「知情同意书查看弹窗」（ConsentFormViewModal）：只读展示模板字段与附件文件名。'
+
+/** 知情同意书配置按钮 */
+export function buildConsentButtons() {
+  return [
+    {
+      nameZh: '查询',
+      nameEn: 'Search',
+      description: '按适用异动类别、知情同意书名称、Student Type 筛选列表。',
+      interaction: '填写后 Search；Reset 清空。',
+      remarks: '—',
+      drillDown: '无下钻页面。',
+    },
+    {
+      nameZh: '重置',
+      nameEn: 'Reset',
+      description: '清空搜索条件。',
+      interaction: 'Reset 恢复全量列表。',
+      remarks: '—',
+      drillDown: '无下钻页面。',
+    },
+    {
+      nameZh: '新增',
+      nameEn: 'Create',
+      description: '创建知情同意书模板，(movementType+studentType) 须唯一。',
+      interaction: 'Create 打开 ConsentFormFormModal，上传附件后 Save。',
+      remarks: '学生知情同意书必填。',
+      drillDown: CONSENT_FORM_MODAL,
+    },
+    {
+      nameZh: '编辑',
+      nameEn: 'Edit',
+      description: '修改已有模板与附件。',
+      interaction: '行内 Edit 打开预填 Modal。',
+      remarks: '唯一性校验排除当前行。',
+      drillDown: CONSENT_FORM_MODAL,
+    },
+    {
+      nameZh: '查看',
+      nameEn: 'View',
+      description: '只读查看模板详情。',
+      interaction: '行内 View 打开 ConsentFormViewModal。',
+      remarks: '—',
+      drillDown: CONSENT_VIEW_MODAL,
+    },
+    {
+      nameZh: '删除',
+      nameEn: 'Delete',
+      description: '批量删除勾选模板。',
+      interaction: '勾选 Delete → ConfirmDialog → 移除。',
+      remarks: '—',
+      drillDown: `${CONFIRM_DIALOG_PAGE}提示删除条数。`,
+    },
+    {
+      nameZh: '保存',
+      nameEn: 'Save',
+      description: 'Modal 内校验并保存模板。',
+      interaction: 'Save 校验唯一性与必填附件后写入 consentForms。',
+      remarks: '—',
+      drillDown: '无下钻页面。',
     },
   ]
 }

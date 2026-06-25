@@ -93,7 +93,7 @@ Student Profile 列表页已在 `add-student-records-app` 中落地，但 Create
 
 ### Modified Capabilities
 
-- `student-profile`: Phase 1–3 已完成；**Phase 4 扩展 Export 弹框为 Programme Version 同款穿梭框 UI 与导出范围逻辑**
+- `student-profile`: Phase 1–3 已完成；**Phase 4 扩展 Export 弹框**；**§13 详情层级 + mock 丰富度**；**§14 Enrollment 五字段主数据下拉（独立、列表/编辑一致）**
 - `student-records-app`（Phase 5 关联）: 异动申请列表统一增加「流转日志」外置弹窗；转专业 6 态 mock 演示（见 `add-programme-transfer-app` Phase 3）
 
 ## Impact
@@ -111,6 +111,9 @@ Student Profile 列表页已在 `add-student-records-app` 中落地，但 Create
 - **Phase 4 修改文件**
   - `src/utils/exportStudentProfileExcel.js` — 统一 `studentProfileExportFields` 定义（含 No.，列表/扩展 `selectedByDefault`）
   - `src/views/studentRecords/StudentProfileView.vue` — Export 打开/确认逻辑对齐 `ProgrammeVersionView.vue`
+- **§14 修改文件**（Enrollment 主数据下拉，待实现）
+  - **新增** `src/data/studentEnrollmentOptions.js`
+  - **修改** `tabs/EnrollmentTab.vue`、`src/data/students.js`（mock 对齐）
 - **Phase 5 修改/新增文件**（异动申请，非 Profile 本体）
   - **新增** `src/components/studentRecords/ApprovalLogModal.vue` — 流转日志弹窗（复用 Course Application 表格样式）
   - **修改** `ProgrammeTransferView.vue`、`DefermentView.vue`、`ResumptionView.vue`、`WithdrawalView.vue` — Actions 增加流转日志；接入 ApprovalLogModal
@@ -120,3 +123,67 @@ Student Profile 列表页已在 `add-student-records-app` 中落地，但 Create
 - **复用**
   - `src/components/common/ExportModal.vue`（不修改组件，仅 Student Profile 侧接线与字段配置）
   - `ProgrammeVersionView.vue` + `exportProgrammeVersionExcel.js` 作为参考实现
+
+---
+
+## §13 详情只读层级与 Mock 丰富度（2026-06）
+
+产品反馈：学生档案 **Details 抽屉** 七 Tab 中字段名与字段值视觉对比不足；三条 showcase mock 空字段（`—`）过多，演示效果差。
+
+### 详情 Typography
+
+- 在 `StudentFormField.vue` readOnly 分支统一：**label** 12px / `#6B7280` / 400；**value** 15px / `#111827` / 500
+- 空值 `—` 弱化：13px / `#9CA3AF` / italic
+- `StudentProfileDetailDrawer` 顶栏「学生类别」label/value 对齐同一层级
+- **编辑表单**（readOnly=false）样式不变
+
+### Mock 补全
+
+- 丰富 `initialStudents` 三条（XMUM2309001 Local / 9002 China / 9003 International）
+- 各 Tab 约 75–85% 字段有具体值；每 Tab 保留 1–2 个 intentional 空项（如 Fax、House Phone）
+- 日期与 `DatePickerEn` 展示一致（`dd.MM.yyyy`）
+
+### Capabilities（§13）
+
+- `student-profile`: 详情可读性 + showcase mock 数据质量
+
+### Impact（§13）
+
+- `StudentFormField.vue`、`StudentProfileDetailDrawer.vue`
+- `src/data/students.js` — `initialStudents` 分段补全
+
+---
+
+## §14 Enrollment Tab 学籍字段主数据下拉（2026-06）
+
+产品反馈：新增/编辑学生 **学籍信息 Tab** 中，专业代码、专业、学院、入学批次、学年学期不应手填，应从 **基础数据模块** 已有数据集下拉选取；列表行、详情与编辑表单须显示同一套存库值。
+
+### 范围
+
+- **五字段改下拉**（Create/Edit 的 `EnrollmentTab.vue`）：Programme Code、Programme、Faculty、Intake (YYYY/MM)、Academic Session
+- **数据源**（只读引用，不新建后端）：
+  - 专业代码 / 专业名称 → `programmeIntakes.js` → `programmeCatalogue`（来自 `programmeVersions.js`）
+  - 学院 → `programmeIntakeSchools`
+  - 入学批次 → `intakeSets.js` → `getActiveIntakeOptions()`
+  - 学年学期 → `semesterInfo.js` → `startingSemesterOptions`
+- **先不关联**：五个下拉 **独立选择**，不做级联、不做 Programme Intake 组合校验（与 Non-goals「Category 与 Programme 联动」一致，本 Phase 亦不做专业↔学院↔批次联动）
+- **数据对应**：列表列（`normalizeStudent` 派生）、Details 只读、Edit 表单 **共用** `enrollment.*`；下拉 `option value` 必须与存库字符串 **精确匹配**，编辑时须能正确选中
+- **Mock 对齐**：修正 `initialStudents` 三条 showcase 的 enrollment 值，使其落在上述 option 集合内（如 SWE 用 catalogue 全名 `(Honours)`、IBU 非 IB、intake 用 intakeSets 已有批次等）
+
+### Non-goals（§14）
+
+- Programme Intake 一条记录定全部、字段级联自动带出
+- Import Excel 强制校验主数据选项（Import 仍可为自由文本，后续增强）
+- 扩展 `programmeCatalogue` 新增 FIN 等业务外专业（优先改 mock 选用已有 catalogue 项）
+
+### Capabilities（§14）
+
+- `student-profile`: Enrollment Tab 主数据下拉 + 列表/详情/编辑数据一致
+
+### Impact（§14）
+
+- **新增** `src/data/studentEnrollmentOptions.js`（建议）— 聚合五类 option 导出，供 Tab 消费
+- **修改** `src/components/studentRecords/tabs/EnrollmentTab.vue` — 五处 input → select
+- **修改** `src/data/students.js` — showcase mock enrollment 对齐主数据 canonical 值
+- **可选** `importStudentProfileExcel.js` — 文档注明 programmeCode/intake 建议与主数据一致（不强制）
+

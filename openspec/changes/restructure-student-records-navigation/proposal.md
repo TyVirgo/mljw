@@ -18,11 +18,12 @@
 | | 学籍异动维护 | 建设中 |
 | | 学籍异动查询 | 建设中 |
 | | 学籍异动统计 | 建设中 |
-| **学生个人学习计划** | 学生个人培养方案 | 建设中 |
+
+- ~~**学生个人学习计划** | 学生个人培养方案 | 建设中~~ → **§8 移除整组**（本期不做）
 
 - **移除** `sr-family-info`（Family Info / 家庭信息）侧边栏项
 - **移除** 侧边栏独立的转专业 / 休学 / 复学 / 退学 4 项
-- 侧边栏由 **扁平 6 项** 改为 **3 个 expandable group + children**（复用 Basic Data `Sidebar` 分组模式）
+- 侧边栏由 **扁平 6 项** 改为 **2 个 expandable group + children**（§8 起移除「学生个人学习计划」第三组）
 
 ### 学籍异动申请 — Tab 壳层（对齐图2 红框）
 
@@ -54,6 +55,7 @@
 - 图2 统一大表（学年学期 / 异动原因 / 批量送审 / 统一列）— 后续独立 change
 - 保留入学资格、其它异动 Tab 业务实现
 - 异动类别 / 知情同意书 / 审批会签 / 维护 / 查询 / 统计 业务页
+- **学生个人学习计划 / 学生个人培养方案**（§8 整组移除，后续独立 change 再接入）
 - 四异动模块 6 态状态机、Mock、流转日志逻辑变更
 - vue-router / URL 深链 Tab
 - 门户拆分为多个 App 卡片
@@ -66,7 +68,28 @@
 
 ### Modified Capabilities
 
-- `student-records-app`: 侧边栏由扁平 6 项改为 3 分组 IA；移除 Family Info；学生基本信息命名；`App.vue` 路由收敛
+- `student-records-app`: 侧边栏由扁平 6 项改为 **2 分组** IA（§8 移除 Personal Study Plan）；移除 Family Info；学生基本信息命名；`App.vue` 路由收敛
+
+---
+
+## §8 增量 — 移除学生个人学习计划分组（2026-06-24）
+
+### Why
+
+「学生个人培养方案」仅为建设中占位，现阶段不做。第三组仅含一项子菜单，保留空壳分组无产品价值。
+
+### What Changes
+
+- 从 `studentRecordsMenuItems` **删除** `sr-study-plan-group` 整组（含 `sr-personal-curriculum`）
+- `App.vue` `defaultExpandedGroups` 去掉 `sr-study-plan-group`
+- `buildStudentRecordsBreadcrumbKeys` 移除 study-plan 分支
+- i18n key 可保留（后续再接入时不破坏历史文案）
+- PRD 菜单介绍改为「两组导航」
+
+### Non-goals
+
+- 不影响 Basic Data「培养方案 / Programme Version」模块
+- 不删除 i18n 词条（可选清理）
 
 ## Impact
 

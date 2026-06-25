@@ -229,6 +229,32 @@ The system SHALL display enrollment field control differences for China and Inte
 - **WHEN** user views the Enrollment tab for a China or International student
 - **THEN** Fujian Scholarship Amt is not displayed
 
+### Requirement: Student Profile enrollment master-data selects
+The system SHALL present Programme Code, Programme, Faculty, Intake (YYYY/MM), and Academic Session on the Enrollment tab as dropdown selections sourced from basic-data module datasets. The five fields SHALL be independently selectable without cascading or Programme Intake combination validation in this phase.
+
+#### Scenario: Enrollment fields use basic-data options in create or edit
+- **WHEN** user views the Enrollment tab in create or edit mode
+- **THEN** Programme Code options come from the programme catalogue codes
+- **AND** Programme options come from the programme catalogue names
+- **AND** Faculty options come from configured school labels
+- **AND** Intake options come from active intake set batches
+- **AND** Academic Session options come from semester information academic sessions
+
+#### Scenario: Independent selection without linkage
+- **WHEN** user changes Programme Code without changing Programme or Faculty
+- **THEN** the system does not auto-update Programme or Faculty
+- **AND** the system does not reject saves based on programme and intake combination rules
+
+#### Scenario: List details and edit show the same enrollment values
+- **WHEN** user views a student row in the list and opens Details or Edit for that student
+- **THEN** Programme Code, Programme, Intake, and related list columns display the same stored enrollment values
+- **AND** edit mode dropdowns show the stored values as selected when those values exist in the option lists
+
+#### Scenario: Showcase mock aligns with master-data options
+- **WHEN** user opens Edit for mock students XMUM2309001, XMUM2309002, or XMUM2309003
+- **THEN** enrollment programme code, programme name, faculty, intake, and academic session values match entries available in the basic-data option lists
+- **AND** each corresponding dropdown displays the correct selected option
+
 ## MODIFIED Requirements
 
 ### Requirement: Student Profile extended export
@@ -264,3 +290,34 @@ The system SHALL provide an export dialog matching the Programme Version module:
 #### Scenario: Export extended profile fields
 - **WHEN** user moves extended profile fields to Selected Fields and confirms export
 - **THEN** the downloaded Excel includes flattened fields from the seven registration tabs
+
+## MODIFIED Requirements
+
+### Requirement: Student Profile row detail view
+The system SHALL display read-only field labels and values with distinct typography in the details drawer across all seven tabs. Field labels SHALL use a smaller, muted style; field values SHALL use a larger, emphasized style. Empty values displayed as an em dash SHALL use a subdued empty-state style distinct from filled values.
+
+#### Scenario: Label and value visual hierarchy in details
+- **WHEN** user opens Details and views any tab
+- **THEN** field labels are visually distinct from field values by size, weight, and color
+- **AND** edit mode form inputs are unaffected
+
+#### Scenario: Empty value styling in details
+- **WHEN** a field has no stored value in details mode
+- **THEN** the system displays an em dash with subdued empty-state styling
+
+#### Scenario: Student category row in details header area
+- **WHEN** user opens Details
+- **THEN** the student category label and value above the tabs follow the same label/value hierarchy
+
+### Requirement: Student Profile mock data
+The system SHALL seed showcase student records with representative tab content so that details views are not dominated by empty placeholders.
+
+#### Scenario: Local showcase record richness
+- **WHEN** user opens Details for mock student XMUM2309001
+- **THEN** Basic Info, Enrollment, Contact, Education, Family, Accommodation, and Others tabs show concrete demo values across most fields
+- **AND** a small number of optional fields may remain empty per tab
+
+#### Scenario: China and International showcase records
+- **WHEN** user opens Details for XMUM2309002 or XMUM2309003
+- **THEN** category-appropriate fields are populated with concrete demo values across multiple tabs
+- **AND** empty optional fields may remain for demonstration

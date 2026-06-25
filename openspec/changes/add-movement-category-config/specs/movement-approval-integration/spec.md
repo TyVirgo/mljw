@@ -30,3 +30,19 @@ The system SHALL apply mock student profile updates when a movement record is im
 #### Scenario: Skip profile update when flags off
 - **WHEN** implementation runs and both modify flags are false
 - **THEN** the student profile mock record is unchanged
+
+## MODIFIED Requirements
+
+### Requirement: Auto implement on final approval
+The system SHALL resolve category configuration by movement source key only (one row per category code) when reading autoImplement on final approval.
+
+#### Scenario: Auto implement independent of applicant student category
+- **WHEN** final approval completes for deferment regardless of whether the applicant is Local, China, or International
+- **THEN** the system uses the single DEF001 configuration row for autoImplement
+
+### Requirement: Movement reason display uses category reasons
+The system SHALL resolve movement reason labels for deferment, withdrawal, and programme transfer from the category configuration reason list using the stored application reasonId.
+
+#### Scenario: Display reason from reasonId
+- **WHEN** an approval, query, or maintenance row shows movement reason for deferment, withdrawal, or programme transfer
+- **THEN** the displayed text matches the reasonName of the reasonId on the corresponding category row
