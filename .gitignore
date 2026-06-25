@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# deploy:gitcode 复制到项目根目录的静态产物（勿提交）
+/assets/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

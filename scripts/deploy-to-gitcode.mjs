@@ -1,7 +1,7 @@
 /**
  * 将 build:deploy 产物复制到 gitcode 日期目录，供 SourceTree 提交后云端静态访问。
  * 用法: node scripts/deploy-to-gitcode.mjs [目标目录]
- * 默认: D:/gitcode/Academic System/20260624
+ * 默认: D:/gitcode/Academic System/20260625
  */
 import fs from 'fs'
 import path from 'path'
@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
 
-const defaultTarget = 'D:/gitcode/Academic System/20260624'
+const defaultTarget = 'D:/gitcode/Academic System/20260625'
 const targetDir = path.resolve(process.argv[2] || defaultTarget)
 
 const files = ['index.html', 'favicon.svg']
@@ -47,4 +47,4 @@ for (const f of files) copyFile(f)
 for (const d of dirs) copyDir(d)
 
 console.log('\nDeploy complete:', targetDir)
-console.log('Cloud URL (示例): /high/Academic System/20260624/')
+console.log('Cloud URL (示例): /high/Academic System/20260625/')

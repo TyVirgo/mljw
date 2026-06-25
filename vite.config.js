@@ -1,11 +1,11 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-// 部署在 /high/Academic System/20260624/ 子路径下，需配置 base
-const base = '/high/Academic%20System/20260624/'
+// gitcode 云端子路径（仅 build 使用）；本地 dev / tunnelmole 用根路径 /
+const deployBase = '/high/Academic%20System/20260625/'
 
-export default defineConfig({
-  base,
+export default defineConfig(({ command }) => ({
+  base: process.env.VITE_BASE ?? (command === 'serve' ? '/' : deployBase),
   plugins: [vue()],
   server: {
     host: true,
@@ -15,5 +15,5 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
   },
-})
+}))
  

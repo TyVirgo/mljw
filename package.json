@@ -4,10 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "start": "vite",
-    "dev": "vite",
+    "start": "node scripts/restore-index.mjs && vite",
+    "dev": "node scripts/restore-index.mjs && vite",
     "build": "vite build",
     "build:deploy": "node scripts/restore-index.mjs && vite build && node scripts/copy-static.mjs",
+    "build:github-pages": "vite build",
     "deploy:gitcode": "node scripts/restore-index.mjs && vite build && node scripts/copy-static.mjs && node scripts/deploy-to-gitcode.mjs",
     "preview": "vite preview",
     "openspec": "node node_modules/@fission-ai/openspec/bin/openspec.js",
