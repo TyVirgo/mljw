@@ -5,7 +5,9 @@ import vue from '@vitejs/plugin-vue'
 const deployBase = '/high/Academic%20System/20260625/'
 
 export default defineConfig(({ command }) => ({
-  base: process.env.VITE_BASE ?? (command === 'serve' ? '/' : deployBase),
+  base:
+    process.env.VITE_BASE ??
+    (command === 'serve' || process.env.VERCEL ? '/' : deployBase),
   plugins: [vue()],
   server: {
     host: true,
