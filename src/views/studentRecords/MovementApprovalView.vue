@@ -2,9 +2,9 @@
 import { ref, computed, watch } from 'vue'
 import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
-import ApprovalLogModal from '../../components/studentRecords/ApprovalLogModal.vue'
+import MovementApplicationDetailDrawer from '../../components/studentRecords/MovementApplicationDetailDrawer.vue'
 import MovementApprovalModal from '../../components/studentRecords/MovementApprovalModal.vue'
-import MovementApprovalReviewView from '../../components/studentRecords/MovementApprovalReviewView.vue'
+import ImplementedYnBadge from '../../components/common/ImplementedYnBadge.vue'
 import { useListPageI18n } from '../../composables/useListPageI18n.js'
 import {
   applyMovementDecision,
@@ -45,10 +45,8 @@ const selectedKeys = ref([])
 const currentPage = ref(1)
 const pageSize = ref(10)
 
-const viewMode = ref('list')
-const reviewItem = ref(null)
-const reviewMode = ref('readonly')
-const approvalLogItem = ref(null)
+const detailItem = ref(null)
+const detailMode = ref('readonly')
 const approvalModalVisible = ref(false)
 const pendingApprovalRows = ref([])
 const approvalModalStage = ref('')
@@ -158,19 +156,13 @@ function resolveReviewMode(tab) {
   return 'readonly'
 }
 
-function openReview(row) {
-  reviewItem.value = row
-  reviewMode.value = resolveReviewMode(activeTab.value)
-  viewMode.value = 'review'
+function openDetails(row) {
+  detailItem.value = row
+  detailMode.value = resolveReviewMode(activeTab.value)
 }
 
-function closeReview() {
-  viewMode.value = 'list'
-  reviewItem.value = null
-}
-
-function openApprovalLog(row) {
-  approvalLogItem.value = row
+function closeDetails() {
+  detailItem.value = null
 }
 
 function openApprovalModal() {
@@ -253,17 +245,7 @@ function statusLabel(status) {
 </script>
 
 <template>
-  <MovementApprovalReviewView
-    v-if="viewMode === 'review' && reviewItem"
-    :queue-item="reviewItem"
-    :mode="reviewMode"
-    :current-role="currentRole"
-    @back="closeReview"
-    @decided="closeReview"
-    @recalled="closeReview"
-  />
-
-  <div v-else class="movement-approval-page">
+  <div class="movement-approval-page">
     <div class="page-card">
       <div class="tab-bar">
         <button
@@ -350,7 +332,7 @@ function statusLabel(status) {
           :disabled="!canApproveSelection"
           @click="openApprovalModal"
         >
-          {{ tr('Review') }}
+          {{ t('movementApproval.approve') }}
         </button>
         <button type="button" class="btn btn-outline" @click="openExportModal">{{ t('common.export') }}</button>
       </div>
@@ -395,7 +377,7 @@ function statusLabel(status) {
                   </span>
                 </td>
                 <td>{{ tr(item.approvalStage) }}</td>
-                <td v-if="showImplementedColumn">{{ item.implementedYn }}</td>
+                <td v-if="showImplementedColumn"><ImplementedYnBadge :value="item.implemented" /></td>
                 <td>{{ item.studentId }}</td>
                 <td>{{ item.fullName }}</td>
                 <td>{{ item.applicationSession }}</td>
@@ -404,10 +386,7 @@ function statusLabel(status) {
                 <td>{{ item.applicationDateDisplay }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
-                    <button type="button" class="link-btn" @click="openReview(item)">{{ tr('View') }}</button>
-                    <button type="button" class="link-btn" @click="openApprovalLog(item)">
-                      {{ tr('Approval Log') }}
-                    </button>
+                    <button type="button" class="link-btn" @click="openDetails(item)">{{ t('common.details') }}</button>
                   </div>
                 </td>
               </tr>
@@ -424,11 +403,14 @@ function statusLabel(status) {
       </div>
     </div>
 
-    <ApprovalLogModal
-      :visible="!!approvalLogItem"
-      :logs="approvalLogItem?.raw?.approvalLog || []"
-      :subtitle="approvalLogItem ? `${approvalLogItem.applicationId} — ${approvalLogItem.fullName}` : ''"
-      @close="approvalLogItem = null"
+    <MovementApplicationDetailDrawer
+      :visible="!!detailItem"
+      :queue-item="detailItem"
+      :mode="detailMode"
+      :current-role="currentRole"
+      @close="closeDetails"
+      @decided="closeDetails"
+      @recalled="closeDetails"
     />
 
     <MovementApprovalModal

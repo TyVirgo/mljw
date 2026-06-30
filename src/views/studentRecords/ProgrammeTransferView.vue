@@ -8,9 +8,7 @@ import TablePagination from '../../components/common/TablePagination.vue'
 
 import ProgrammeTransferFormModal from '../../components/studentRecords/ProgrammeTransferFormModal.vue'
 
-import ProgrammeTransferDetailModal from '../../components/studentRecords/ProgrammeTransferDetailModal.vue'
-
-import ApprovalLogModal from '../../components/studentRecords/ApprovalLogModal.vue'
+import MovementApplicationDetailDrawer from '../../components/studentRecords/MovementApplicationDetailDrawer.vue'
 
 import MovementApplicationSearchBar from '../../components/studentRecords/MovementApplicationSearchBar.vue'
 
@@ -104,15 +102,9 @@ const editingItem = ref(null)
 
 
 
-const detailVisible = ref(false)
+const drawerVisible = ref(false)
 
 const detailItem = ref(null)
-
-
-
-const logVisible = ref(false)
-
-const logItem = ref(null)
 
 
 
@@ -230,7 +222,7 @@ function openEdit(item) {
 
   formVisible.value = true
 
-  detailVisible.value = false
+  drawerVisible.value = false
 
 }
 
@@ -240,29 +232,15 @@ function openDetail(item) {
 
   detailItem.value = { ...item }
 
-  detailVisible.value = true
+  drawerVisible.value = true
 
 }
 
 
 
-function openLog(item) {
+function closeDrawer() {
 
-  logItem.value = item
-
-  logVisible.value = true
-
-}
-
-
-
-function logSubtitle(item) {
-
-  if (!item) return ''
-
-  const name = item.fullName || item.name || ''
-
-  return [item.applicationId, item.studentId, name].filter(Boolean).join(' · ')
+  drawerVisible.value = false
 
 }
 
@@ -370,7 +348,7 @@ function requestDelete(item) {
 
     if (detailItem.value?.id === item.id) {
 
-      detailVisible.value = false
+      drawerVisible.value = false
 
       detailItem.value = null
 
@@ -554,12 +532,6 @@ function displayDate(item) {
 
                   </button>
 
-                  <button type="button" class="link-btn" @click="openLog(item)">
-
-                    {{ t('common.workflowLog') }}
-
-                  </button>
-
                 </td>
 
               </tr>
@@ -612,28 +584,12 @@ function displayDate(item) {
 
 
 
-    <ProgrammeTransferDetailModal
-
-      :visible="detailVisible"
-
+    <MovementApplicationDetailDrawer
+      :visible="drawerVisible"
+      source-key="programme-transfer"
       :item="detailItem"
-
-      @close="detailVisible = false"
-
-    />
-
-
-
-    <ApprovalLogModal
-
-      :visible="logVisible"
-
-      :logs="logItem?.approvalLog || []"
-
-      :subtitle="logSubtitle(logItem)"
-
-      @close="logVisible = false"
-
+      mode="student"
+      @close="closeDrawer"
     />
 
 

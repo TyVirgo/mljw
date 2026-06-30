@@ -1,7 +1,8 @@
 <script setup>
 import { computed, watch } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { downloadMockConsentFile } from '../../utils/consentFormDownload.js'
+import { getAppliedConsentVersion } from '../../data/consentForms.js'
+import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -13,6 +14,7 @@ const emit = defineEmits(['close'])
 const { t, tr } = useAppI18n()
 
 const row = computed(() => props.data)
+const appliedVersion = computed(() => getAppliedConsentVersion(row.value))
 
 watch(
   () => props.visible,
@@ -41,9 +43,10 @@ function formatStudentType(type) {
   return translated !== key ? translated : tr(type)
 }
 
-function downloadFile(fileMeta, label) {
-  if (!fileMeta?.fileName) return
-  downloadMockConsentFile(fileMeta, label)
+function formatProgrammeLevel(level) {
+  const key = `consentForm.programmeLevel.${level}`
+  const translated = t(key)
+  return translated !== key ? translated : tr(level)
 }
 </script>
 
@@ -71,34 +74,40 @@ function downloadFile(fileMeta, label) {
               <dd>{{ formatStudentType(row.studentType) }}</dd>
             </div>
             <div class="detail-row">
+              <dt>{{ t('consentForm.fields.programmeLevel') }}</dt>
+              <dd>{{ formatProgrammeLevel(row.programmeLevel) }}</dd>
+            </div>
+            <div class="detail-row">
               <dt>{{ t('consentForm.fields.remark') }}</dt>
               <dd class="multiline">{{ row.remark || '—' }}</dd>
+            </div>
+            <div v-if="appliedVersion?.academicSession" class="detail-row">
+              <dt>{{ t('consentForm.fields.effectiveAcademicSession') }}</dt>
+              <dd>{{ appliedVersion.academicSession }}</dd>
             </div>
             <div class="detail-row">
               <dt>{{ t('consentForm.fields.studentConsent') }}</dt>
               <dd>
-                <button
-                  v-if="row.studentConsentFile?.fileName"
-                  type="button"
-                  class="file-link"
-                  @click="downloadFile(row.studentConsentFile, row.formName)"
-                >
-                  {{ row.studentConsentFile.fileName }}
-                </button>
+                <AttachmentPreviewTrigger
+                  v-if="appliedVersion?.studentConsentFile?.fileName"
+                  :file-name="appliedVersion.studentConsentFile.fileName"
+                  :file-meta="appliedVersion.studentConsentFile"
+                  :download-label="row.formName"
+                  :show-file-icon="false"
+                />
                 <span v-else>—</span>
               </dd>
             </div>
             <div class="detail-row">
               <dt>{{ t('consentForm.fields.parentConsent') }}</dt>
               <dd>
-                <button
-                  v-if="row.parentConsentFile?.fileName"
-                  type="button"
-                  class="file-link"
-                  @click="downloadFile(row.parentConsentFile, `${row.formName} - Parent`)"
-                >
-                  {{ row.parentConsentFile.fileName }}
-                </button>
+                <AttachmentPreviewTrigger
+                  v-if="appliedVersion?.parentConsentFile?.fileName"
+                  :file-name="appliedVersion.parentConsentFile.fileName"
+                  :file-meta="appliedVersion.parentConsentFile"
+                  :download-label="`${row.formName} - Parent`"
+                  :show-file-icon="false"
+                />
                 <span v-else>—</span>
               </dd>
             </div>

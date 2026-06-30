@@ -10,6 +10,7 @@ import { applyStudentProfileFromMovement } from './students.js'
 import { formatMovementDateIso } from '../utils/formatMovementDate.js'
 import { getCurrentApplicationSession } from './movementApplicationSession.js'
 import { extractEffectiveSession } from './movementApprovalQueue.js'
+import { resolveCategoryFromNationality } from './students.js'
 
 export const DEFAULT_APPROVER_ROLE = 'Pending Review'
 
@@ -29,8 +30,8 @@ function formatDateTime() {
 
 export function inferStudentCategory(item) {
   if (item.studentCategory) return item.studentCategory
-  if (item.nationality === 'China') return 'China'
-  if (item.nationality && item.nationality !== 'Malaysia') return 'International'
+  const fromNationality = resolveCategoryFromNationality(item.nationality)
+  if (fromNationality) return fromNationality
   return 'Local'
 }
 

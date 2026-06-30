@@ -43,7 +43,7 @@
   education: { qualification, institutionName, ..., remarks },
   family: { name, icPassport, relationship, occupation, ... },
   accommodation: { hostelStatus, campus, roomNo, checkInDate, ... },
-  others: { registrationDate, taxRegistrationNo, sponsor, remarks, statusChangeLog },
+  others: { registrationDate, taxRegistrationNo, sponsor, remarks }, // §15 移除 statusChangeLog → statusLogs[]
 }
 ```
 
@@ -435,3 +435,180 @@ programme / faculty 同步为所选 catalogue 项的 `programmeName` / `school`�
 ```
 
 **Non-Goals（§14）**：Import 主数据校验；Programme Intake 级联；扩展 catalogue 补 FIN。
+
+---
+
+## §15 详情 Status Log Tab
+
+### 32. Tab 注册策略
+
+```javascript
+// src/data/students.js — 表单仍用 7 Tab
+export const studentFormTabs = [ basic, enrollment, …, others ]
+
+// 详情专用：7 Tab + Status Log
+export const studentDetailTabs = [
+  ...studentFormTabs,
+  { id: 'statusLog', labelKey: 'studentProfile.tabs.statusLog' },
+]
+```
+
+- `StudentProfileFormDrawer` → `studentFormTabs`（不变）
+- `StudentProfileDetailDrawer` → `studentDetailTabs` + `StatusLogTab.vue`
+
+### 33. 数据模型
+
+```javascript
+// 替换 others.statusChangeLog 字符串
+statusLogs: [
+  {
+    id: 1,
+    status: 'New',              // New | Active | Graduated | …
+    dateEffective: '2025-03-11', // ISO；展示 DD/MM/YYYY
+    changedBy: 'TAN HUEY YEN',
+    remarkTitle: 'New Registration',
+    remarkLines: [
+      'Program : FIA-BS',
+      'Intake : 2026/04',
+    ],
+  },
+  {
+    id: 2,
+    status: 'Active',
+    dateEffective: '2025-03-11',
+    changedBy: 'LEE LAY TEEN',
+    remarkTitle: 'Change Student Status',
+    remarkLines: [
+      'Old StudentID : FIA2504535',
+      'New StudentID : FIA2504013',
+      'Old Intake : 2025/04',
+      'New intake : 2026/04',
+    ],
+  },
+]
+```
+
+`createEmptyStudent()` → `statusLogs: []`；新建保存不写入日志（Non-goal）。
+
+### 34. UI — StatusLogTab.vue
+
+- 只读表格，表头 `#E8F5E9` 类浅绿（对齐原型 Status Log）
+- Remarks 列：`remarkTitle` 加粗块 + `remarkLines` 逐行 `<div>`
+- 日期：`formatMovementDate` 或专用 `formatStatusLogDate` → `DD/MM/YYYY`
+- 空数组 → `common.noData`
+
+### 35. Others Tab 清理
+
+- 从 `OthersTab.vue` 移除 `Status Change Log` textarea
+- 从 `createEmptyOthers()` 移除 `statusChangeLog`
+- mock 迁移：`others.statusChangeLog` 文本 → `statusLogs[]` 结构化条目
+
+### 36. 文件影响（§15）
+
+```
+新增:
+  src/components/studentRecords/tabs/StatusLogTab.vue
+
+修改:
+  src/data/students.js — statusLogs、studentDetailTabs、移除 statusChangeLog
+  src/components/studentRecords/StudentProfileDetailDrawer.vue
+  src/components/studentRecords/tabs/OthersTab.vue
+  src/i18n/locales/zh.js、en.js
+```
+
+**Non-Goals（§15）**：Save 自动 append；Export statusLogs；Create/Edit 展示 Status Log Tab。
+
+---
+
+## §16 Enrollment 专业联动 + Accommodation 代码集下拉
+
+### 37. 专业名称主控联动（修订 §14 §29）
+
+```javascript
+// studentEnrollmentOptions.js
+export function resolveEnrollmentByProgrammeName(programmeName) {
+  // match programmeCatalogue by programmeName (exact)
+  // merge level from initialProgrammes / catalogue extension
+  return { programmeCode, programme, faculty, programmeLevel, duration } | null
+}
+```
+
+**EnrollmentTab 行为：**
+
+```
+用户选择 Programme（专业名称）▼
+         │
+         ▼ resolveEnrollmentByProgrammeName
+┌────────────────────────────────────────┐
+│ programmeCode     readonly             │
+│ faculty           readonly             │
+│ programmeLevel    readonly (L6-Bachelor)│
+│ duration          readonly (years)     │
+└────────────────────────────────────────┘
+Intake / Academic Session / Status … 不变，不随专业清空
+```
+
+- Programme Code 下拉 **移除** 或改为只读展示（不以代码为主控）
+- `programmeLevel` 存 catalogue `level` 字符串（`programmeLevelOptions` 枚举值）
+- Edit 打开：若已有 programme，联动字段与存库一致；改专业则覆盖联动四字段
+
+**刻意不做（§16）：**
+
+- Programme Code 独立下拉作为主控
+- programmeLevel / duration 用户手填或独立下拉
+- 改专业时清空 intake / status
+
+### 38. Accommodation 代码集映射
+
+| 表单字段 | codeSetId（建议） | 备注 |
+|---------|-------------------|------|
+| hostelStatus | `hostel-status` | 替代 `hostelStatusOptions` 硬编码 |
+| roomType | `room-type` | |
+| campus | `campus` | |
+| blockNo | `block-no` | |
+| roomNo | `room-no` | |
+
+```javascript
+// codeSets.js
+export function getCodeSetOptions(codeSetId, entries = loadCodeEntries()) {
+  return entries
+    .filter((row) => row.codeSetId === codeSetId)
+    .map((row) => ({ value: row.codeName, label: row.codeName }))
+    // 或 value: row.code 视产品存库约定；首版可与 mock 字符串对齐用 codeName
+}
+```
+
+`codeSetTree` Student 节点 children 示例：
+
+```javascript
+children: [
+  { id: 'hostel-status', label: 'Hostel Status', nodeCode: 'XS_ZSZT', nodeName: 'Hostel Status' },
+  { id: 'room-type', label: 'Room Type', nodeCode: 'XS_FJLX', nodeName: 'Room Type' },
+  { id: 'campus', label: 'Campus', nodeCode: 'XS_XQ', nodeName: 'Campus' },
+  { id: 'block-no', label: 'Block No', nodeCode: 'XS_LD', nodeName: 'Block No' },
+  { id: 'room-no', label: 'Room No', nodeCode: 'XS_FJH', nodeName: 'Room No' },
+]
+```
+
+### 39. Mock 对齐（§16）
+
+| 变更 | 说明 |
+|------|------|
+| `enrollment.programmeLevel` | `Undergraduate` → `L6-Bachelor`（等 catalogue level） |
+| `accommodation.*` | 下拉值须落在对应 codeSet seed 的 codeName 集合内 |
+
+### 40. 文件影响（§16）
+
+```
+修改:
+  src/data/studentEnrollmentOptions.js
+  src/data/codeSets.js
+  src/data/students.js
+  src/components/studentRecords/tabs/EnrollmentTab.vue
+  src/components/studentRecords/tabs/AccommodationTab.vue
+
+可选:
+  src/i18n/locales/zh.js、en.js — programmeLevel 展示
+```
+
+**Non-Goals（§16）**：楼栋→房间级联；Floor/Unit/Bed 代码集；Import 代码集校验。

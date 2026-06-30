@@ -12,6 +12,8 @@ const props = defineProps({
   visible: Boolean,
   programmeName: { type: String, default: '' },
   version: { type: Object, default: null },
+  /** 嵌套于其他弹窗之上时使用更高层级 */
+  layered: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close'])
@@ -63,7 +65,12 @@ function handleOverlayClick(event) {
 
 <template>
   <Teleport to="body">
-    <div v-if="visible && version" class="modal-overlay" @click="handleOverlayClick">
+    <div
+      v-if="visible && version"
+      class="modal-overlay"
+      :class="{ layered: layered }"
+      @click="handleOverlayClick"
+    >
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
           <h2 class="modal-title">{{ t('modal.versionDetails') }}</h2>
@@ -276,6 +283,10 @@ function handleOverlayClick(event) {
   justify-content: center;
   z-index: 1000;
   padding: 24px;
+}
+
+.modal-overlay.layered {
+  z-index: 1100;
 }
 
 .modal-panel {

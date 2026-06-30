@@ -53,3 +53,25 @@
 
 - [x] 9.1 `ConsentFormView.vue`：移除 `<th>` 的 `sortable` class 及 `.data-table th.sortable::after` CSS
 - [x] 9.2 冒烟：知情同意书列表表头无 ⇅ 箭头；`npm run build` 通过
+
+## 10. 学历层次与学期版本历史（Phase 2 / §10）
+
+- [x] 10.1 `consent-form-config/spec.md` §10：educationLevel、versions、apply 互斥、lookup 四维、未匹配文案
+- [x] 10.2 `consentForms.js`：`consentEducationLevels`、`versions[]`、`mapProgrammeLevelToEducationLevel`、`setAppliedVersion`、唯一键三维
+- [x] 10.3 `ConsentFormFormModal`：Education Level 下拉；唯一性校验更新
+- [x] 10.4 `ConsentFormView`：学历层次列/搜索；Actions 增加「历史版本」
+- [x] 10.5 新建 `ConsentFormVersionHistoryModal`：按 `YYYY/MM` 列版本、学期内新增/编辑、Apply switch 互斥
+- [x] 10.6 `resolveConsentTemplate` 签名扩展 + `consentFormDownload.js` 传 `programmeLevel` + `academicSession`
+- [x] 10.7 四 Tab Form + `MovementAttachmentReadonly`：未匹配提示「未匹配对应同意书，联系管理员」
+- [x] 10.8 mock 种子：扩展示例 `versions`（≥2 学期 × `isApplied`）；`npm run build` 通过
+
+## 11. 历史版本 UX refinement（Phase 2.1 / §11）
+
+- [x] 11.1 `consent-form-config/spec.md` §11 MODIFIED：Save append log、只读历史弹窗、全局 Apply、三维 lookup
+- [x] 11.2 `movement-application-details/spec.md` §11 MODIFIED：申请端 lookup 暂不用 applicationSession
+- [x] 11.3 实现 `resolveAcademicSessionFromDate`（semesterInfo 区间 → snapCalendarMonth fallback）
+- [x] 11.4 `consentForms.js`：`appendVersionLog`、`buildDiffRemarkLines`、Save 钩子；`setAppliedVersion` 全局互斥；lookup 三维
+- [x] 11.5 重构 `ConsentFormVersionHistoryModal`：只读 Status Log 表 + Apply switch；移除 draft/upsert/delete
+- [x] 11.6 `ConsentFormFormModal` / `ConsentFormView` Save 路径调用 append；mock 种子补 `remarkTitle`/`remarkLines`/`changedBy`
+- [x] 11.7 `consentFormDownload.js` + 四 Tab + `MovementAttachmentReadonly`：lookup 去掉 applicationSession
+- [x] 11.8 冒烟：`npm run build`；Create/Edit 产生历史行；历史弹窗无新增区；Apply 全局互斥；下载走 Applied 快照

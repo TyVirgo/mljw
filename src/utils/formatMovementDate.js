@@ -77,3 +77,16 @@ export function formatMovementDateOrEmpty(value) {
   const formatted = formatMovementDate(value)
   return formatted === '—' ? '' : formatted
 }
+
+/** Status Log 展示 DD/MM/YYYY */
+export function formatStatusLogDate(value) {
+  const date = parseMovementDate(value)
+  if (!date || Number.isNaN(date.getTime())) {
+    const trimmed = String(value ?? '').trim()
+    return trimmed || '—'
+  }
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = date.getFullYear()
+  return `${day}/${month}/${year}`
+}

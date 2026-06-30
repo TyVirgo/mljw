@@ -39,11 +39,11 @@ The system SHALL display a paginated table with columns matching the prototype.
 - **THEN** available options include Local, China, and International
 
 ### Requirement: Student Profile row detail view
-The system SHALL allow users to view complete student record details from the list using the same seven-tab structure as the registration form.
+The system SHALL allow users to view complete student record details from the list using the same seven-tab structure as the registration form, plus a read-only Status Log tab after Others.
 
 #### Scenario: Open details drawer
 - **WHEN** user clicks Details on a row
-- **THEN** the system displays a read-only drawer with tabs Basic Info, Enrollment, Contact, Education, Family, Accommodation, and Others showing all stored fields for that student
+- **THEN** the system displays a read-only drawer with tabs Basic Info, Enrollment, Contact, Education, Family, Accommodation, Others, and Status Log showing all stored fields for that student
 
 #### Scenario: Details respects student category fields
 - **WHEN** user opens Details for a China or International student
@@ -204,15 +204,48 @@ The system SHALL display different Education tab fields based on Student Categor
 - **THEN** Qualification is presented as a dropdown selection
 
 ### Requirement: Student Profile category-specific others fields
-The system SHALL display different Others tab fields based on Student Category.
+The system SHALL display different Others tab fields based on Student Category. The Others tab SHALL NOT include a Status Change Log text field; status history is shown only in the details Status Log tab.
 
 #### Scenario: Local others includes tax registration
 - **WHEN** user views the Others tab for a Local student
-- **THEN** the form displays Tax Registration No along with Registration Date, Sponsor, Remarks, and Status Change Log
+- **THEN** the form displays Tax Registration No along with Registration Date, Sponsor, and Remarks
 
 #### Scenario: China or International others excludes tax registration
 - **WHEN** user views the Others tab for a China or International student
-- **THEN** the form displays Registration Date, Sponsor, Remarks, and Status Change Log and does not display Tax Registration No
+- **THEN** the form displays Registration Date, Sponsor, and Remarks and does not display Tax Registration No
+
+### Requirement: Student Profile detail status log tab
+The system SHALL display a read-only **Status Log** tab in the student profile details drawer after the Others tab. The Status Log tab SHALL NOT appear in create or edit registration drawers.
+
+#### Scenario: Status log tab only in details
+- **WHEN** user opens Details for a student record
+- **THEN** the drawer shows a Status Log tab after Others
+- **WHEN** user opens Create or Edit registration
+- **THEN** the drawer does not show a Status Log tab
+
+#### Scenario: Status log table columns
+- **WHEN** user views the Status Log tab in details mode
+- **THEN** the system displays a read-only table with columns Status, Date Effective, Changed By, and Remarks
+
+#### Scenario: Date effective format
+- **WHEN** a status log entry has a date effective value
+- **THEN** the Date Effective column displays the date in DD/MM/YYYY format
+
+#### Scenario: Remarks multi-line content
+- **WHEN** user views a status log entry in the Remarks column
+- **THEN** the system displays a bold remark title followed by one or more label-value lines such as Program, Intake, Old StudentID, or New StudentID
+
+#### Scenario: Status log empty state
+- **WHEN** a student record has no status log entries
+- **THEN** the Status Log tab displays an empty-state message
+
+#### Scenario: Others tab excludes legacy status change log field
+- **WHEN** user views the Others tab in create, edit, or details mode
+- **THEN** the system does not display the legacy Status Change Log textarea field
+
+#### Scenario: Showcase mock includes status logs
+- **WHEN** user opens Details for mock students XMUM2309001, XMUM2309002, or XMUM2309003
+- **THEN** the Status Log tab displays multiple structured entries including registration and status change examples
 
 ### Requirement: Student Profile category-specific enrollment fields
 The system SHALL display enrollment field control differences for China and International students where specified by the prototype.
@@ -229,31 +262,70 @@ The system SHALL display enrollment field control differences for China and Inte
 - **WHEN** user views the Enrollment tab for a China or International student
 - **THEN** Fujian Scholarship Amt is not displayed
 
+## MODIFIED Requirements
+
 ### Requirement: Student Profile enrollment master-data selects
-The system SHALL present Programme Code, Programme, Faculty, Intake (YYYY/MM), and Academic Session on the Enrollment tab as dropdown selections sourced from basic-data module datasets. The five fields SHALL be independently selectable without cascading or Programme Intake combination validation in this phase.
+The system SHALL present Programme as the primary dropdown on the Enrollment tab, sourced from the programme catalogue names. When the user selects a programme name, the system SHALL auto-populate programme code, faculty, programme level, and duration as read-only derived fields from the same catalogue record (including programme level stored as values such as L6-Bachelor aligned with programme version master data). Intake (YYYY/MM) and Academic Session SHALL remain independently selectable dropdowns without cascading from programme selection.
 
-#### Scenario: Enrollment fields use basic-data options in create or edit
+#### Scenario: Programme name drives derived enrollment fields
+- **WHEN** user selects a programme name on the Enrollment tab in create or edit mode
+- **THEN** the system sets programme code, faculty, programme level, and duration from the matching programme catalogue entry
+- **AND** programme code, faculty, programme level, and duration are read-only and not separately editable by the user
+
+#### Scenario: Programme level stored as catalogue level code
+- **WHEN** the system persists enrollment after programme selection
+- **THEN** programme level is stored using catalogue level values such as L6-Bachelor rather than free-text labels such as Undergraduate
+
+#### Scenario: Intake and academic session remain independent
+- **WHEN** user changes programme name after selecting intake or academic session
+- **THEN** the system retains the previously selected intake and academic session values unless the user changes them explicitly
+
+#### Scenario: Enrollment intake and session options unchanged
 - **WHEN** user views the Enrollment tab in create or edit mode
-- **THEN** Programme Code options come from the programme catalogue codes
-- **AND** Programme options come from the programme catalogue names
-- **AND** Faculty options come from configured school labels
-- **AND** Intake options come from active intake set batches
-- **AND** Academic Session options come from semester information academic sessions
-
-#### Scenario: Independent selection without linkage
-- **WHEN** user changes Programme Code without changing Programme or Faculty
-- **THEN** the system does not auto-update Programme or Faculty
-- **AND** the system does not reject saves based on programme and intake combination rules
+- **THEN** intake options come from active intake set batches
+- **AND** academic session options come from semester information academic sessions
 
 #### Scenario: List details and edit show the same enrollment values
 - **WHEN** user views a student row in the list and opens Details or Edit for that student
-- **THEN** Programme Code, Programme, Intake, and related list columns display the same stored enrollment values
-- **AND** edit mode dropdowns show the stored values as selected when those values exist in the option lists
+- **THEN** programme, programme code, faculty, programme level, duration, intake, and related list columns display the same stored enrollment values
+- **AND** edit mode shows the stored programme name as selected in the programme dropdown when it exists in the catalogue
 
-#### Scenario: Showcase mock aligns with master-data options
+#### Scenario: Showcase mock aligns with catalogue level and options
 - **WHEN** user opens Edit for mock students XMUM2309001, XMUM2309002, or XMUM2309003
-- **THEN** enrollment programme code, programme name, faculty, intake, and academic session values match entries available in the basic-data option lists
-- **AND** each corresponding dropdown displays the correct selected option
+- **THEN** enrollment programme level values match catalogue level codes such as L6-Bachelor
+- **AND** programme-derived fields are consistent with the selected programme name
+
+### Requirement: Student Profile accommodation code-set selects
+The system SHALL present Hostel Status, Room Type, Campus, Block No, and Room No on the Accommodation tab as dropdown selections sourced from Student Code Sets in the basic-data code set module. Floor No, Unit No, Bed No, date fields, and amount fields SHALL remain non-code-set controls as specified.
+
+#### Scenario: Accommodation code-set dropdowns in create or edit
+- **WHEN** user views the Accommodation tab in create or edit mode
+- **THEN** hostel status, room type, campus, block no, and room no are dropdowns populated from code set entries
+- **AND** floor no, unit no, and bed no remain text inputs in this phase
+
+#### Scenario: Code set options from student code sets
+- **WHEN** the system loads accommodation dropdown options
+- **THEN** options are resolved from Student Code Sets entries managed in code set management (mock seed and local storage in this phase)
+
+#### Scenario: Accommodation details and edit consistency
+- **WHEN** user opens Details or Edit for a student with accommodation values
+- **THEN** stored accommodation dropdown values display as selected options when present in the code set lists
+
+#### Scenario: Showcase mock aligns with accommodation code sets
+- **WHEN** user opens Edit for mock students XMUM2309001, XMUM2309002, or XMUM2309003
+- **THEN** accommodation dropdown field values match entries available in the corresponding Student Code Sets
+
+## REMOVED Requirements
+
+### Requirement: Student Profile enrollment master-data selects (§14 independent five-field model)
+**Reason**: §16 replaces independent Programme Code / Faculty dropdowns with programme-name-driven linkage; programme level and duration become read-only derived fields.
+**Migration**: See §16 MODIFIED requirement for Student Profile enrollment master-data selects.
+
+#### Scenario: Enrollment fields use basic-data options in create or edit (§14 five independent dropdowns)
+- **REMOVED** — programme code and faculty are no longer independent primary dropdowns
+
+#### Scenario: Independent selection without linkage
+- **REMOVED** — programme name now drives programme code, faculty, programme level, and duration
 
 ## MODIFIED Requirements
 

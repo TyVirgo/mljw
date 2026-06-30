@@ -173,6 +173,7 @@ export function buildStudentSnapshotFromProfile(student) {
     currentProgramme: enrollment.programme || '',
     currentIntake: enrollment.intake || '',
     currentSchool: enrollment.faculty || '',
+    programmeLevel: enrollment.programmeLevel || '',
     applicationSession: resolveApplicationSessionFromStudent(student),
   }
 }

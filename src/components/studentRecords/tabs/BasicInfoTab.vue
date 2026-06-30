@@ -7,9 +7,6 @@ import {
   genderOptions,
   maritalStatusOptions,
   disabilityOptions,
-  isLocalCategory,
-  isChinaCategory,
-  isChinaOrInternationalCategory,
   usesDisabilityDropdown,
 } from '../../../data/students.js'
 
@@ -17,6 +14,7 @@ const props = defineProps({
   form: { type: Object, required: true },
   readOnly: { type: Boolean, default: false },
   errors: { type: Object, default: () => ({}) },
+  nationalitySelected: { type: Boolean, default: true },
 })
 
 const { tr } = useAppI18n()
@@ -24,10 +22,10 @@ const fileInputRef = ref(null)
 const photoError = ref('')
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024
 
-const category = computed(() => props.form.studentCategory || 'Local')
-const isLocal = computed(() => isLocalCategory(category.value))
-const isChina = computed(() => isChinaCategory(category.value))
-const isChinaOrIntl = computed(() => isChinaOrInternationalCategory(category.value))
+const category = computed(() => props.form.studentCategory || '')
+const isLocal = computed(() => category.value === 'Local')
+const isChina = computed(() => category.value === 'China')
+const isChinaOrIntl = computed(() => category.value === 'China' || category.value === 'International')
 const disabilityAsSelect = computed(() => usesDisabilityDropdown(category.value))
 
 function err(field) {
@@ -118,9 +116,6 @@ function onPhotoSelect(event) {
       </StudentFormField>
       <StudentFormField label="Age" :read-only="readOnly" :display-value="form.basicInfo.age">
         <input v-model="form.basicInfo.age" type="text" />
-      </StudentFormField>
-      <StudentFormField label="Nationality" :read-only="readOnly" :display-value="form.basicInfo.nationality">
-        <input v-model="form.basicInfo.nationality" type="text" />
       </StudentFormField>
       <StudentFormField label="Race" :read-only="readOnly" :display-value="form.basicInfo.race">
         <input v-model="form.basicInfo.race" type="text" />

@@ -231,11 +231,7 @@ export function createEmptyMovementCategoryForm() {
   return {
     categoryCode: '',
     categoryName: '',
-    studentStatus: '',
-    category: '',
     allowStudentApply: true,
-    modifyStudentStatus: false,
-    modifyStudentType: false,
     autoImplement: false,
     deleteOriginalCourseList: false,
     presetNewProgrammeBatchList: false,
@@ -261,14 +257,6 @@ export function validateMovementCategoryForm(data, mode = 'create', excludeId = 
   }
   if (!String(data.categoryName || '').trim()) {
     requireField('categoryName', 'Category name is required.')
-  }
-  if (!data.studentStatus) {
-    requireField('studentStatus', 'Student Status is required.')
-  }
-  if (!data.category) {
-    requireField('category', 'Category is required.')
-  } else if (!trackCategoryOptions.includes(data.category)) {
-    requireField('category', 'Category is invalid.')
   }
 
   if (data.categoryCode && isDuplicateCode(data.categoryCode, excludeId)) {

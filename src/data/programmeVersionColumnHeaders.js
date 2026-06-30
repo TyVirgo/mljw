@@ -18,6 +18,7 @@ export const defaultProgrammeVersionColumnHeaders = [
   h('approvalDate', 'listNested', '批准日期', 'Approval Date', 'Tarikh Kelulusan'),
   h('moheValidityStart', 'listNested', 'MOHE 有效期开始', 'MOHE Validity Start Date', 'Tarikh Mula Sah MOHE'),
   h('moheValidityExpiry', 'listNested', 'MOHE 有效期结束', 'MOHE Validity Expiry Date', 'Tarikh Tamat Sah MOHE'),
+  h('versionPublish', 'listNested', '版本发布', 'Version Publish', 'Terbitan Versi'),
   // 新增 - 培养方案信息
   h('programmeNameEn', 'programmeInfo', '培养方案名称（英文）', 'Programme Name_EN', 'Nama Program (EN)'),
   h('programmeNameMal', 'programmeInfo', '培养方案名称（马来语）', 'Programme Name_MAL', 'Nama Program (MAL)'),

@@ -5,6 +5,7 @@ const props = defineProps({
   form: { type: Object, required: true },
   readOnly: { type: Boolean, default: false },
   errors: { type: Object, default: () => ({}) },
+  nationalitySelected: { type: Boolean, default: true },
 })
 
 function err(field) {

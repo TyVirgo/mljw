@@ -2,8 +2,9 @@
 import { ref, computed } from 'vue'
 import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
-import ApprovalLogModal from '../../components/studentRecords/ApprovalLogModal.vue'
-import MovementApprovalReviewView from '../../components/studentRecords/MovementApprovalReviewView.vue'
+import MovementApplicationDetailDrawer from '../../components/studentRecords/MovementApplicationDetailDrawer.vue'
+import ImplementedYnBadge from '../../components/common/ImplementedYnBadge.vue'
+import ImplementedYnSearchSelect from '../../components/common/ImplementedYnSearchSelect.vue'
 import { useListPageI18n } from '../../composables/useListPageI18n.js'
 import { DEFAULT_APPROVER_ROLE } from '../../data/movementApprovalEngine.js'
 import {
@@ -16,7 +17,6 @@ import {
 import { getDistinctApplicationSessions } from '../../data/movementListSearchOptions.js'
 import { movementQueryExportFields, movementQueryExportColumnMeta } from '../../data/movementQueryExportFields.js'
 import { MAINTENANCE_EMPTY } from '../../data/movementMaintenanceFields.js'
-import { formatImplementedYn } from '../../data/movementApprovalQueue.js'
 import { exportMovementQueryToExcel } from '../../utils/exportMovementQueryExcel.js'
 import { maskPassportIc } from '../../utils/maskPassportIc.js'
 import { movementListStatusBadgeClass } from '../../utils/movementListStatusBadge.js'
@@ -34,9 +34,7 @@ const selectedKeys = ref([])
 const currentPage = ref(1)
 const pageSize = ref(10)
 
-const viewMode = ref('list')
-const reviewItem = ref(null)
-const approvalLogItem = ref(null)
+const detailItem = ref(null)
 const exportModalVisible = ref(false)
 
 function createEmptySearch() {
@@ -47,6 +45,7 @@ function createEmptySearch() {
     movementType: '',
     studentId: '',
     studentName: '',
+    implemented: '',
   }
 }
 
@@ -112,17 +111,11 @@ function toggleSelect(queueKey) {
 }
 
 function openDetails(row) {
-  reviewItem.value = row
-  viewMode.value = 'review'
+  detailItem.value = row
 }
 
-function closeReview() {
-  viewMode.value = 'list'
-  reviewItem.value = null
-}
-
-function openApprovalLog(row) {
-  approvalLogItem.value = row
+function closeDetails() {
+  detailItem.value = null
 }
 
 function openExportModal() {
@@ -185,10 +178,6 @@ function statusLabel(status) {
   return map[status] || status
 }
 
-function implementedDisplay(value) {
-  return formatImplementedYn(value)
-}
-
 function studentTypeLabel(type) {
   const key = `movementMaintenance.studentType.${type}`
   const translated = t(key)
@@ -208,16 +197,7 @@ function displayPassportIc(value) {
 </script>
 
 <template>
-  <MovementApprovalReviewView
-    v-if="viewMode === 'review' && reviewItem"
-    :queue-item="reviewItem"
-    mode="readonly"
-    :current-role="currentRole"
-    :mask-sensitive-fields="true"
-    @back="closeReview"
-  />
-
-  <div v-else class="movement-query-page">
+  <div class="movement-query-page">
     <div class="page-card">
       <div class="search-bar">
         <div class="search-row">
@@ -305,6 +285,7 @@ function displayPassportIc(value) {
                   :placeholder="t('common.pleaseInput')"
                 />
               </div>
+              <ImplementedYnSearchSelect v-model="searchForm.implemented" />
             </div>
           </div>
         </Transition>
@@ -328,6 +309,7 @@ function displayPassportIc(value) {
                 <th>{{ tr('Status') }}</th>
                 <th>{{ tr('Approval Stage') }}</th>
                 <th>{{ tr('Implemented') }}</th>
+                <th>{{ t('movementApproval.columns.movementCategory') }}</th>
                 <th>{{ tr('Student ID') }}</th>
                 <th>{{ tr('Student Name') }}</th>
                 <th>{{ t('movementMaintenance.columns.movementDate') }}</th>
@@ -336,7 +318,6 @@ function displayPassportIc(value) {
                 <th>{{ t('movementMaintenance.columns.intake') }}</th>
                 <th>{{ t('movementApproval.columns.applicationSession') }}</th>
                 <th>{{ t('movementApproval.columns.effectiveSession') }}</th>
-                <th>{{ t('movementApproval.columns.movementCategory') }}</th>
                 <th>{{ t('movementApproval.columns.movementReason') }}</th>
                 <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
@@ -360,7 +341,8 @@ function displayPassportIc(value) {
                   </span>
                 </td>
                 <td>{{ tr(item.approvalStage) }}</td>
-                <td>{{ implementedDisplay(item.implemented) }}</td>
+                <td><ImplementedYnBadge :value="item.implemented" /></td>
+                <td>{{ t(item.movementCategoryKey) }}</td>
                 <td>{{ item.studentId }}</td>
                 <td>{{ item.fullName }}</td>
                 <td>{{ displayCell(item.movementDate) }}</td>
@@ -369,15 +351,10 @@ function displayPassportIc(value) {
                 <td>{{ displayCell(item.intake) }}</td>
                 <td>{{ item.applicationSession }}</td>
                 <td>{{ item.effectiveSession }}</td>
-                <td>{{ t(item.movementCategoryKey) }}</td>
                 <td class="reason-cell">{{ item.movementReason }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
-                    <button type="button" class="link-btn" @click="openDetails(item)">{{ tr('Details') }}</button>
-                    <span class="action-sep">|</span>
-                    <button type="button" class="link-btn" @click="openApprovalLog(item)">
-                      {{ tr('Approval Log') }}
-                    </button>
+                    <button type="button" class="link-btn" @click="openDetails(item)">{{ t('common.details') }}</button>
                   </div>
                 </td>
               </tr>
@@ -402,11 +379,13 @@ function displayPassportIc(value) {
       @confirm="handleExportConfirm"
     />
 
-    <ApprovalLogModal
-      :visible="!!approvalLogItem"
-      :logs="approvalLogItem?.raw?.approvalLog || []"
-      :subtitle="approvalLogItem ? `${approvalLogItem.applicationId} — ${approvalLogItem.fullName}` : ''"
-      @close="approvalLogItem = null"
+    <MovementApplicationDetailDrawer
+      :visible="!!detailItem"
+      :queue-item="detailItem"
+      mode="readonly"
+      :current-role="currentRole"
+      :mask-sensitive-fields="true"
+      @close="closeDetails"
     />
   </div>
 </template>

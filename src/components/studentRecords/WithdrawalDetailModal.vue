@@ -114,6 +114,8 @@ function displayPassport(value) {
           movement-type="withdrawal"
           :student-category="item.studentCategory"
           :student-id="item.studentId"
+          :programme-level="item.programmeLevel"
+          :application-session="item.applicationSession"
           label-key="withdrawal.fields.uploadAttachment"
           download-label-key="withdrawal.fields.downloadConsent"
         />

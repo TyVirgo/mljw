@@ -95,6 +95,13 @@ export function formatImplementedYn(value) {
   return value === 'Implemented' ? 'Y' : 'N'
 }
 
+export const movementImplementedYnFilterOptions = ['Y', 'N']
+
+export function matchesImplementedYnFilter(implementedStatus, filterYn) {
+  if (!filterYn) return true
+  return formatImplementedYn(implementedStatus) === filterYn
+}
+
 export function formatApprovalApplicationDate(sourceKey, item) {
   const raw = item.submittedAt || item.applicationDate || item.dateOfApplication
   switch (sourceKey) {

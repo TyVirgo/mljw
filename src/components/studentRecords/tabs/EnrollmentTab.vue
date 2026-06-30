@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useAppI18n } from '../../../composables/useAppI18n.js'
 import StudentFormField from '../StudentFormField.vue'
 import {
@@ -11,16 +11,13 @@ import {
   usesRecruitedByDropdown,
 } from '../../../data/students.js'
 import {
-  getEnrollmentProgrammeCodeOptions,
   getEnrollmentProgrammeNameOptions,
-  getEnrollmentFacultyOptions,
   getEnrollmentIntakeOptions,
   getEnrollmentAcademicSessionOptions,
+  resolveEnrollmentByProgrammeName,
 } from '../../../data/studentEnrollmentOptions.js'
 
-const programmeCodeOptions = getEnrollmentProgrammeCodeOptions()
 const programmeNameOptions = getEnrollmentProgrammeNameOptions()
-const facultyOptions = getEnrollmentFacultyOptions()
 const intakeOptions = getEnrollmentIntakeOptions()
 const academicSessionOptions = getEnrollmentAcademicSessionOptions()
 
@@ -28,38 +25,57 @@ const props = defineProps({
   form: { type: Object, required: true },
   readOnly: { type: Boolean, default: false },
   errors: { type: Object, default: () => ({}) },
+  nationalitySelected: { type: Boolean, default: true },
 })
-
 const { tr } = useAppI18n()
 
-const category = computed(() => props.form.studentCategory || 'Local')
+const category = computed(() => props.form.studentCategory || '')
 const recruitedByAsSelect = computed(() => usesRecruitedByDropdown())
 const showFujianScholarship = computed(() => showsFujianScholarship(category.value))
 
 function err(field) {
   return props.errors[`enrollment.${field}`] || ''
 }
+
+function applyProgrammeLinkage(programmeName) {
+  const resolved = resolveEnrollmentByProgrammeName(programmeName)
+  if (!resolved) {
+    if (!programmeName) {
+      props.form.enrollment.programmeCode = ''
+      props.form.enrollment.faculty = ''
+      props.form.enrollment.programmeLevel = ''
+      props.form.enrollment.duration = ''
+    }
+    return
+  }
+  props.form.enrollment.programmeCode = resolved.programmeCode
+  props.form.enrollment.faculty = resolved.faculty
+  props.form.enrollment.programmeLevel = resolved.programmeLevel
+  props.form.enrollment.duration = resolved.duration
+}
+
+watch(
+  () => props.form.enrollment.programme,
+  (programme) => {
+    if (props.readOnly) return
+    applyProgrammeLinkage(programme)
+  },
+)
 </script>
 
 <template>
   <div class="form-grid">
-    <StudentFormField label="Programme Code" required :read-only="readOnly" :error="err('programmeCode')" :display-value="form.enrollment.programmeCode">
-      <select v-model="form.enrollment.programmeCode">
-        <option value="">{{ tr('please select') }}</option>
-        <option v-for="opt in programmeCodeOptions" :key="opt" :value="opt">{{ opt }}</option>
-      </select>
-    </StudentFormField>
     <StudentFormField label="Programme" required :read-only="readOnly" :error="err('programme')" :display-value="form.enrollment.programme">
       <select v-model="form.enrollment.programme">
         <option value="">{{ tr('please select') }}</option>
         <option v-for="opt in programmeNameOptions" :key="opt" :value="opt">{{ opt }}</option>
       </select>
     </StudentFormField>
+    <StudentFormField label="Programme Code" required :read-only="readOnly" :error="err('programmeCode')" :display-value="form.enrollment.programmeCode">
+      <input v-model="form.enrollment.programmeCode" type="text" readonly />
+    </StudentFormField>
     <StudentFormField label="Faculty" :read-only="readOnly" :display-value="form.enrollment.faculty">
-      <select v-model="form.enrollment.faculty">
-        <option value="">{{ tr('please select') }}</option>
-        <option v-for="opt in facultyOptions" :key="opt" :value="opt">{{ opt }}</option>
-      </select>
+      <input v-model="form.enrollment.faculty" type="text" readonly />
     </StudentFormField>
     <StudentFormField label="Status" :read-only="readOnly" :display-value="tr(form.enrollment.status)">
       <select v-model="form.enrollment.status">
@@ -67,10 +83,10 @@ function err(field) {
       </select>
     </StudentFormField>
     <StudentFormField label="Programme Level" :read-only="readOnly" :display-value="form.enrollment.programmeLevel">
-      <input v-model="form.enrollment.programmeLevel" type="text" />
+      <input v-model="form.enrollment.programmeLevel" type="text" readonly />
     </StudentFormField>
     <StudentFormField label="Duration" :read-only="readOnly" :display-value="form.enrollment.duration">
-      <input v-model="form.enrollment.duration" type="text" />
+      <input v-model="form.enrollment.duration" type="text" readonly />
     </StudentFormField>
     <StudentFormField label="Semester" :read-only="readOnly" :display-value="form.enrollment.semester">
       <input v-model="form.enrollment.semester" type="text" />

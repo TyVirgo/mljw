@@ -12,14 +12,12 @@ import {
 } from '../../data/programmeTransfers.js'
 import { getReasonOptionsBySourceKey } from '../../data/movementCategories.js'
 import { initialStudents } from '../../data/students.js'
-import {
-  resolveConsentTemplate,
-} from '../../data/consentForms.js'
 import { downloadStudentConsentTemplate } from '../../utils/consentFormDownload.js'
 import StudentSelectModal from './StudentSelectModal.vue'
 import { getCurrentStudent } from '../../data/mockCurrentStudent.js'
 import { formatMovementDate } from '../../utils/formatMovementDate.js'
 import { formatApplicationSessionField } from '../../data/movementApplicationSession.js'
+import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
 import '../../styles/movement-form.css'
 
 const props = defineProps({
@@ -42,6 +40,7 @@ const form = ref(createEmptyTransfer())
 const errors = ref({})
 const studentSelectVisible = ref(false)
 const fileInputRef = ref(null)
+const pendingLocalFile = ref(null)
 
 const isEditMode = computed(() => props.mode === 'edit')
 const isResubmitMode = computed(() => props.initialData?.status === 'Update Required')
@@ -68,6 +67,7 @@ watch(
   () => {
     if (!props.visible) return
     errors.value = {}
+    pendingLocalFile.value = null
     form.value =
       isEditMode.value && props.initialData
         ? getTransferFormData(props.initialData)
@@ -86,20 +86,24 @@ function onFileChange(event) {
   const file = event.target.files?.[0]
   if (!file) {
     form.value.attachment = null
+    pendingLocalFile.value = null
     return
   }
   const allowed = /\.(pdf|jpg|jpeg|png|docx)$/i
   if (!allowed.test(file.name)) {
     errors.value.attachment = 'Supported formats: PDF, JPG, PNG, DOCX.'
     form.value.attachment = null
+    pendingLocalFile.value = null
     return
   }
   if (file.size > 5 * 1024 * 1024) {
     errors.value.attachment = 'Max file size is 5MB.'
     form.value.attachment = null
+    pendingLocalFile.value = null
     return
   }
   delete errors.value.attachment
+  pendingLocalFile.value = file
   form.value.attachment = { fileName: file.name, size: file.size }
 }
 
@@ -114,8 +118,15 @@ function getSelectedStudentCategory() {
   return getSelectedStudent()?.studentCategory || 'Local'
 }
 
+function getConsentLookup() {
+  const student = getSelectedStudent()
+  return {
+    programmeLevel: student?.enrollment?.programmeLevel || '',
+  }
+}
+
 function downloadConsentLetter() {
-  downloadStudentConsentTemplate('programme-transfer', getSelectedStudentCategory(), t)
+  downloadStudentConsentTemplate('programme-transfer', getSelectedStudentCategory(), t, getConsentLookup())
 }
 
 function buildApplicationPayload() {
@@ -329,8 +340,15 @@ function handleClose() {
             <button type="button" class="btn btn-default" @click="fileInputRef?.click()">
               {{ t('programmeTransfer.fields.selectFile') }}
             </button>
-            <span class="file-name">
-              {{ form.attachment?.fileName || t('programmeTransfer.fields.noFileSelected') }}
+            <AttachmentPreviewTrigger
+              v-if="form.attachment?.fileName"
+              :file-name="form.attachment.fileName"
+              :file-meta="form.attachment"
+              :local-file="pendingLocalFile"
+              :show-file-icon="false"
+            />
+            <span v-else class="file-name">
+              {{ t('programmeTransfer.fields.noFileSelected') }}
             </span>
             <input ref="fileInputRef" type="file" class="hidden-file" accept=".pdf,.jpg,.jpeg,.png,.docx" @change="onFileChange" />
           </div>

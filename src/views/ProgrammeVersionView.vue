@@ -9,6 +9,7 @@ import ProgrammeVersionCreateVersionModal from '../components/programme/Programm
 import ProgrammeVersionDetailModal from '../components/programme/ProgrammeVersionDetailModal.vue'
 import ProgrammeVersionImportModal from '../components/programme/ProgrammeVersionImportModal.vue'
 import ColumnHeaderConfigModal from '../components/common/ColumnHeaderConfigModal.vue'
+import YnSwitch from '../components/common/YnSwitch.vue'
 import ProgrammeVersionHistoryPanel from '../components/programme/ProgrammeVersionHistoryPanel.vue'
 import ProgrammeVersionDetailPanel from '../components/programme/ProgrammeVersionDetailPanel.vue'
 import {
@@ -18,6 +19,7 @@ import {
   createProgrammeId,
   buildVersionFromSave,
   mergeVersionFormWithProgramme,
+  setProgrammeVersionPublished,
 } from '../data/programmeVersions.js'
 import {
   exportProgrammeVersionsToExcel,
@@ -444,6 +446,10 @@ function handleVersionPublish() {
   )
 }
 
+function toggleVersionPublish(programme, version, published) {
+  setProgrammeVersionPublished(programme, version.id, published)
+}
+
 function openImportModal() {
   importModalVisible.value = true
 }
@@ -693,6 +699,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                               <th>{{ headerLabel('approvalDate') }}</th>
                               <th>{{ headerLabel('moheValidityStart') }}</th>
                               <th>{{ headerLabel('moheValidityExpiry') }}</th>
+                              <th class="col-version-publish">{{ headerLabel('versionPublish') }}</th>
                               <th>{{ t('common.actions') }}</th>
                             </tr>
                           </thead>
@@ -705,6 +712,12 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                               <td>{{ version.approvalDate }}</td>
                               <td>{{ version.moheValidityStart }}</td>
                               <td>{{ version.moheValidityExpiry }}</td>
+                              <td class="col-version-publish">
+                                <YnSwitch
+                                  :model-value="version.isCurrent"
+                                  @update:model-value="toggleVersionPublish(item, version, $event)"
+                                />
+                              </td>
                               <td class="actions-cell">
                                 <div class="actions-inner">
                                   <button type="button" class="link-btn" @click="openVersionDetail(item, version)">{{ tr('VersionDetail') }}</button>
@@ -1104,6 +1117,12 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   padding: 10px 12px;
   border-bottom: 1px solid #f3f4f6;
   font-size: 13px;
+  vertical-align: middle;
+}
+
+.col-version-publish {
+  width: 96px;
+  text-align: center;
 }
 
 .nested-table tbody tr:last-child td {

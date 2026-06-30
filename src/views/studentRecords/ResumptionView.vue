@@ -8,9 +8,7 @@ import TablePagination from '../../components/common/TablePagination.vue'
 
 import ResumptionFormModal from '../../components/studentRecords/ResumptionFormModal.vue'
 
-import ResumptionDetailModal from '../../components/studentRecords/ResumptionDetailModal.vue'
-
-import ApprovalLogModal from '../../components/studentRecords/ApprovalLogModal.vue'
+import MovementApplicationDetailDrawer from '../../components/studentRecords/MovementApplicationDetailDrawer.vue'
 
 import MovementApplicationSearchBar from '../../components/studentRecords/MovementApplicationSearchBar.vue'
 
@@ -85,15 +83,9 @@ const editingItem = ref(null)
 
 
 
-const detailVisible = ref(false)
+const drawerVisible = ref(false)
 
 const detailItem = ref(null)
-
-
-
-const logVisible = ref(false)
-
-const logItem = ref(null)
 
 
 
@@ -180,7 +172,7 @@ function openEdit(item) {
 
   formVisible.value = true
 
-  detailVisible.value = false
+  drawerVisible.value = false
 
 }
 
@@ -190,29 +182,15 @@ function openDetail(item) {
 
   detailItem.value = { ...item }
 
-  detailVisible.value = true
+  drawerVisible.value = true
 
 }
 
 
 
-function openLog(item) {
+function closeDrawer() {
 
-  logItem.value = item
-
-  logVisible.value = true
-
-}
-
-
-
-function logSubtitle(item) {
-
-  if (!item) return ''
-
-  const name = item.fullName || item.name || ''
-
-  return [item.applicationId, item.studentId, name].filter(Boolean).join(' · ')
+  drawerVisible.value = false
 
 }
 
@@ -344,7 +322,7 @@ function requestDelete(item) {
 
     if (detailItem.value?.id === item.id) {
 
-      detailVisible.value = false
+      drawerVisible.value = false
 
       detailItem.value = null
 
@@ -524,12 +502,6 @@ function displayDate(item) {
 
                   </button>
 
-                  <button type="button" class="link-btn" @click="openLog(item)">
-
-                    {{ t('common.workflowLog') }}
-
-                  </button>
-
                 </td>
 
               </tr>
@@ -580,30 +552,12 @@ function displayDate(item) {
 
 
 
-    <ResumptionDetailModal
-
-      :visible="detailVisible"
-
+    <MovementApplicationDetailDrawer
+      :visible="drawerVisible"
+      source-key="resumption"
       :item="detailItem"
-
-      @close="detailVisible = false"
-
-      @edit="openEdit"
-
-    />
-
-
-
-    <ApprovalLogModal
-
-      :visible="logVisible"
-
-      :logs="logItem?.approvalLog || []"
-
-      :subtitle="logSubtitle(logItem)"
-
-      @close="logVisible = false"
-
+      mode="student"
+      @close="closeDrawer"
     />
 
 

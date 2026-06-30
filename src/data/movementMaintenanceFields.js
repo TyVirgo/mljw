@@ -147,7 +147,7 @@ export function implementMaintenanceRecords(rows) {
   for (const row of rows) {
     if (row.implemented !== 'Pending') continue
     const raw = row.raw || row
-    const next = requestImplementation(row.sourceKey, raw)
+    const next = applyImplementationEffect(row.sourceKey, raw)
     if (next) updated.push(next)
   }
   return updated

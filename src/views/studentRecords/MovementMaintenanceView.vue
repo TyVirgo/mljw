@@ -3,12 +3,11 @@ import { ref, computed } from 'vue'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
-import ApprovalLogModal from '../../components/studentRecords/ApprovalLogModal.vue'
-import MovementApprovalReviewView from '../../components/studentRecords/MovementApprovalReviewView.vue'
+import MovementApplicationDetailDrawer from '../../components/studentRecords/MovementApplicationDetailDrawer.vue'
+import ImplementedYnBadge from '../../components/common/ImplementedYnBadge.vue'
+import ImplementedYnSearchSelect from '../../components/common/ImplementedYnSearchSelect.vue'
 import { useListPageI18n } from '../../composables/useListPageI18n.js'
 import { DEFAULT_APPROVER_ROLE } from '../../data/movementApprovalEngine.js'
-import { formatImplementedYn } from '../../data/movementApprovalQueue.js'
-import { getCurrentApplicationSession } from '../../data/movementApplicationSession.js'
 import { getDistinctApplicationSessions } from '../../data/movementListSearchOptions.js'
 import {
   mergeMovementMaintenanceQueue,
@@ -37,9 +36,7 @@ const selectedKeys = ref([])
 const currentPage = ref(1)
 const pageSize = ref(10)
 
-const viewMode = ref('list')
-const reviewItem = ref(null)
-const approvalLogItem = ref(null)
+const detailItem = ref(null)
 
 const confirmVisible = ref(false)
 const confirmTitle = ref('')
@@ -54,6 +51,7 @@ function createEmptySearch() {
     status: '',
     studentId: '',
     studentName: '',
+    implemented: '',
   }
 }
 
@@ -71,14 +69,9 @@ const paginatedItems = computed(() => {
   return filteredItems.value.slice(start, start + pageSize.value)
 })
 
-const selectablePageItems = computed(() =>
-  paginatedItems.value.filter((item) => item.implemented === 'Pending'),
-)
-
 const allPageSelected = computed(() => {
-  const selectable = selectablePageItems.value
-  if (!selectable.length) return false
-  return selectable.every((item) => selectedKeys.value.includes(item.queueKey))
+  if (!paginatedItems.value.length) return false
+  return paginatedItems.value.every((item) => selectedKeys.value.includes(item.queueKey))
 })
 
 const selectedRows = computed(() =>
@@ -87,17 +80,18 @@ const selectedRows = computed(() =>
     .filter(Boolean),
 )
 
-const hasSelection = computed(() => selectedRows.value.length > 0)
-
-const canImplement = computed(
-  () => hasSelection.value && selectedRows.value.some((row) => row.implemented === 'Pending'),
+const selectedImplementableRows = computed(() =>
+  selectedRows.value.filter((row) => row.implemented === 'Pending'),
 )
 
+const hasSelection = computed(() => selectedRows.value.length > 0)
+
+const canImplement = computed(() => selectedImplementableRows.value.length > 0)
+
 function pruneSelection() {
-  selectedKeys.value = selectedKeys.value.filter((key) => {
-    const row = fullQueue.value.find((item) => item.queueKey === key)
-    return row && row.implemented === 'Pending'
-  })
+  selectedKeys.value = selectedKeys.value.filter((key) =>
+    fullQueue.value.some((item) => item.queueKey === key),
+  )
 }
 
 function handleSearch() {
@@ -114,7 +108,7 @@ function handleReset() {
 }
 
 function toggleSelectAll(event) {
-  const pageKeys = selectablePageItems.value.map((item) => item.queueKey)
+  const pageKeys = paginatedItems.value.map((item) => item.queueKey)
   if (event.target.checked) {
     selectedKeys.value = [...new Set([...selectedKeys.value, ...pageKeys])]
   } else {
@@ -123,8 +117,6 @@ function toggleSelectAll(event) {
 }
 
 function toggleSelect(queueKey) {
-  const row = fullQueue.value.find((item) => item.queueKey === queueKey)
-  if (!row || row.implemented !== 'Pending') return
   if (selectedKeys.value.includes(queueKey)) {
     selectedKeys.value = selectedKeys.value.filter((key) => key !== queueKey)
   } else {
@@ -132,63 +124,29 @@ function toggleSelect(queueKey) {
   }
 }
 
-function isImmediateImplementRow(row) {
-  const current = getCurrentApplicationSession()
-  const effective = row.effectiveSession
-  return current && effective && effective !== '—' && current === effective
-}
-
-function buildImplementConfirmMessage(eligible) {
-  const immediate = eligible.filter(isImmediateImplementRow)
-  const scheduled = eligible.filter((row) => !isImmediateImplementRow(row))
-  if (immediate.length && !scheduled.length) {
-    return t('movementMaintenance.implementConfirm', { count: immediate.length })
-  }
-  if (scheduled.length && !immediate.length) {
-    const sessions = [...new Set(scheduled.map((row) => row.effectiveSession).filter(Boolean))]
-    if (sessions.length === 1) {
-      return t('movementMaintenance.implementConfirmScheduled', {
-        count: scheduled.length,
-        effectiveSession: sessions[0],
-      })
-    }
-    return t('movementMaintenance.implementConfirmScheduledMulti', { count: scheduled.length })
-  }
-  return t('movementMaintenance.implementConfirmMixed', {
-    immediate: immediate.length,
-    scheduled: scheduled.length,
-  })
-}
-
-function openDetails(row) {
-  reviewItem.value = row
-  viewMode.value = 'review'
-}
-
-function closeReview() {
-  viewMode.value = 'list'
-  reviewItem.value = null
-}
-
-function openApprovalLog(row) {
-  approvalLogItem.value = row
-}
-
 function requestImplement() {
-  if (!hasSelection.value) return
-  const eligible = selectedRows.value.filter((row) => row.implemented === 'Pending')
+  const eligible = selectedImplementableRows.value
   if (!eligible.length) {
     window.alert(t('movementMaintenance.implementNoneEligible'))
     return
   }
   confirmTitle.value = t('movementMaintenance.implement')
-  confirmMessage.value = buildImplementConfirmMessage(eligible)
+  confirmMessage.value = t('movementMaintenance.implementConfirm', { count: eligible.length })
   confirmAction.value = () => {
     implementMaintenanceRecords(eligible)
-    selectedKeys.value = []
+    const implementedKeys = new Set(eligible.map((row) => row.queueKey))
+    selectedKeys.value = selectedKeys.value.filter((key) => !implementedKeys.has(key))
     if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
   }
   confirmVisible.value = true
+}
+
+function openDetails(row) {
+  detailItem.value = row
+}
+
+function closeDetails() {
+  detailItem.value = null
 }
 
 function requestDelete() {
@@ -268,10 +226,6 @@ function statusLabel(status) {
   return map[status] || status
 }
 
-function implementedDisplay(value) {
-  return formatImplementedYn(value)
-}
-
 function studentTypeLabel(type) {
   const key = `movementMaintenance.studentType.${type}`
   const translated = t(key)
@@ -291,16 +245,7 @@ function displayPassportIc(value) {
 </script>
 
 <template>
-  <MovementApprovalReviewView
-    v-if="viewMode === 'review' && reviewItem"
-    :queue-item="reviewItem"
-    mode="readonly"
-    :current-role="currentRole"
-    :mask-sensitive-fields="true"
-    @back="closeReview"
-  />
-
-  <div v-else class="movement-maintenance-page">
+  <div class="movement-maintenance-page">
     <div class="page-card">
       <div class="search-bar">
         <div class="search-row">
@@ -354,6 +299,7 @@ function displayPassportIc(value) {
                 :placeholder="t('common.pleaseInput')"
               />
             </div>
+            <ImplementedYnSearchSelect v-model="searchForm.implemented" />
           </div>
 
           <div class="search-actions">
@@ -391,7 +337,7 @@ function displayPassportIc(value) {
                   <input
                     type="checkbox"
                     :checked="allPageSelected"
-                    :disabled="!selectablePageItems.length"
+                    :disabled="!paginatedItems.length"
                     @change="toggleSelectAll"
                   />
                 </th>
@@ -421,7 +367,6 @@ function displayPassportIc(value) {
                   <input
                     type="checkbox"
                     :checked="selectedKeys.includes(item.queueKey)"
-                    :disabled="item.implemented !== 'Pending'"
                     @change="toggleSelect(item.queueKey)"
                   />
                 </td>
@@ -432,7 +377,7 @@ function displayPassportIc(value) {
                   </span>
                 </td>
                 <td>{{ tr(item.approvalStage) }}</td>
-                <td>{{ implementedDisplay(item.implemented) }}</td>
+                <td><ImplementedYnBadge :value="item.implemented" /></td>
                 <td>{{ item.studentId }}</td>
                 <td>{{ item.fullName }}</td>
                 <td>{{ displayCell(item.movementDate) }}</td>
@@ -445,10 +390,7 @@ function displayPassportIc(value) {
                 <td class="reason-cell">{{ item.movementReason }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
-                    <button type="button" class="link-btn" @click="openDetails(item)">{{ tr('Details') }}</button>
-                    <button type="button" class="link-btn" @click="openApprovalLog(item)">
-                      {{ tr('Approval Log') }}
-                    </button>
+                    <button type="button" class="link-btn" @click="openDetails(item)">{{ t('common.details') }}</button>
                   </div>
                 </td>
               </tr>
@@ -465,11 +407,13 @@ function displayPassportIc(value) {
       </div>
     </div>
 
-    <ApprovalLogModal
-      :visible="!!approvalLogItem"
-      :logs="approvalLogItem?.raw?.approvalLog || []"
-      :subtitle="approvalLogItem ? `${approvalLogItem.applicationId} — ${approvalLogItem.fullName}` : ''"
-      @close="approvalLogItem = null"
+    <MovementApplicationDetailDrawer
+      :visible="!!detailItem"
+      :queue-item="detailItem"
+      mode="readonly"
+      :current-role="currentRole"
+      :mask-sensitive-fields="true"
+      @close="closeDetails"
     />
 
     <ExportModal

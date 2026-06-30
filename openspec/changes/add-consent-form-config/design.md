@@ -188,4 +188,208 @@ function downloadConsentLetter() {
 ## Open Questions
 
 - 复学是否普遍需要家长同意书：首版 mock 可不配 parent file，保留字段即可
-- `withinMaxDuration` 是否在首版拦截提交：建议仅 PT + `afterOneYear` 硬拦截，其余展示为主
+- ~~`withinMaxDuration` 是否在首版拦截提交~~（Phase 1 已移除修读时长）
+
+---
+
+## §10 Phase 2 — 学历层次与学期版本（已确认）
+
+### 8. 学历层次枚举
+
+```javascript
+export const consentEducationLevels = ['Foundation', 'Undergraduate', 'Postgraduate']
+// UI: 预科 / 本科 / 研究生（i18n consentForm.educationLevel.*）
+```
+
+- 列表 / Create/Edit **必填**
+- 与学生档案 `enrollment.programmeLevel` 对齐（申请端 lookup 时映射；非常规值首版 treat as no match）
+
+### 9. 配置行 + 学期快照模型
+
+```javascript
+// 列表一行 = 配置主键
+{
+  id, formName, movementType, studentType,
+  educationLevel: 'Undergraduate',  // Foundation | Undergraduate | Postgraduate
+  remark: string,
+  // Edit 只改以下「行级默认附件」（非学期生效态）
+  studentConsentFile: FileMeta | null,
+  parentConsentFile: FileMeta | null,
+  versions: [
+    {
+      id: number,
+      academicSession: '2025/04',   // YYYY/MM；与 intakeSets VALID_INTAKE_MONTHS 02|04|09 一致
+      studentConsentFile: FileMeta | null,
+      parentConsentFile: FileMeta | null,
+      remark: string,
+      updatedAt: string,            // ISO 或 mock 展示时间
+      isApplied: boolean,           // 该学期下是否生效
+    },
+  ],
+}
+```
+
+- **唯一键**：`movementType + studentType + educationLevel`（Create/Edit 校验）
+- **历史归属**：在历史弹窗内对某 `academicSession` 新增/编辑 → 写入/更新该学期下的 version 条目
+- **应用互斥**：`setAppliedVersion(configId, versionId)` 时，同 `academicSession` 其它 version 的 `isApplied` 置 `false`
+
+### 10. Lookup 与申请端
+
+```javascript
+function mapProgrammeLevelToEducationLevel(programmeLevel) {
+  const v = String(programmeLevel || '').trim()
+  if (v === 'Foundation') return 'Foundation'
+  if (v === 'Postgraduate') return 'Postgraduate'
+  if (v === 'Undergraduate') return 'Undergraduate'
+  return '' // 无法映射 → 未匹配
+}
+
+export function resolveConsentTemplate(
+  movementType,
+  studentCategory,
+  programmeLevel,
+  academicSession,
+) {
+  const studentType = normalizeStudentTypeForConsent(studentCategory)
+  const educationLevel = mapProgrammeLevelToEducationLevel(programmeLevel)
+  const session = normalizeAcademicSession(academicSession) // YYYY/MM
+  const row = consentForms.value.find(
+    (r) =>
+      r.movementType === movementType &&
+      r.studentType === studentType &&
+      r.educationLevel === educationLevel,
+  )
+  if (!row || !session) return null
+  const applied = (row.versions || []).find(
+    (v) => v.academicSession === session && v.isApplied,
+  )
+  return applied || null // 无已应用版本 → null（不用行级默认附件 fallback）
+}
+```
+
+- **academicSession 来源**：与 `movementApplicationSession.js` 一致——Form 选学生后 `resolveApplicationSessionFromStudent(student)`；详情/只读用存库 `applicationSession`
+- **未匹配**：`downloadStudentConsentTemplate` / 家长下载 → toast 或 alert：**「未匹配对应同意书，联系管理员」**（替换 Phase 1 `downloadNotConfigured` 文案或新增 key）
+
+### 11. UI — 历史版本弹窗
+
+```
+ConsentFormVersionHistoryModal
+├── 标题：历史版本
+├── 副标题：Deferment · Local · 本科（movement + studentType + educationLevel）
+├── 工具栏（可选）：选择学期 + 从行默认复制 / 新增版本
+├── 表格：学年学期 | 学生/家长附件 | 更新时间 | 应用 [switch]
+└── Footer：Close
+```
+
+- 列表 Actions：`Edit | View | 历史版本`
+- 切换 **应用** ON → 同学期其它版本 OFF；可 toast 确认
+
+### 12. 文件影响（§10）
+
+```
+新增:
+  src/components/studentRecords/ConsentFormVersionHistoryModal.vue
+
+修改:
+  src/data/consentForms.js
+  src/views/studentRecords/ConsentFormView.vue
+  src/components/studentRecords/ConsentFormFormModal.vue
+  src/utils/consentFormDownload.js
+  ProgrammeTransfer/Deferment/Resumption/Withdrawal FormModal + MovementAttachmentReadonly
+  src/i18n/locales/en.js、zh.js
+  specs/movement-application-details/spec.md（未匹配文案）
+```
+
+**Non-Goals（§10）**：行级默认附件作为下载 fallback；06 月份；版本 diff UI。
+
+---
+
+## §11 Phase 2.1 — 历史版本 UX refinement（Status Log 式 + 全局 Apply）
+
+> **Supersedes（部分）§10**：历史弹窗手工维护、同学期 Apply 互斥、lookup 四维匹配 — 本 Phase **暂时** 改为 Save 追加日志 + 全局一条 Applied + 三维 lookup。
+
+### 13. Version log 模型（对齐 Status Log）
+
+```javascript
+versions: [
+  {
+    id: number,
+    academicSession: '2025/04',   // Save 时点：resolveAcademicSessionFromDate(now)
+    changedBy: 'ADMIN USER',
+    updatedAt: '2026-06-15T10:30:00.000Z',
+    remarkTitle: 'New Consent Form' | 'Updated Consent Form',
+    remarkLines: ['Student File : foo.pdf', 'Old Student File : a.pdf', 'New Student File : b.pdf'],
+    studentConsentFile: FileMeta | null,
+    parentConsentFile: FileMeta | null,
+    isApplied: boolean,           // 全局至多一条 true / 配置行
+  },
+]
+```
+
+### 14. resolveAcademicSessionFromDate
+
+```javascript
+// 1) 在 semesterInfo 记录中找 startDate <= today <= endDate → YYYY/MM
+// 2) fallback: normalizeAcademicSession(today ISO) → snapCalendarMonth
+export function resolveAcademicSessionFromDate(date = new Date(), records = initialSemesterRecords)
+```
+
+与 `getCurrentApplicationSession()`（`currentSemester === 'Yes'`）**不同** — §11 明确用 **日历时间**。
+
+### 15. Save 时 appendVersionLog
+
+```javascript
+export function appendVersionLog(configId, { formSnapshot, changedBy, isCreate }) {
+  const academicSession = resolveAcademicSessionFromDate()
+  const previous = getLatestVersion(configId) // or row state before patch
+  const remarkLines = isCreate
+    ? buildCreateRemarkLines(formSnapshot)
+    : buildDiffRemarkLines(previous, formSnapshot)
+  const entry = { ..., isApplied: true }
+  // 同 row：其余 versions.isApplied = false
+}
+```
+
+- `createConsentForm` / `updateConsentForm` 在 Save 成功后调用
+- Create：`remarkTitle: 'New Consent Form'`
+- Edit：`remarkTitle: 'Updated Consent Form'` + Old/New 行
+
+### 16. 历史弹窗 UI（只读 + Apply）
+
+```
+ConsentFormVersionHistoryModal
+├── 副标题：Deferment · Local · 本科
+├── table（StatusLogTab 风格）
+│     学年学期 | 变更人 | 变更内容 | 更新时间 | 应用
+└── Close
+```
+
+- **无** draft 区、无 upsertConsentVersion 从 UI、无 removeConsentVersion
+
+### 17. Lookup（暂时三维）
+
+```javascript
+export function resolveConsentTemplate(movementType, studentCategory, programmeLevel) {
+  const row = /* movement + studentType + educationLevel */
+  const applied = row.versions.find((v) => v.isApplied)
+  return applied ? toTemplateSnapshot(row, applied) : null
+}
+```
+
+- 申请端 `applicationSession` **暂不参与** 同意书匹配（Non-goal §11）
+- 后续可恢复：`resolveConsentTemplate(..., academicSession)` + 每学期 Applied
+
+### 18. 文件影响（§11）
+
+```
+修改:
+  src/data/consentForms.js — appendVersionLog、全局 setAppliedVersion、lookup 三维
+  src/data/movementApplicationSession.js 或 normalizeAcademicSession.js — resolveAcademicSessionFromDate
+  ConsentFormVersionHistoryModal.vue — 只读 + Apply
+  ConsentFormFormModal.vue / ConsentFormView.vue — Save → append
+  consentFormDownload.js + 四 Tab + MovementAttachmentReadonly — lookup 参数简化
+  specs/consent-form-config/spec.md MODIFIED
+  specs/movement-application-details/spec.md MODIFIED
+```
+
+**Non-Goals（§11）**：历史 Delete；弹窗内 Edit；按学期分组 Apply。

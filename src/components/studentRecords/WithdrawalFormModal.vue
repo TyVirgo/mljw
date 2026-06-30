@@ -1,6 +1,9 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
+import DatePickerEn from '../common/DatePickerEn.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
+import { parseDdMmYyyy, formatDateToDdMmYyyy } from '../../data/universityInfo.js'
+import { parseMovementDate, formatMovementDateIso } from '../../utils/formatMovementDate.js'
 import {
   createEmptyWithdrawal,
   getWithdrawalFormData,
@@ -20,6 +23,7 @@ import {
 import StudentSelectModal from './StudentSelectModal.vue'
 import { getCurrentStudent } from '../../data/mockCurrentStudent.js'
 import { formatApplicationSessionField } from '../../data/movementApplicationSession.js'
+import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
 import '../../styles/movement-form.css'
 
 const props = defineProps({
@@ -42,6 +46,7 @@ const form = ref(createEmptyWithdrawal())
 const errors = ref({})
 const studentSelectVisible = ref(false)
 const fileInputRef = ref(null)
+const pendingLocalFile = ref(null)
 
 const isEditMode = computed(() => props.mode === 'edit')
 const isResubmitMode = computed(() => props.initialData && canResubmitWithdrawal(props.initialData))
@@ -54,6 +59,27 @@ const dateOfApplicationDisplay = computed(() =>
   formatApplicationDateDisplay(form.value.dateOfApplication),
 )
 
+function movementDateToPickerValue(value) {
+  const date = parseMovementDate(value)
+  if (!date) return ''
+  return formatDateToDdMmYyyy(date)
+}
+
+function pickerValueToMovementDateIso(value) {
+  if (!String(value || '').trim()) return ''
+  const parsed = parseDdMmYyyy(value)
+  if (parsed) return formatMovementDateIso(parsed)
+  const fromStored = parseMovementDate(value)
+  return fromStored ? formatMovementDateIso(fromStored) : value
+}
+
+const lastDateOfAttendancePicker = computed({
+  get: () => movementDateToPickerValue(form.value.lastDateOfAttendance),
+  set: (value) => {
+    form.value.lastDateOfAttendance = pickerValueToMovementDateIso(value)
+  },
+})
+
 const showIsaoNote = computed(() => shouldShowIsaoNote(form.value.studentCategory))
 
 const reasonOptions = computed(() => getReasonOptionsBySourceKey('withdrawal'))
@@ -64,8 +90,14 @@ function getSelectedStudentCategory() {
   return student?.studentCategory || 'Local'
 }
 
+function getConsentLookup() {
+  return {
+    programmeLevel: form.value.programmeLevel,
+  }
+}
+
 const showParentConsentDownload = computed(() =>
-  hasParentConsentTemplate('withdrawal', getSelectedStudentCategory()),
+  hasParentConsentTemplate('withdrawal', getSelectedStudentCategory(), getConsentLookup()),
 )
 
 function applyStudentProfile(student) {
@@ -84,6 +116,7 @@ watch(
   () => {
     if (!props.visible) return
     errors.value = {}
+    pendingLocalFile.value = null
     form.value =
       isEditMode.value && props.initialData
         ? getWithdrawalFormData(props.initialData)
@@ -102,29 +135,33 @@ function onFileChange(event) {
   const file = event.target.files?.[0]
   if (!file) {
     form.value.attachment = null
+    pendingLocalFile.value = null
     return
   }
   const allowed = /\.(pdf|jpg|jpeg|png|docx)$/i
   if (!allowed.test(file.name)) {
     errors.value.attachment = 'Supported formats: PDF, JPG, PNG, DOCX.'
     form.value.attachment = null
+    pendingLocalFile.value = null
     return
   }
   if (file.size > 5 * 1024 * 1024) {
     errors.value.attachment = 'Max file size is 5MB.'
     form.value.attachment = null
+    pendingLocalFile.value = null
     return
   }
   delete errors.value.attachment
+  pendingLocalFile.value = file
   form.value.attachment = { fileName: file.name, size: file.size }
 }
 
 function downloadConsentLetter() {
-  downloadStudentConsentTemplate('withdrawal', getSelectedStudentCategory(), t)
+  downloadStudentConsentTemplate('withdrawal', getSelectedStudentCategory(), t, getConsentLookup())
 }
 
 function downloadParentConsentLetter() {
-  downloadParentConsentTemplate('withdrawal', getSelectedStudentCategory(), t)
+  downloadParentConsentTemplate('withdrawal', getSelectedStudentCategory(), t, getConsentLookup())
 }
 
 function validateAndEmit(mode, emitter) {
@@ -250,10 +287,9 @@ function handleClose() {
           </div>
           <div class="form-field">
             <label>{{ t('withdrawal.fields.lastDateOfAttendance') }} <span class="required">*</span></label>
-            <input
-              v-model="form.lastDateOfAttendance"
-              type="date"
-              :class="['form-control', fieldError('lastDateOfAttendance')]"
+            <DatePickerEn
+              v-model="lastDateOfAttendancePicker"
+              :has-error="!!errors.lastDateOfAttendance"
             />
             <p v-if="errors.lastDateOfAttendance" class="field-error">{{ tr(errors.lastDateOfAttendance) }}</p>
           </div>
@@ -391,8 +427,15 @@ function handleClose() {
               </svg>
               {{ t('withdrawal.fields.selectFile') }}
             </button>
-            <span class="file-name">
-              {{ form.attachment?.fileName || t('withdrawal.fields.noFileSelected') }}
+            <AttachmentPreviewTrigger
+              v-if="form.attachment?.fileName"
+              :file-name="form.attachment.fileName"
+              :file-meta="form.attachment"
+              :local-file="pendingLocalFile"
+              :show-file-icon="false"
+            />
+            <span v-else class="file-name">
+              {{ t('withdrawal.fields.noFileSelected') }}
             </span>
             <input
               ref="fileInputRef"

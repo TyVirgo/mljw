@@ -5,13 +5,12 @@ import MovementCategoryFormModal from '../../components/studentRecords/MovementC
 import MovementCategoryReasonModal from '../../components/studentRecords/MovementCategoryReasonModal.vue'
 import {
   movementCategories,
-  studentStatusOptions,
   updateMovementCategory,
   getDistinctCategoryNames,
 } from '../../data/movementCategories.js'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 
-const { t, tr } = useAppI18n()
+const { t } = useAppI18n()
 
 const searchForm = ref(createEmptySearch())
 const appliedSearch = ref(createEmptySearch())
@@ -29,7 +28,6 @@ function createEmptySearch() {
   return {
     categoryName: '',
     categoryCode: '',
-    studentStatus: '',
   }
 }
 
@@ -52,8 +50,7 @@ const filteredRows = computed(() => {
   return movementCategories.value.filter(
     (row) =>
       matchSelect(row.categoryName, s.categoryName) &&
-      matchText(row.categoryCode, s.categoryCode) &&
-      matchSelect(row.studentStatus, s.studentStatus),
+      matchText(row.categoryCode, s.categoryCode),
   )
 })
 
@@ -88,7 +85,14 @@ function closeForm() {
 
 function handleFormSave(formData) {
   if (editingItem.value) {
-    updateMovementCategory(editingItem.value.id, formData)
+    updateMovementCategory(editingItem.value.id, {
+      categoryName: formData.categoryName,
+      allowStudentApply: formData.allowStudentApply,
+      autoImplement: formData.autoImplement,
+      deleteOriginalCourseList: formData.deleteOriginalCourseList,
+      presetNewProgrammeBatchList: formData.presetNewProgrammeBatchList,
+      excludeGradedFromPreset: formData.excludeGradedFromPreset,
+    })
   }
   closeForm()
 }
@@ -100,18 +104,6 @@ function openReasonModal(item) {
 
 function getRowNumber(index) {
   return (currentPage.value - 1) * pageSize.value + index + 1
-}
-
-function formatStudentStatus(status) {
-  const key = `movementCategory.studentStatus.${status}`
-  const translated = t(key)
-  return translated !== key ? translated : tr(status)
-}
-
-function formatTrackCategory(category) {
-  const key = `movementCategory.trackCategory.${category}`
-  const translated = t(key)
-  return translated !== key ? translated : tr(category)
 }
 </script>
 
@@ -142,19 +134,6 @@ function formatTrackCategory(category) {
                 @keyup.enter="handleSearch"
               />
             </div>
-            <div class="search-item">
-              <label>{{ t('movementCategory.fields.studentStatus') }}</label>
-              <select
-                v-model="searchForm.studentStatus"
-                class="search-select"
-                :class="{ 'is-empty': !searchForm.studentStatus }"
-              >
-                <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in studentStatusOptions" :key="opt" :value="opt">
-                  {{ t(`movementCategory.studentStatus.${opt}`) }}
-                </option>
-              </select>
-            </div>
           </div>
           <div class="search-actions">
             <button type="button" class="btn btn-primary" @click="handleSearch">{{ t('common.search') }}</button>
@@ -171,21 +150,17 @@ function formatTrackCategory(category) {
                 <th class="col-no">{{ t('common.serialNo') }}</th>
                 <th>{{ t('movementCategory.columns.categoryCode') }}</th>
                 <th>{{ t('movementCategory.columns.categoryName') }}</th>
-                <th>{{ t('movementCategory.fields.studentStatus') }}</th>
-                <th>{{ t('movementCategory.fields.category') }}</th>
                 <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!paginatedRows.length">
-                <td colspan="6" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="4" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedRows" :key="item.id">
                 <td class="col-no">{{ getRowNumber(index) }}</td>
                 <td>{{ item.categoryCode }}</td>
                 <td>{{ item.categoryName }}</td>
-                <td>{{ formatStudentStatus(item.studentStatus) }}</td>
-                <td>{{ formatTrackCategory(item.category) }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
                     <button type="button" class="link-btn" @click="openEdit(item)">{{ t('common.edit') }}</button>

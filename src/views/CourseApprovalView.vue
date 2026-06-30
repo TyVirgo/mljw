@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import CourseApplicationWizard from '../components/courseApplication/CourseApplicationWizard.vue'
-import ApprovalLogModal from '../components/courseApplication/ApprovalLogModal.vue'
+import CourseApplicationDetailDrawer from '../components/courseApplication/CourseApplicationDetailDrawer.vue'
 import CourseApprovalModal from '../components/courseApproval/CourseApprovalModal.vue'
 import ExportModal from '../components/common/ExportModal.vue'
 import TablePagination from '../components/common/TablePagination.vue'
@@ -10,6 +9,7 @@ import { applicationStatusOptions, statusBadgeClass } from '../data/courseApplic
 import {
   getApprovalQueue,
   canBatchApproveSelection,
+  canApproveApplication,
   getSharedApprovalStage,
   applyApprovalDecisions,
 } from '../data/courseApproval.js'
@@ -31,9 +31,7 @@ const selectedIds = ref([])
 const currentPage = ref(1)
 const pageSize = ref(10)
 
-const viewMode = ref('list')
 const detailItem = ref(null)
-const approvalLogItem = ref(null)
 const exportModalVisible = ref(false)
 const approvalModalVisible = ref(false)
 const pendingApprovalIds = ref([])
@@ -136,16 +134,16 @@ function toggleSelect(id) {
 
 function openDetail(item) {
   detailItem.value = { ...item }
-  viewMode.value = 'detail'
 }
 
 function closeDetail() {
-  viewMode.value = 'list'
   detailItem.value = null
 }
 
-function openApprovalLog(item) {
-  approvalLogItem.value = { ...item }
+function handleDrawerDecided(result) {
+  courseApplications.value = result.applications
+  courses.value = result.courses
+  if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
 }
 
 function openApprovalModal() {
@@ -208,15 +206,7 @@ function getRowNumber(index) {
 </script>
 
 <template>
-  <CourseApplicationWizard
-    v-if="viewMode === 'detail' && detailItem"
-    mode="detail"
-    :all-applications="courseApplications"
-    :initial-application="detailItem"
-    @back="closeDetail"
-  />
-
-  <div v-else class="course-approval-page">
+  <div class="course-approval-page">
     <div class="page-card">
       <div class="search-bar">
         <div class="search-row">
@@ -344,8 +334,7 @@ function getRowNumber(index) {
                 <td>{{ item.applicationDateTime }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
-                    <button type="button" class="link-btn" @click="openDetail(item)">{{ tr('Details') }}</button>
-                    <button type="button" class="link-btn" @click="openApprovalLog(item)">{{ tr('Approval Log') }}</button>
+                    <button type="button" class="link-btn" @click="openDetail(item)">{{ t('common.details') }}</button>
                   </div>
                 </td>
               </tr>
@@ -362,11 +351,15 @@ function getRowNumber(index) {
       </div>
     </div>
 
-    <ApprovalLogModal
-      :visible="!!approvalLogItem"
-      :logs="approvalLogItem?.approvalLog || []"
-      :course-name="approvalLogItem?.courseName || ''"
-      @close="approvalLogItem = null"
+    <CourseApplicationDetailDrawer
+      :visible="!!detailItem"
+      :application="detailItem"
+      variant="course"
+      :all-applications="courseApplications"
+      :formal-courses="courses"
+      :show-approve-action="detailItem ? canApproveApplication(detailItem) : false"
+      @close="closeDetail"
+      @decided="handleDrawerDecided"
     />
 
     <CourseApprovalModal

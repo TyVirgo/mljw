@@ -86,6 +86,8 @@ function displayPassport(value) {
           :file-name="item.attachment?.fileName || ''"
           movement-type="resumption"
           :student-id="item.studentId"
+          :programme-level="item.programmeLevel"
+          :application-session="item.applicationSession"
           label-key="resumption.fields.uploadAttachment"
           download-label-key="resumption.fields.downloadConsent"
         />

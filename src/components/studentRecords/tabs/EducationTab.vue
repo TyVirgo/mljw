@@ -13,11 +13,12 @@ const props = defineProps({
   form: { type: Object, required: true },
   readOnly: { type: Boolean, default: false },
   errors: { type: Object, default: () => ({}) },
+  nationalitySelected: { type: Boolean, default: true },
 })
 
 const { tr } = useAppI18n()
 
-const category = computed(() => props.form.studentCategory || 'Local')
+const category = computed(() => props.form.studentCategory || '')
 const showChineseTests = computed(() => showsChineseLanguageTests(category.value))
 const qualificationAsSelect = computed(() => usesQualificationDropdown())
 </script>

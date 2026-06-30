@@ -26,7 +26,12 @@ export const zhOrganisationLabels = {
   'Bachelor of Traditional Chinese Medicine (Honours)': '中医学（荣誉）学士',
   'Bachelor of Electronic and Electrical Engineering (Honours)': '电子与电气工程（荣誉）学士',
 
+  'L3-Foundation': '预科',
+  'L4-Diploma': '文凭',
+  'L5-Associate': '副学士',
   'L6-Bachelor': '本科（学士）',
+  'L7-Master': '硕士',
+  'L8-Doctorate': '博士',
 
   // Code set tree
   'Dynamic Form Code Sets': '动态表单代码集',

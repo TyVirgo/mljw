@@ -1,7 +1,8 @@
 /**
- * 将 build:deploy 产物复制到 gitcode 日期目录，供 SourceTree 提交后云端静态访问。
+ * 将 vite build 完整产物（dist/）复制到 gitcode 日期目录，供 SourceTree 提交后云端静态访问。
+ * 从 dist/ 整包复制，不覆盖项目根目录，本地 npm start 不受影响。
  * 用法: node scripts/deploy-to-gitcode.mjs [目标目录]
- * 默认: D:/gitcode/Academic System/20260625
+ * 默认: D:/gitcode/Academic System/20260630
  */
 import fs from 'fs'
 import path from 'path'
@@ -9,42 +10,47 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
+const distDir = path.join(root, 'dist')
 
-const defaultTarget = 'D:/gitcode/Academic System/20260625'
+const defaultTarget = 'D:/gitcode/Academic System/20260630'
 const targetDir = path.resolve(process.argv[2] || defaultTarget)
-
-const files = ['index.html', 'favicon.svg']
-const dirs = ['assets']
+const cloudPath = '/high/Academic System/20260630/'
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 }
 
-function copyFile(name) {
-  const from = path.join(root, name)
-  const to = path.join(targetDir, name)
-  if (!fs.existsSync(from)) {
-    console.warn(`Skip missing: ${name}`)
-    return
+function syncDistToTarget() {
+  const entries = fs.readdirSync(distDir, { withFileTypes: true })
+  for (const entry of entries) {
+    const from = path.join(distDir, entry.name)
+    const to = path.join(targetDir, entry.name)
+    if (entry.isDirectory()) {
+      fs.rmSync(to, { recursive: true, force: true })
+      fs.cpSync(from, to, { recursive: true })
+      console.log('Copied dir:', entry.name)
+    } else {
+      fs.copyFileSync(from, to)
+      console.log('Copied file:', entry.name)
+    }
   }
-  fs.copyFileSync(from, to)
-  console.log('Copied file:', name)
 }
 
-function copyDir(name) {
-  const from = path.join(root, name)
-  const to = path.join(targetDir, name)
-  if (!fs.existsSync(from)) {
-    throw new Error(`Missing directory: ${from} — run npm run build:deploy first`)
-  }
-  fs.rmSync(to, { recursive: true, force: true })
-  fs.cpSync(from, to, { recursive: true })
-  console.log('Copied dir:', name)
+if (!fs.existsSync(distDir)) {
+  throw new Error('Missing dist/ — run vite build first')
 }
 
 ensureDir(targetDir)
-for (const f of files) copyFile(f)
-for (const d of dirs) copyDir(d)
+syncDistToTarget()
 
 console.log('\nDeploy complete:', targetDir)
-console.log('Cloud URL (示例): /high/Academic System/20260625/')
+console.log('Cloud URL:', cloudPath)
+console.log('Entry: index.html (click to open prototype)')
+
+// 确保本地 dev 的 index.html 始终为开发入口（/src/main.js）
+const devIndexSource = path.join(root, 'index.source.html')
+const devIndexTarget = path.join(root, 'index.html')
+if (fs.existsSync(devIndexSource)) {
+  fs.copyFileSync(devIndexSource, devIndexTarget)
+  console.log('Restored index.html for local dev')
+}

@@ -3,11 +3,12 @@ import { ref, computed } from 'vue'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import ConsentFormFormModal from '../../components/studentRecords/ConsentFormFormModal.vue'
-import ConsentFormViewModal from '../../components/studentRecords/ConsentFormViewModal.vue'
+import ConsentFormVersionHistoryModal from '../../components/studentRecords/ConsentFormVersionHistoryModal.vue'
 import {
   consentForms,
   movementTypeKeys,
   consentFormStudentTypes,
+  getConsentProgrammeLevelOptions,
   createConsentForm,
   updateConsentForm,
   deleteConsentForms,
@@ -27,18 +28,21 @@ const formVisible = ref(false)
 const formMode = ref('create')
 const editingItem = ref(null)
 
-const viewVisible = ref(false)
-const viewingItem = ref(null)
+const historyVisible = ref(false)
+const historyConfigId = ref(null)
 
 const confirmVisible = ref(false)
 const confirmMessage = ref('')
 const pendingDeleteIds = ref([])
+
+const programmeLevelOptions = getConsentProgrammeLevelOptions()
 
 function createEmptySearch() {
   return {
     movementType: '',
     formName: '',
     studentType: '',
+    programmeLevel: '',
   }
 }
 
@@ -60,7 +64,8 @@ const filteredRows = computed(() => {
     (row) =>
       matchSelect(row.movementType, s.movementType) &&
       matchText(row.formName, s.formName) &&
-      matchSelect(row.studentType, s.studentType),
+      matchSelect(row.studentType, s.studentType) &&
+      matchSelect(row.programmeLevel, s.programmeLevel),
   )
 })
 
@@ -119,9 +124,14 @@ function openEdit(item) {
   formVisible.value = true
 }
 
-function openView(item) {
-  viewingItem.value = { ...item }
-  viewVisible.value = true
+function openHistory(item) {
+  historyConfigId.value = item.id
+  historyVisible.value = true
+}
+
+function closeHistory() {
+  historyVisible.value = false
+  historyConfigId.value = null
 }
 
 function closeForm() {
@@ -131,7 +141,10 @@ function closeForm() {
 
 function handleFormSave(formData) {
   if (formMode.value === 'edit' && editingItem.value) {
-    updateConsentForm(editingItem.value.id, formData)
+    updateConsentForm(editingItem.value.id, {
+      formName: formData.formName,
+      remark: formData.remark,
+    })
   } else {
     createConsentForm(formData)
   }
@@ -171,6 +184,12 @@ function formatStudentType(type) {
   const key = `consentForm.studentType.${type}`
   const translated = t(key)
   return translated !== key ? translated : tr(type)
+}
+
+function formatProgrammeLevel(level) {
+  const key = `consentForm.programmeLevel.${level}`
+  const translated = t(key)
+  return translated !== key ? translated : tr(level)
 }
 </script>
 
@@ -216,6 +235,19 @@ function formatStudentType(type) {
                 </option>
               </select>
             </div>
+            <div class="search-item">
+              <label>{{ t('consentForm.search.programmeLevel') }}</label>
+              <select
+                v-model="searchForm.programmeLevel"
+                class="search-select"
+                :class="{ 'is-empty': !searchForm.programmeLevel }"
+              >
+                <option value="">{{ t('common.pleaseSelect') }}</option>
+                <option v-for="opt in programmeLevelOptions" :key="opt.value" :value="opt.value">
+                  {{ formatProgrammeLevel(opt.label) }}
+                </option>
+              </select>
+            </div>
           </div>
           <div class="search-actions">
             <button type="button" class="btn btn-primary" @click="handleSearch">{{ t('common.search') }}</button>
@@ -248,6 +280,7 @@ function formatStudentType(type) {
                 <th>{{ t('consentForm.columns.formName') }}</th>
                 <th>{{ t('consentForm.columns.movementType') }}</th>
                 <th>{{ t('consentForm.columns.studentType') }}</th>
+                <th>{{ t('consentForm.columns.programmeLevel') }}</th>
                 <th>{{ t('consentForm.columns.remark') }}</th>
                 <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
@@ -261,12 +294,15 @@ function formatStudentType(type) {
                 <td>{{ item.formName }}</td>
                 <td>{{ formatMovementType(item.movementType) }}</td>
                 <td>{{ formatStudentType(item.studentType) }}</td>
+                <td>{{ formatProgrammeLevel(item.programmeLevel) }}</td>
                 <td>{{ item.remark || '—' }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
                     <button type="button" class="link-btn" @click="openEdit(item)">{{ t('common.edit') }}</button>
                     <span class="sep">|</span>
-                    <button type="button" class="link-btn" @click="openView(item)">{{ t('common.view') }}</button>
+                    <button type="button" class="link-btn" @click="openHistory(item)">
+                      {{ t('consentForm.versionSnapshot.action') }}
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -286,7 +322,12 @@ function formatStudentType(type) {
       @save="handleFormSave"
     />
 
-    <ConsentFormViewModal :visible="viewVisible" :data="viewingItem" @close="viewVisible = false" />
+    <ConsentFormVersionHistoryModal
+      :visible="historyVisible"
+      :config-id="historyConfigId"
+      @close="closeHistory"
+      @updated="() => {}"
+    />
 
     <ConfirmDialog
       :visible="confirmVisible"
@@ -424,7 +465,7 @@ function formatStudentType(type) {
 }
 
 .actions-cell {
-  min-width: 120px;
+  min-width: 220px;
 }
 
 .actions-inner {

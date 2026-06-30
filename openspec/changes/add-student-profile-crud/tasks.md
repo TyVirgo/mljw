@@ -103,3 +103,24 @@
 - [x] 14.3 `EnrollmentTab.vue`：Programme Code、Programme、Faculty、Intake、Academic Session 改 `<select>`
 - [x] 14.4 `students.js`：XMUM2309001/9002/9003 enrollment 对齐 catalogue + intakeSets + semester canonical 值
 - [x] 14.5 冒烟：列表 → Details → Edit 五字段与列表一致且下拉有选中；Create 各下拉可选；`npm run build` 通过
+
+## 15. 详情 Status Log Tab（§15 — Phase 6）
+
+- [x] 15.1 `student-profile/spec.md` §15：详情 Status Log Tab、statusLogs 模型、Others 移除 statusChangeLog
+- [x] 15.2 `students.js`：`statusLogs[]`、`studentDetailTabs`（7+1）、`createEmptyStudent` 移除 `others.statusChangeLog`
+- [x] 15.3 新建 `StatusLogTab.vue`：四列表格、Remarks 多行、表头浅绿、空态
+- [x] 15.4 `StudentProfileDetailDrawer.vue`：注册 `studentDetailTabs` + StatusLogTab
+- [x] 15.5 `OthersTab.vue`：移除 Status Change Log 文本域
+- [x] 15.6 `students.js` mock：XMUM2309001/9002/9003 各 ≥3 条 statusLogs（含 New Registration、Change Student Status）
+- [x] 15.7 i18n：Tab 名 Status Log / 状态日志；列头 Status、Date Effective、Changed By、Remarks
+- [x] 15.8 冒烟：Details 第 8 Tab 只读；Create/Edit 无 Status Log；Others 无旧字段；`npm run build` 通过
+
+## 16. Enrollment 专业联动 + Accommodation 代码集下拉（§16）
+
+- [x] 16.1 `student-profile/spec.md` §16：专业名称主控联动、层次存 L6-Bachelor、住宿五字段代码集
+- [x] 16.2 `codeSets.js`：Student Code Sets 五叶子 + seed；`getCodeSetOptions(codeSetId)`
+- [x] 16.3 `studentEnrollmentOptions.js`：`resolveEnrollmentByProgrammeName`（含 level / years / school / code）
+- [x] 16.4 `EnrollmentTab.vue`：Programme 主下拉；code/faculty/level/duration 只读；watch 联动
+- [x] 16.5 `AccommodationTab.vue`：hostelStatus/roomType/campus/blockNo/roomNo 改代码集下拉
+- [x] 16.6 `students.js`：mock `programmeLevel` → L6-Bachelor 等；accommodation 对齐 codeSet seed
+- [x] 16.7 冒烟：选专业带出四字段；改专业不清空 intake；住宿五下拉可选；Details/Edit 一致；`npm run build` 通过（本机 Node v16 Vite crypto 环境限制，代码层无 lint 错误）

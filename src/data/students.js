@@ -50,6 +50,38 @@ export function usesDisabilityDropdown(category) {
   return isChinaOrInternationalCategory(category)
 }
 
+export function resolveCategoryFromNationality(nationality) {
+  const value = String(nationality || '').trim()
+  if (!value) return ''
+  if (value === 'Malaysia') return 'Local'
+  if (value === 'China') return 'China'
+  return 'International'
+}
+
+export function syncStudentCategoryFromNationality(form) {
+  if (!form) return
+  form.studentCategory = resolveCategoryFromNationality(form.basicInfo?.nationality)
+}
+
+export function clearCategorySpecificFields(form, oldCategory) {
+  if (!form?.basicInfo || !oldCategory) return
+  const basicInfo = form.basicInfo
+  if (isLocalCategory(oldCategory)) {
+    basicInfo.icNo = ''
+    basicInfo.stateOfBirth = ''
+  }
+  if (isChinaOrInternationalCategory(oldCategory)) {
+    basicInfo.passportNo = ''
+    basicInfo.passportExpiry = ''
+    basicInfo.placeOfBirth = ''
+  }
+  if (isChinaCategory(oldCategory)) {
+    basicInfo.candidateNo = ''
+    basicInfo.politicalOutlook = ''
+    basicInfo.identityNoChina = ''
+  }
+}
+
 export const studentFormTabs = [
   { id: 'basic', labelKey: 'studentProfile.tabs.basicInfo' },
   { id: 'enrollment', labelKey: 'studentProfile.tabs.enrollment' },
@@ -58,6 +90,11 @@ export const studentFormTabs = [
   { id: 'family', labelKey: 'studentProfile.tabs.family' },
   { id: 'accommodation', labelKey: 'studentProfile.tabs.accommodation' },
   { id: 'others', labelKey: 'studentProfile.tabs.others' },
+]
+
+export const studentDetailTabs = [
+  ...studentFormTabs,
+  { id: 'statusLog', labelKey: 'studentProfile.tabs.statusLog' },
 ]
 
 let nextId = 4
@@ -185,14 +222,26 @@ export function createEmptyOthers() {
     taxRegistrationNo: '',
     sponsor: '',
     remarks: '',
-    statusChangeLog: '',
+  }
+}
+
+export function createEmptyStatusLogEntry(partial = {}) {
+  return {
+    id: partial.id ?? null,
+    status: partial.status ?? '',
+    dateEffective: partial.dateEffective ?? '',
+    changedBy: partial.changedBy ?? '',
+    movementCategoryKey: partial.movementCategoryKey ?? '',
+    movementCategory: partial.movementCategory ?? '',
+    remarkTitle: partial.remarkTitle ?? '',
+    remarkLines: Array.isArray(partial.remarkLines) ? [...partial.remarkLines] : [],
   }
 }
 
 export function createEmptyStudent() {
   return {
     id: null,
-    studentCategory: 'Local',
+    studentCategory: '',
     basicInfo: createEmptyBasicInfo(),
     photo: null,
     enrollment: createEmptyEnrollment(),
@@ -201,6 +250,7 @@ export function createEmptyStudent() {
     family: createEmptyFamily(),
     accommodation: createEmptyAccommodation(),
     others: createEmptyOthers(),
+    statusLogs: [],
   }
 }
 
@@ -221,6 +271,9 @@ export function getStudentFormData(record) {
     family: cloneSection(record.family, createEmptyFamily),
     accommodation: cloneSection(record.accommodation, createEmptyAccommodation),
     others: cloneSection(record.others, createEmptyOthers),
+    statusLogs: Array.isArray(record.statusLogs)
+      ? record.statusLogs.map((entry) => createEmptyStatusLogEntry(entry))
+      : [],
   }
 }
 
@@ -240,6 +293,9 @@ export function normalizeStudent(raw) {
     family: cloneSection(raw.family, createEmptyFamily),
     accommodation: cloneSection(raw.accommodation, createEmptyAccommodation),
     others: cloneSection(raw.others, createEmptyOthers),
+    statusLogs: Array.isArray(raw.statusLogs)
+      ? raw.statusLogs.map((entry) => createEmptyStatusLogEntry(entry))
+      : [],
     studentId: basicInfo.studentId,
     name: basicInfo.fullName,
     nameCn: basicInfo.chineseName,
@@ -276,8 +332,15 @@ export function validateStudentForm(form, existingStudents = [], editingId = nul
   if (!String(form.basicInfo?.studentId || '').trim()) {
     setError('basicInfo', 'studentId', 'Student ID is required.')
   }
-  const category = form.studentCategory || 'Local'
-  if (isLocalCategory(category) && !String(form.basicInfo?.icNo || '').trim()) {
+
+  const nationality = String(form.basicInfo?.nationality || '').trim()
+  if (!nationality) {
+    setError('basicInfo', 'nationality', 'Nationality is required.')
+    return { valid: false, errors, firstErrorTab: null }
+  }
+
+  const category = resolveCategoryFromNationality(nationality)
+  if (category === 'Local' && !String(form.basicInfo?.icNo || '').trim()) {
     setError('basicInfo', 'icNo', 'IC No. is required.')
   }
   if (!String(form.contact?.mobilePhone || '').trim()) {
@@ -364,8 +427,8 @@ export const initialStudents = [
       programme: 'Bachelor of Software Engineering (Honours)',
       faculty: 'School of Information',
       status: 'Active',
-      programmeLevel: 'Undergraduate',
-      duration: '4 years',
+      programmeLevel: 'L6-Bachelor',
+      duration: '3',
       semester: '6',
       intake: '2024/09',
       academicSession: '2025/09',
@@ -424,8 +487,75 @@ export const initialStudents = [
       taxRegistrationNo: 'IG12345678901',
       sponsor: 'Self-funded',
       remarks: "Dean's list Year 1",
-      statusChangeLog: '2023-09-01 Enrolled as Active',
     },
+    statusLogs: [
+      {
+        id: 1,
+        status: 'New',
+        dateEffective: '2023-09-01',
+        changedBy: 'TAN HUEY YEN',
+        remarkTitle: 'New Registration',
+        remarkLines: [
+          'Program : Bachelor of Software Engineering (Honours)',
+          'Intake : 2024/09',
+        ],
+      },
+      {
+        id: 2,
+        status: 'Active',
+        dateEffective: '2023-09-01',
+        changedBy: 'LEE LAY TEEN',
+        remarkTitle: 'Change Student Status',
+        remarkLines: [
+          'Old StudentID : SWE2309001',
+          'New StudentID : XMUM2309001',
+          'Old Intake : 2023/09',
+          'New Intake : 2024/09',
+        ],
+      },
+      {
+        id: 3,
+        status: 'Active',
+        dateEffective: '2024-09-01',
+        changedBy: 'ADMIN SYSTEM',
+        remarkTitle: 'Activated',
+        remarkLines: ['Academic Session : 2025/09'],
+      },
+      {
+        id: 4,
+        status: 'Active',
+        dateEffective: '2025-02-18',
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: 'menu.srProgrammeTransfer',
+        movementCategory: 'Programme Transfer',
+        remarkTitle: 'Programme Transfer Approved',
+        remarkLines: [
+          'Old Programme : Bachelor of Software Engineering (Honours)',
+          'New Programme : Bachelor of Data Science',
+          'Effective Session : 2025/09',
+        ],
+      },
+      {
+        id: 5,
+        status: 'Deferred',
+        dateEffective: '2025-09-29',
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: 'menu.srDeferment',
+        movementCategory: 'Deferment',
+        remarkTitle: 'Deferment Approved',
+        remarkLines: ['Deferment Period : 2026/02', 'Reason : Personal Reason'],
+      },
+      {
+        id: 6,
+        status: 'Active',
+        dateEffective: '2026-02-01',
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: 'menu.srResumption',
+        movementCategory: 'Resumption',
+        remarkTitle: 'Resumption Approved',
+        remarkLines: ['Resumption Semester : 2026/02', 'Application ID : RES002'],
+      },
+    ],
   }),
   sampleStudent({
     studentCategory: 'China',
@@ -460,8 +590,8 @@ export const initialStudents = [
       programme: 'Bachelor in Accounting (Honours)',
       faculty: 'School of Business',
       status: 'Active',
-      programmeLevel: 'Undergraduate',
-      duration: '4 years',
+      programmeLevel: 'L6-Bachelor',
+      duration: '3',
       semester: '6',
       intake: '2024/09',
       academicSession: '2025/09',
@@ -517,8 +647,72 @@ export const initialStudents = [
       registrationDate: '01.09.2023',
       sponsor: 'Fujian Scholarship Programme',
       remarks: 'Scholarship recipient',
-      statusChangeLog: '2023-09-01 Enrolled as Active',
     },
+    statusLogs: [
+      {
+        id: 1,
+        status: 'New',
+        dateEffective: '2023-09-01',
+        changedBy: 'TAN HUEY YEN',
+        remarkTitle: 'New Registration',
+        remarkLines: [
+          'Program : Bachelor in Accounting (Honours)',
+          'Intake : 2024/09',
+        ],
+      },
+      {
+        id: 2,
+        status: 'Active',
+        dateEffective: '2023-09-01',
+        changedBy: 'LEE LAY TEEN',
+        remarkTitle: 'Change Student Status',
+        remarkLines: [
+          'Old StudentID : ACC2309002',
+          'New StudentID : XMUM2309002',
+          'Old Intake : 2023/09',
+          'New Intake : 2024/09',
+        ],
+      },
+      {
+        id: 3,
+        status: 'Active',
+        dateEffective: '2024-09-01',
+        changedBy: 'WANG MEI LING',
+        remarkTitle: 'Scholarship Confirmed',
+        remarkLines: [
+          'Scholarship Offer No : SCH-CN-2023-088',
+          'Financial Aid Amount : 15000',
+        ],
+      },
+      {
+        id: 4,
+        status: 'Active',
+        dateEffective: '2025-03-01',
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: 'menu.srProgrammeTransfer',
+        movementCategory: 'Programme Transfer',
+        remarkTitle: 'Programme Transfer Approved',
+        remarkLines: [
+          'Old Programme : Bachelor in Accounting (Honours)',
+          'New Programme : Bachelor of Finance',
+          'Effective Session : 2025/09',
+        ],
+      },
+      {
+        id: 5,
+        status: 'Withdrawn',
+        dateEffective: '2024-11-15',
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: 'menu.srWithdrawal',
+        movementCategory: 'Withdrawal',
+        remarkTitle: 'Withdrawal Approved',
+        remarkLines: [
+          'Last Date of Attendance : 15.11.2024',
+          'Reason : Financial Problem',
+          'Note : Reinstated via appeal on 01.12.2024',
+        ],
+      },
+    ],
   }),
   sampleStudent({
     studentCategory: 'International',
@@ -550,8 +744,8 @@ export const initialStudents = [
       programme: 'Bachelor of Management in International Business (Honours)',
       faculty: 'School of Business',
       status: 'Active',
-      programmeLevel: 'Undergraduate',
-      duration: '4 years',
+      programmeLevel: 'L6-Bachelor',
+      duration: '3',
       semester: '4',
       intake: '2024/04',
       academicSession: '2025/04',
@@ -607,10 +801,594 @@ export const initialStudents = [
       registrationDate: '01.04.2023',
       sponsor: 'Self-funded',
       remarks: 'Exchange programme interest noted',
-      statusChangeLog: '2023-04-01 Enrolled as Active',
     },
+    statusLogs: [
+      {
+        id: 1,
+        status: 'New',
+        dateEffective: '2023-04-01',
+        changedBy: 'TAN HUEY YEN',
+        remarkTitle: 'New Registration',
+        remarkLines: [
+          'Program : Bachelor of Management in International Business (Honours)',
+          'Intake : 2024/04',
+        ],
+      },
+      {
+        id: 2,
+        status: 'Active',
+        dateEffective: '2023-04-01',
+        changedBy: 'LEE LAY TEEN',
+        remarkTitle: 'Change Student Status',
+        remarkLines: [
+          'Old StudentID : IBU2309003',
+          'New StudentID : XMUM2309003',
+          'Old Intake : 2023/04',
+          'New Intake : 2024/04',
+        ],
+      },
+      {
+        id: 3,
+        status: 'Active',
+        dateEffective: '2024-04-01',
+        changedBy: 'ADMIN SYSTEM',
+        remarkTitle: 'Activated',
+        remarkLines: ['Academic Session : 2025/04'],
+      },
+      {
+        id: 4,
+        status: 'Deferred',
+        dateEffective: '2025-09-26',
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: 'menu.srDeferment',
+        movementCategory: 'Deferment',
+        remarkTitle: 'Deferment Approved',
+        remarkLines: ['Deferment Period : 2025/09', 'Reason : Health Issue'],
+      },
+      {
+        id: 5,
+        status: 'Active',
+        dateEffective: '2026-02-01',
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: 'menu.srResumption',
+        movementCategory: 'Resumption',
+        remarkTitle: 'Resumption Approved',
+        remarkLines: ['Resumption Semester : 2026/02', 'Application ID : RES003'],
+      },
+    ],
+  }),
+  sampleStudent({
+    studentCategory: 'Local',
+    basicInfo: {
+      fullName: 'Lim Defer Demo',
+      chineseName: '林休学演示',
+      gender: 'Male',
+      studentId: 'XMUM240DEF01',
+      applicationNo: 'APP202409901',
+      icNo: '020202020202',
+      stateOfBirth: 'Johor',
+      dateOfBirth: '02.02.2002',
+      age: '23',
+      nationality: 'Malaysia',
+      race: 'Chinese',
+      religion: 'Buddhism',
+      maritalStatus: 'Single',
+      disability: 'No',
+    },
+    contact: {
+      mobilePhone: '0112233445',
+      email: 'lim.defer.demo@student.xmum.edu.my',
+      permanentAddress: '88 Jalan Demo, 81300 Johor Bahru, Johor',
+      mailingAddress: '88 Jalan Demo, 81300 Johor Bahru, Johor',
+    },
+    enrollment: {
+      programmeCode: 'SWE',
+      programme: 'Bachelor of Software Engineering (Honours)',
+      faculty: 'School of Information',
+      status: 'Deferred',
+      programmeLevel: 'L6-Bachelor',
+      duration: '3',
+      semester: '4',
+      intake: '2023/09',
+      academicSession: '2024/02',
+      studyMode: 'Full Time',
+      recruitedBy: 'Direct Application',
+      sourceOfRecruit: 'School Counsellor',
+      typeOfFinancialAid: 'None',
+      tuitionFeeAnnual: '25000',
+    },
+    education: {
+      qualification: 'STPM',
+      institutionName: 'SMK Demo',
+      institutionLocation: 'Johor Bahru, Johor',
+      institutionType: 'Public',
+      yearGraduated: '2021',
+      gradeResult: '3.50 CGPA equivalent',
+      subject: 'Science Stream',
+      englishTestType: 'MUET',
+      englishResult: 'Band 4',
+      englishDate: '15.03.2021',
+      creditTransfer: 'No',
+    },
+    family: {
+      name: 'Lim Ah Demo',
+      icPassport: '650202020202',
+      relationship: 'Father',
+      occupation: 'Teacher',
+      race: 'Chinese',
+      mobilePhone: '0119988776',
+      email: 'lim.demo@email.com',
+      income: '7000 MYR/month',
+      mailingAddress: '88 Jalan Demo, 81300 Johor Bahru, Johor',
+    },
+    accommodation: {
+      hostelStatus: 'Checked Out',
+      roomType: 'Double',
+      campus: 'Xiamen University Malaysia Campus',
+      blockNo: 'B08',
+      floorNo: '2',
+      roomNo: '208',
+      bedNo: 'A',
+      checkInDate: '01.09.2023',
+      expectedCheckOut: '30.06.2024',
+      amountReceivable: '0',
+      moneyReceived: '0',
+      outstandingAmount: '0',
+    },
+    others: {
+      registrationDate: '01.09.2023',
+      sponsor: 'Self-funded',
+      remarks: 'Demo: Deferred status for resumption eligibility',
+    },
+    statusLogs: [
+      {
+        id: 1,
+        status: 'Active',
+        dateEffective: '2023-09-01',
+        changedBy: 'ADMIN SYSTEM',
+        remarkTitle: 'New Registration',
+        remarkLines: ['Intake : 2023/09'],
+      },
+      {
+        id: 2,
+        status: 'Deferred',
+        dateEffective: '2024-02-01',
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: 'menu.srDeferment',
+        movementCategory: 'Deferment',
+        remarkTitle: 'Deferment Approved',
+        remarkLines: ['Academic Session : 2024/02', 'Status changed to Deferred'],
+      },
+    ],
+  }),
+  sampleStudent({
+    studentCategory: 'Local',
+    basicInfo: {
+      fullName: 'Ahmad Rizal',
+      chineseName: '阿末·里扎',
+      gender: 'Male',
+      studentId: 'XMUM240DEF02',
+      applicationNo: 'APP202409902',
+      icNo: '030303030303',
+      stateOfBirth: 'Selangor',
+      dateOfBirth: '03.03.2003',
+      age: '22',
+      nationality: 'Malaysia',
+      race: 'Malay',
+      religion: 'Islam',
+      maritalStatus: 'Single',
+      disability: 'No',
+    },
+    contact: {
+      mobilePhone: '0135566778',
+      email: 'ahmad.rizal@student.xmum.edu.my',
+      permanentAddress: '56 Jalan Merdeka, 43000 Kajang, Selangor',
+      mailingAddress: '56 Jalan Merdeka, 43000 Kajang, Selangor',
+    },
+    enrollment: {
+      programmeCode: 'CS',
+      programme: 'Bachelor of Computer Science',
+      faculty: 'School of Information',
+      status: 'Deferred',
+      programmeLevel: 'L6-Bachelor',
+      duration: '3',
+      semester: '3',
+      intake: '2024/02',
+      academicSession: '2025/02',
+      studyMode: 'Full Time',
+      recruitedBy: 'Direct Application',
+      sourceOfRecruit: 'School Counsellor',
+      typeOfFinancialAid: 'None',
+      tuitionFeeAnnual: '24000',
+    },
+    education: {
+      qualification: 'STPM',
+      institutionName: 'SMK Kajang',
+      institutionLocation: 'Kajang, Selangor',
+      institutionType: 'Public',
+      yearGraduated: '2023',
+      gradeResult: '3.40 CGPA equivalent',
+      subject: 'Science Stream',
+      creditTransfer: 'No',
+    },
+    family: {
+      name: 'Rizal Bin Hassan',
+      icPassport: '660606060606',
+      relationship: 'Father',
+      occupation: 'Engineer',
+      race: 'Malay',
+      mobilePhone: '0131122334',
+      email: 'rizal.hassan@email.com',
+      income: '8000 MYR/month',
+      mailingAddress: '56 Jalan Merdeka, 43000 Kajang, Selangor',
+    },
+    accommodation: {
+      hostelStatus: 'Checked Out',
+      roomType: 'Double',
+      campus: 'Xiamen University Malaysia Campus',
+      blockNo: 'A03',
+      floorNo: '3',
+      roomNo: '312',
+      bedNo: 'B',
+      checkInDate: '01.02.2024',
+      expectedCheckOut: '30.06.2025',
+      amountReceivable: '0',
+      moneyReceived: '0',
+      outstandingAmount: '0',
+    },
+    others: {
+      registrationDate: '01.02.2024',
+      sponsor: 'Self-funded',
+      remarks: 'Demo: Deferred — military service deferment',
+    },
+    statusLogs: [
+      {
+        id: 1,
+        status: 'Active',
+        dateEffective: '2024-02-01',
+        changedBy: 'TAN HUEY YEN',
+        remarkTitle: 'New Registration',
+        remarkLines: ['Intake : 2024/02'],
+      },
+      {
+        id: 2,
+        status: 'Deferred',
+        dateEffective: '2025-02-18',
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: 'menu.srDeferment',
+        movementCategory: 'Deferment',
+        remarkTitle: 'Deferment Approved',
+        remarkLines: ['Deferment Period : 2025/09', 'Reason : Military Service'],
+      },
+    ],
+  }),
+  sampleStudent({
+    studentCategory: 'China',
+    basicInfo: {
+      fullName: 'Zhang Min',
+      chineseName: '张敏',
+      gender: 'Female',
+      studentId: 'XMUM240DEF03',
+      applicationNo: 'APP202409903',
+      passportNo: 'E99887766',
+      passportExpiry: '31.12.2029',
+      placeOfBirth: 'Guangdong',
+      identityNoChina: '440105200205051234',
+      candidateNo: 'CN2024003',
+      politicalOutlook: 'Mass Member',
+      dateOfBirth: '05.05.2002',
+      age: '23',
+      nationality: 'China',
+      race: 'Chinese',
+      religion: 'None',
+      maritalStatus: 'Single',
+      disability: 'No',
+    },
+    contact: {
+      mobilePhone: '0146677889',
+      email: 'zhang.min@student.xmum.edu.my',
+      permanentAddress: 'No. 12 Tianhe Road, Guangzhou, Guangdong 510000, China',
+      mailingAddress: 'Block D-506, Student Village, XMUM Campus, Sepang',
+    },
+    enrollment: {
+      programmeCode: 'ACC',
+      programme: 'Bachelor in Accounting (Honours)',
+      faculty: 'School of Business',
+      status: 'Deferred',
+      programmeLevel: 'L6-Bachelor',
+      duration: '3',
+      semester: '5',
+      intake: '2023/09',
+      academicSession: '2024/09',
+      studyMode: 'Full Time',
+      recruitedBy: 'Agent B',
+      sourceOfRecruit: 'Education Agent CN',
+      typeOfFinancialAid: 'Scholarship',
+      tuitionFeeAnnual: '28000',
+    },
+    education: {
+      qualification: 'Foundation',
+      institutionName: 'XMUM Foundation Centre',
+      institutionLocation: 'Sepang, Selangor',
+      institutionType: 'Private',
+      yearGraduated: '2023',
+      gradeResult: '3.80 CGPA',
+      subject: 'Business Foundation',
+      chineseTestResult: 'HSK Level 5',
+      chineseTestDate: '01.06.2023',
+      creditTransfer: 'No',
+    },
+    family: {
+      name: 'Zhang Wei',
+      icPassport: 'E88776655',
+      relationship: 'Father',
+      occupation: 'Business Owner',
+      race: 'Chinese',
+      mobilePhone: '+86 13800138000',
+      email: 'zhang.wei@email.cn',
+      income: 'CNY 25000/month',
+      mailingAddress: 'No. 12 Tianhe Road, Guangzhou, Guangdong 510000, China',
+    },
+    accommodation: {
+      hostelStatus: 'Checked Out',
+      roomType: 'Single',
+      campus: 'Xiamen University Malaysia Campus',
+      blockNo: 'D12',
+      floorNo: '5',
+      roomNo: '512',
+      bedNo: 'A',
+      checkInDate: '01.09.2023',
+      expectedCheckOut: '30.06.2025',
+      amountReceivable: '0',
+      moneyReceived: '0',
+      outstandingAmount: '0',
+    },
+    others: {
+      registrationDate: '01.09.2023',
+      sponsor: 'Fujian Scholarship Programme',
+      remarks: 'Demo: Deferred — health issue',
+    },
+    statusLogs: [
+      {
+        id: 1,
+        status: 'Active',
+        dateEffective: '2023-09-01',
+        changedBy: 'WANG MEI LING',
+        remarkTitle: 'New Registration',
+        remarkLines: ['Intake : 2023/09'],
+      },
+      {
+        id: 2,
+        status: 'Deferred',
+        dateEffective: '2024-09-01',
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: 'menu.srDeferment',
+        movementCategory: 'Deferment',
+        remarkTitle: 'Deferment Approved',
+        remarkLines: ['Deferment Period : 2024/09', 'Reason : Health Issue'],
+      },
+    ],
+  }),
+  sampleStudent({
+    studentCategory: 'Local',
+    basicInfo: {
+      fullName: 'Siti Nurhaliza',
+      chineseName: '西蒂',
+      gender: 'Female',
+      studentId: 'XMUM240WDR01',
+      applicationNo: 'APP202409904',
+      icNo: '040404040404',
+      stateOfBirth: 'Negeri Sembilan',
+      dateOfBirth: '04.04.2004',
+      age: '21',
+      nationality: 'Malaysia',
+      race: 'Malay',
+      religion: 'Islam',
+      maritalStatus: 'Single',
+      disability: 'No',
+    },
+    contact: {
+      mobilePhone: '0178899001',
+      email: 'siti.nurhaliza@student.xmum.edu.my',
+      permanentAddress: '22 Jalan Seremban, 70000 Seremban, Negeri Sembilan',
+      mailingAddress: '22 Jalan Seremban, 70000 Seremban, Negeri Sembilan',
+    },
+    enrollment: {
+      programmeCode: 'FIN',
+      programme: 'Bachelor of Finance',
+      faculty: 'School of Business',
+      status: 'Withdrawn',
+      programmeLevel: 'L6-Bachelor',
+      duration: '3',
+      semester: '2',
+      intake: '2024/09',
+      academicSession: '2024/09',
+      studyMode: 'Full Time',
+      recruitedBy: 'Direct Application',
+      sourceOfRecruit: 'School Counsellor',
+      typeOfFinancialAid: 'None',
+      tuitionFeeAnnual: '26000',
+    },
+    education: {
+      qualification: 'STPM',
+      institutionName: 'SMK Seremban',
+      institutionLocation: 'Seremban, Negeri Sembilan',
+      institutionType: 'Public',
+      yearGraduated: '2023',
+      gradeResult: '3.20 CGPA equivalent',
+      subject: 'Accounting Stream',
+      creditTransfer: 'No',
+    },
+    family: {
+      name: 'Nur Aisyah',
+      icPassport: '670707070707',
+      relationship: 'Mother',
+      occupation: 'Clerk',
+      race: 'Malay',
+      mobilePhone: '0173344556',
+      email: 'nur.aisyah@email.com',
+      income: '4500 MYR/month',
+      mailingAddress: '22 Jalan Seremban, 70000 Seremban, Negeri Sembilan',
+    },
+    accommodation: {
+      hostelStatus: 'Checked Out',
+      roomType: 'Double',
+      campus: 'Xiamen University Malaysia Campus',
+      blockNo: 'B02',
+      floorNo: '1',
+      roomNo: '108',
+      bedNo: 'A',
+      checkInDate: '01.09.2024',
+      expectedCheckOut: '26.09.2025',
+      amountReceivable: '0',
+      moneyReceived: '0',
+      outstandingAmount: '0',
+    },
+    others: {
+      registrationDate: '01.09.2024',
+      sponsor: 'Self-funded',
+      remarks: 'Demo: Withdrawn — financial problem',
+    },
+    statusLogs: [
+      {
+        id: 1,
+        status: 'Active',
+        dateEffective: '2024-09-01',
+        changedBy: 'TAN HUEY YEN',
+        remarkTitle: 'New Registration',
+        remarkLines: ['Intake : 2024/09'],
+      },
+      {
+        id: 2,
+        status: 'Withdrawn',
+        dateEffective: '2025-09-26',
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: 'menu.srWithdrawal',
+        movementCategory: 'Withdrawal',
+        remarkTitle: 'Withdrawal Approved',
+        remarkLines: [
+          'Last Date of Attendance : 26.09.2025',
+          'Reason : Financial Problem',
+        ],
+      },
+    ],
+  }),
+  sampleStudent({
+    studentCategory: 'International',
+    basicInfo: {
+      fullName: 'Elson Lai',
+      chineseName: '',
+      gender: 'Male',
+      studentId: 'AIT2402110',
+      applicationNo: 'APP202409905',
+      passportNo: 'K12345678',
+      passportExpiry: '20.08.2028',
+      placeOfBirth: 'Taipei',
+      dateOfBirth: '21.02.2004',
+      age: '21',
+      nationality: 'Taiwan',
+      race: 'Chinese',
+      religion: 'None',
+      maritalStatus: 'Single',
+      disability: 'No',
+    },
+    contact: {
+      mobilePhone: '0167788990',
+      email: 'elson.lai@student.xmum.edu.my',
+      permanentAddress: 'No. 88 Xinyi Road, Taipei 110, Taiwan',
+      mailingAddress: 'Block E-102, Student Village, XMUM Campus, Sepang',
+    },
+    enrollment: {
+      programmeCode: 'DS',
+      programme: 'Bachelor of Data Science',
+      faculty: 'School of Information',
+      status: 'Withdrawn',
+      programmeLevel: 'L6-Bachelor',
+      duration: '3',
+      semester: '4',
+      intake: '2024/02',
+      academicSession: '2025/02',
+      studyMode: 'Full Time',
+      recruitedBy: 'Agent A',
+      sourceOfRecruit: 'Education Agent TW',
+      typeOfFinancialAid: 'None',
+      tuitionFeeAnnual: '30000',
+    },
+    education: {
+      qualification: 'A-Level',
+      institutionName: 'Taipei International School',
+      institutionLocation: 'Taipei, Taiwan',
+      institutionType: 'Private',
+      yearGraduated: '2023',
+      gradeResult: 'ABB',
+      subject: 'Mathematics, Physics, Economics',
+      englishTestType: 'IELTS',
+      englishResult: '6.5',
+      englishDate: '15.01.2024',
+      creditTransfer: 'No',
+    },
+    family: {
+      name: 'Lai Chen',
+      icPassport: 'K87654321',
+      relationship: 'Father',
+      occupation: 'Consultant',
+      race: 'Chinese',
+      mobilePhone: '+886 912345678',
+      email: 'lai.chen@email.tw',
+      income: 'TWD 120000/month',
+      mailingAddress: 'No. 88 Xinyi Road, Taipei 110, Taiwan',
+    },
+    accommodation: {
+      hostelStatus: 'Checked Out',
+      roomType: 'Single',
+      campus: 'Xiamen University Malaysia Campus',
+      blockNo: 'C08',
+      floorNo: '4',
+      roomNo: '402',
+      bedNo: 'A',
+      checkInDate: '01.02.2024',
+      expectedCheckOut: '29.09.2025',
+      amountReceivable: '0',
+      moneyReceived: '0',
+      outstandingAmount: '0',
+    },
+    others: {
+      registrationDate: '01.02.2024',
+      sponsor: 'Self-funded',
+      remarks: 'Demo: Withdrawn — personal reason',
+    },
+    statusLogs: [
+      {
+        id: 1,
+        status: 'Active',
+        dateEffective: '2024-02-01',
+        changedBy: 'TAN HUEY YEN',
+        remarkTitle: 'New Registration',
+        remarkLines: ['Intake : 2024/02'],
+      },
+      {
+        id: 2,
+        status: 'Withdrawn',
+        dateEffective: '2025-09-29',
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: 'menu.srWithdrawal',
+        movementCategory: 'Withdrawal',
+        remarkTitle: 'Withdrawal Approved',
+        remarkLines: [
+          'Last Date of Attendance : 29.09.2025',
+          'Reason : Personal Reason',
+        ],
+      },
+    ],
   }),
 ]
+
+const CATEGORY_CODE_TO_MENU_KEY = {
+  PT001: 'menu.srProgrammeTransfer',
+  DEF001: 'menu.srDeferment',
+  WDR001: 'menu.srWithdrawal',
+  RES001: 'menu.srResumption',
+}
 
 const CATEGORY_STATUS_TO_PROFILE = {
   Active: 'Active',
@@ -651,11 +1429,33 @@ export function applyStudentProfileFromMovement(studentId, categoryConfig) {
   const patch = {}
 
   if (categoryConfig.modifyStudentStatus && categoryConfig.studentStatus) {
+    const newStatus =
+      CATEGORY_STATUS_TO_PROFILE[categoryConfig.studentStatus] || categoryConfig.studentStatus
     patch.enrollment = {
       ...current.enrollment,
-      status:
-        CATEGORY_STATUS_TO_PROFILE[categoryConfig.studentStatus] || categoryConfig.studentStatus,
+      status: newStatus,
     }
+    const categoryKey =
+      CATEGORY_CODE_TO_MENU_KEY[categoryConfig.categoryCode] || ''
+    const nextLogId =
+      Math.max(0, ...(current.statusLogs || []).map((entry) => Number(entry.id) || 0)) + 1
+    patch.statusLogs = [
+      ...(current.statusLogs || []),
+      createEmptyStatusLogEntry({
+        id: nextLogId,
+        status: newStatus,
+        dateEffective: new Date().toISOString().slice(0, 10),
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: categoryKey,
+        movementCategory: categoryConfig.categoryName || '',
+        remarkTitle: categoryConfig.categoryName
+          ? `${categoryConfig.categoryName} Implemented`
+          : 'Status Updated',
+        remarkLines: categoryConfig.categoryName
+          ? [`Movement Category : ${categoryConfig.categoryName}`]
+          : [],
+      }),
+    ]
   }
 
   if (categoryConfig.modifyStudentType && categoryConfig.category) {

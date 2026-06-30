@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
+import ProgrammeVersionDetailModal from '../programme/ProgrammeVersionDetailModal.vue'
 import {
   activeOptions,
   programmeIntakeSchools,
@@ -8,6 +9,10 @@ import {
   validateProgrammeIntakeEditForm,
   getSchoolLabel,
 } from '../../data/programmeIntakes.js'
+import {
+  findProgrammeByCode,
+  getProgrammePublishedVersion,
+} from '../../data/programmeVersions.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -21,6 +26,17 @@ const { t, tr } = useAppI18n()
 const startingSemester = ref('')
 const active = ref('Yes')
 const errors = ref({})
+const versionDetailVisible = ref(false)
+
+const linkedProgramme = computed(() => {
+  if (!props.initialData?.programmeCode) return null
+  return findProgrammeByCode(props.initialData.programmeCode)
+})
+
+const publishedVersion = computed(() => {
+  if (!linkedProgramme.value) return null
+  return getProgrammePublishedVersion(linkedProgramme.value)
+})
 
 const schoolLabel = computed(() => {
   if (!props.initialData?.schoolId) return props.initialData?.school || ''
@@ -30,7 +46,11 @@ const schoolLabel = computed(() => {
 watch(
   () => [props.visible, props.initialData],
   () => {
-    if (!props.visible || !props.initialData) return
+    if (!props.visible) {
+      versionDetailVisible.value = false
+      return
+    }
+    if (!props.initialData) return
     errors.value = {}
     startingSemester.value = props.initialData.startingSemester || ''
     active.value = props.initialData.active || 'Yes'
@@ -66,6 +86,15 @@ function handleClose() {
 
 function handleOverlayClick(event) {
   if (event.target === event.currentTarget) handleClose()
+}
+
+function openPublishedVersionDetail() {
+  if (!publishedVersion.value) return
+  versionDetailVisible.value = true
+}
+
+function closeVersionDetail() {
+  versionDetailVisible.value = false
 }
 </script>
 
@@ -106,6 +135,7 @@ function handleOverlayClick(event) {
                   <th>{{ tr('Programme') }}</th>
                   <th>{{ tr('Years') }}</th>
                   <th>{{ tr('School') }}</th>
+                  <th>{{ tr('Version') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -116,6 +146,17 @@ function handleOverlayClick(event) {
                   <td>{{ initialData.programmeName }}</td>
                   <td>{{ initialData.years }}</td>
                   <td>{{ initialData.school }}</td>
+                  <td>
+                    <button
+                      v-if="publishedVersion"
+                      type="button"
+                      class="link-btn"
+                      @click="openPublishedVersionDetail"
+                    >
+                      {{ tr('VersionDetail') }}
+                    </button>
+                    <span v-else class="empty-version">—</span>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -153,18 +194,19 @@ function handleOverlayClick(event) {
               </div>
             </div>
 
-            <div class="form-row">
+            <div class="form-field form-field-active">
               <label class="form-label"><span class="required">*</span> {{ tr('Active:') }}</label>
-              <div class="radio-group" :class="{ error: errors.active }">
-                <label v-for="opt in activeOptions" :key="opt" class="radio-option">
-                  <input v-model="active" type="radio" :value="opt" />
-                  {{ tr(opt) }}
-                </label>
+              <div class="form-field-control">
+                <div class="radio-group" :class="{ error: errors.active }">
+                  <label v-for="opt in activeOptions" :key="opt" class="radio-option">
+                    <input v-model="active" type="radio" :value="opt" />
+                    {{ tr(opt) }}
+                  </label>
+                </div>
+                <p v-if="errors.active" class="field-error">{{ tr(errors.active) }}</p>
+                <p class="remark-note">{{ t('modal.intakeEditNote') }}</p>
               </div>
             </div>
-            <p v-if="errors.active" class="field-error">{{ tr(errors.active) }}</p>
-
-            <p class="remark-note">{{ t('modal.intakeEditNote') }}</p>
           </div>
         </div>
 
@@ -174,6 +216,14 @@ function handleOverlayClick(event) {
         </div>
       </div>
     </div>
+
+    <ProgrammeVersionDetailModal
+      :visible="versionDetailVisible"
+      :programme-name="linkedProgramme?.name || initialData?.programmeName || ''"
+      :version="publishedVersion"
+      layered
+      @close="closeVersionDetail"
+    />
   </Teleport>
 </template>
 
@@ -276,7 +326,7 @@ function handleOverlayClick(event) {
 
 .data-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 860px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -334,6 +384,8 @@ function handleOverlayClick(event) {
 
 .form-field .field-error {
   margin: 4px 0 0;
+  font-size: 12px;
+  color: #ef4444;
 }
 
 .form-field .form-note {
@@ -343,19 +395,30 @@ function handleOverlayClick(event) {
   line-height: 1.4;
 }
 
-.form-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 4px;
+.form-field-active {
+  margin-top: 4px;
+  min-width: 100%;
+}
+
+.form-field-active .form-field-control {
+  max-width: none;
+}
+
+.form-field-active .remark-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6b7280;
+  background: #f9fafb;
+  border: 1px solid #f3f4f6;
+  border-radius: 6px;
 }
 
 .form-label {
-  width: 180px;
   flex-shrink: 0;
   font-size: 13px;
   color: #374151;
-  text-align: right;
   white-space: nowrap;
 }
 
@@ -412,23 +475,6 @@ function handleOverlayClick(event) {
   cursor: pointer;
 }
 
-.field-error {
-  margin: 0 0 10px 192px;
-  font-size: 12px;
-  color: #ef4444;
-}
-
-.remark-note {
-  margin: 12px 0 0 192px;
-  padding: 10px 12px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: #6b7280;
-  background: #f9fafb;
-  border: 1px solid #f3f4f6;
-  border-radius: 6px;
-}
-
 .modal-footer {
   display: flex;
   justify-content: flex-end;
@@ -460,5 +506,22 @@ function handleOverlayClick(event) {
 
 .btn-primary:hover {
   background: #1d4ed8;
+}
+
+.link-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #2563eb;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.empty-version {
+  color: #9ca3af;
 }
 </style>

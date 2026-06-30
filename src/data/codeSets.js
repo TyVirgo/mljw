@@ -27,7 +27,14 @@ export const codeSetTree = [
   {
     id: 'student',
     label: 'Student Code Sets',
-    children: [],
+    children: [
+      { id: 'hostel-status', label: 'Hostel Status', nodeCode: 'XS_ZSZT', nodeName: 'Hostel Status' },
+      { id: 'room-type', label: 'Room Type', nodeCode: 'XS_FJLX', nodeName: 'Room Type' },
+      { id: 'campus', label: 'Campus', nodeCode: 'XS_XQ', nodeName: 'Campus' },
+      { id: 'block-no', label: 'Block No', nodeCode: 'XS_LD', nodeName: 'Block No' },
+      { id: 'room-no', label: 'Room No', nodeCode: 'XS_FJH', nodeName: 'Room No' },
+      { id: 'programme-level', label: 'Programme Level', nodeCode: 'XS_ZYCJ', nodeName: 'Programme Level' },
+    ],
   },
   {
     id: 'teacher',
@@ -59,6 +66,14 @@ const STORAGE_KEY = 'jw-code-set-entries'
 
 let entrySeq = 100
 
+export const accommodationCodeSetIds = {
+  hostelStatus: 'hostel-status',
+  roomType: 'room-type',
+  campus: 'campus',
+  blockNo: 'block-no',
+  roomNo: 'room-no',
+}
+
 export function createCodeEntryId() {
   entrySeq += 1
   return entrySeq
@@ -88,6 +103,23 @@ export const initialCodeEntries = [
   { id: 6, codeSetId: 'ktly', nodeCode: 'BSGL_KTLY', nodeName: 'Topic Source', code: '1', codeName: 'Research Project', parentCode: '' },
   { id: 7, codeSetId: 'gender', nodeCode: 'XB_M', nodeName: 'Gender Code', code: '1', codeName: 'Male', parentCode: '' },
   { id: 8, codeSetId: 'gender', nodeCode: 'XB_M', nodeName: 'Gender Code', code: '2', codeName: 'Female', parentCode: '' },
+  { id: 9, codeSetId: 'hostel-status', nodeCode: 'XS_ZSZT', nodeName: 'Hostel Status', code: '0', codeName: 'Not Applicable', parentCode: '' },
+  { id: 10, codeSetId: 'hostel-status', nodeCode: 'XS_ZSZT', nodeName: 'Hostel Status', code: '1', codeName: 'Checked In', parentCode: '' },
+  { id: 11, codeSetId: 'hostel-status', nodeCode: 'XS_ZSZT', nodeName: 'Hostel Status', code: '2', codeName: 'Checked Out', parentCode: '' },
+  { id: 12, codeSetId: 'hostel-status', nodeCode: 'XS_ZSZT', nodeName: 'Hostel Status', code: '3', codeName: 'Reserved', parentCode: '' },
+  { id: 13, codeSetId: 'room-type', nodeCode: 'XS_FJLX', nodeName: 'Room Type', code: '1', codeName: 'Single', parentCode: '' },
+  { id: 14, codeSetId: 'room-type', nodeCode: 'XS_FJLX', nodeName: 'Room Type', code: '2', codeName: 'Double', parentCode: '' },
+  { id: 15, codeSetId: 'room-type', nodeCode: 'XS_FJLX', nodeName: 'Room Type', code: '3', codeName: 'Triple', parentCode: '' },
+  { id: 16, codeSetId: 'campus', nodeCode: 'XS_XQ', nodeName: 'Campus', code: '1', codeName: 'Xiamen University Malaysia Campus', parentCode: '' },
+  { id: 17, codeSetId: 'block-no', nodeCode: 'XS_LD', nodeName: 'Block No', code: '1', codeName: 'A08', parentCode: '' },
+  { id: 18, codeSetId: 'block-no', nodeCode: 'XS_LD', nodeName: 'Block No', code: '2', codeName: 'B12', parentCode: '' },
+  { id: 19, codeSetId: 'block-no', nodeCode: 'XS_LD', nodeName: 'Block No', code: '3', codeName: 'C05', parentCode: '' },
+  { id: 20, codeSetId: 'room-no', nodeCode: 'XS_FJH', nodeName: 'Room No', code: '1', codeName: '305', parentCode: '' },
+  { id: 21, codeSetId: 'room-no', nodeCode: 'XS_FJH', nodeName: 'Room No', code: '2', codeName: '512', parentCode: '' },
+  { id: 22, codeSetId: 'room-no', nodeCode: 'XS_FJH', nodeName: 'Room No', code: '3', codeName: '201', parentCode: '' },
+  { id: 23, codeSetId: 'programme-level', nodeCode: 'XS_ZYCJ', nodeName: 'Programme Level', code: '1', codeName: 'Foundation', parentCode: '' },
+  { id: 24, codeSetId: 'programme-level', nodeCode: 'XS_ZYCJ', nodeName: 'Programme Level', code: '2', codeName: 'Undergraduate', parentCode: '' },
+  { id: 25, codeSetId: 'programme-level', nodeCode: 'XS_ZYCJ', nodeName: 'Programme Level', code: '3', codeName: 'Postgraduate', parentCode: '' },
 ]
 
 export function loadCodeEntries() {
@@ -96,9 +128,18 @@ export function loadCodeEntries() {
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) {
-        const maxId = parsed.reduce((max, row) => Math.max(max, row.id || 0), 0)
+        const merged = [...parsed]
+        initialCodeEntries.forEach((seed) => {
+          const exists = merged.some(
+            (row) => row.codeSetId === seed.codeSetId && row.code === seed.code,
+          )
+          if (!exists) {
+            merged.push({ ...seed, id: createCodeEntryId() })
+          }
+        })
+        const maxId = merged.reduce((max, row) => Math.max(max, row.id || 0), 0)
         entrySeq = Math.max(entrySeq, maxId)
-        return parsed
+        return merged
       }
     }
   } catch {
@@ -120,6 +161,12 @@ export function getParentCodeOptions(entries, codeSetId, excludeCode = '') {
   return entries
     .filter((row) => row.codeSetId === codeSetId && row.code !== excludeCode)
     .map((row) => ({ value: row.code, label: `${row.code} — ${row.codeName}` }))
+}
+
+export function getCodeSetOptions(codeSetId, entries = loadCodeEntries()) {
+  return entries
+    .filter((row) => row.codeSetId === codeSetId)
+    .map((row) => ({ value: row.codeName, label: row.codeName }))
 }
 
 export function validateCodeEntry(payload, entries, editingId = null) {

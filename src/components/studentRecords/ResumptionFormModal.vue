@@ -20,13 +20,16 @@ import {
 
   canResubmitResumption,
 
+  isEligibleForResumption,
+
 } from '../../data/resumptions.js'
 
-import { initialStudents } from '../../data/students.js'
+import { findStudentByStudentId, initialStudents } from '../../data/students.js'
 import { downloadStudentConsentTemplate } from '../../utils/consentFormDownload.js'
 import StudentSelectModal from './StudentSelectModal.vue'
 import { getCurrentStudent } from '../../data/mockCurrentStudent.js'
 import { formatApplicationSessionField } from '../../data/movementApplicationSession.js'
+import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
 import '../../styles/movement-form.css'
 
 const props = defineProps({
@@ -58,6 +61,7 @@ const errors = ref({})
 const studentSelectVisible = ref(false)
 
 const fileInputRef = ref(null)
+const pendingLocalFile = ref(null)
 
 
 
@@ -81,6 +85,19 @@ const dateOfApplicationDisplay = computed(() =>
 
 )
 
+const selectedStudentRecord = computed(() =>
+  form.value.studentId ? findStudentByStudentId(form.value.studentId) : null,
+)
+
+const eligibilityBlocked = computed(
+  () =>
+    !!form.value.studentId &&
+    !!selectedStudentRecord.value &&
+    !isEligibleForResumption(selectedStudentRecord.value),
+)
+
+const canSubmitResumption = computed(() => !eligibilityBlocked.value)
+
 
 
 function applyStudentProfile(student) {
@@ -99,6 +116,7 @@ watch(
   () => {
     if (!props.visible) return
     errors.value = {}
+    pendingLocalFile.value = null
     form.value =
       isEditMode.value && props.initialData
         ? getResumptionFormData(props.initialData)
@@ -114,43 +132,28 @@ function fieldError(key) {
 }
 
 function onFileChange(event) {
-
   const file = event.target.files?.[0]
-
   if (!file) {
-
     form.value.attachment = null
-
+    pendingLocalFile.value = null
     return
-
   }
-
   const allowed = /\.(pdf|jpg|jpeg|png|docx)$/i
-
   if (!allowed.test(file.name)) {
-
     errors.value.attachment = 'Supported formats: PDF, JPG, PNG, DOCX.'
-
     form.value.attachment = null
-
+    pendingLocalFile.value = null
     return
-
   }
-
   if (file.size > 5 * 1024 * 1024) {
-
     errors.value.attachment = 'Max file size is 5MB.'
-
     form.value.attachment = null
-
+    pendingLocalFile.value = null
     return
-
   }
-
   delete errors.value.attachment
-
+  pendingLocalFile.value = file
   form.value.attachment = { fileName: file.name, size: file.size }
-
 }
 
 
@@ -160,8 +163,14 @@ function getSelectedStudentCategory() {
   return student?.studentCategory || 'Local'
 }
 
+function getConsentLookup() {
+  return {
+    programmeLevel: form.value.programmeLevel,
+  }
+}
+
 function downloadConsentLetter() {
-  downloadStudentConsentTemplate('resumption', getSelectedStudentCategory(), t)
+  downloadStudentConsentTemplate('resumption', getSelectedStudentCategory(), t, getConsentLookup())
 }
 
 
@@ -252,16 +261,31 @@ function handleClose() {
               :class="{ 'student-picker-row--with-button': canSelectStudent }"
             >
               <div class="picker-field">
-                <label>{{ tr('Student ID') }} <span class="required">*</span></label>
+                <label class="picker-label">
+                  {{ tr('Student ID') }} <span class="required">*</span>
+                  <span
+                    v-if="eligibilityBlocked"
+                    class="field-warning-tip-wrap"
+                    tabindex="0"
+                    :aria-label="t('resumption.errors.notDeferredStudent')"
+                  >
+                    <span class="field-warning-icon" aria-hidden="true">!</span>
+                    <span class="field-warning-tooltip" role="tooltip">
+                      {{ t('resumption.errors.notDeferredStudent') }}
+                    </span>
+                  </span>
+                </label>
                 <input
                   :value="form.studentId"
                   type="text"
                   class="form-control"
                   readonly
-                  :class="fieldError('studentId')"
+                  :class="fieldError('studentId') || (eligibilityBlocked ? 'error' : '')"
                   :placeholder="canSelectStudent ? t('studentSelect.selectPlaceholder') : ''"
                 />
-                <p v-if="errors.studentId" class="field-error">{{ tr(errors.studentId) }}</p>
+                <p v-if="!eligibilityBlocked && errors.studentId" class="field-error">
+                  {{ tr(errors.studentId) }}
+                </p>
               </div>
               <div class="picker-field">
                 <label>{{ t('resumption.fields.name') }}</label>
@@ -446,10 +470,15 @@ function handleClose() {
 
             </button>
 
-            <span class="file-name">
-
-              {{ form.attachment?.fileName || t('resumption.fields.noFileSelected') }}
-
+            <AttachmentPreviewTrigger
+              v-if="form.attachment?.fileName"
+              :file-name="form.attachment.fileName"
+              :file-meta="form.attachment"
+              :local-file="pendingLocalFile"
+              :show-file-icon="false"
+            />
+            <span v-else class="file-name">
+              {{ t('resumption.fields.noFileSelected') }}
             </span>
 
             <input
@@ -523,22 +552,24 @@ function handleClose() {
         </button>
 
         <button
-
           v-if="isResubmitMode"
-
           type="button"
-
           class="btn btn-primary"
-
+          :disabled="!canSubmitResumption"
           @click="handleResubmit"
-
         >
 
           {{ t('resumption.actions.resubmit') }}
 
         </button>
 
-        <button v-else type="button" class="btn btn-primary" @click="handleSubmit">
+        <button
+          v-else
+          type="button"
+          class="btn btn-primary"
+          :disabled="!canSubmitResumption"
+          @click="handleSubmit"
+        >
 
           {{ t('resumption.actions.submit') }}
 
@@ -755,6 +786,74 @@ function handleClose() {
 
   color: #ef4444;
 
+}
+
+.picker-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-warning-tip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  outline: none;
+}
+
+.field-warning-icon {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #f59e0b;
+  border-radius: 50%;
+  background: #fef3c7;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #b45309;
+  cursor: help;
+}
+
+.field-warning-tooltip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  width: 288px;
+  max-width: min(288px, calc(100vw - 48px));
+  padding: 8px 10px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #92400e;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 20;
+}
+
+.field-warning-tip-wrap:hover .field-warning-tooltip,
+.field-warning-tip-wrap:focus-within .field-warning-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.student-picker-row {
+  overflow: visible;
+}
+
+.picker-field {
+  overflow: visible;
 }
 
 
@@ -1005,6 +1104,15 @@ function handleClose() {
 
   background: #1d4ed8;
 
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary:disabled:hover {
+  background: #2563eb;
 }
 
 </style>

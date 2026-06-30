@@ -73,3 +73,94 @@
   - 审批流、异动类别/原因配置联动
   - 最长修读年限的精确学期计算（首版 mock 规则即可）
   - Import / Export
+
+---
+
+## §10 学历层次与学期版本历史（Phase 2 — 2026-06）
+
+产品反馈：知情同意书需按 **学历层次** 区分模板；同一 `(异动类型 × Student Type × 学历层次)` 下按 **学年学期**（与 `intakeSets` / 申请 `applicationSession` 同一套 `YYYY/MM`，月份 `02|04|09`）维护多版快照；每学期仅 **一个已应用** 版本供申请端下载；列表 **Edit** 只改配置行默认附件，学期快照在 **历史版本** 弹窗维护。
+
+### 范围
+
+- **学历层次**：Create/Edit 必填下拉 `Foundation | Undergraduate | Postgraduate`（界面：预科 / 本科 / 研究生）
+- **唯一键**：`(movementType + studentType + educationLevel)` 不可重复（替代 Phase 1 二维唯一）
+- **列表**：新增「学历层次」列；Actions 增加 **历史版本**（Edit | View | 历史版本）
+- **Edit**：仅更新该配置行的默认字段（名称、Remark、行级学生/家长附件 mock）；**不**直接写入学期快照
+- **历史版本弹窗**（新 `ConsentFormVersionHistoryModal`）：
+  - 范围：当前行的 `movementType + studentType + educationLevel`
+  - 按 **学年学期**（`YYYY/MM`）展示各学期下的版本快照
+  - 在某学期下新增/修改同意书 → 归属该 `academicSession` 的历史条目
+  - 每行版本：学期、附件摘要、更新时间、**应用**开关（toggle）
+  - **互斥**：同一配置行 + 同一 `academicSession` 下最多一个 `isApplied: true`
+- **申请端 lookup 扩展**：
+  - `resolveConsentTemplate(movementType, studentCategory, programmeLevel, academicSession)`
+  - `programmeLevel` 映射为 `Foundation | Undergraduate | Postgraduate`（与 enrollment 字段对齐）
+  - `academicSession` 与申请 Form 只读「申请学年学期」同源（`resolveApplicationSessionFromStudent` / 存库 `applicationSession`）
+  - 命中：该学期 **已应用** 的版本附件；未命中：**不下载**，按钮侧提示 **「未匹配对应同意书，联系管理员」**（i18n）
+- **Mock 种子**：扩展现有 9 条或增行，覆盖至少 2 个 educationLevel × 2 个 academicSession 的 `versions[]` + `isApplied` 样例
+
+### Non-goals（§10）
+
+- 真实 PDF 版本 diff、审批发布流
+- 自动按当前学期归档（首版手工在历史弹窗维护）
+- 新增 `06` 月份（沿用 `intakeSets` 的 `02|04|09`）
+- Import/Export 扁平化 versions
+
+### Capabilities（§10）
+
+- `consent-form-config`: 学历层次 + 学期版本历史 + 应用互斥 + lookup 四维匹配
+- `movement-application-details`: 下载未匹配时的统一提示文案
+
+### Impact（§10）
+
+- **修改** `src/data/consentForms.js` — 模型、`versions[]`、`applyConsentVersion`、lookup 签名
+- **新增** `ConsentFormVersionHistoryModal.vue`
+- **修改** `ConsentFormView.vue`、`ConsentFormFormModal.vue`、`consentFormDownload.js`、四 Tab Form、`MovementAttachmentReadonly.vue`
+- **修改** `specs/consent-form-config/spec.md`、`specs/movement-application-details/spec.md`、`scripts/prd/prd-content.mjs`（可选）
+- **i18n**：`educationLevel.*`、`versionHistory`、`applyVersion`、`downloadNoMatchContactAdmin`
+
+---
+
+## §11 历史版本 UX  refinement（Phase 2.1 — 2026-06）
+
+产品反馈：历史版本弹窗 **不应** 提供手工新增/上传区；历史由 **Create/Edit Save 自动追加**（对齐学籍档案 **Status Log** 只读审计表）；**暂时** 每个配置行 **全局仅一条** `isApplied`；Save 时 **学年学期** 由 **当前时间** 推导（非手选、非 `currentSemester` 标记）。
+
+### 范围
+
+- **历史写入**：`ConsentFormFormModal` Save（Create / Edit）时自动 `appendVersionLog`：
+  - `academicSession` ← `resolveAcademicSessionFromDate(now)`（优先 `semesterInfo` 起止日区间；无匹配则 `snapCalendarMonth` fallback → `YYYY/MM`）
+  - `changedBy` ← mock 当前管理员
+  - `updatedAt` ← Save 时间
+  - `remarkTitle` / `remarkLines[]` ← 新增或字段 diff（Status Log 风格，含 Old/New 附件名等）
+  - 完整附件快照（student / parent）
+  - **新记录 `isApplied: true`**，同配置行 **其余全部 `false`**（全局互斥，不按学期分组）
+- **历史弹窗**（重构 `ConsentFormVersionHistoryModal`）：
+  - **只读**表格：学年学期 | 变更人 | 变更内容 | 更新时间 | 应用 [switch]
+  - 表头浅绿 `#E8F5E9`（对齐 `StatusLogTab`）
+  - **移除**上半区新增/编辑/上传/删除/从默认复制
+  - 允许切换 **Apply** 将某条历史设为全局生效
+- **Lookup（暂时）**：
+  - `resolveConsentTemplate(movementType, studentCategory, programmeLevel)` — **暂不使用** 申请 `applicationSession`
+  - 命中：配置行上 **唯一** `isApplied=true` 的快照；未命中 → 「未匹配对应同意书，联系管理员」
+- **配置行 Edit**：Save 仍更新当前字段 **并** append 历史（不再区分「仅 default 不写快照」）
+
+### Non-goals（§11）
+
+- 历史弹窗内手工维护版本
+- 历史条目 Delete（审计只追加）
+- 按申请学期匹配 Applied（后续 Phase 可恢复 §10 四维 lookup）
+- 真实后端 audit / 当前登录用户
+
+### Capabilities（§11）
+
+- `consent-form-config`: Status Log 式 version log + Save 驱动 append + 全局 Apply + 日期推导学期
+- `movement-application-details`: lookup 暂时三维（education level 仍映射）
+
+### Impact（§11）
+
+- **修改** `consentForms.js` — `appendVersionLog`、`resolveAcademicSessionFromDate`、`setAppliedVersion` 全局互斥、lookup 签名
+- **修改** `ConsentFormVersionHistoryModal.vue` — 只读表 + Apply
+- **修改** `ConsentFormFormModal.vue` / `ConsentFormView.vue` Save 路径
+- **修改** `consentFormDownload.js`、四 Tab Form、`MovementAttachmentReadonly` — lookup 去掉 applicationSession 参与匹配（暂时）
+- **新增** `resolveAcademicSessionFromDate`（建议 `movementApplicationSession.js` 或 `normalizeAcademicSession.js`）
+- **修改** `specs/consent-form-config/spec.md` MODIFIED §11；`specs/movement-application-details/spec.md`

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { studentFormTabs, getStudentFormData, createEmptyStudent } from '../../data/students.js'
+import { studentDetailTabs, getStudentFormData, createEmptyStudent } from '../../data/students.js'
 import BasicInfoTab from './tabs/BasicInfoTab.vue'
 import EnrollmentTab from './tabs/EnrollmentTab.vue'
 import ContactTab from './tabs/ContactTab.vue'
@@ -9,6 +9,7 @@ import EducationTab from './tabs/EducationTab.vue'
 import FamilyTab from './tabs/FamilyTab.vue'
 import AccommodationTab from './tabs/AccommodationTab.vue'
 import OthersTab from './tabs/OthersTab.vue'
+import StatusLogTab from './tabs/StatusLogTab.vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -30,13 +31,18 @@ const tabComponents = {
   family: FamilyTab,
   accommodation: AccommodationTab,
   others: OthersTab,
+  statusLog: StatusLogTab,
 }
 
 const translatedTabs = computed(() =>
-  studentFormTabs.map((tab) => ({ ...tab, label: t(tab.labelKey) })),
+  studentDetailTabs.map((tab) => ({ ...tab, label: t(tab.labelKey) })),
 )
 
-const categoryLabel = computed(() => tr(form.value.studentCategory) || form.value.studentCategory)
+const nationalityDisplay = computed(() => form.value.basicInfo?.nationality || '—')
+const categoryLabel = computed(() => {
+  const category = form.value.studentCategory
+  return category ? tr(category) || category : '—'
+})
 
 watch(
   () => [props.visible, props.data],
@@ -71,27 +77,50 @@ function handleEdit() {
         </div>
 
         <div class="drawer-body">
-          <div class="category-row">
-            <span class="category-label">{{ tr('Student Category') }}</span>
-            <span class="category-value">{{ categoryLabel }}</span>
-          </div>
+          <section class="form-section">
+            <h3 class="section-title">
+              <span class="step-badge">1</span>
+              {{ t('studentProfile.form.nationalitySectionTitle') }}
+            </h3>
+            <div class="nationality-grid">
+              <div class="nationality-field">
+                <span class="field-label">{{ tr('Nationality') }}</span>
+                <div class="readonly-value">{{ nationalityDisplay }}</div>
+              </div>
+              <div class="nationality-field">
+                <span class="field-label">{{ tr('Student Category') }}</span>
+                <div class="readonly-value">{{ categoryLabel }}</div>
+              </div>
+            </div>
+          </section>
 
-          <div class="tab-bar">
-            <button
-              v-for="tab in translatedTabs"
-              :key="tab.id"
-              type="button"
-              class="tab-btn"
-              :class="{ active: activeTab === tab.id }"
-              @click="activeTab = tab.id"
-            >
-              {{ tab.label }}
-            </button>
-          </div>
+          <section class="form-section entry-section-readonly">
+            <h3 class="section-title">
+              <span class="step-badge">2</span>
+              {{ t('studentProfile.form.entrySectionTitle') }}
+            </h3>
+            <div class="tab-bar">
+              <button
+                v-for="tab in translatedTabs"
+                :key="tab.id"
+                type="button"
+                class="tab-btn"
+                :class="{ active: activeTab === tab.id }"
+                @click="activeTab = tab.id"
+              >
+                {{ tab.label }}
+              </button>
+            </div>
 
-          <div class="tab-content">
-            <component :is="tabComponents[activeTab]" :form="form" :read-only="true" />
-          </div>
+            <div class="tab-content">
+              <component
+                :is="tabComponents[activeTab]"
+                :form="form"
+                :read-only="true"
+                :nationality-selected="true"
+              />
+            </div>
+          </section>
         </div>
 
         <div class="drawer-footer">
@@ -161,22 +190,67 @@ function handleEdit() {
   padding: 20px 24px;
 }
 
-.category-row {
+.form-section + .form-section {
+  margin-top: 24px;
+}
+
+.entry-section-readonly {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.section-title {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: 10px;
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
 }
 
-.category-label {
-  font-size: 12px;
-  font-weight: 400;
-  color: #6b7280;
+.step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
-.category-value {
-  font-size: 15px;
+.nationality-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+}
+
+.nationality-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 13px;
   font-weight: 500;
+  color: #374151;
+}
+
+.readonly-value {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+  font-size: 13px;
   color: #111827;
 }
 
@@ -235,5 +309,11 @@ function handleEdit() {
   background: #fff;
   border: 1px solid #d1d5db;
   color: #374151;
+}
+
+@media (max-width: 720px) {
+  .nationality-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

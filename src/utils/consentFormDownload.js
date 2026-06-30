@@ -1,4 +1,6 @@
-import { resolveConsentTemplate } from '../data/consentForms.js'
+import {
+  resolveConsentTemplate,
+} from '../data/consentForms.js'
 
 export function downloadMockConsentFile(fileMeta, label = 'Consent Form') {
   if (!fileMeta?.fileName) return
@@ -12,27 +14,43 @@ export function downloadMockConsentFile(fileMeta, label = 'Consent Form') {
   URL.revokeObjectURL(url)
 }
 
-export function downloadStudentConsentTemplate(movementType, studentCategory, t) {
-  const template = resolveConsentTemplate(movementType, studentCategory)
+function resolveForDownload(movementType, studentCategory, lookup = {}) {
+  const programmeLevel = lookup.programmeLevel ?? ''
+  return resolveConsentTemplate(movementType, studentCategory, programmeLevel)
+}
+
+export function downloadStudentConsentTemplate(
+  movementType,
+  studentCategory,
+  t,
+  lookup = {},
+) {
+  const template = resolveForDownload(movementType, studentCategory, lookup)
   if (!template?.studentConsentFile) {
-    window.alert(t('consentForm.downloadNotConfigured'))
+    window.alert(t('consentForm.downloadNoMatchContactAdmin'))
     return false
   }
   downloadMockConsentFile(template.studentConsentFile, template.formName)
   return true
 }
 
-export function downloadParentConsentTemplate(movementType, studentCategory, t) {
-  const template = resolveConsentTemplate(movementType, studentCategory)
+export function downloadParentConsentTemplate(
+  movementType,
+  studentCategory,
+  t,
+  lookup = {},
+) {
+  const template = resolveForDownload(movementType, studentCategory, lookup)
   if (!template?.parentConsentFile) {
-    window.alert(t('consentForm.parentDownloadNotConfigured'))
+    window.alert(t('consentForm.downloadNoMatchContactAdmin'))
     return false
   }
   downloadMockConsentFile(template.parentConsentFile, `${template.formName} - Parent`)
   return true
 }
 
-export function hasParentConsentTemplate(movementType, studentCategory) {
-  const template = resolveConsentTemplate(movementType, studentCategory)
+export function hasParentConsentTemplate(movementType, studentCategory, lookup = {}) {
+  const template = resolveForDownload(movementType, studentCategory, lookup)
   return Boolean(template?.parentConsentFile?.fileName)
 }
+

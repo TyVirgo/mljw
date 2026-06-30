@@ -1,4 +1,4 @@
-import { isLocalCategory } from './students.js'
+import { isLocalCategory, findStudentByStudentId } from './students.js'
 import { resolveApplicationSessionFromStudent } from './movementApplicationSession.js'
 import { validateAcademicSessionOrder } from '../utils/normalizeAcademicSession.js'
 
@@ -119,6 +119,21 @@ export function buildStudentSnapshotForResumption(student) {
   }
 }
 
+/** 仅学籍状态为 Deferred（休学）的学生可提交复学申请 */
+export function isEligibleForResumption(student) {
+  if (!student) return false
+  const enrollment = student.enrollment || {}
+  return enrollment.status === 'Deferred'
+}
+
+export function isEligibleForResumptionByStudentId(studentId) {
+  const student = findStudentByStudentId(studentId)
+  return isEligibleForResumption(student)
+}
+
+const NOT_DEFERRED_STUDENT_MESSAGE =
+  'Only students with Deferment (Deferred) status can submit a resumption application.'
+
 const TERMINAL_STATUSES = new Set(['Approved', 'Rejected', 'Cancelled'])
 const ACTIVE_STATUSES = new Set(['Draft', 'In Progress', 'Update Required'])
 
@@ -221,6 +236,14 @@ export function validateResumptionForm(data, mode = 'submit', existingList = [],
   }
   if (!data.declarationMaxDuration) {
     requireField('declarationMaxDuration', 'You must acknowledge the maximum study duration.')
+  }
+
+  if (
+    mode === 'submit' &&
+    data.studentId &&
+    !isEligibleForResumptionByStudentId(data.studentId)
+  ) {
+    requireField('studentId', NOT_DEFERRED_STUDENT_MESSAGE)
   }
 
   if (

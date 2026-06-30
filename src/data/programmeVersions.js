@@ -314,6 +314,31 @@ export function getProgrammeCurrentVersion(programme) {
   )[0]
 }
 
+/** 已发布（isCurrent）版本；无发布版本时返回 null */
+export function getProgrammePublishedVersion(programme) {
+  if (!programme?.versions?.length) return null
+  return programme.versions.find((item) => item.isCurrent) || null
+}
+
+export function findProgrammeByCode(code) {
+  const normalized = String(code || '').trim().toUpperCase()
+  if (!normalized) return null
+  return initialProgrammes.find((item) => String(item.code).toUpperCase() === normalized) || null
+}
+
+/** 同一专业下仅允许一个版本处于发布（isCurrent）状态 */
+export function setProgrammeVersionPublished(programme, versionId, published) {
+  if (!programme?.versions?.length) return
+  if (published) {
+    programme.versions.forEach((item) => {
+      item.isCurrent = item.id === versionId
+    })
+    return
+  }
+  const target = programme.versions.find((item) => item.id === versionId)
+  if (target) target.isCurrent = false
+}
+
 export function getProgrammeCurrentFormData(programme) {
   const version = getProgrammeCurrentVersion(programme)
   if (version?.formData) {

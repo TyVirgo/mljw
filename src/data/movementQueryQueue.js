@@ -5,7 +5,7 @@ import {
   withdrawals,
 } from './movementStore.js'
 import { normalizeMaintenanceItem } from './movementMaintenanceQueue.js'
-import { movementApprovalStatusOptions } from './movementApprovalQueue.js'
+import { movementApprovalStatusOptions, matchesImplementedYnFilter } from './movementApprovalQueue.js'
 
 export { movementApprovalStatusOptions as movementQueryStatusOptions }
 
@@ -53,6 +53,7 @@ export function filterQueryBySearch(items, search) {
     if (s.movementType && row.sourceKey !== s.movementType) return false
     if (s.studentId && !matchText(row.studentId, s.studentId)) return false
     if (s.studentName && !matchText(row.fullName, s.studentName)) return false
+    if (!matchesImplementedYnFilter(row.implemented, s.implemented)) return false
     return true
   })
 }

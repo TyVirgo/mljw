@@ -38,6 +38,7 @@ const props = defineProps({
   courses: { type: Array, default: () => [] },
   mode: { type: String, default: 'create' },
   initialApplication: { type: Object, default: null },
+  embedded: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['back', 'save'])

@@ -19,6 +19,7 @@ import {
 } from './movementMaintenanceFields.js'
 import {
   normalizeQueueItem,
+  matchesImplementedYnFilter,
 } from './movementApprovalQueue.js'
 
 export const movementMaintenanceStatusOptions = ['Approved']
@@ -75,6 +76,7 @@ export function filterMaintenanceBySearch(items, search) {
     if (s.status && row.status !== s.status) return false
     if (s.studentId && !matchText(row.studentId, s.studentId)) return false
     if (s.studentName && !matchText(row.fullName, s.studentName)) return false
+    if (!matchesImplementedYnFilter(row.implemented, s.implemented)) return false
     return true
   })
 }

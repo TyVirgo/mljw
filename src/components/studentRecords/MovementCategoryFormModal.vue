@@ -4,8 +4,6 @@ import YnSwitch from '../common/YnSwitch.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   createEmptyMovementCategoryForm,
-  studentStatusOptions,
-  trackCategoryOptions,
   validateMovementCategoryForm,
 } from '../../data/movementCategories.js'
 
@@ -31,11 +29,7 @@ function applyInitialForm(data) {
   return {
     categoryCode: data.categoryCode || '',
     categoryName: data.categoryName || '',
-    studentStatus: data.studentStatus || '',
-    category: data.category || '',
     allowStudentApply: data.allowStudentApply !== false,
-    modifyStudentStatus: data.modifyStudentStatus === true,
-    modifyStudentType: data.modifyStudentType === true,
     autoImplement: data.autoImplement === true,
     deleteOriginalCourseList: data.deleteOriginalCourseList === true,
     presetNewProgrammeBatchList: data.presetNewProgrammeBatchList === true,
@@ -120,66 +114,19 @@ function handleSave() {
             </div>
 
             <div class="form-field">
-              <label class="field-label">{{ t('movementCategory.fields.modifyStudentStatus') }}:</label>
-              <div class="field-control field-control-stacked">
-                <div class="switch-value-row">
-                  <YnSwitch v-model="form.modifyStudentStatus" />
-                </div>
-                <p class="field-hint">{{ t('movementCategory.fields.modifyStudentStatusHint') }}</p>
-              </div>
-            </div>
-
-            <div class="form-field">
-              <label class="field-label">{{ t('movementCategory.fields.modifyStudentType') }}:</label>
-              <div class="field-control field-control-stacked">
-                <div class="switch-value-row">
-                  <YnSwitch v-model="form.modifyStudentType" />
-                </div>
-                <p class="field-hint">{{ t('movementCategory.fields.modifyStudentTypeHint') }}</p>
-              </div>
-            </div>
-
-            <div class="form-field">
-              <label class="field-label required">{{ t('movementCategory.fields.studentStatus') }}:</label>
+              <label class="field-label">
+                {{ t('movementCategory.fields.autoImplement') }}
+                <span class="field-hint-tip-wrap" tabindex="0">
+                  <span class="field-hint-icon" aria-hidden="true">?</span>
+                  <span class="field-hint-tooltip" role="tooltip">
+                    {{ t('movementCategory.fields.autoImplementHint') }}
+                  </span>
+                </span>:
+              </label>
               <div class="field-control">
-                <select
-                  v-model="form.studentStatus"
-                  :class="['control-input', fieldError('studentStatus'), { 'is-empty': !form.studentStatus }]"
-                  :disabled="form.modifyStudentStatus"
-                >
-                  <option value="">{{ t('common.pleaseSelect') }}</option>
-                  <option v-for="opt in studentStatusOptions" :key="opt" :value="opt">
-                    {{ t(`movementCategory.studentStatus.${opt}`) }}
-                  </option>
-                </select>
-                <p v-if="errors.studentStatus" class="field-error">{{ tr(errors.studentStatus) }}</p>
-              </div>
-            </div>
-
-            <div class="form-field">
-              <label class="field-label required">{{ t('movementCategory.fields.category') }}:</label>
-              <div class="field-control">
-                <select
-                  v-model="form.category"
-                  :class="['control-input', fieldError('category'), { 'is-empty': !form.category }]"
-                  :disabled="form.modifyStudentType"
-                >
-                  <option value="">{{ t('common.pleaseSelect') }}</option>
-                  <option v-for="opt in trackCategoryOptions" :key="opt" :value="opt">
-                    {{ t(`movementCategory.trackCategory.${opt}`) }}
-                  </option>
-                </select>
-                <p v-if="errors.category" class="field-error">{{ tr(errors.category) }}</p>
-              </div>
-            </div>
-
-            <div class="form-field">
-              <label class="field-label">{{ t('movementCategory.fields.autoImplement') }}:</label>
-              <div class="field-control field-control-stacked">
                 <div class="switch-value-row">
                   <YnSwitch v-model="form.autoImplement" />
                 </div>
-                <p class="field-hint">{{ t('movementCategory.fields.autoImplementHint') }}</p>
               </div>
             </div>
 
@@ -244,8 +191,8 @@ function handleSave() {
 
 .modal-panel {
   width: 100%;
-  max-width: 820px;
-  max-height: 90vh;
+  max-width: 960px;
+  max-height: 92vh;
   display: flex;
   flex-direction: column;
   background: #fff;
@@ -279,14 +226,14 @@ function handleSave() {
 }
 
 .modal-body {
-  padding: 20px 24px;
+  padding: 20px 28px 16px;
   overflow-y: auto;
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px 32px;
+  gap: 18px 40px;
 }
 
 .form-field {
@@ -294,6 +241,13 @@ function handleSave() {
   align-items: flex-start;
   gap: 8px;
   min-width: 0;
+  position: relative;
+  z-index: 0;
+}
+
+.form-field:has(.field-hint-tip-wrap:hover),
+.form-field:has(.field-hint-tip-wrap:focus-within) {
+  z-index: 2;
 }
 
 .form-field-full {
@@ -304,40 +258,47 @@ function handleSave() {
   grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
+  padding-top: 4px;
 }
 
 .course-handling-first-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   min-width: 0;
 }
 
 .course-handling-label {
   flex-shrink: 0;
-  width: 132px;
+  width: 176px;
+  padding-top: 2px;
   font-size: 13px;
   color: #374151;
   text-align: right;
-  white-space: nowrap;
+  line-height: 1.4;
 }
 
 .course-handling-follow-rows {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-left: 140px;
+  gap: 10px;
+  margin-left: 184px;
 }
 
 .field-label {
   flex-shrink: 0;
-  width: 132px;
+  width: 176px;
   padding-top: 7px;
   font-size: 13px;
   color: #374151;
   text-align: right;
-  white-space: nowrap;
+  line-height: 1.4;
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .field-label.required::before {
@@ -355,6 +316,65 @@ function handleSave() {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.field-hint-tip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  outline: none;
+  margin-top: 1px;
+}
+
+.field-hint-icon {
+  width: 14px;
+  height: 14px;
+  border: 1px solid #9ca3af;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  cursor: help;
+}
+
+.field-hint-tooltip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  width: 288px;
+  max-width: min(288px, calc(100vw - 48px));
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #374151;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 10;
+}
+
+.field-hint-tip-wrap--end .field-hint-tooltip {
+  left: auto;
+  right: 0;
+}
+
+.field-hint-tip-wrap:hover .field-hint-tooltip,
+.field-hint-tip-wrap:focus-within .field-hint-tooltip {
+  opacity: 1;
+  visibility: visible;
 }
 
 .switch-value-row {
@@ -393,26 +413,25 @@ function handleSave() {
   color: #ef4444;
 }
 
-.field-hint {
-  margin: 0;
-  font-size: 12px;
-  color: #9ca3af;
-  line-height: 1.4;
-}
-
 .checkbox-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   font-size: 13px;
   color: #374151;
-  line-height: 1.4;
+  line-height: 1.5;
   cursor: pointer;
+  min-width: 0;
+}
+
+.checkbox-row span {
+  flex: 1;
   min-width: 0;
 }
 
 .checkbox-row input[type='checkbox'] {
   flex-shrink: 0;
+  margin-top: 3px;
 }
 
 .radio-group {
@@ -434,8 +453,9 @@ function handleSave() {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 14px 20px;
+  padding: 12px 20px 14px;
   border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
 }
 
 .btn {

@@ -8,9 +8,10 @@ const props = defineProps({
   form: { type: Object, required: true },
   readOnly: { type: Boolean, default: false },
   errors: { type: Object, default: () => ({}) },
+  nationalitySelected: { type: Boolean, default: true },
 })
 
-const showTaxReg = computed(() => showsTaxRegistration(props.form.studentCategory || 'Local'))
+const showTaxReg = computed(() => showsTaxRegistration(props.form.studentCategory || ''))
 </script>
 
 <template>
@@ -31,9 +32,6 @@ const showTaxReg = computed(() => showsTaxRegistration(props.form.studentCategor
     </StudentFormField>
     <StudentFormField label="Remarks" full-width :read-only="readOnly" :display-value="form.others.remarks">
       <textarea v-model="form.others.remarks" rows="3" />
-    </StudentFormField>
-    <StudentFormField label="Status Change Log" full-width :read-only="readOnly" :display-value="form.others.statusChangeLog">
-      <textarea v-model="form.others.statusChangeLog" rows="4" />
     </StudentFormField>
   </div>
 </template>

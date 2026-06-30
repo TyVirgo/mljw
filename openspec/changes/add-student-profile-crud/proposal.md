@@ -81,7 +81,7 @@ Student Profile 列表页已在 `add-student-records-app` 中落地，但 Create
 - 后端 API 对接、真实文件存储、权限控制
 - Category 与 Programme 联动、字段级权限
 - Import 全 Tab 80+ 列一次性扁平导入（留作后续增强）
-- Age 自动计算、Status Change Log 自动写入（Age 可手动填；Log 为文本域）
+- Age 自动计算、~~Status Change Log 自动写入（Age 可手动填；Log 为文本域）~~（§15 起 Status Log 改为详情只读 Tab + 结构化 mock；Create/Edit 不提供该 Tab；自动写入留作后续）
 - 切换 Category 时自动清空已填隐藏字段（首版保留数据，仅 UI 隐藏）
 - Contact / Family / Accommodation 的类别差异（除非后续原型补充）
 
@@ -93,7 +93,7 @@ Student Profile 列表页已在 `add-student-records-app` 中落地，但 Create
 
 ### Modified Capabilities
 
-- `student-profile`: Phase 1–3 已完成；**Phase 4 扩展 Export 弹框**；**§13 详情层级 + mock 丰富度**；**§14 Enrollment 五字段主数据下拉（独立、列表/编辑一致）**
+- `student-profile`: Phase 1–3 已完成；**Phase 4 扩展 Export 弹框**；**§13 详情层级 + mock 丰富度**；**§14 Enrollment 五字段主数据下拉**；**§15 详情 Status Log Tab**；**§16 Enrollment 专业联动 + Accommodation 代码集下拉**
 - `student-records-app`（Phase 5 关联）: 异动申请列表统一增加「流转日志」外置弹窗；转专业 6 态 mock 演示（见 `add-programme-transfer-app` Phase 3）
 
 ## Impact
@@ -186,4 +186,104 @@ Student Profile 列表页已在 `add-student-records-app` 中落地，但 Create
 - **修改** `src/components/studentRecords/tabs/EnrollmentTab.vue` — 五处 input → select
 - **修改** `src/data/students.js` — showcase mock enrollment 对齐主数据 canonical 值
 - **可选** `importStudentProfileExcel.js` — 文档注明 programmeCode/intake 建议与主数据一致（不强制）
+
+---
+
+## §15 详情 Status Log Tab（2026-06）
+
+产品反馈：学生档案 **Details 抽屉** 在 Others Tab 之后增加 **Status Log（状态日志）** Tab，只读表格展示学籍状态变更历史，对齐 StudentSys 原型；**Create / Edit 表单不出现该 Tab**。
+
+### 范围
+
+- **仅详情**：`StudentProfileDetailDrawer` 在 Others 之后增加第 8 Tab「Status Log」；`StudentProfileFormDrawer` 仍为 7 Tab
+- **表格四列**：Status、Date Effective（DD/MM/YYYY）、Changed By、Remarks（多行：标题 + `Label : Value` 行，变更类含 Old/New 对比）
+- **数据模型**：新增顶层 `statusLogs: StatusLogEntry[]`；**移除** `others.statusChangeLog` 文本域（Others Tab 不再展示 Status Change Log）
+- **Status 枚举**（日志专用，可与 `enrollment.status` 并存）：至少含 `New`、`Active`、`Graduated`，以及原型常见变更态
+- **Mock**：三条 showcase 学生各 ≥3 条日志，含 New Registration、Activated、Change Student Status（含 Old/New StudentID、Intake 等 remarkLines）
+- **UI 参考**：表头浅绿底；Remarks 首行（remarkTitle）加粗；无数据时显示暂无数据
+
+### Non-goals（§15）
+
+- Create/Edit 录入或编辑 Status Log
+- Save 时自动 append 日志（首版仅 mock 展示；自动写入后续 Phase）
+- Import/Export 扁平化 statusLogs（后续增强）
+- 与异动 Approval Log 合并（异动仍用 `ApprovalLogModal`）
+
+### Capabilities（§15）
+
+- `student-profile`: 详情 Status Log Tab + 结构化 statusLogs 数据 + Others Tab 移除旧文本域
+
+### Impact（§15）
+
+- **新增** `src/components/studentRecords/tabs/StatusLogTab.vue`
+- **修改** `StudentProfileDetailDrawer.vue` — `studentDetailTabs`（7+1）
+- **修改** `tabs/OthersTab.vue` — 移除 Status Change Log 字段
+- **修改** `src/data/students.js` — `statusLogs` mock、`createEmptyStudent` / `normalizeStudent`
+- **修改** `src/i18n/locales/zh.js`、`en.js` — Tab 名与列头
+
+---
+
+## §16 Enrollment 专业联动 + Accommodation 代码集下拉（2026-06）
+
+产品反馈：新生注册 **学籍信息 Tab** 中专业层次、学制不应手填；应以 **专业名称** 为主下拉，选专业后自动带出专业代码、学院、专业层次、学制。专业层次存库格式与基础数据专业版本一致（如 `L6-Bachelor`）。**住宿信息 Tab** 中部分字段应改为代码集下拉，而非全部文本输入。
+
+### 学籍信息 — 专业联动（修订 §14 部分行为）
+
+- **主控字段**：`Programme`（专业名称）下拉，选项来自 `programmeCatalogue`
+- **选专业后自动同步**（只读展示，用户不可手填或单独下拉）：
+  - `programmeCode` ← catalogue `programmeCode`
+  - `faculty` ← catalogue `school`
+  - `programmeLevel` ← catalogue / `initialProgrammes` 的 `level`（存 `L6-Bachelor` 等，非 `Undergraduate` 文案）
+  - `duration` ← catalogue `years`（学制，字符串或数字与现模型一致）
+- **Programme Code**、**Faculty**、**Programme Level**、**Duration** 在 Create/Edit 为 **只读**（readonly input 或 disabled 展示）
+- **Intake**、**Academic Session**、**Status**、**Study Mode** 等其余字段保持独立下拉/输入，改专业时不强制清空
+- **数据源扩展**：`studentEnrollmentOptions.js` 增加 `resolveEnrollmentByProgrammeName(name)`，合并 `programmeCatalogue` 与 `programmeVersions.initialProgrammes` 的 `level`
+- **Mock 对齐**：`initialStudents` 的 `programmeLevel` 改为 `L6-Bachelor` 等 canonical 值
+
+### 住宿信息 — 代码集下拉
+
+以下字段在 Create/Edit 改为 **代码集下拉**（选项来自 `codeSets.js` → Student Code Sets，首版 mock seed + localStorage 与代码集管理页一致）：
+
+| 字段 | 控件 |
+|------|------|
+| Hostel Status（宿舍状态） | 下拉（已有下拉，改接代码集） |
+| Room Type（房间类型） | 下拉 |
+| Campus（校区） | 下拉 |
+| Block No（楼栋号） | 下拉 |
+| Room No（房间号） | 下拉 |
+
+**保持文本/专用控件**：Floor No、Unit No、Bed No；Check In / Expected Check Out（DatePicker）；Amount Receivable / Money Received / Outstanding Amount（数字或文本）。
+
+**首版不做**：楼栋↔房间级联过滤；楼层/单元/床位改下拉（除非后续补充）。
+
+### 代码集基础设施
+
+- 在 `codeSetTree` 的 **Student Code Sets** 下挂叶子节点（如 `hostel-status`、`room-type`、`campus`、`block-no`、`room-no`）
+- `initialCodeEntries` 增加住宿相关 seed
+- 新增 helper：`getCodeSetOptions(codeSetId)` → `{ value, label }[]`（读 `loadCodeEntries()`）
+- `AccommodationTab.vue` 按字段 `codeSetId` 渲染 `<select>`
+
+### 与 §14 关系
+
+§14 五字段主数据下拉 **已完成**；§16 **修订** Programme/Faculty 联动语义，并新增 Programme Level / Duration 只读带出。§14「五字段独立、不级联」对 Programme↔Faculty↔Level↔Duration **不再适用**；Intake / Academic Session 仍独立。
+
+### Non-goals（§16）
+
+- 楼栋→房间级联、楼层/单元/床位代码集化
+- Import 强制校验代码集选项
+- 后端 codeSet API
+- `programmeLevel` 存 `Undergraduate` 等 levelOfStudy 文案（统一存 `L3-Foundation` / `L6-Bachelor` 等）
+
+### Capabilities（§16）
+
+- `student-profile`：Enrollment 专业名称主控联动；Accommodation 五字段代码集下拉；mock programmeLevel 对齐
+
+### Impact（§16）
+
+- **修改** `src/data/studentEnrollmentOptions.js` — `resolveEnrollmentByProgrammeName`
+- **修改** `src/components/studentRecords/tabs/EnrollmentTab.vue` — 专业 watch 联动；代码/学院/层次/学制只读
+- **修改** `src/components/studentRecords/tabs/AccommodationTab.vue` — 五字段代码集下拉
+- **修改** `src/data/codeSets.js` — Student 代码集叶子 + seed + `getCodeSetOptions`
+- **修改** `src/data/students.js` — mock `programmeLevel`、accommodation 值对齐代码集 option
+- **可选** `src/i18n/locales/zh.js`、`en.js` — programmeLevel 展示映射（L6-Bachelor 可读标签）
 

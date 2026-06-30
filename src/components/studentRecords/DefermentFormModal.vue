@@ -20,6 +20,7 @@ import {
 import StudentSelectModal from './StudentSelectModal.vue'
 import { getCurrentStudent } from '../../data/mockCurrentStudent.js'
 import { formatApplicationSessionField } from '../../data/movementApplicationSession.js'
+import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
 import '../../styles/movement-form.css'
 
 const props = defineProps({
@@ -42,6 +43,7 @@ const form = ref(createEmptyDeferment())
 const errors = ref({})
 const studentSelectVisible = ref(false)
 const fileInputRef = ref(null)
+const pendingLocalFile = ref(null)
 
 const isEditMode = computed(() => props.mode === 'edit')
 const isResubmitMode = computed(() => props.initialData && canResubmitDeferment(props.initialData))
@@ -62,8 +64,14 @@ function getSelectedStudentCategory() {
   return student?.studentCategory || 'Local'
 }
 
+function getConsentLookup() {
+  return {
+    programmeLevel: form.value.programmeLevel,
+  }
+}
+
 const showParentConsentDownload = computed(() =>
-  hasParentConsentTemplate('deferment', getSelectedStudentCategory()),
+  hasParentConsentTemplate('deferment', getSelectedStudentCategory(), getConsentLookup()),
 )
 
 const reasonOptions = computed(() => getReasonOptionsBySourceKey('deferment'))
@@ -84,6 +92,7 @@ watch(
   () => {
     if (!props.visible) return
     errors.value = {}
+    pendingLocalFile.value = null
     form.value =
       isEditMode.value && props.initialData
         ? getDefermentFormData(props.initialData)
@@ -102,29 +111,33 @@ function onFileChange(event) {
   const file = event.target.files?.[0]
   if (!file) {
     form.value.attachment = null
+    pendingLocalFile.value = null
     return
   }
   const allowed = /\.(pdf|jpg|jpeg|png|docx)$/i
   if (!allowed.test(file.name)) {
     errors.value.attachment = 'Supported formats: PDF, JPG, PNG, DOCX.'
     form.value.attachment = null
+    pendingLocalFile.value = null
     return
   }
   if (file.size > 5 * 1024 * 1024) {
     errors.value.attachment = 'Max file size is 5MB.'
     form.value.attachment = null
+    pendingLocalFile.value = null
     return
   }
   delete errors.value.attachment
+  pendingLocalFile.value = file
   form.value.attachment = { fileName: file.name, size: file.size }
 }
 
 function downloadConsentLetter() {
-  downloadStudentConsentTemplate('deferment', getSelectedStudentCategory(), t)
+  downloadStudentConsentTemplate('deferment', getSelectedStudentCategory(), t, getConsentLookup())
 }
 
 function downloadParentConsentLetter() {
-  downloadParentConsentTemplate('deferment', getSelectedStudentCategory(), t)
+  downloadParentConsentTemplate('deferment', getSelectedStudentCategory(), t, getConsentLookup())
 }
 
 function validateAndEmit(mode, emitter) {
@@ -336,8 +349,15 @@ function handleClose() {
               </svg>
               {{ t('deferment.fields.selectFile') }}
             </button>
-            <span class="file-name">
-              {{ form.attachment?.fileName || t('deferment.fields.noFileSelected') }}
+            <AttachmentPreviewTrigger
+              v-if="form.attachment?.fileName"
+              :file-name="form.attachment.fileName"
+              :file-meta="form.attachment"
+              :local-file="pendingLocalFile"
+              :show-file-icon="false"
+            />
+            <span v-else class="file-name">
+              {{ t('deferment.fields.noFileSelected') }}
             </span>
             <input
               ref="fileInputRef"

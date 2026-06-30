@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import CourseApplicationWizard from '../components/courseApplication/CourseApplicationWizard.vue'
 import CourseApplicationImportModal from '../components/courseApplication/CourseApplicationImportModal.vue'
-import ApprovalLogModal from '../components/courseApplication/ApprovalLogModal.vue'
+import CourseApplicationDetailDrawer from '../components/courseApplication/CourseApplicationDetailDrawer.vue'
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import ExportModal from '../components/common/ExportModal.vue'
 import TablePagination from '../components/common/TablePagination.vue'
@@ -14,7 +14,6 @@ import {
   canEditApplication,
   canSubmitApplication,
   canDeleteApplication,
-  canViewApprovalLog,
   submitApplications,
   statusBadgeClass,
 } from '../data/courseApplications.js'
@@ -46,7 +45,6 @@ const viewMode = ref('list')
 const editingItem = ref(null)
 const detailItem = ref(null)
 
-const approvalLogItem = ref(null)
 const exportModalVisible = ref(false)
 const importModalVisible = ref(false)
 const confirmVisible = ref(false)
@@ -173,11 +171,10 @@ function openEdit(item) {
 
 function openDetail(item) {
   detailItem.value = { ...item }
-  viewMode.value = 'detail'
 }
 
-function openApprovalLog(item) {
-  approvalLogItem.value = { ...item }
+function closeDetail() {
+  detailItem.value = null
 }
 
 function handleSaveFromWizard(payload) {
@@ -315,14 +312,6 @@ function getRowNumber(index) {
     @save="handleSaveFromWizard"
   />
 
-  <CourseApplicationWizard
-    v-else-if="viewMode === 'detail' && detailItem"
-    mode="detail"
-    :all-applications="applications"
-    :initial-application="detailItem"
-    @back="closeWizard"
-  />
-
   <div v-else class="course-application-page">
     <div class="page-card">
       <div class="search-bar">
@@ -457,10 +446,7 @@ function getRowNumber(index) {
                     <button v-if="canEditApplication(item)" type="button" class="link-btn" @click="openEdit(item)">
                       {{ t('common.edit') }}
                     </button>
-                    <button type="button" class="link-btn" @click="openDetail(item)">{{ tr('Details') }}</button>
-                    <button v-if="canViewApprovalLog(item)" type="button" class="link-btn" @click="openApprovalLog(item)">
-                      {{ tr('Approval Log') }}
-                    </button>
+                    <button type="button" class="link-btn" @click="openDetail(item)">{{ t('common.details') }}</button>
                   </div>
                 </td>
               </tr>
@@ -477,11 +463,13 @@ function getRowNumber(index) {
       </div>
     </div>
 
-    <ApprovalLogModal
-      :visible="!!approvalLogItem"
-      :logs="approvalLogItem?.approvalLog || []"
-      :course-name="approvalLogItem?.courseName || ''"
-      @close="approvalLogItem = null"
+    <CourseApplicationDetailDrawer
+      :visible="!!detailItem"
+      :application="detailItem"
+      variant="course"
+      :all-applications="applications"
+      :formal-courses="[]"
+      @close="closeDetail"
     />
 
     <ConfirmDialog

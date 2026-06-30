@@ -10,7 +10,7 @@
     "build:deploy": "node scripts/restore-index.mjs && vite build && node scripts/copy-static.mjs",
     "build:github-pages": "vite build",
     "build:vercel": "node scripts/restore-index.mjs && vite build",
-    "deploy:gitcode": "node scripts/restore-index.mjs && vite build && node scripts/copy-static.mjs && node scripts/deploy-to-gitcode.mjs",
+    "deploy:gitcode": "node scripts/restore-index.mjs && vite build && node scripts/deploy-to-gitcode.mjs \"D:/gitcode/Academic System/20260630\" && node scripts/restore-index.mjs",
     "preview": "vite preview",
     "openspec": "node node_modules/@fission-ai/openspec/bin/openspec.js",
     "opsx": "node node_modules/@fission-ai/openspec/bin/openspec.js"
