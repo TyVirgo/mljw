@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import TablePagination from '../common/TablePagination.vue'
+import ProgrammeVersionDetailModal from '../programme/ProgrammeVersionDetailModal.vue'
 import {
   programmeCatalogue,
   programmeIntakeSchools,
@@ -10,6 +11,10 @@ import {
   validateProgrammeIntakeCreateForm,
   buildProgrammeIntakeRecords,
 } from '../../data/programmeIntakes.js'
+import {
+  findProgrammeByCode,
+  getProgrammePublishedVersion,
+} from '../../data/programmeVersions.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -28,6 +33,9 @@ const startingSemester = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const errors = ref({})
+const versionDetailVisible = ref(false)
+const versionDetailProgramme = ref(null)
+const versionDetailVersion = ref(null)
 
 const activeIntakeOptions = getActiveIntakeOptions()
 
@@ -56,7 +64,12 @@ const allPageSelected = computed(() => {
 watch(
   () => props.visible,
   (visible) => {
-    if (!visible) return
+    if (!visible) {
+      versionDetailVisible.value = false
+      versionDetailProgramme.value = null
+      versionDetailVersion.value = null
+      return
+    }
     schoolId.value = ''
     programmeCodeFilter.value = ''
     selectedProgrammeIds.value = []
@@ -96,6 +109,25 @@ function toggleSelect(id) {
 
 function getRowNumber(index) {
   return (currentPage.value - 1) * pageSize.value + index + 1
+}
+
+function getPublishedVersion(programmeCode) {
+  const programme = findProgrammeByCode(programmeCode)
+  if (!programme) return null
+  return getProgrammePublishedVersion(programme)
+}
+
+function openPublishedVersionDetail(programmeCode, programmeName) {
+  const programme = findProgrammeByCode(programmeCode)
+  const version = getProgrammePublishedVersion(programme)
+  if (!programme || !version) return
+  versionDetailProgramme.value = { ...programme, name: programme.name || programmeName }
+  versionDetailVersion.value = version
+  versionDetailVisible.value = true
+}
+
+function closeVersionDetail() {
+  versionDetailVisible.value = false
 }
 
 function handleConfirm() {
@@ -194,14 +226,15 @@ function handleOverlayClick(event) {
                   <th>Programme</th>
                   <th>Years</th>
                   <th>School</th>
+                  <th>{{ tr('Version') }}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!schoolId">
-                  <td colspan="6" class="empty-cell">Please select a school to load programmes</td>
+                  <td colspan="7" class="empty-cell">Please select a school to load programmes</td>
                 </tr>
                 <tr v-else-if="!paginatedProgrammes.length">
-                  <td colspan="6" class="empty-cell">No programme found</td>
+                  <td colspan="7" class="empty-cell">No programme found</td>
                 </tr>
                 <tr v-for="(item, index) in paginatedProgrammes" :key="item.id">
                   <td class="col-check">
@@ -216,6 +249,17 @@ function handleOverlayClick(event) {
                   <td>{{ item.programmeName }}</td>
                   <td>{{ item.years }}</td>
                   <td>{{ item.school }}</td>
+                  <td>
+                    <button
+                      v-if="getPublishedVersion(item.programmeCode)"
+                      type="button"
+                      class="link-btn"
+                      @click="openPublishedVersionDetail(item.programmeCode, item.programmeName)"
+                    >
+                      {{ tr('VersionDetail') }}
+                    </button>
+                    <span v-else class="empty-version">—</span>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -266,6 +310,14 @@ function handleOverlayClick(event) {
         </div>
       </div>
     </div>
+
+    <ProgrammeVersionDetailModal
+      :visible="versionDetailVisible"
+      :programme-name="versionDetailProgramme?.name || ''"
+      :version="versionDetailVersion"
+      layered
+      @close="closeVersionDetail"
+    />
   </Teleport>
 </template>
 
@@ -371,7 +423,7 @@ function handleOverlayClick(event) {
 
 .data-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 860px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -533,5 +585,22 @@ function handleOverlayClick(event) {
 
 .btn-primary:hover {
   background: #1d4ed8;
+}
+
+.link-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #2563eb;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.empty-version {
+  color: #9ca3af;
 }
 </style>
