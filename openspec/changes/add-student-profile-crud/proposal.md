@@ -1,10 +1,10 @@
-## Why
+## 背景与动机
 
 Student Profile 列表页已在 `add-student-records-app` 中落地，但 Create / Edit / Import 仍为占位，Details 仅展示 9 个列表字段，缺少原型要求的 **New Student Registration** 七 Tab 表单与完整增删改查、导入导出能力，无法支撑学籍档案业务演示。
 
 **增量背景（Phase 2）**：Phase 1 已交付 CRUD 壳层与七 Tab 表单，但三类 Student Category 共用 Local 字段布局，与 StudentSys 原型不符。需在已有实现上补齐 **Local / China / International 差异化字段**（Basic Info 护照/身份证、Education 语言能力、Others 税务登记等）。
 
-## What Changes
+## 变更内容
 
 ### Phase 1（已完成）
 
@@ -75,7 +75,7 @@ Student Profile 列表页已在 `add-student-records-app` 中落地，但 Create
 - 点击打开独立 **`ApprovalLogModal.vue`**（表格：Stage / Actor / Action / Date / Comment；副标题：申请编号 · 学号 · 姓名；无 log 显示暂无数据）
 - **首版落地模块**：Programme Transfer、Deferment、Resumption、Withdrawal（四模块统一组件与交互）
 
-### Non-goals（本变更不包含）
+### 非目标（本变更不包含）
 
 - 侧边栏 **Family Info** 等其余 5 项菜单的业务实现（Family 仅在 Profile 表单内作为 Tab）
 - 后端 API 对接、真实文件存储、权限控制
@@ -85,18 +85,18 @@ Student Profile 列表页已在 `add-student-records-app` 中落地，但 Create
 - 切换 Category 时自动清空已填隐藏字段（首版保留数据，仅 UI 隐藏）
 - Contact / Family / Accommodation 的类别差异（除非后续原型补充）
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 （无——本变更扩展已有 capability）
 
-### Modified Capabilities
+### 修改的能力
 
 - `student-profile`: Phase 1–3 已完成；**Phase 4 扩展 Export 弹框**；**§13 详情层级 + mock 丰富度**；**§14 Enrollment 五字段主数据下拉**；**§15 详情 Status Log Tab**；**§16 Enrollment 专业联动 + Accommodation 代码集下拉**
 - `student-records-app`（Phase 5 关联）: 异动申请列表统一增加「流转日志」外置弹窗；转专业 6 态 mock 演示（见 `add-programme-transfer-app` Phase 3）
 
-## Impact
+## 影响范围
 
 - **Phase 1 已修改/新增**（见 git 历史）
 - **Phase 2 修改文件**
@@ -143,11 +143,11 @@ Student Profile 列表页已在 `add-student-records-app` 中落地，但 Create
 - 各 Tab 约 75–85% 字段有具体值；每 Tab 保留 1–2 个 intentional 空项（如 Fax、House Phone）
 - 日期与 `DatePickerEn` 展示一致（`dd.MM.yyyy`）
 
-### Capabilities（§13）
+### 能力范围（§13）
 
 - `student-profile`: 详情可读性 + showcase mock 数据质量
 
-### Impact（§13）
+### 影响范围（§13）
 
 - `StudentFormField.vue`、`StudentProfileDetailDrawer.vue`
 - `src/data/students.js` — `initialStudents` 分段补全
@@ -166,21 +166,21 @@ Student Profile 列表页已在 `add-student-records-app` 中落地，但 Create
   - 学院 → `programmeIntakeSchools`
   - 入学批次 → `intakeSets.js` → `getActiveIntakeOptions()`
   - 学年学期 → `semesterInfo.js` → `startingSemesterOptions`
-- **先不关联**：五个下拉 **独立选择**，不做级联、不做 Programme Intake 组合校验（与 Non-goals「Category 与 Programme 联动」一致，本 Phase 亦不做专业↔学院↔批次联动）
+- **先不关联**：五个下拉 **独立选择**，不做级联、不做 Programme Intake 组合校验（与 非目标「Category 与 Programme 联动」一致，本 Phase 亦不做专业↔学院↔批次联动）
 - **数据对应**：列表列（`normalizeStudent` 派生）、Details 只读、Edit 表单 **共用** `enrollment.*`；下拉 `option value` 必须与存库字符串 **精确匹配**，编辑时须能正确选中
 - **Mock 对齐**：修正 `initialStudents` 三条 showcase 的 enrollment 值，使其落在上述 option 集合内（如 SWE 用 catalogue 全名 `(Honours)`、IBU 非 IB、intake 用 intakeSets 已有批次等）
 
-### Non-goals（§14）
+### 非目标（§14）
 
 - Programme Intake 一条记录定全部、字段级联自动带出
 - Import Excel 强制校验主数据选项（Import 仍可为自由文本，后续增强）
 - 扩展 `programmeCatalogue` 新增 FIN 等业务外专业（优先改 mock 选用已有 catalogue 项）
 
-### Capabilities（§14）
+### 能力范围（§14）
 
 - `student-profile`: Enrollment Tab 主数据下拉 + 列表/详情/编辑数据一致
 
-### Impact（§14）
+### 影响范围（§14）
 
 - **新增** `src/data/studentEnrollmentOptions.js`（建议）— 聚合五类 option 导出，供 Tab 消费
 - **修改** `src/components/studentRecords/tabs/EnrollmentTab.vue` — 五处 input → select
@@ -202,18 +202,18 @@ Student Profile 列表页已在 `add-student-records-app` 中落地，但 Create
 - **Mock**：三条 showcase 学生各 ≥3 条日志，含 New Registration、Activated、Change Student Status（含 Old/New StudentID、Intake 等 remarkLines）
 - **UI 参考**：表头浅绿底；Remarks 首行（remarkTitle）加粗；无数据时显示暂无数据
 
-### Non-goals（§15）
+### 非目标（§15）
 
 - Create/Edit 录入或编辑 Status Log
 - Save 时自动 append 日志（首版仅 mock 展示；自动写入后续 Phase）
 - Import/Export 扁平化 statusLogs（后续增强）
 - 与异动 Approval Log 合并（异动仍用 `ApprovalLogModal`）
 
-### Capabilities（§15）
+### 能力范围（§15）
 
 - `student-profile`: 详情 Status Log Tab + 结构化 statusLogs 数据 + Others Tab 移除旧文本域
 
-### Impact（§15）
+### 影响范围（§15）
 
 - **新增** `src/components/studentRecords/tabs/StatusLogTab.vue`
 - **修改** `StudentProfileDetailDrawer.vue` — `studentDetailTabs`（7+1）
@@ -267,18 +267,18 @@ Student Profile 列表页已在 `add-student-records-app` 中落地，但 Create
 
 §14 五字段主数据下拉 **已完成**；§16 **修订** Programme/Faculty 联动语义，并新增 Programme Level / Duration 只读带出。§14「五字段独立、不级联」对 Programme↔Faculty↔Level↔Duration **不再适用**；Intake / Academic Session 仍独立。
 
-### Non-goals（§16）
+### 非目标（§16）
 
 - 楼栋→房间级联、楼层/单元/床位代码集化
 - Import 强制校验代码集选项
 - 后端 codeSet API
 - `programmeLevel` 存 `Undergraduate` 等 levelOfStudy 文案（统一存 `L3-Foundation` / `L6-Bachelor` 等）
 
-### Capabilities（§16）
+### 能力范围（§16）
 
 - `student-profile`：Enrollment 专业名称主控联动；Accommodation 五字段代码集下拉；mock programmeLevel 对齐
 
-### Impact（§16）
+### 影响范围（§16）
 
 - **修改** `src/data/studentEnrollmentOptions.js` — `resolveEnrollmentByProgrammeName`
 - **修改** `src/components/studentRecords/tabs/EnrollmentTab.vue` — 专业 watch 联动；代码/学院/层次/学制只读

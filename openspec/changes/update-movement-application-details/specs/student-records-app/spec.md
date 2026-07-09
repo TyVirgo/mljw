@@ -1,12 +1,10 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Student records movement application UX separation
-The system SHALL separate student application viewing (Status Change Application tab) from approval operations (future Status Change Approval menu).
+### 需求：学籍异动申请与审批 UX 分离
+系统应将学生申请查看（Status Change Application tab）与审批操作（未来 Status Change Approval 菜单）分离。
 
-#### Scenario: Application tab detail is non-approving
-- **WHEN** user navigates to Status Change Application and opens Details for any movement type
-- **THEN** only application form fields are shown; approval is not performed in this context
+#### 场景：申请 tab 详情不可审批
+- 当用户导航至 Status Change Application 并为任意异动类型打开 Details 时，则仅展示申请表单字段；此上下文中不执行审批。
 
-#### Scenario: Workflow log still available on list
-- **WHEN** user views any movement application list in the application tab
-- **THEN** Workflow Log action remains available for all statuses
+#### 场景：列表仍可访问流转日志
+- 当用户在申请 tab 查看任意异动申请列表时，则 Workflow Log 操作对所有状态仍可用。

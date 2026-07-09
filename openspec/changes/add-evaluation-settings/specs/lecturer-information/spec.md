@@ -1,16 +1,16 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Requires Evaluation driven by Evaluation Settings (lightweight demo)
-The system MAY update lecturer `requiresEvaluation` flags using simplified mock logic when Evaluation Settings are saved; full automated rule enforcement is not required in v1.
+### 需求：Requires Evaluation 由 Evaluation Settings 驱动（轻量演示）
+系统可以在保存 Evaluation Settings 后，使用简化的 mock 逻辑更新 lecturer 的 `requiresEvaluation` 标记；首版不要求完整自动化规则引擎。
 
-#### Scenario: Flag updated after settings save
-- **WHEN** administrator saves Evaluation Settings
-- **THEN** mock lecturer records may be updated for demonstrative cases (new join date with no teaching record; category change pairs)
+#### 场景：保存设置后更新标记
+- **当** 管理员保存 Evaluation Settings
+- **则** mock lecturer 记录可因演示场景被更新（如有入职日期且无授课记录；类型变更 from→to 匹配）
 
-#### Scenario: Requires Evaluation tag reflects rules
-- **WHEN** a lecturer's `requiresEvaluation` is true after mock rule application
-- **THEN** the green "Requires Evaluation" tag appears next to the name in the list
+#### 场景：Requires Evaluation 标签反映规则
+- **当** mock 规则应用后 lecturer 的 `requiresEvaluation` 为 true
+- **则** 列表姓名旁显示绿色 "Requires Evaluation" 标签
 
-#### Scenario: Evaluation filter uses recalculated flags
-- **WHEN** user enables the evaluation filter on Lecturer Information after settings were saved
-- **THEN** the filtered list reflects lecturers marked in mock data
+#### 场景：评估筛选使用重算后的标记
+- **当** 用户在保存设置后于 Lecturer Information 启用评估筛选
+- **则** 筛选列表反映 mock 数据中已标记的 lecturer

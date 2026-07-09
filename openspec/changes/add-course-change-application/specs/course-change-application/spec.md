@@ -1,220 +1,220 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Course change application list page
-The system SHALL provide a list page at menu **Course Change Application** for managing revision requests against approved courses in Course Information.
+### 需求：课程变更申请列表页
+系统应在菜单 **Course Change Application** 提供列表页，用于管理针对 Course Information 中已批准课程的修订请求。
 
-#### Scenario: Default list load
-- **WHEN** user navigates to Course Change Application
-- **THEN** the system displays a paginated table with columns: No., Status, Approval Stage, Course Name, Offering, Course Classification, Credit, Applicant, Application Date and Time, and Actions
+#### 场景：默认列表加载
+- **当** 用户导航至 Course Change Application
+- **则** 系统展示分页表格，列包括：No.、Status、Approval Stage、Course Name、Offering、Course Classification、Credit、Applicant、Application Date and Time 和 Actions
 
-#### Scenario: Status badge styling
-- **WHEN** a record is displayed in the list
-- **THEN** status badges use solid background with white text consistent with Course Application list styling
+#### 场景：Status 徽章样式
+- **当** 记录在列表中展示
+- **则** status 徽章采用实底背景、白字，与 Course Application 列表样式一致
 
-#### Scenario: Sticky actions column and row layout
-- **WHEN** the table content overflows horizontally
-- **THEN** the Actions column remains sticky on the right
-- **AND** row content uses adequate row height and `white-space: nowrap` for readability
+#### 场景：Actions 列固定与行布局
+- **当** 表格内容横向溢出
+- **则** Actions 列固定在右侧
+- **且** 行内容采用足够行高与 `white-space: nowrap` 以保证可读性
 
-### Requirement: Search and filter change applications
-The system SHALL support searching change applications by Course Code, Course Name, Offering, and Course Classification.
+### 需求：搜索与筛选变更申请
+系统应支持按 Course Code、Course Name、Offering 和 Course Classification 搜索变更申请。
 
-#### Scenario: Basic search layout
-- **WHEN** user views the search area
-- **THEN** Course Code, Course Name, and Offering appear on the first row with Search and Reset buttons aligned to the right on the same row
-- **AND** Course Classification appears on the second row
-- **AND** filter labels are right-aligned so colons align vertically
+#### 场景：基础搜索布局
+- **当** 用户查看搜索区域
+- **则** Course Code、Course Name 和 Offering 位于第一行，Search 和 Reset 按钮右对齐于同一行
+- **且** Course Classification 位于第二行
+- **且** 筛选标签右对齐，使冒号垂直对齐
 
-#### Scenario: Search filters results
-- **WHEN** user enters filter criteria and clicks Search
-- **THEN** the list shows only matching records and resets to page 1
+#### 场景：搜索筛选结果
+- **当** 用户输入筛选条件并点击 Search
+- **则** 列表仅显示匹配记录，并重置到第 1 页
 
-#### Scenario: Reset filters
-- **WHEN** user clicks Reset
-- **THEN** all search fields are cleared and the full list is restored
+#### 场景：重置筛选
+- **当** 用户点击 Reset
+- **则** 清空全部搜索字段并恢复完整列表
 
-#### Scenario: More expands optional filters
-- **WHEN** user clicks More
-- **THEN** additional filters such as Status and Applicant MAY be shown consistent with Course Application list behavior
+#### 场景：More 展开可选筛选
+- **当** 用户点击 More
+- **则** 可展示 Status、Applicant 等额外筛选，行为与 Course Application 列表一致
 
-### Requirement: Toolbar actions
-The system SHALL provide toolbar actions **Create**, **Delete**, **Export**, **Submit**, and **Withdraw** on the change application list page.
+### 需求：工具栏操作
+系统应在变更申请列表页提供工具栏操作 **Create**、**Delete**、**Export**、**Submit** 和 **Withdraw**。
 
-#### Scenario: Create opens wizard
-- **WHEN** user clicks Create
-- **THEN** the system opens the four-step change application wizard in create mode
+#### 场景：Create 打开向导
+- **当** 用户点击 Create
+- **则** 系统以 create 模式打开四步变更申请向导
 
-#### Scenario: Delete draft applications
-- **WHEN** user selects one or more Temporary saved records and clicks Delete
-- **THEN** the system shows a confirmation dialog
-- **AND** upon confirm removes only deletable draft records
+#### 场景：Delete 草稿申请
+- **当** 用户选中一条或多条 Temporary saved 记录并点击 Delete
+- **则** 系统显示确认对话框
+- **且** 确认后仅移除可删除的草稿记录
 
-#### Scenario: Export list
-- **WHEN** user clicks Export and confirms field selection
-- **THEN** the system downloads an Excel file of filtered change application data
+#### 场景：Export 列表
+- **当** 用户点击 Export 并确认字段选择
+- **则** 系统下载筛选后变更申请数据的 Excel 文件
 
-#### Scenario: Submit drafts with confirmation
-- **WHEN** user selects Temporary saved record(s) and clicks Submit
-- **THEN** the system shows a secondary Submit Confirmation dialog
-- **AND** upon confirm changes status to In Progress and sets approval stage to HoD/HoP Review
-- **AND** appends an entry to approvalLog
+#### 场景：Submit 草稿须二次确认
+- **当** 用户选中 Temporary saved 记录并点击 Submit
+- **则** 系统显示 Submit Confirmation 二次确认对话框
+- **且** 确认后状态变为 In Progress，审批阶段设为 HoD/HoP Review
+- **且** 向 approvalLog 追加条目
 
-#### Scenario: Withdraw in-progress applications
-- **WHEN** user selects In Progress record(s) and clicks Withdraw
-- **THEN** the system shows a confirmation dialog
-- **AND** upon confirm changes status to Temporary saved and sets approval stage to `--`
-- **AND** appends an entry to approvalLog
+#### 场景：Withdraw 进行中申请
+- **当** 用户选中 In Progress 记录并点击 Withdraw
+- **则** 系统显示确认对话框
+- **且** 确认后状态变为 Temporary saved，审批阶段设为 `--`
+- **且** 向 approvalLog 追加条目
 
-#### Scenario: Submit and Withdraw disabled for ineligible selections
-- **WHEN** user selects records that do not meet Submit or Withdraw eligibility
-- **THEN** the corresponding toolbar action is disabled or shows an appropriate notice
+#### 场景：不符合条件的选中禁用 Submit 与 Withdraw
+- **当** 用户选中的记录不符合 Submit 或 Withdraw 条件
+- **则** 对应工具栏操作禁用或显示适当提示
 
-### Requirement: Row actions by status
-The system SHALL provide row actions based on application status.
+### 需求：按状态提供行操作
+系统应根据申请状态提供行操作。
 
-#### Scenario: Edit draft
-- **WHEN** user clicks Edit on a Temporary saved row
-- **THEN** the system opens the four-step wizard in edit mode
+#### 场景：Edit 草稿
+- **当** 用户点击 Temporary saved 行的 Edit
+- **则** 系统以 edit 模式打开四步向导
 
-#### Scenario: View details for non-draft
-- **WHEN** user clicks Details on an In Progress, Approved, or Rejected row
-- **THEN** the system opens a read-only four-step detail view
+#### 场景：非草稿查看 Details
+- **当** 用户点击 In Progress、Approved 或 Rejected 行的 Details
+- **则** 系统打开只读四步详情视图
 
-#### Scenario: Approval log
-- **WHEN** user clicks Approval Log on a row that has been submitted at least once
-- **THEN** the system displays chronological approval history for that change application
+#### 场景：Approval log
+- **当** 用户点击至少提交过一次行的 Approval Log
+- **则** 系统展示该变更申请的按时间顺序审批历史
 
-#### Scenario: Rejected records are read-only terminal state
-- **WHEN** a change application has status Rejected
-- **THEN** Edit, Submit, and Withdraw are not available
-- **AND** only Details and Approval Log are shown
-- **AND** the application cannot be resubmitted; user must create a new change application to request further changes
+#### 场景：Rejected 记录为只读终态
+- **当** 变更申请状态为 Rejected
+- **则** 不提供 Edit、Submit 和 Withdraw
+- **且** 仅显示 Details 和 Approval Log
+- **且** 不可重新提交；用户须新建变更申请以请求进一步变更
 
-### Requirement: Immutable course code
-The system SHALL NOT allow changing the Course Code on a change application.
+### 需求：Course Code 不可变
+系统不得允许在变更申请中修改 Course Code。
 
-#### Scenario: Course code is read-only in wizard
-- **WHEN** user views or edits Basic Information step
-- **THEN** Course Code is displayed as read-only
-- **AND** its value always matches the selected baseline course
+#### 场景：向导中 Course Code 只读
+- **当** 用户查看或编辑 Basic Information 步骤
+- **则** Course Code 以只读形式展示
+- **且** 其值始终与所选 baseline course 一致
 
-#### Scenario: Validation enforces baseline course code
-- **WHEN** user saves or submits a change application
-- **THEN** the system rejects the operation if courseCode differs from the baseline snapshot courseCode
+#### 场景：校验强制 baseline course code
+- **当** 用户保存或提交变更申请
+- **则** 若 courseCode 与 baseline snapshot 的 courseCode 不一致，系统拒绝该操作
 
-### Requirement: Baseline course selection
-The system SHALL require selecting an approved baseline course from Course Information before completing a change application.
+### 需求：Baseline 课程选择
+系统要求在完成变更申请前，从 Course Information 选择一条已批准的 baseline 课程。
 
-#### Scenario: Choose baseline course on step 1
-- **WHEN** user clicks Choose on Change Description step
-- **THEN** the system opens a course selection dialog listing courses from Course Information
-- **AND** user selects exactly one course
+#### 场景：步骤 1 选择 baseline 课程
+- **当** 用户在 Change Description 步骤点击 Choose
+- **则** 系统打开课程选择对话框，列出 Course Information 中的课程
+- **且** 用户恰好选择一门课程
 
-#### Scenario: Auto-fill from baseline
-- **WHEN** user confirms baseline course selection
-- **THEN** the system copies baseline general information, CLO, and SLT data into the change application
-- **AND** stores a baseline snapshot for later comparison and write-back
+#### 场景：从 baseline 自动填充
+- **当** 用户确认 baseline 课程选择
+- **则** 系统将 baseline 的一般信息、CLO 和 SLT 数据复制到变更申请
+- **且** 存储 baseline snapshot 供后续对比与回写
 
-#### Scenario: Baseline locked after first save
-- **WHEN** user has saved a draft change application
-- **THEN** the baseline course SHALL NOT be changed without creating a new application
+#### 场景：首次保存后 baseline 锁定
+- **当** 用户已保存变更申请草稿
+- **则** 不得更换 baseline 课程，除非新建申请
 
-### Requirement: Four-step change wizard
-The system SHALL provide a four-step wizard: Change Description, Basic Information, Course Learning Outcome (CLO), and Student Learning Time (SLT).
+### 需求：四步变更向导
+系统应提供四步向导：Change Description、Basic Information、Course Learning Outcome (CLO) 和 Student Learning Time (SLT)。
 
-#### Scenario: Stepper navigation
-- **WHEN** user views the wizard stepper
-- **THEN** steps are clickable to jump directly to a step in detail mode or after validation in edit mode
-- **AND** only the current step is highlighted in blue
+#### 场景：Stepper 导航
+- **当** 用户查看向导 stepper
+- **则** 步骤可点击，在 detail 模式直接跳转，或在 edit 模式通过校验后跳转
+- **且** 仅当前步骤以蓝色高亮
 
-#### Scenario: Wizard header actions
-- **WHEN** user is in create or edit mode
-- **THEN** the header provides Back (with leave confirmation), Cancel, Previous, Next, and Save
-- **AND** Save persists the application as Temporary saved from any step
+#### 场景：向导页眉操作
+- **当** 用户处于 create 或 edit 模式
+- **则** 页眉提供 Back（含离开确认）、Cancel、Previous、Next 和 Save
+- **且** Save 可在任一步骤将申请持久化为 Temporary saved
 
-#### Scenario: Step validation on Next
-- **WHEN** user clicks Next
-- **THEN** the system validates the current step before advancing
-- **AND** Step 1 requires baseline course and change description selections
-- **AND** Step 2 requires valid basic information fields
-- **AND** Step 3 requires at least one CLO
+#### 场景：Next 时步骤校验
+- **当** 用户点击 Next
+- **则** 系统在前进前校验当前步骤
+- **且** 步骤 1 要求 baseline 课程与 change description 选择
+- **且** 步骤 2 要求 basic information 字段有效
+- **且** 步骤 3 要求至少一条 CLO
 
-### Requirement: Change description annotations
-The system SHALL allow marking each change component as Major Changes or Minor / No Changes on step 1.
+### 需求：Change description 标注
+系统应允许在步骤 1 将各变更组件标记为 Major Changes 或 Minor / No Changes。
 
-#### Scenario: Main components
-- **WHEN** user views MAIN COMPONENTS on Change Description step
-- **THEN** the system lists Course Name, Credit Value, Course Classification, and CLO
-- **AND** each row allows selecting Major Changes or Minor / No Changes
+#### 场景：Main components
+- **当** 用户在 Change Description 步骤查看 MAIN COMPONENTS
+- **则** 系统列出 Course Name、Credit Value、Course Classification 和 CLO
+- **且** 每行可选择 Major Changes 或 Minor / No Changes
 
-#### Scenario: Other components
-- **WHEN** user views OTHER COMPONENTS on Change Description step
-- **THEN** the system lists Synopsis, Pre-requisite / co-requisite, Teaching Methods, Course Content, Assessment Methods, and References
-- **AND** each row allows selecting Major Changes or Minor / No Changes
+#### 场景：Other components
+- **当** 用户在 Change Description 步骤查看 OTHER COMPONENTS
+- **则** 系统列出 Synopsis、Pre-requisite / co-requisite、Teaching Methods、Course Content、Assessment Methods 和 References
+- **且** 每行可选择 Major Changes 或 Minor / No Changes
 
-#### Scenario: Default annotation
-- **WHEN** user first loads Change Description for a new application
-- **THEN** all components default to Minor / No Changes unless user changes them
+#### 场景：默认标注
+- **当** 用户首次加载新申请的 Change Description
+- **则** 全部组件默认为 Minor / No Changes，除非用户修改
 
-### Requirement: Basic information step
-The system SHALL provide a Basic Information step with the same fields as Course Information general information, pre-filled from the baseline course.
+### 需求：Basic Information 步骤
+系统应提供 Basic Information 步骤，字段与 Course Information 一般信息相同，并从 baseline 课程预填。
 
-#### Scenario: Field parity with Course Information
-- **WHEN** user views Basic Information step
-- **THEN** fields include Course Code, Course Name, Offering, Course Owner, Course Classification, Credit, Medium of Instruction, Semester Type, Pre-requisite / co-requisite, Synopsis, and References
-- **AND** Course Code is read-only and matches the baseline course
-- **AND** other required fields match Course Application / Course Information validation rules
+#### 场景：与 Course Information 字段一致
+- **当** 用户查看 Basic Information 步骤
+- **则** 字段包括 Course Code、Course Name、Offering、Course Owner、Course Classification、Credit、Medium of Instruction、Semester Type、Pre-requisite / co-requisite、Synopsis 和 References
+- **且** Course Code 只读，与 baseline 课程一致
+- **且** 其他必填字段校验规则与 Course Application / Course Information 一致
 
-### Requirement: CLO and SLT steps
-The system SHALL provide CLO and SLT steps consistent with Course Application wizard behavior.
+### 需求：CLO 与 SLT 步骤
+系统应提供与 Course Application 向导行为一致的 CLO 与 SLT 步骤。
 
-#### Scenario: CLO management
-- **WHEN** user is on the CLO step in edit mode
-- **THEN** the system supports Create, Edit, and Delete for CLO rows via the shared CLO form modal
-- **AND** at least one CLO is required before proceeding
+#### 场景：CLO 管理
+- **当** 用户在 edit 模式位于 CLO 步骤
+- **则** 系统通过共享 CLO 表单弹框支持 CLO 行的 Create、Edit 和 Delete
+- **且** 前进前至少须有一条 CLO
 
-#### Scenario: SLT management
-- **WHEN** user is on the SLT step
-- **THEN** the system displays Course Content Outline, Continuous Assessment, and Final Assessment sub-modules using the shared SLT step panel
+#### 场景：SLT 管理
+- **当** 用户位于 SLT 步骤
+- **则** 系统使用共享 SLT 步骤面板展示 Course Content Outline、Continuous Assessment 和 Final Assessment 子模块
 
-### Requirement: Read-only detail view
-The system SHALL provide a read-only detail view for submitted and completed change applications.
+### 需求：只读详情视图
+系统应为已提交及已完成的变更申请提供只读详情视图。
 
-#### Scenario: Detail layout parity
-- **WHEN** user opens Details
-- **THEN** all four steps are viewable with the same structure as edit mode
-- **AND** Change Description shows major/minor annotations in read-only form
-- **AND** Basic Information uses the shared read-only general information layout aligned with Course Information detail styling
+#### 场景：详情布局一致
+- **当** 用户打开 Details
+- **则** 四步均可查看，结构与 edit 模式相同
+- **且** Change Description 以只读形式展示 major/minor 标注
+- **且** Basic Information 使用共享只读一般信息布局，与 Course Information 详情样式对齐
 
-### Requirement: Write-back helper for final approval
-The system SHALL provide a data-layer helper to write approved changes back to Course Information; the full approval UI SHALL be implemented in the Course Change Review module.
+### 需求：最终批准回写辅助函数
+系统应提供数据层辅助函数，将已批准变更回写至 Course Information；完整审批 UI 应在 Course Change Review 模块实现。
 
-#### Scenario: Helper merges approved data
-- **WHEN** `applyApprovedChangeToCourse` is invoked with an approved change application and the shared courses collection
-- **THEN** the system updates the baseline course with approved form, CLO, and SLT data
-- **AND** appends change records using the existing course change log builder
-- **AND** sets the change application status to Approved and approval stage to Approved
+#### 场景：辅助函数合并已批准数据
+- **当** 调用 `applyApprovedChangeToCourse`，传入已批准变更申请与共享 courses 集合
+- **则** 系统以已批准 form、CLO 和 SLT 数据更新 baseline 课程
+- **且** 使用现有 course change log builder 追加变更记录
+- **且** 将变更申请状态设为 Approved，审批阶段设为 Approved
 
-#### Scenario: Application module does not expose approval UI
-- **WHEN** user uses Course Change Application in v1
-- **THEN** there is no Approval modal or stage-advance UI on the application list
-- **AND** final approval and write-back are triggered only via the Review module calling the helper (or test/demo invocation)
+#### 场景：申请模块不暴露审批 UI
+- **当** 用户在 v1 使用 Course Change Application
+- **则** 申请列表上无 Approval 弹框或阶段推进 UI
+- **且** 最终批准与回写仅通过 Review 模块调用辅助函数（或测试/demo 调用）触发
 
-#### Scenario: Approved change application is read-only
-- **WHEN** a change application has status Approved
-- **THEN** it cannot be edited or resubmitted from the change application list
+#### 场景：已批准变更申请只读
+- **当** 变更申请状态为 Approved
+- **则** 不可在变更申请列表中编辑或重新提交
 
-### Requirement: Confirmation dialogs for destructive and submit actions
-The system SHALL require secondary confirmation for Submit, Withdraw, Delete, and leaving the wizard with unsaved changes.
+### 需求：破坏性操作与提交操作的确认对话框
+系统应对 Submit、Withdraw、Delete 及向导未保存离开时要求二次确认。
 
-#### Scenario: Submit confirmation
-- **WHEN** user confirms Submit from the toolbar
-- **THEN** a Submit Confirmation dialog appears before status changes
+#### 场景：Submit 确认
+- **当** 用户从工具栏确认 Submit
+- **则** 状态变更前显示 Submit Confirmation 对话框
 
-#### Scenario: Withdraw confirmation
-- **WHEN** user confirms Withdraw from the toolbar
-- **THEN** a confirmation dialog appears before reverting to draft
+#### 场景：Withdraw 确认
+- **当** 用户从工具栏确认 Withdraw
+- **则** 回退为草稿前显示确认对话框
 
-#### Scenario: Leave wizard confirmation
-- **WHEN** user clicks Back or Cancel with unsaved changes in the wizard
-- **THEN** a leave confirmation dialog appears before returning to the list
+#### 场景：离开向导确认
+- **当** 用户在向导中有未保存更改时点击 Back 或 Cancel
+- **则** 返回列表前显示离开确认对话框

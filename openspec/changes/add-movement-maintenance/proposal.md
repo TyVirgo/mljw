@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 学籍异动侧边栏「学籍异动维护」（`sr-movement-maintenance`）仍为建设中页。审批通过的异动申请需要在教务端 **统一实施、编制异动编号、补录 CGPA/预计毕业时间等维护字段**，并与四 Tab 申请、审批模块共用同一批 mock 数据。图示1–3 要求宽表列表 + 实施/改编号/Export/Delete + 行内 Edit | Details | Approval log。
 
-## What Changes
+## 变更内容
 
 ### 主列表页（图示1）
 
@@ -38,19 +38,19 @@
 - 在四 Tab store 记录上新增维护字段：`movementNumber`、`cgpa`、`expectedGraduationTime`、`maintenanceRemark`、`movementDate`、`implemented`
 - **Mock 种子**：至少 **6 条 Approved** 完整记录（覆盖 Programme Transfer / Deferment / Withdrawal × Local / Chinese / International 组合，含 Pending/Implemented 混合）
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `movement-maintenance`: 维护列表、队列合并、实施/改编号/Edit/Details/Log/Export/Delete
 
-### Modified Capabilities
+### 修改的能力
 
 - `student-records-app`: `sr-movement-maintenance` 从建设中升级为已开发
 - `movement-application-details`: 维护 Edit 弹窗字段与 Details 只读视图的数据来源说明（共用 store 记录）；§11 `Scheduled` 状态
 - `movement-list-academic-session-search`: 审批/维护/查询学年学期下拉（§11）
 
-## Impact
+## 影响范围
 
 - **新增**
   - `MovementMaintenanceView.vue`
@@ -71,7 +71,7 @@
   - `movementApprovalEngine.js` — autoImplement 延迟
 - **复用**
   - `ApprovalLogModal`、`MovementApprovalReviewView`、`ConfirmDialog`、`TablePagination`、`ExportModal`（可选）
-- **Non-goals**
+- **非目标**
   - 真实写入学籍档案 / 后端 API（mock 档案写入仍限于 `applyStudentProfileFromMovement`）
   - 异动统计页学年学期下拉（§11 不含）
   - 修改审批流或重新打开已实施记录审批
@@ -89,7 +89,7 @@
 | 新增 | **专业代码** 文本搜索 |
 | 过滤 | `filterMaintenanceBySearch`：`programmeCode` substring；依赖队列 `programmeCode`（`normalizeQueueItem` / `resolveStatDimensions`） |
 
-### Decisions（§7 已确认）
+### 设计决策（
 
 - 专业代码语义与统计 `resolveStatDimensions` 一致；转专业仅现专业代码
 - 表格「异动原因」列 **不变**（仅搜索去掉）
@@ -128,7 +128,7 @@
 - 详情含 `parentNricPassport`（休学/退学家长证件）同样脱敏
 - 审批/查询详情不脱敏
 
-### Decisions（§8 已确认）
+### 设计决策（
 
 | 项 | 决策 |
 |----|------|
@@ -150,7 +150,7 @@
 | 类名 | 继续 `statusBadgeClass(status)`；`Expired` → `status-expired`（与审批 `approvalStatusBadgeClass` 同逻辑） |
 | 移除 | scoped `.status-badge { color: #fff; }` 及重复状态色定义 |
 
-### Decisions（§9 已确认）
+### 设计决策（
 
 | 项 | 决策 |
 |----|------|
@@ -202,12 +202,12 @@ currentSession === effectiveSession ?
 
 **自动实施对齐**：`movementApprovalEngine` 审批通过且类别 `autoImplement` 时，同样走生效学期门控（非当前学期 → `Scheduled`）。
 
-### Capabilities（§11 增量）
+### 能力范围（§11 增量）
 
 - `movement-maintenance`: 可勾选规则、延迟实施、Scheduled 状态
 - `movement-list-academic-session-search`: 审批/维护/查询学年学期下拉
 
-### Impact（§11 增量）
+### 影响范围（§11 增量）
 
 - **修改** `MovementMaintenanceView.vue` — 勾选逻辑
 - **修改** `MovementApprovalView.vue`、`MovementQueryView.vue` — 学年学期 select
@@ -215,4 +215,27 @@ currentSession === effectiveSession ?
 - **新增** `movementImplementationScheduler.js`（或同名 util）
 - **修改** `movementApprovalQueue.js` — `formatImplementedYn`：Scheduled→N
 - **修改** 三处 `filter*BySearch` — academicSession 精确匹配
-- **Non-goals** — 真实后端定时任务；统计页搜索（除非后续单独变更）
+- **非目标** — 真实后端定时任务；统计页搜索（除非后续单独变更）
+
+---
+
+## §12 是否实施 Y/N 公共 UI 组件（2026-06，原型确认后补档）
+
+§8 已将列表「是否实施」改为 Y/N 展示；2026-06 实现阶段进一步抽取公共组件，供维护、查询、审批 History 列表复用，避免各页内联 `formatImplementedYn` 与重复 select 选项。
+
+### 范围
+
+- **新增** `ImplementedYnBadge.vue` — 列表单元格 Y/N 徽章（读 `formatImplementedYn`）
+- **新增** `ImplementedYnSearchSelect.vue` — 搜索区是否实施下拉（选项 `Y` / `N`，首项全部）
+- **修改** `MovementMaintenanceView.vue`、`MovementQueryView.vue`、`MovementApprovalView.vue` — 列表列与搜索区接入上述组件
+- **数据层不变** — 仍使用 `movementApprovalQueue.js` 的 `formatImplementedYn`、`matchesImplementedYnFilter`
+
+### 能力范围（§12 增量）
+
+- `movement-maintenance`：是否实施列/筛选项 UI 组件化
+- `movement-query-app`：同上（与维护对齐）
+
+### 影响范围（§12 增量）
+
+- **新增** `src/components/common/ImplementedYnBadge.vue`、`ImplementedYnSearchSelect.vue`
+- **修改** 维护/查询/审批三 View — 替换内联 Y/N 渲染与搜索 select

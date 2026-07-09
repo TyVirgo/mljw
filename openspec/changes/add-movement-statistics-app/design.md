@@ -1,12 +1,12 @@
-## Context
+## 背景说明
 
 `add-movement-query-app`、`add-movement-maintenance` 已实现四 Tab 明细宽表与 ExportModal xlsx 导出。`sr-movement-statistics` 菜单占位未实现。产品图示1–2 要求**按专业×Intake 聚合**的计数透视表，语义为「该专业本学期每个类型学籍异动的人数」。
 
 探索阶段已确认：非 Draft、applicationSession 过滤、仅展示有数据分组、前 4 列真实计数 + 后 7 列 supplement mock。**不更新 PRD**。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 聚合统计页（图示1–2 列结构）
 - 双行搜索 + 收起（对齐 `MovementQueryView`）
@@ -14,7 +14,7 @@
 - ExportModal → xlsx（对齐维护/查询）
 - 注册 `sr-movement-statistics`
 
-**Non-goals:**
+**非目标：**
 
 - 修改 movementStore 四 Tab 以承载 Outbound Mobility 等类型
 - 行操作 / 下钻
@@ -22,7 +22,7 @@
 - 真实后端统计 API
 - 全量专业×Intake 补零行
 
-## Decisions
+## 设计决策
 
 ### 1. 统计列定义 — 11 个计数 key
 
@@ -170,7 +170,7 @@ studentRecordsDevelopedPages.add('sr-movement-statistics')
 // App.vue: isMovementStatistics → MovementStatisticsView
 ```
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -179,7 +179,7 @@ studentRecordsDevelopedPages.add('sr-movement-statistics')
 | supplement 与真实业务脱节 | 仅后 7 列；proposal/design 标明 mock |
 | 搜索 movementReason 对 supplement | seed 可选填 reason 或筛选时忽略无 reason 的 supplement |
 
-## Migration Plan
+## 迁移说明
 
 1. `movementStatisticsColumns.js` + `movementStatisticsSeeds.js`
 2. `movementStatisticsQueue.js` + `resolveStatDimensions` / `SCHOOL_CODE_MAP`
@@ -189,7 +189,7 @@ studentRecordsDevelopedPages.add('sr-movement-statistics')
 6. 冒烟：约 6 行、Session 过滤、Export 三 scope、前 4 列与查询可对照
 7. `npm run build`
 
-## Open Questions
+## 待决问题
 
 （探索阶段已全部确认，无遗留）
 

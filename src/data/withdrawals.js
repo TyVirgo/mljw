@@ -1,5 +1,18 @@
 import { isLocalCategory } from './students.js'
-import { resolveApplicationSessionFromStudent } from './movementApplicationSession.js'
+import {
+  buildParentContactsFromStudentFamily,
+  createEmptyParentContact,
+  normalizeParentContacts,
+  validateParentContacts,
+  withSyncedLegacyParentFields,
+} from './movementParentContacts.js'
+import {
+  createEmptyMovementAttachments,
+  validateMovementAttachments,
+  withMovementAttachments,
+} from './movementAttachments.js'
+import { resolveApplicationSessionFromStudent, resolveCurrentAcademicSessionFromStudent } from './movementApplicationSession.js'
+import { resolveMovementVisaExpiryFromStudent } from '../utils/movementVisaExpiry.js'
 import { validateAcademicSessionOrder, normalizeAcademicSession } from '../utils/normalizeAcademicSession.js'
 import {
   resolveReasonIdByName,
@@ -8,6 +21,8 @@ import {
 } from './movementCategories.js'
 
 const WDR_CATEGORY_CODE = 'WDR001'
+
+export const currentWhereaboutOptions = ['In Campus', 'Out of Campus']
 
 export const withdrawalStatusOptions = [
   'Draft',
@@ -101,6 +116,7 @@ export function createEmptyWithdrawal() {
     submittedAt: null,
     dateOfApplication: today,
     applicationSession: '',
+    currentAcademicSession: '',
     fullName: '',
     intake: '',
     nricPassport: '',
@@ -108,8 +124,10 @@ export function createEmptyWithdrawal() {
     programme: '',
     programmeLevel: '',
     studentCategory: '',
+    visaExpiryDate: '—',
     personalEmail: '',
     phoneNumber: '',
+    accommodationRoomNo: '',
     lastDateOfAttendance: '',
     destinationAfterLeaving: '',
     reasonId: null,
@@ -117,42 +135,49 @@ export function createEmptyWithdrawal() {
     currentWhereabout: '',
     detailedReason: '',
     declarationAccepted: false,
+    parentContacts: [createEmptyParentContact()],
     parentGuardianName: '',
     parentContactNo: '',
     parentNricPassport: '',
     parentRelationship: '',
     parentEmail: '',
     attachment: null,
+    attachments: createEmptyMovementAttachments(),
     approvalLog: [],
   }
 }
 
 export function getWithdrawalFormData(record) {
   if (!record) return createEmptyWithdrawal()
-  return {
-    ...createEmptyWithdrawal(),
-    ...record,
-    attachment: record.attachment ? { ...record.attachment } : null,
-    approvalLog: (record.approvalLog || []).map((entry) => ({ ...entry })),
-  }
+  return withMovementAttachments(
+    withSyncedLegacyParentFields({
+      ...createEmptyWithdrawal(),
+      ...record,
+      parentContacts: normalizeParentContacts(record),
+      approvalLog: (record.approvalLog || []).map((entry) => ({ ...entry })),
+    }),
+  )
 }
 
 export function normalizeWithdrawal(raw) {
   const base = { ...createEmptyWithdrawal(), ...raw }
   const { reasonId, mainReason } = syncWithdrawalReasonFields(base)
-  return {
-    ...base,
-    id: base.id ?? createWithdrawalId(),
-    applicationId: base.applicationId || createApplicationId(),
-    reasonId,
-    name: base.fullName || base.name || '',
-    mainReason,
-    reason: mainReason,
-    applicationDate: base.submittedAt || base.applicationDate || base.dateOfApplication || null,
-    archived:
-      base.archived === true ||
-      ['Approved', 'Rejected', 'Cancelled'].includes(base.status),
-  }
+  return withMovementAttachments(
+    withSyncedLegacyParentFields({
+      ...base,
+      id: base.id ?? createWithdrawalId(),
+      applicationId: base.applicationId || createApplicationId(),
+      reasonId,
+      name: base.fullName || base.name || '',
+      mainReason,
+      reason: mainReason,
+      applicationDate: base.submittedAt || base.applicationDate || base.dateOfApplication || null,
+      archived:
+        base.archived === true ||
+        ['Approved', 'Rejected', 'Cancelled'].includes(base.status),
+      parentContacts: normalizeParentContacts(base),
+    }),
+  )
 }
 
 export function buildStudentSnapshotForWithdrawal(student) {
@@ -160,12 +185,14 @@ export function buildStudentSnapshotForWithdrawal(student) {
   const basic = student.basicInfo || student
   const enrollment = student.enrollment || {}
   const contact = student.contact || {}
-  const family = student.family || {}
+  const parentContacts = buildParentContactsFromStudentFamily(student)
   const category = student.studentCategory || student.studentType || 'Local'
 
   const nricPassport = isLocalCategory(category)
     ? basic.icNo || ''
     : basic.passportNo || ''
+  const accommodation = student.accommodation || {}
+  const accommodationRoomNo = accommodation.roomNo || ''
 
   return {
     studentId: basic.studentId || student.studentId || '',
@@ -176,14 +203,13 @@ export function buildStudentSnapshotForWithdrawal(student) {
     programme: enrollment.programme || '',
     programmeLevel: enrollment.programmeLevel || '',
     studentCategory: category,
+    visaExpiryDate: resolveMovementVisaExpiryFromStudent(student),
     personalEmail: contact.email || '',
     phoneNumber: contact.mobilePhone || '',
-    parentGuardianName: family.name || '',
-    parentContactNo: family.mobilePhone || '',
-    parentNricPassport: family.icPassport || '',
-    parentRelationship: family.relationship || '',
-    parentEmail: family.email || '',
+    accommodationRoomNo,
     applicationSession: resolveApplicationSessionFromStudent(student),
+    currentAcademicSession: resolveCurrentAcademicSessionFromStudent(student),
+    ...withSyncedLegacyParentFields({ parentContacts }),
   }
 }
 
@@ -275,12 +301,6 @@ export function validateWithdrawalForm(data, mode = 'submit', existingList = [],
     return { valid: Object.keys(errors).length === 0, errors }
   }
 
-  if (!String(data.personalEmail || '').trim()) {
-    requireField('personalEmail', 'Personal Email is required.')
-  }
-  if (!String(data.phoneNumber || '').trim()) {
-    requireField('phoneNumber', 'Phone Number is required.')
-  }
   if (!String(data.lastDateOfAttendance || '').trim()) {
     requireField('lastDateOfAttendance', 'Last Date of Attendance is required.')
   }
@@ -290,7 +310,7 @@ export function validateWithdrawalForm(data, mode = 'submit', existingList = [],
   if (!isValidReasonIdForCategory(WDR_CATEGORY_CODE, data.reasonId)) {
     requireField('reasonId', 'Main Reason for Withdrawal is required.')
   }
-  if (!String(data.currentWhereabout || '').trim()) {
+  if (!currentWhereaboutOptions.includes(String(data.currentWhereabout || '').trim())) {
     requireField('currentWhereabout', 'Current Whereabout is required.')
   }
   if (!String(data.detailedReason || '').trim()) {
@@ -299,24 +319,8 @@ export function validateWithdrawalForm(data, mode = 'submit', existingList = [],
   if (!data.declarationAccepted) {
     requireField('declarationAccepted', 'You must agree to the declaration.')
   }
-  if (!String(data.parentGuardianName || '').trim()) {
-    requireField('parentGuardianName', 'Parent/Guardian Name is required.')
-  }
-  if (!String(data.parentContactNo || '').trim()) {
-    requireField('parentContactNo', 'Contact No. is required.')
-  }
-  if (!String(data.parentNricPassport || '').trim()) {
-    requireField('parentNricPassport', 'Parent/Guardian NRIC/Passport No. is required.')
-  }
-  if (!String(data.parentRelationship || '').trim()) {
-    requireField('parentRelationship', 'Relationship is required.')
-  }
-  if (!String(data.parentEmail || '').trim()) {
-    requireField('parentEmail', 'Parent/Guardian Email is required.')
-  }
-  if (!data.attachment?.fileName) {
-    requireField('attachment', 'Supporting document is required.')
-  }
+  validateParentContacts(data.parentContacts, requireField, { mode: 'withdrawal' })
+  validateMovementAttachments('withdrawal', data, requireField, mode)
 
   if (
     mode === 'submit' &&
@@ -390,7 +394,10 @@ export function cancelApplication(item, actor = 'Student') {
     actor,
     action: 'Cancelled',
     dateTime: now,
-    comment: 'Application cancelled by student.',
+    comment:
+      actor === 'Student'
+        ? 'Application cancelled by student.'
+        : 'Application cancelled by AC.',
   })
   return normalizeWithdrawal({
     ...updated,
@@ -446,7 +453,7 @@ export const initialWithdrawals = [
     lastDateOfAttendance: '2025-06-15',
     destinationAfterLeaving: 'Selangor, Malaysia',
     mainReason: 'Personal Reason',
-    currentWhereabout: 'Malaysia',
+    currentWhereabout: 'In Campus',
     detailedReason: 'Personal family matters require withdrawal.',
     declarationAccepted: true,
     parentGuardianName: 'Tan Ah Kow',
@@ -457,6 +464,7 @@ export const initialWithdrawals = [
     attachment: { fileName: 'consent-letter.pdf', size: 180000 },
     status: 'Approved',
     approvalStage: 'Approved',
+    exportArchiveNumber: '1433',
     implemented: 'Implemented',
     archived: true,
     submittedAt: '2025-06-20T10:00:00.000Z',
@@ -483,7 +491,7 @@ export const initialWithdrawals = [
     lastDateOfAttendance: '2025-02-10',
     destinationAfterLeaving: 'Fujian, China',
     mainReason: 'Health Issue',
-    currentWhereabout: 'China',
+    currentWhereabout: 'Out of Campus',
     detailedReason: 'Medical treatment requires leaving the programme.',
     declarationAccepted: true,
     parentGuardianName: 'Li Ming',
@@ -520,7 +528,7 @@ export const initialWithdrawals = [
     lastDateOfAttendance: '2025-09-20',
     destinationAfterLeaving: 'United Kingdom',
     mainReason: 'Financial Problem',
-    currentWhereabout: 'Malaysia',
+    currentWhereabout: 'In Campus',
     detailedReason: 'Unable to continue due to financial constraints.',
     declarationAccepted: true,
     parentGuardianName: 'Jane Doe',
@@ -553,7 +561,7 @@ export const initialWithdrawals = [
     lastDateOfAttendance: '2025-08-01',
     destinationAfterLeaving: 'Kuala Lumpur, Malaysia',
     mainReason: 'Academic Difficulty',
-    currentWhereabout: 'Malaysia',
+    currentWhereabout: 'In Campus',
     detailedReason: 'Academic performance concerns.',
     declarationAccepted: true,
     parentGuardianName: 'Rizal Bin Ahmad',
@@ -587,7 +595,7 @@ export const initialWithdrawals = [
     lastDateOfAttendance: '2025-06-10',
     destinationAfterLeaving: 'Shanghai, China',
     mainReason: 'Personal Reason',
-    currentWhereabout: 'China',
+    currentWhereabout: 'Out of Campus',
     detailedReason: 'Returning home for personal reasons.',
     declarationAccepted: true,
     parentGuardianName: 'Chen Wei',
@@ -656,7 +664,7 @@ export const initialWithdrawals = [
     lastDateOfAttendance: '2025-06-10',
     destinationAfterLeaving: 'Penang, Malaysia',
     mainReason: 'Financial Problem',
-    currentWhereabout: 'Malaysia',
+    currentWhereabout: 'In Campus',
     detailedReason: 'Please update parent consent documents.',
     declarationAccepted: true,
     parentGuardianName: 'Ng Siew Leng',
@@ -690,7 +698,7 @@ export const initialWithdrawals = [
     lastDateOfAttendance: '2025-03-28',
     destinationAfterLeaving: 'Kuala Lumpur, Malaysia',
     mainReason: 'Health Issue',
-    currentWhereabout: 'Malaysia',
+    currentWhereabout: 'In Campus',
     detailedReason: 'Incomplete medical documentation.',
     declarationAccepted: true,
     parentGuardianName: 'Kumar Rajan',
@@ -725,7 +733,7 @@ export const initialWithdrawals = [
     lastDateOfAttendance: '2025-08-01',
     destinationAfterLeaving: 'Johor, Malaysia',
     mainReason: 'Personal Reason',
-    currentWhereabout: 'Malaysia',
+    currentWhereabout: 'In Campus',
     detailedReason: 'Changed decision.',
     declarationAccepted: true,
     parentGuardianName: 'Lim Ah Beng',
@@ -759,7 +767,7 @@ export const initialWithdrawals = [
     lastDateOfAttendance: '2025-09-10',
     destinationAfterLeaving: 'Beijing, China',
     mainReason: 'Others',
-    currentWhereabout: 'China',
+    currentWhereabout: 'Out of Campus',
     detailedReason: 'Withdrawal request cancelled.',
     declarationAccepted: true,
     parentGuardianName: 'Chen Ming',
@@ -794,7 +802,7 @@ export const initialWithdrawals = [
     lastDateOfAttendance: '2025-05-10',
     destinationAfterLeaving: 'Selangor, Malaysia',
     mainReason: 'Financial Problem',
-    currentWhereabout: 'Malaysia',
+    currentWhereabout: 'In Campus',
     detailedReason: 'Financial withdrawal request.',
     declarationAccepted: true,
     parentGuardianName: 'Aminah Hassan',
@@ -827,7 +835,7 @@ export const initialWithdrawals = [
     lastDateOfAttendance: '2025-07-01',
     destinationAfterLeaving: 'Kuala Lumpur, Malaysia',
     mainReason: 'Health Issue',
-    currentWhereabout: 'Malaysia',
+    currentWhereabout: 'In Campus',
     detailedReason: 'Health-related withdrawal.',
     declarationAccepted: true,
     parentGuardianName: 'Sharma Raj',

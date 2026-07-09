@@ -1,120 +1,120 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Lecturer list page displays core fields
-The system SHALL display a paginated table of lecturers with columns: No., Staff ID, Name, Gender, Category, Department, Academic Qualification (Highest), Title, Academic Position, Degree, Employment Status, Date of Joining, and Actions (Details, Edit, Delete).
+### 需求：讲师列表页展示核心字段
+系统应展示分页的讲师表格，列包括：No.、Staff ID、Name、Gender、Category、Department、Academic Qualification (Highest)、Title、Academic Position、Degree、Employment Status、Date of Joining 和 Actions（Details、Edit、Delete）。
 
-#### Scenario: Default list load
-- **WHEN** user navigates to Lecturer Information
-- **THEN** the system displays the first page of lecturer records with all listed columns
+#### 场景：默认列表加载
+- **当** 用户导航至 Lecturer Information
+- **则** 系统展示讲师记录第一页，包含上述全部列
 
-#### Scenario: Requires Evaluation tag
-- **WHEN** a lecturer record has `requiresEvaluation` set to true
-- **THEN** the system displays a green "Requires Evaluation" tag next to the lecturer name in the list
+#### 场景：Requires Evaluation 标签
+- **当** 讲师记录的 `requiresEvaluation` 为 true
+- **则** 系统在列表中讲师姓名旁显示绿色「Requires Evaluation」标签
 
-### Requirement: Search and filter lecturers
-The system SHALL support searching and filtering by Staff ID, Name, Department, Category, Title, Academic Position, Degree, and Employment Status.
+### 需求：搜索与筛选讲师
+系统应支持按 Staff ID、Name、Department、Category、Title、Academic Position、Degree 和 Employment Status 搜索与筛选。
 
-#### Scenario: Basic search
-- **WHEN** user enters Staff ID or Name and clicks Search
-- **THEN** the list shows only matching records and resets to page 1
+#### 场景：基础搜索
+- **当** 用户输入 Staff ID 或 Name 并点击 Search
+- **则** 列表仅显示匹配记录，并重置到第 1 页
 
-#### Scenario: Expanded filters via More
-- **WHEN** user clicks More and sets Title, Academic Position, Degree, or Employment Status filters then clicks Search
-- **THEN** the list applies all active filters together (AND logic)
+#### 场景：通过 More 展开筛选
+- **当** 用户点击 More，设置 Title、Academic Position、Degree 或 Employment Status 筛选后点击 Search
+- **则** 列表同时应用全部活跃筛选（AND 逻辑）
 
-#### Scenario: Evaluation filter toggle
-- **WHEN** user enables "Filter lecturers who require teaching observation/lecture evaluation" and clicks Search
-- **THEN** the list shows only lecturers with `requiresEvaluation` true
+#### 场景：评估筛选开关
+- **当** 用户启用「Filter lecturers who require teaching observation/lecture evaluation」并点击 Search
+- **则** 列表仅显示 `requiresEvaluation` 为 true 的讲师
 
-#### Scenario: Reset filters
-- **WHEN** user clicks Reset
-- **THEN** all search fields and the evaluation toggle are cleared and the full list is restored
+#### 场景：重置筛选
+- **当** 用户点击 Reset
+- **则** 清空全部搜索字段与评估筛选开关，并恢复完整列表
 
-### Requirement: Create lecturer via four-step wizard
-The system SHALL provide a Create modal with four steps: (1) Basic Info, (2) Academic Qualifications, (3) Working Experience, (4) CPD preview.
+### 需求：通过四步向导创建讲师
+系统应提供含四步的 Create 弹框：(1) Basic Info、(2) Academic Qualifications、(3) Working Experience、(4) CPD preview。
 
-#### Scenario: Step 1 — Personal and Employment Information
-- **WHEN** user opens Create and is on step 1
-- **THEN** the system shows Personal Information fields (Name*, Gender*, Date of Birth, Nationality, Mobile Phone*, Personal Email, Degree*, Research focus areas) and Employment Information fields (Staff ID*, Category*, School/Department*, Foundation/Undergraduate/Postgraduate*, Title*, Academic Position*, Office Extension*, XMUM Email*, Date of Joining*, Currently Teaching*, Employment Status*) plus Others (Attachment PDF upload, Remarks 0/100)
+#### 场景：步骤 1 — Personal and Employment Information
+- **当** 用户打开 Create 并位于步骤 1
+- **则** 系统展示 Personal Information 字段（Name*、Gender*、Date of Birth、Nationality、Mobile Phone*、Personal Email、Degree*、Research focus areas）和 Employment Information 字段（Staff ID*、Category*、School/Department*、Foundation/Undergraduate/Postgraduate*、Title*、Academic Position*、Office Extension*、XMUM Email*、Date of Joining*、Currently Teaching*、Employment Status*），以及 Others（Attachment PDF 上传、Remarks 0/100）
 
-#### Scenario: Step 2 — Academic Qualifications
-- **WHEN** user proceeds to step 2
-- **THEN** the system allows adding, editing, saving, and deleting multiple qualification records, each with Name of Qualification, Name of Awarding Institution, Awarding country, Year of Award, Remarks, and attachment upload (PDF)
+#### 场景：步骤 2 — Academic Qualifications
+- **当** 用户进入步骤 2
+- **则** 系统允许新增、编辑、保存和删除多条 qualification 记录，每条含 Name of Qualification、Name of Awarding Institution、Awarding country、Year of Award、Remarks 和 attachment 上传（PDF）
 
-#### Scenario: Step 3 — Working Experience
-- **WHEN** user proceeds to step 3
-- **THEN** the system allows adding, editing, saving, and deleting multiple working experience records with Academic Position, Employer, Start of Service, End of Service, Experience in Education (Years), and Experience in Industry (Years)
+#### 场景：步骤 3 — Working Experience
+- **当** 用户进入步骤 3
+- **则** 系统允许新增、编辑、保存和删除多条 working experience 记录，字段含 Academic Position、Employer、Start of Service、End of Service、Experience in Education (Years) 和 Experience in Industry (Years)
 
-#### Scenario: Step 4 — CPD read-only on create
-- **WHEN** user proceeds to step 4 during Create
-- **THEN** the system shows an empty or informational CPD section indicating data will come from HR sync or teacher portal approval (no manual entry on create)
+#### 场景：步骤 4 — Create 时 CPD 只读
+- **当** 用户在 Create 过程中进入步骤 4
+- **则** 系统展示空或说明性 CPD 区块，表明数据将来自 HR 同步或教师门户审批（Create 时不可手动录入）
 
-#### Scenario: Successful create
-- **WHEN** user completes all required fields on steps 1–3 and clicks Confirm on step 4
-- **THEN** the system saves the new lecturer and refreshes the list
+#### 场景：创建成功
+- **当** 用户在步骤 1–3 完成全部必填字段并在步骤 4 点击 Confirm
+- **则** 系统保存新讲师并刷新列表
 
-### Requirement: Edit lecturer via four-step wizard
-The system SHALL allow editing an existing lecturer using the same four-step wizard, pre-filled with existing data.
+### 需求：通过四步向导编辑讲师
+系统应允许使用相同四步向导编辑现有讲师，并预填现有数据。
 
-#### Scenario: Edit pre-fill
-- **WHEN** user clicks Edit on a list row
-- **THEN** the wizard opens with all existing lecturer data loaded across steps 1–3
+#### 场景：Edit 预填
+- **当** 用户点击列表行的 Edit
+- **则** 向导打开，步骤 1–3 加载全部现有讲师数据
 
-#### Scenario: Successful edit
-- **WHEN** user modifies data and confirms
-- **THEN** the system updates the record and reflects changes in the list
+#### 场景：编辑成功
+- **当** 用户修改数据并确认
+- **则** 系统更新记录，列表反映变更
 
-### Requirement: View lecturer details via four-step modal
-The system SHALL provide a read-only Details modal with four steps matching the Create wizard structure.
+### 需求：通过四步弹框查看讲师详情
+系统应提供与 Create 向导结构一致的四步只读 Details 弹框。
 
-#### Scenario: Step 1 details — Basic Info
-- **WHEN** user clicks Details on a list row
-- **THEN** step 1 shows Personal Information, Employment Information, attachment download, and Remarks in read-only format
+#### 场景：步骤 1 详情 — Basic Info
+- **当** 用户点击列表行的 Details
+- **则** 步骤 1 以只读形式展示 Personal Information、Employment Information、attachment 下载和 Remarks
 
-#### Scenario: Step 2 details — Qualifications
-- **WHEN** user navigates to step 2 in Details
-- **THEN** the system lists all academic qualifications with attachment download links
+#### 场景：步骤 2 详情 — Qualifications
+- **当** 用户在 Details 中导航至步骤 2
+- **则** 系统列出全部 academic qualifications，并提供 attachment 下载链接
 
-#### Scenario: Step 3 details — Working Experience
-- **WHEN** user navigates to step 3 in Details
-- **THEN** the system lists all working experience records in read-only card layout
+#### 场景：步骤 3 详情 — Working Experience
+- **当** 用户在 Details 中导航至步骤 3
+- **则** 系统以只读卡片布局列出全部 working experience 记录
 
-#### Scenario: Step 4 details — CPD by year
-- **WHEN** user navigates to step 4 in Details
-- **THEN** the system displays CPD records grouped by year with summary (Number of Activity Attended, Number of Hours Earned) and a table per year (No., Name of Activity, Name of Activity Provider, Type of Activity, Category, Mode of Delivery, Date(s) Attended, Number of Hours Earned, Evidence download link)
+#### 场景：步骤 4 详情 — 按年 CPD
+- **当** 用户在 Details 中导航至步骤 4
+- **则** 系统按年分组展示 CPD 记录，含摘要（Number of Activity Attended、Number of Hours Earned）及每年表格（No.、Name of Activity、Name of Activity Provider、Type of Activity、Category、Mode of Delivery、Date(s) Attended、Number of Hours Earned、Evidence 下载链接）
 
-### Requirement: Delete lecturers
-The system SHALL support single-row and batch delete with confirmation.
+### 需求：删除讲师
+系统应支持单行与批量删除，并须确认。
 
-#### Scenario: Single delete
-- **WHEN** user clicks Delete on one row and confirms
-- **THEN** the lecturer is removed from the list
+#### 场景：单行删除
+- **当** 用户点击一行的 Delete 并确认
+- **则** 该讲师从列表中移除
 
-#### Scenario: Batch delete
-- **WHEN** user selects multiple rows, clicks Delete, and confirms
-- **THEN** all selected lecturers are removed
+#### 场景：批量删除
+- **当** 用户选中多行、点击 Delete 并确认
+- **则** 移除全部选中讲师
 
-### Requirement: Export lecturer data
-The system SHALL support exporting filtered lecturer list data to Excel via the existing Export modal pattern.
+### 需求：导出讲师数据
+系统应通过现有 Export 弹框模式，支持将筛选后的讲师列表数据导出为 Excel。
 
-#### Scenario: Export current page
-- **WHEN** user clicks Export and selects current page fields
-- **THEN** the system downloads an Excel file with selected columns for the current page
+#### 场景：导出当前页
+- **当** 用户点击 Export 并选择当前页字段
+- **则** 系统下载含所选列的当前页 Excel 文件
 
-### Requirement: Toolbar placeholder actions
-The system SHALL display Sync Cache and Refers to EMS system buttons that show an informational notice when clicked (no backend integration in this phase).
+### 需求：工具栏占位操作
+系统应显示 Sync Cache 和 Refers to EMS system 按钮，点击时显示说明提示（本阶段无后端集成）。
 
-#### Scenario: Sync Cache placeholder
-- **WHEN** user clicks Sync Cache
-- **THEN** the system shows a notice that HR system sync is not yet connected
+#### 场景：Sync Cache 占位
+- **当** 用户点击 Sync Cache
+- **则** 系统提示 HR 系统同步尚未接入
 
-#### Scenario: EMS reference placeholder
-- **WHEN** user clicks Refers to EMS system
-- **THEN** the system shows a notice that EMS integration is not yet connected
+#### 场景：EMS 引用占位
+- **当** 用户点击 Refers to EMS system
+- **则** 系统提示 EMS 集成尚未接入
 
-### Requirement: CPD data sources (future integration)
-The system SHALL document that CPD data originates from (1) HR system sync and (2) teacher portal submission after approval; in this phase CPD is populated from mock data only.
+### 需求：CPD 数据来源（未来集成）
+系统应说明 CPD 数据来源于 (1) HR 系统同步和 (2) 教师门户提交并经审批；本阶段 CPD 仅由 mock 数据填充。
 
-#### Scenario: Mock CPD on detail view
-- **WHEN** user views step 4 Details for a lecturer with mock CPD data
-- **THEN** the system displays the mock CPD records grouped by year
+#### 场景：详情视图中的 mock CPD
+- **当** 用户查看含 mock CPD 数据的讲师步骤 4 Details
+- **则** 系统按年分组展示 mock CPD 记录

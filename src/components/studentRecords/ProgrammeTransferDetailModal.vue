@@ -1,14 +1,28 @@
 <script setup>
+import { ref, watch } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import MovementAttachmentReadonly from './MovementAttachmentReadonly.vue'
+import MovementAttachmentsReadonly from './MovementAttachmentsReadonly.vue'
+import MovementInternationalStudentRemarks from './MovementInternationalStudentRemarks.vue'
+import MovementDeclarationSection from './MovementDeclarationSection.vue'
+import MovementApplicantNotes from './MovementApplicantNotes.vue'
+import { programmeTransferDeclarationItems } from '../../data/movementDeclarationItems.js'
+import { programmeTransferApplicantNoteKeys } from '../../data/movementApplicantNotes.js'
+import ProgrammeTransferOfficeUseSection from './ProgrammeTransferOfficeUseSection.vue'
 import {
   formatTransferListDate,
   statusBadgeClass,
   getTransferReasonDisplay,
+  formatApplicationDateDisplay,
+  resolveProgrammeTransferOfficeUseDefaults,
 } from '../../data/programmeTransfers.js'
-import { resolveApplicationSessionForDisplay } from '../../data/movementApplicationSession.js'
+import { resolveApplicationSessionForDisplay, resolveCurrentAcademicSessionForDisplay } from '../../data/movementApplicationSession.js'
 import { maskPassportIc } from '../../utils/maskPassportIc.js'
 import { formatMovementDate } from '../../utils/formatMovementDate.js'
+import {
+  displayMovementVisaExpiry,
+  resolveMovementStudentCategory,
+} from '../../utils/movementVisaExpiry.js'
+import '../../styles/movement-form.css'
 
 const props = defineProps({
   visible: Boolean,
@@ -20,6 +34,16 @@ const props = defineProps({
 const emit = defineEmits(['close', 'approve'])
 
 const { t, tr } = useAppI18n()
+
+const officeUseFields = ref(resolveProgrammeTransferOfficeUseDefaults(props.item))
+
+watch(
+  () => props.item?.id,
+  () => {
+    officeUseFields.value = resolveProgrammeTransferOfficeUseDefaults(props.item)
+  },
+  { immediate: true },
+)
 
 function statusLabel(status) {
   const map = {
@@ -42,6 +66,10 @@ function displayPassport(value) {
   if (!value) return '—'
   return props.maskSensitiveFields ? maskPassportIc(value) : value
 }
+
+function visaExpiryDisplay(item) {
+  return displayMovementVisaExpiry(item?.visaExpiryDate, resolveMovementStudentCategory(item))
+}
 </script>
 
 <template>
@@ -58,41 +86,62 @@ function displayPassport(value) {
           <span :class="['status-badge', statusBadgeClass(item.status)]">{{ statusLabel(item.status) }}</span>
         </div>
 
+        <MovementApplicantNotes
+          title-key="programmeTransfer.notes.title"
+          :item-keys="programmeTransferApplicantNoteKeys"
+        />
+
+        <MovementInternationalStudentRemarks
+          source-key="programme-transfer"
+          :student-category="resolveMovementStudentCategory(item)"
+        />
+
         <div class="section-bar">{{ t('programmeTransfer.sections.studentDetails') }}</div>
         <dl class="detail-grid">
           <div><dt>{{ tr('Student ID') }}</dt><dd>{{ item.studentId }}</dd></div>
           <div><dt>{{ tr('Full Name') }}</dt><dd>{{ item.fullName }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.currentAcademicSession') }}</dt><dd>{{ resolveCurrentAcademicSessionForDisplay(item) }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
+          <div><dt>{{ t('programmeTransfer.fields.dateOfApplication') }}</dt><dd>{{ formatApplicationDateDisplay(item.dateOfApplication) }}</dd></div>
           <div><dt>{{ tr('NRIC/Passport No.') }}</dt><dd>{{ displayPassport(item.nricPassport) }}</dd></div>
           <div><dt>{{ tr('Nationality') }}</dt><dd>{{ item.nationality || '—' }}</dd></div>
-          <div><dt>{{ tr('Email') }}</dt><dd>{{ item.email || '—' }}</dd></div>
-          <div><dt>{{ tr('Contact No.') }}</dt><dd>{{ item.contactNo || '—' }}</dd></div>
-          <div><dt>{{ t('programmeTransfer.fields.visaExpiry') }}</dt><dd>{{ formatMovementDate(item.visaExpiryDate) }}</dd></div>
-          <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
-        </dl>
-
-        <div class="section-bar">{{ t('programmeTransfer.sections.transferInfo') }}</div>
-        <dl class="detail-grid">
+          <div><dt>{{ t('movementCommon.fields.personalEmail') }}</dt><dd>{{ item.personalEmail || item.email || '—' }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || item.contactNo || '—' }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.visaExpiry') }}</dt><dd>{{ visaExpiryDisplay(item) }}</dd></div>
           <div><dt>{{ t('programmeTransfer.fields.currentProgramme') }}</dt><dd>{{ item.currentProgramme || '—' }}</dd></div>
           <div><dt>{{ t('programmeTransfer.fields.currentIntake') }}</dt><dd>{{ item.currentIntake || '—' }}</dd></div>
           <div class="span-2"><dt>{{ t('programmeTransfer.fields.currentSchool') }}</dt><dd>{{ item.currentSchool || '—' }}</dd></div>
-          <div><dt>{{ t('programmeTransfer.fields.newProgrammeFirst') }}</dt><dd>{{ item.newProgrammeFirstChoice || '—' }}</dd></div>
-          <div><dt>{{ t('programmeTransfer.fields.newProgrammeSecond') }}</dt><dd>{{ item.newProgrammeSecondChoice || '—' }}</dd></div>
-          <div><dt>{{ t('programmeTransfer.fields.startSemester') }}</dt><dd>{{ item.startSemester || '—' }}</dd></div>
-          <div class="span-2"><dt>{{ t('programmeTransfer.fields.transferReason') }}</dt><dd>{{ getTransferReasonDisplay(item) || '—' }}</dd></div>
         </dl>
 
-        <div class="section-bar">{{ t('programmeTransfer.sections.declaration') }}</div>
-        <p class="readonly-text">{{ item.declarationAgreed ? tr('Yes') : tr('No') }}</p>
+        <div class="section-bar">{{ t('programmeTransfer.sections.studentApplication') }}</div>
+        <dl class="detail-grid">
+          <div class="span-2"><dt>{{ t('programmeTransfer.fields.startSemester') }}</dt><dd>{{ item.startSemester || '—' }}</dd></div>
+          <div><dt>{{ t('programmeTransfer.fields.newProgrammeFirst') }}</dt><dd>{{ item.newProgrammeFirstChoice || '—' }}</dd></div>
+          <div><dt>{{ t('programmeTransfer.fields.newProgrammeSecond') }}</dt><dd>{{ item.newProgrammeSecondChoice || '—' }}</dd></div>
+          <div class="span-2"><dt>{{ t('programmeTransfer.fields.transferReason') }}</dt><dd class="multiline">{{ getTransferReasonDisplay(item) || '—' }}</dd></div>
+        </dl>
 
         <div class="section-bar">{{ t('programmeTransfer.sections.documents') }}</div>
-        <MovementAttachmentReadonly
-          :file-name="item.attachment?.fileName || ''"
-          movement-type="programme-transfer"
-          :student-id="item.studentId"
-          :programme-level="item.programmeLevel"
-          :application-session="item.applicationSession"
-          label-key="programmeTransfer.fields.uploadAttachment"
-          download-label-key="programmeTransfer.fields.downloadConsent"
+        <MovementAttachmentsReadonly source-key="programme-transfer" :item="item" />
+
+        <MovementDeclarationSection
+          read-only
+          :section-title="t('programmeTransfer.sections.declaration')"
+          :items="programmeTransferDeclarationItems"
+          :checkboxes="[{ field: 'declarationAgreed' }]"
+          :form="item"
+        />
+
+        <ProgrammeTransferOfficeUseSection
+          v-if="showApprovalAction"
+          v-model="officeUseFields"
+          :item="item"
+          editable
+        />
+        <ProgrammeTransferOfficeUseSection
+          v-else-if="item.status === 'Approved'"
+          :item="item"
+          :model-value="resolveProgrammeTransferOfficeUseDefaults(item)"
         />
       </div>
 
@@ -103,7 +152,7 @@ function displayPassport(value) {
             v-if="showApprovalAction"
             type="button"
             class="btn btn-primary"
-            @click="emit('approve')"
+            @click="emit('approve', { ...officeUseFields })"
           >
             {{ t('movementApproval.approve') }}
           </button>

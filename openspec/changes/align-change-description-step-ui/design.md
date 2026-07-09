@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 `ChangeDescriptionStep.vue` 已在 `add-course-change-application` 变更中实现，功能上支持 MAIN/OTHER COMPONENTS 的 major/minor 标注，但视觉与信息架构与原型不符：
 
@@ -14,9 +14,9 @@
 
 数据层 `changeDescriptionComponents` 目前只有 `key / label / hint` 单字段，无法承载原型中每列独立的判定标准列表。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 三列表格布局严格对齐原型（表头 + 行分隔线 + 组件名列浅灰背景）
 - 每行 Major / Minor 列各自展示 bullet criteria 文案（来自原型）
@@ -25,14 +25,14 @@
 - 只读模式展示相同表格结构，高亮已选列
 - 数据模型 `changeDescription` 不变（仍为 `{ [key]: 'major' | 'minor' }`）
 
-**Non-Goals:**
+**非目标：**
 
 - 不改变 Step 2–4 向导逻辑
 - 不新增变更组件项
 - 不实现按 major/minor 自动路由审批路径
 - 不修改列表页或其他模块
 
-## Decisions
+## 设计决策
 
 ### 1. 数据结构扩展 — `changeDescriptionComponents`
 
@@ -97,7 +97,7 @@ Emit: `toggle`
 - 或在 data 层直接用英文句子作为 tr key（与项目现有 `tr('Course Name')` 模式一致）
 - **选择**：英文句子作 key（与现有 `changeDescriptionComponents` label 一致），中文写入 `zh-flat.js`
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -105,10 +105,10 @@ Emit: `toggle`
 | 移动端窄屏三列挤压 | 本系统为桌面教务后台，暂不做响应式折叠 |
 | 与 add-course-change-application tasks 3.2 重复 | 本变更 supersede 该 task 的 styling 部分 |
 
-## Migration Plan
+## 迁移说明
 
 纯 UI 重构，无数据迁移。已存 mock 数据的 `changeDescription` 字段兼容。
 
-## Open Questions
+## 待定问题
 
 （无 — 原型 criteria 文案已完整）

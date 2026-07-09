@@ -1,235 +1,235 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Withdrawal list page displays withdrawal history
-The system SHALL display a paginated Withdrawal History table with columns: Application ID, Student ID, Name, Programme, Intake, Reason, Status, Date, and Actions.
+### 需求：退学列表页展示退学历史
+系统应展示分页的 Withdrawal History 表格，列包括：Application ID、Student ID、Name、Programme、Intake、Reason、Status、Date 和 Actions。
 
-#### Scenario: Default list load
-- **WHEN** user navigates to Withdrawal in the Student Records sidebar
-- **THEN** the system displays the Withdrawal page with a Withdrawal History table and at least mock sample records
+#### 场景：默认列表加载
+- **当** 用户在 Student Records 侧边栏导航至 Withdrawal
+- **则** 系统展示 Withdrawal 页面，包含 Withdrawal History 表格及至少一条 mock 示例记录
 
-#### Scenario: Status badge display for six core statuses
-- **WHEN** a record has status Draft, In Progress, Update Required, Approved, Rejected, or Cancelled
-- **THEN** the system displays the status as a read-only badge with distinct styling aligned to programme transfer and deferment badges
+#### 场景：六种核心状态的 Status 徽章展示
+- **当** 记录状态为 Draft、In Progress、Update Required、Approved、Rejected 或 Cancelled
+- **则** 系统以只读徽章展示状态，样式与转专业、休学徽章对齐且区分明显
 
-#### Scenario: Reason column shows main reason without level suffix
-- **WHEN** a withdrawal record is shown in the list
-- **THEN** the Reason column displays the localized main reason text without appending (UG) or (PG) suffixes
+#### 场景：Reason 列显示主要原因且无层次后缀
+- **当** 列表中展示一条退学记录
+- **则** Reason 列显示已本地化的主要原因文本，不附加 (UG) 或 (PG) 后缀
 
-#### Scenario: List actions follow status rules
-- **WHEN** user views a Draft record
-- **THEN** the Actions column shows Details, Edit, Delete, and Workflow Log
-- **WHEN** user views an In Progress record at Pending Review stage eligible for cancel
-- **THEN** the Actions column shows Details, Cancel, and Workflow Log
-- **WHEN** user views an In Progress record beyond Pending Review or with approval decisions in the log
-- **THEN** the Actions column shows Details and Workflow Log only
-- **WHEN** user views an Update Required record
-- **THEN** the Actions column shows Details, Edit, and Workflow Log
-- **WHEN** user views a Cancelled, Rejected, or Approved record
-- **THEN** the Actions column shows Details and Workflow Log only
+#### 场景：列表操作遵循状态规则
+- **当** 用户查看 Draft 记录
+- **则** Actions 列显示 Details、Edit、Delete 和 Workflow Log
+- **当** 用户查看处于 Pending Review 阶段且符合取消条件的 In Progress 记录
+- **则** Actions 列显示 Details、Cancel 和 Workflow Log
+- **当** 用户查看已超过 Pending Review 或审批日志中已有审批决定的 In Progress 记录
+- **则** Actions 列仅显示 Details 和 Workflow Log
+- **当** 用户查看 Update Required 记录
+- **则** Actions 列显示 Details、Edit 和 Workflow Log
+- **当** 用户查看 Cancelled、Rejected 或 Approved 记录
+- **则** Actions 列仅显示 Details 和 Workflow Log
 
-### Requirement: Search withdrawal applications
-The system SHALL support searching applications by Student ID or Name using a search bar on the first row of the list page card.
+### 需求：搜索退学申请
+系统应支持通过 Student ID 或 Name 搜索申请；搜索栏位于列表页卡片第一行。
 
-#### Scenario: Search bar is first row without page title
-- **WHEN** user navigates to Withdrawal
-- **THEN** the list card does not display a large in-page title
-- **AND** the first row of the card is the search bar with Search and Reset actions aligned to the right
+#### 场景：搜索栏为第一行且无页面标题
+- **当** 用户导航至 Withdrawal
+- **则** 列表卡片不显示大号页内标题
+- **且** 卡片第一行为搜索栏，Search 和 Reset 操作右对齐
 
-#### Scenario: Search field label matches input meaning
-- **WHEN** user views the search bar
-- **THEN** the label describes the searchable content (e.g. "Student ID or Name:") followed by the text input
+#### 场景：搜索字段标签与输入含义一致
+- **当** 用户查看搜索栏
+- **则** 标签描述可搜索内容（如「Student ID or Name:」），后接文本输入框
 
-#### Scenario: Search by student ID or name
-- **WHEN** user enters a keyword and clicks Search
-- **THEN** the list shows only matching records and resets to page 1
+#### 场景：按学号或姓名搜索
+- **当** 用户输入关键词并点击 Search
+- **则** 列表仅显示匹配记录，并重置到第 1 页
 
-#### Scenario: Reset search
-- **WHEN** user clears the keyword and clicks Reset
-- **THEN** the full list is restored
+#### 场景：重置搜索
+- **当** 用户清空关键词并点击 Reset
+- **则** 恢复完整列表
 
-### Requirement: Create and edit withdrawal applications with draft support
-The system SHALL allow users to create and edit withdrawal applications via a multi-section form modal with Save Draft and Submit workflows.
+### 需求：创建与编辑退学申请并支持草稿
+系统应允许用户通过多区块表单弹框创建与编辑退学申请，支持 Save Draft 与 Submit 工作流。
 
-#### Scenario: Open create form
-- **WHEN** user clicks "+ New Withdrawal"
-- **THEN** the system opens the Withdrawal Application form modal with Section I–III, declaration, supporting documents, conditional ISAO note area, and footer actions Close, Save Draft, and Submit
+#### 场景：打开创建表单
+- **当** 用户点击「+ New Withdrawal」
+- **则** 系统打开 Withdrawal Application 表单弹框，包含 Section I–III、声明、支持材料、条件性 ISAO 说明区域，以及页脚操作 Close、Save Draft 和 Submit
 
-#### Scenario: Save draft
-- **WHEN** user clicks Save Draft on a new or edited application
-- **THEN** the application is saved with status Draft and appears in the list with Edit and Delete actions
+#### 场景：保存草稿
+- **当** 用户在新建或编辑申请上点击 Save Draft
+- **则** 申请以 Draft 状态保存，出现在列表中，并提供 Edit 和 Delete 操作
 
-#### Scenario: Submit application
-- **WHEN** user completes all submit-required fields including declaration, parent/guardian section, and attachment and clicks Submit
-- **THEN** the application status becomes In Progress with approval stage Pending Review
+#### 场景：提交申请
+- **当** 用户完成所有提交必填字段（含声明、家长/监护人区块与附件）并点击 Submit
+- **则** 申请状态变为 In Progress，审批阶段为 Pending Review
 
-#### Scenario: One active application per student
-- **WHEN** user attempts to submit for a student who already has a Draft, In Progress, or Update Required withdrawal
-- **THEN** the system prevents submission and displays a validation message
+#### 场景：每名学生仅一条有效申请
+- **当** 用户尝试为已有 Draft、In Progress 或 Update Required 退学申请的学生提交
+- **则** 系统阻止提交并显示校验提示
 
-### Requirement: Withdrawal form sections match prototype
-The system SHALL render the application form with sections and fields aligned to the StudentSys prototype.
+### 需求：退学表单区块与原型一致
+系统应渲染与 StudentSys 原型对齐的申请表单区块与字段。
 
-#### Scenario: Section I student information
-- **WHEN** user views Section I in the form
-- **THEN** the system shows Student ID (required, searchable select), Date of Application (read-only, current date), Name, Intake, NRIC/Passport No., Nationality, Programme, and Programme Level
+#### 场景：Section I 学生信息
+- **当** 用户在表单中查看 Section I
+- **则** 系统展示 Student ID（必填，可搜索选择）、Date of Application（只读，当前日期）、Name、Intake、NRIC/Passport No.、Nationality、Programme 和 Programme Level
 
-#### Scenario: Student ID auto-fill
-- **WHEN** user selects a Student ID from the student profile data
-- **THEN** the system auto-fills Section I and Section II contact fields from the linked student profile
+#### 场景：Student ID 自动填充
+- **当** 用户从学生档案数据中选择 Student ID
+- **则** 系统从关联学生档案自动填充 Section I 和 Section II 联系字段
 
-#### Scenario: Section II student application
-- **WHEN** user views Section II in the form
-- **THEN** the system shows Personal Email, Phone Number, Last Date of Attendance, Destination after Leaving, Main Reason for Withdrawal (dropdown), Current Whereabout, and Detailed Reason (textarea)
+#### 场景：Section II 学生申请
+- **当** 用户在表单中查看 Section II
+- **则** 系统展示 Personal Email、Phone Number、Last Date of Attendance、Destination after Leaving、Main Reason for Withdrawal（下拉）、Current Whereabout 和 Detailed Reason（多行文本）
 
-#### Scenario: Main reason dropdown without level suffix
-- **WHEN** user views the Main Reason for Withdrawal dropdown
-- **THEN** the system shows localized reason options without (UG) or (PG) suffixes
+#### 场景：主要原因下拉无层次后缀
+- **当** 用户查看 Main Reason for Withdrawal 下拉框
+- **则** 系统展示已本地化的原因选项，不含 (UG) 或 (PG) 后缀
 
-#### Scenario: Declaration checkbox
-- **WHEN** user views the declaration area
-- **THEN** the system shows one required checkbox declaring that all provided information is correct and complete
+#### 场景：声明勾选框
+- **当** 用户查看声明区域
+- **则** 系统展示一项必填勾选框，声明所提供信息正确且完整
 
-#### Scenario: Section III parent or guardian consent
-- **WHEN** user views Section III in the form
-- **THEN** the system shows Parent/Guardian Name, Contact No., NRIC/Passport No., Relationship, and Email as required fields on submit
+#### 场景：Section III 家长或监护人同意
+- **当** 用户在表单中查看 Section III
+- **则** 系统展示 Parent/Guardian Name、Contact No.、NRIC/Passport No.、Relationship 和 Email，提交时为必填
 
-#### Scenario: Supporting documents section
-- **WHEN** user views Supporting Documents in the form
-- **THEN** the system shows required attachment upload (mock) with format hint PDF/JPG/PNG/DOCX max 5MB and Download Consent Letter action
+#### 场景：Supporting Documents 区块
+- **当** 用户在表单中查看 Supporting Documents
+- **则** 系统展示必填附件上传（mock），格式提示 PDF/JPG/PNG/DOCX 最大 5MB，并提供 Download Consent Letter 操作
 
-#### Scenario: ISAO note for international students only
-- **WHEN** user selects a student with category International
-- **THEN** the system displays a purple ISAO note alert that ISAO approval is required for withdrawal
+#### 场景：仅国际学生显示 ISAO 说明
+- **当** 用户选择 category 为 International 的学生
+- **则** 系统显示紫色 ISAO 说明提示：退学须 ISAO 批准
 
-#### Scenario: ISAO note hidden for local and china students
-- **WHEN** user selects a student with category Local or China
-- **THEN** the system does not display the ISAO note alert
+#### 场景：本地与中国学生隐藏 ISAO 说明
+- **当** 用户选择 category 为 Local 或 China 的学生
+- **则** 系统不显示 ISAO 说明提示
 
-### Requirement: Withdrawal form validation
-The system SHALL validate required fields according to form mode (draft vs submit/resubmit).
+### 需求：退学表单校验
+系统应按表单模式（draft 与 submit/resubmit）校验必填字段。
 
-#### Scenario: Draft validation
-- **WHEN** user clicks Save Draft
-- **THEN** the system requires only Student ID and allows saving without declaration, parent section, or attachment
+#### 场景：草稿校验
+- **当** 用户点击 Save Draft
+- **则** 系统仅要求 Student ID，允许在未填写声明、家长区块或附件时保存
 
-#### Scenario: Submit validation
-- **WHEN** user clicks Submit or Resubmit without Student ID, Section II required fields, declaration checkbox, Section III fields, or attachment
-- **THEN** the system prevents submission and displays inline validation messages
+#### 场景：提交校验
+- **当** 用户未填写 Student ID、Section II 必填字段、声明勾选框、Section III 字段或附件即点击 Submit 或 Resubmit
+- **则** 系统阻止提交并显示行内校验提示
 
-### Requirement: Cancel in-progress application before review starts
-The system SHALL allow students to cancel an In Progress application only while it is at Pending Review and before any approval decision is recorded.
+### 需求：审核开始前取消进行中申请
+系统应允许学生仅在 Pending Review 阶段且尚未记录任何审批决定时，取消 In Progress 申请。
 
-#### Scenario: Cancel at pending review
-- **WHEN** user clicks Cancel on an In Progress application at Pending Review with no approval decisions in the log
-- **THEN** the application status becomes Cancelled, is archived, and remains in history as read-only
+#### 场景：在 Pending Review 取消
+- **当** 用户点击处于 Pending Review 且审批日志中无审批决定的 In Progress 申请的 Cancel
+- **则** 申请状态变为 Cancelled、归档，并以只读形式保留在历史中
 
-#### Scenario: Cancel not available after review starts
-- **WHEN** an In Progress application has progressed beyond Pending Review or has approval decisions in the log
-- **THEN** the Cancel action is not shown
+#### 场景：审核开始后不可取消
+- **当** In Progress 申请已超过 Pending Review 或审批日志中已有审批决定
+- **则** 不显示 Cancel 操作
 
-#### Scenario: Cancel does not delete record
-- **WHEN** user cancels an application
-- **THEN** the record is not physically deleted from Withdrawal History
+#### 场景：取消不删除记录
+- **当** 用户取消申请
+- **则** 记录未从 Withdrawal History 中物理删除
 
-### Requirement: Update required allows edit and resubmit
-The system SHALL allow editing and resubmission when an application is in Update Required status.
+### 需求：Update Required 允许编辑并重新提交
+系统应允许对 Update Required 状态申请进行编辑并重新提交。
 
-#### Scenario: Edit update required application
-- **WHEN** user clicks Edit on an Update Required record
-- **THEN** the system opens the form modal with existing data editable
+#### 场景：编辑需更新申请
+- **当** 用户点击 Update Required 记录的 Edit
+- **则** 系统打开表单弹框，现有数据可编辑
 
-#### Scenario: Resubmit after update
-- **WHEN** user saves changes and resubmits an Update Required application
-- **THEN** the status becomes In Progress with approval stage Pending Review
+#### 场景：更新后重新提交
+- **当** 用户保存修改并重新提交 Update Required 申请
+- **则** 状态变为 In Progress，审批阶段为 Pending Review
 
-### Requirement: Terminal statuses are read-only
-The system SHALL treat Approved, Rejected, and Cancelled as terminal archived statuses with read-only details.
+### 需求：终态为只读
+系统应将 Approved、Rejected 和 Cancelled 视为终态已归档，详情只读。
 
-#### Scenario: View terminal details
-- **WHEN** user clicks Details on an Approved, Rejected, or Cancelled application
-- **THEN** the system shows all sections in read-only mode with no approval or edit actions
+#### 场景：查看终态详情
+- **当** 用户点击 Approved、Rejected 或 Cancelled 申请的 Details
+- **则** 系统以只读模式展示所有区块，无审批或编辑操作
 
-#### Scenario: In progress allows approval
-- **WHEN** an application has status In Progress
-- **THEN** approval actions are available in Details when the user can approve
+#### 场景：In Progress 允许审批
+- **当** 申请状态为 In Progress
+- **则** 在用户具备审批权限时，Details 中提供审批操作
 
-#### Scenario: ISAO note in details for international student
-- **WHEN** user views Details for an application linked to an International student
-- **THEN** the system displays the ISAO note in read-only mode
+#### 场景：国际学生详情中的 ISAO 说明
+- **当** 用户查看关联 International 学生申请的 Details
+- **则** 系统以只读模式显示 ISAO 说明
 
-### Requirement: Withdrawal approval workflow
-The system SHALL implement a mock multi-stage approval workflow driven by approval actions, not manual status selection.
+### 需求：退学审批工作流
+系统应实现由审批操作驱动的 mock 多阶段审批工作流，而非手动选择状态。
 
-#### Scenario: Approve and advance stage
-- **WHEN** an administrator approves a non-final stage on an In Progress application
-- **THEN** the application advances to the next approval stage and remains In Progress
+#### 场景：批准并推进阶段
+- **当** 管理员在 In Progress 申请的非最终阶段批准
+- **则** 申请推进至下一审批阶段，状态保持 In Progress
 
-#### Scenario: Final approval
-- **WHEN** an administrator approves at the final stage
-- **THEN** the application status becomes Approved and is archived
+#### 场景：最终批准
+- **当** 管理员在最终阶段批准
+- **则** 申请状态变为 Approved 并归档
 
-#### Scenario: Update required decision
-- **WHEN** an administrator selects Update Required with a comment
-- **THEN** the application status becomes Update Required and allows edit and resubmit
+#### 场景：需更新决定
+- **当** 管理员选择 Update Required 并填写评论
+- **则** 申请状态变为 Update Required，允许编辑并重新提交
 
-#### Scenario: Reject application
-- **WHEN** an administrator selects Rejected with a comment
-- **THEN** the application status becomes Rejected, is archived, and the workflow terminates
+#### 场景：拒绝申请
+- **当** 管理员选择 Rejected 并填写评论
+- **则** 申请状态变为 Rejected、归档，工作流终止
 
-#### Scenario: Reject requires comment
-- **WHEN** an administrator selects Rejected without a comment
-- **THEN** the system prevents the decision and displays a validation message
+#### 场景：拒绝须填写评论
+- **当** 管理员选择 Rejected 但未填写评论
+- **则** 系统阻止该决定并显示校验提示
 
-### Requirement: Withdrawal list exposes workflow log action
-The system SHALL provide a Workflow Log action on every withdrawal application row regardless of status.
+### 需求：退学列表提供工作流日志操作
+系统应在每条退学申请行上提供 Workflow Log 操作，与状态无关。
 
-#### Scenario: Workflow log opens separate modal
-- **WHEN** user clicks Workflow Log on a withdrawal row
-- **THEN** the system opens ApprovalLogModal with approval log entries in table format
-- **AND** the modal displays a subtitle with application ID, student ID, and student name
-- **AND** the detail modal does not contain an inline approval log section
+#### 场景：工作流日志打开独立弹框
+- **当** 用户点击退学行的 Workflow Log
+- **则** 系统打开 ApprovalLogModal，以表格形式展示审批日志条目
+- **且** 弹框副标题显示 application ID、student ID 和 student name
+- **且** 详情弹框内不包含行内审批日志区块
 
-#### Scenario: Workflow log on draft without submissions
-- **WHEN** user clicks Workflow Log on a Draft application with no log entries
-- **THEN** the modal opens and displays a no-data message
+#### 场景：无提交记录的 Draft 工作流日志
+- **当** 用户点击无日志条目的 Draft 申请的 Workflow Log
+- **则** 弹框打开并显示无数据提示
 
-### Requirement: Withdrawal detail modal does not embed approval log
-The system SHALL NOT display the approval log timeline inside WithdrawalDetailModal.
+### 需求：退学详情弹框不内嵌审批日志
+系统不得在 WithdrawalDetailModal 内展示审批日志时间线。
 
-#### Scenario: Detail modal without log section
-- **WHEN** user opens Details for any withdrawal application
-- **THEN** the detail modal shows application sections and in-progress approval controls only
-- **AND** does not show an inline approval log list
+#### 场景：详情弹框无日志区块
+- **当** 用户打开任意退学申请的 Details
+- **则** 详情弹框仅展示申请区块及进行中审批控件
+- **且** 不展示行内审批日志列表
 
-### Requirement: Withdrawal status demonstration mock data
-The system SHALL provide mock withdrawal records covering Draft, In Progress, Cancelled, Update Required, Rejected, and Approved with at least two records per status.
+### 需求：退学状态演示 mock 数据
+系统应提供覆盖 Draft、In Progress、Cancelled、Update Required、Rejected 和 Approved 的 mock 退学记录，每状态至少两条。
 
-#### Scenario: Draft status samples
-- **WHEN** user loads Withdrawal History with mock data
-- **THEN** at least two Draft records exist with Edit and Delete actions
+#### 场景：Draft 状态示例
+- **当** 用户加载含 mock 数据的 Withdrawal History
+- **则** 至少存在两条 Draft 记录，并提供 Edit 和 Delete 操作
 
-#### Scenario: In progress status samples
-- **WHEN** user loads Withdrawal History with mock data
-- **THEN** at least two In Progress records exist including one Pending Review record with Cancel and one record beyond Pending Review without Cancel
+#### 场景：In Progress 状态示例
+- **当** 用户加载含 mock 数据的 Withdrawal History
+- **则** 至少存在两条 In Progress 记录，其中一条为 Pending Review 且可 Cancel，另一条已超过 Pending Review 且不可 Cancel
 
-#### Scenario: Cancelled update required rejected approved samples
-- **WHEN** user loads Withdrawal History with mock data
-- **THEN** at least two records exist for each of Cancelled, Update Required, Rejected, and Approved statuses
+#### 场景：Cancelled、Update Required、Rejected、Approved 示例
+- **当** 用户加载含 mock 数据的 Withdrawal History
+- **则** Cancelled、Update Required、Rejected 和 Approved 各状态至少存在两条记录
 
-### Requirement: Withdrawal page supports bilingual i18n
-The system SHALL provide complete English and Chinese translations for all Withdrawal page UI text including six status badges and workflow actions via the `withdrawal.*` i18n namespace.
+### 需求：退学页面支持双语 i18n
+系统应通过 `withdrawal.*` i18n 命名空间，为 Withdrawal 页面全部 UI 文案（含六种状态徽章与工作流操作）提供完整中英文翻译。
 
-#### Scenario: English locale
-- **WHEN** user sets the application language to English
-- **THEN** Withdrawal list, form, details, status badges, main reason options, declaration, and ISAO note display English text from `en.js`
+#### 场景：英文语言区域
+- **当** 用户将应用语言设为 English
+- **则** Withdrawal 列表、表单、详情、状态徽章、主要原因选项、声明与 ISAO 说明均显示 `en.js` 中的英文文案
 
-#### Scenario: Chinese locale
-- **WHEN** user sets the application language to Chinese
-- **THEN** Withdrawal list, form, details, status badges, main reason options, declaration, and ISAO note display Chinese text from `zh.js`
+#### 场景：中文语言区域
+- **当** 用户将应用语言设为 Chinese
+- **则** Withdrawal 列表、表单、详情、状态徽章、主要原因选项、声明与 ISAO 说明均显示 `zh.js` 中的中文文案
 
-### Requirement: Withdrawal page is registered in student records app
-The system SHALL register Withdrawal as a developed page in the Student Records Application.
+### 需求：退学页面注册于学籍应用
+系统应在 Student Records Application 中将 Withdrawal 注册为已开发页面。
 
-#### Scenario: Sidebar navigation
-- **WHEN** user selects Withdrawal in the sidebar
-- **THEN** the system displays WithdrawalView instead of the under-construction page
+#### 场景：侧边栏导航
+- **当** 用户在侧边栏选择 Withdrawal
+- **则** 系统展示 WithdrawalView，而非施工中页面

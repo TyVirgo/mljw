@@ -1,10 +1,10 @@
-## Why
+## 背景与动机
 
 当前「学籍异动申请」（`sr-movement-application`）面向教务老师代学生发起异动，Section I 使用「查询 + 全量下拉」选学生，学生量大时不可用。产品需要 **老师端与学生端双入口**：老师继续代申请并升级为可搜索分页的 **学生选择器**；学生本人从学籍模块自助申请，**学号/姓名等自动填充且不可选他人**。
 
 首版双入口（`split-movement-application-teacher-student`）已实现菜单拆分、StudentSelectModal、学生端本人列表与 Section I 自动填充。产品进一步要求 **四异动申请列表** 对齐查询/维护的检索能力，并区分老师/学生在 **搜索字段与表格列** 上的展示差异。
 
-## What Changes
+## 变更内容
 
 ### 菜单与导航（已实现）
 
@@ -88,20 +88,20 @@
 - 删除 `programmeTransfers.js` 中 `expireApplication` 函数及 View 层引用
 - 清理关联 i18n（`simulateExpire`、`expireOne`）；**保留** `isTransferExpired` 等与自动期限校验相关的逻辑（若存在）
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `student-select-modal`: 老师端学生选择弹窗（已实现）
 - `movement-application-list-filters`: 四异动列表增强搜索、转专业去 Tab、学生端列/搜索差异
 
-### Modified Capabilities
+### 修改的能力
 
 - `movement-application-shell`: 双 portal 入口（已实现）
 - `movement-application-applicant-mode`: Section I / 列表范围（已实现）+ 列表搜索与列展示 delta
 - `student-records-app`: 菜单拆分（已实现）
 
-## Impact
+## 影响范围
 
 - **新增**
   - `src/data/movementApplicationSearch.js`
@@ -118,13 +118,13 @@
   - `extractApplicationSession`、`extractCurrentProgrammeCode`、`normalizeQueueItem` 推导逻辑
   - `MovementQueryView` 双行搜索 + 收起交互
   - `list-page-search.css`
-- **Non-goals**
+- **非目标**
   - 修改 movementStore 结构
   - 转专业按新专业代码过滤
   - 修改审批引擎、维护实施逻辑、统计模块
   - 将 `applicationSession` 与转专业 Section II 用户可选 `startSemester` 合并
 
-## Decisions（探索阶段已确认）
+## 设计决策（探索阶段已确认）
 
 | 项 | 决策 |
 |----|------|
@@ -164,7 +164,7 @@
 | `getCurrentApplicationSession()` on create | 移除 create 预填 |
 | 打开即见当前学期 | 选学生后见 intake |
 
-### Decisions（§16 已确认）
+### 设计决策（
 
 | 项 | 决策 |
 |----|------|
@@ -176,18 +176,18 @@
 
 ## §17 增量 — 学生选择器增加专业、学院列（2026-06-24）
 
-### Why
+### 背景与动机
 
 老师代申请时需在选学生弹窗内快速确认学籍归属，仅学号/姓名不足以区分同名或跨专业场景。
 
-### What Changes
+### 变更内容
 
 - `StudentSelectModal` 列表在「姓名」后增加 **专业**（`enrollment.programme`）、**学院**（`enrollment.faculty`）两列
 - 空值显示 `—`；搜索逻辑不变（仍学号/英文名/中文名 keyword）
 - 弹窗适当加宽以容纳长专业名；专业列可 ellipsis
 - i18n：`studentSelect.columns.programme`、`studentSelect.columns.faculty`
 
-### Non-goals
+### 非目标
 
 - 搜索不按专业/学院过滤
 - 不改 confirm 回调与 Section I 联动逻辑
@@ -196,13 +196,13 @@
 
 ## §23 搜索按钮样式 + 管理端菜单改名（2026-06）
 
-### Why
+### 背景与动机
 
 异动申请列表搜索区「查询 / 重置」当前呈现为 **文字链样式**（全局 `button { border:none; background:none }` 重置 + `MovementApplicationSearchBar` 未定义 `btn-primary` / `btn-default`），与 **异动类别** 等列表页实心/描边按钮不一致。产品要求对齐异动类别搜索按钮（蓝底「查询」+ 白底描边「重置」）。
 
 同时菜单文案「学籍异动申请（老师）」调整为 **「学籍异动申请（管理端）」**，更准确表达教务管理入口（内部 `pageId` 仍为 `sr-movement-application-teacher`）。
 
-### What Changes
+### 变更内容
 
 **搜索按钮（老师 + 学生 × 四 Tab，一处生效）**
 
@@ -221,13 +221,13 @@
 - `studentRecordsMenu.js` **不改** `id` / `labelKey`
 - 面包屑随 i18n 自动更新
 
-### Capabilities（§23 增量）
+### 能力范围（§23 增量）
 
 - `movement-application-list-filters`: 搜索区查询/重置按钮视觉规范
 - `movement-application-shell`: 管理端菜单展示文案
 
-### Impact（§23 增量）
+### 影响范围（§23 增量）
 
 - **修改** `src/styles/list-page-search.css`
 - **修改** `src/i18n/locales/zh.js`、`en.js` — `menu.srMovementApplicationTeacher`
-- **Non-goals** — 不改 `pageId`；不改学生端菜单；不改 PRD 脚本；不改搜索字段逻辑
+- **非目标** — 不改 `pageId`；不改学生端菜单；不改 PRD 脚本；不改搜索字段逻辑

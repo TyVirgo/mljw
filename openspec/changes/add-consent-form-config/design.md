@@ -1,12 +1,12 @@
-## Context
+## 背景说明
 
 `restructure-student-records-navigation` 已在「学籍异动」组第二位放置 **知情同意书**（`sr-consent-form`）。`add-movement-category-config` 已实现异动类别主数据。四 Tab 异动申请均已实现 Form/Detail，Documents 区有「下载同意书」但统一 `window.alert(consentLetterHint)`。
 
 产品图示要求：管理端维护 **(异动类型 × 学生类型) → 模板**；申请端按 Tab + 学生类别匹配下载；部分类型含家长模板；转专业需配置 **修读时长** 申请门槛。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 知情同意书列表 CRUD（图示1）
 - Create/Edit 弹窗（图示3）：名称、适用类别、Student Type、修读时长（转专业）、Remark、学生/家长模板 upload
@@ -16,14 +16,14 @@
 - 转专业提交时 mock 修读时长校验
 - Mock 种子数据体现多维差异
 
-**Non-Goals:**
+**非目标：**
 
 - 后端文件服务、真实 PDF 生成
 - 与 `movementCategories` 行级联动（仅用四 Tab 粗粒度）
 - 精确学期/学分计算引擎
 - 审批、维护、查询等其它占位菜单
 
-## Decisions
+## 设计决策
 
 ### 1. 数据模型 — `src/data/consentForms.js`
 
@@ -167,7 +167,7 @@ function downloadConsentLetter() {
 - `App.vue`：`isConsentForm` → `ConsentFormView`
 - 新增 `consentForm.*` 命名空间；`studentType.Chinese` → 「中国」
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -176,7 +176,7 @@ function downloadConsentLetter() {
 | 家长书单/双下载按钮 UX | 仅 Section III 有家长区时显示家长下载 |
 | 模板缺失导致申请阻塞 | 明确提示「未配置」；种子数据覆盖四 Tab |
 
-## Migration Plan
+## 迁移说明
 
 1. `consentForms.js` + download util + lookup
 2. ConsentFormView + FormModal + ViewModal
@@ -185,7 +185,7 @@ function downloadConsentLetter() {
 5. PT 修读时长 submit 校验
 6. 冒烟 + `npm run build`
 
-## Open Questions
+## 待决问题
 
 - 复学是否普遍需要家长同意书：首版 mock 可不配 parent file，保留字段即可
 - ~~`withinMaxDuration` 是否在首版拦截提交~~（Phase 1 已移除修读时长）
@@ -300,13 +300,13 @@ ConsentFormVersionHistoryModal
   specs/movement-application-details/spec.md（未匹配文案）
 ```
 
-**Non-Goals（§10）**：行级默认附件作为下载 fallback；06 月份；版本 diff UI。
+**非目标（§10）**：行级默认附件作为下载 fallback；06 月份；版本 diff UI。
 
 ---
 
 ## §11 Phase 2.1 — 历史版本 UX refinement（Status Log 式 + 全局 Apply）
 
-> **Supersedes（部分）§10**：历史弹窗手工维护、同学期 Apply 互斥、lookup 四维匹配 — 本 Phase **暂时** 改为 Save 追加日志 + 全局一条 Applied + 三维 lookup。
+> **部分取代 §10**：历史弹窗手工维护、同学期 Apply 互斥、lookup 四维匹配 — 本 Phase **暂时** 改为 Save 追加日志 + 全局一条 Applied + 三维 lookup。
 
 ### 13. Version log 模型（对齐 Status Log）
 
@@ -392,4 +392,4 @@ export function resolveConsentTemplate(movementType, studentCategory, programmeL
   specs/movement-application-details/spec.md MODIFIED
 ```
 
-**Non-Goals（§11）**：历史 Delete；弹窗内 Edit；按学期分组 Apply。
+**非目标（§11）**：历史 Delete；弹窗内 Edit；按学期分组 Apply。

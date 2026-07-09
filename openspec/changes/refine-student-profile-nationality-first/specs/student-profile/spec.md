@@ -1,134 +1,105 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Student Profile nationality-first form layout
-The system SHALL organize the registration and detail drawers into two labeled sections: **Nationality Information** (国籍信息) and **Information Entry** (信息填写).
+### 需求：学籍表单国籍优先布局
+系统应将新建/编辑抽屉与详情抽屉组织为两个带标签的分区：**国籍信息**（Nationality Information）与 **信息填写**（Information Entry）。
 
-#### Scenario: Create form shows nationality section first
-- **WHEN** user opens the new student registration drawer
-- **THEN** the drawer displays step **1** **Nationality Information** as the only visible form section until a nationality is selected
+#### 场景：新建表单先展示国籍区
+- 当用户打开新建学籍抽屉时，则在选择国籍前，抽屉仅显示步骤 **1** **国籍信息** 分区
 
-#### Scenario: Step numbers on form sections
-- **WHEN** user views the registration or detail drawer
-- **THEN** the **Nationality Information** section heading displays a prominent step number **1** and the **Information Entry** section heading displays a prominent step number **2**
+#### 场景：表单分区步骤序号
+- 当用户查看新建或编辑抽屉时，则 **国籍信息** 分区标题显示醒目的步骤序号 **1**，**信息填写** 分区标题显示步骤序号 **2**
 
-#### Scenario: Information Entry hidden before nationality on create
-- **WHEN** user opens the create registration drawer and has not selected a nationality
-- **THEN** the entire **Information Entry** section including its heading, tabs, and fields is not displayed
+#### 场景：新建未选国籍时隐藏信息填写区
+- 当用户打开新建抽屉且尚未选择国籍时，则整个 **信息填写** 分区（含标题、Tab 与字段）均不显示
 
-#### Scenario: Information Entry appears after nationality selected
-- **WHEN** user selects a nationality on create
-- **THEN** the **Information Entry** section becomes visible with seven tabs and category-appropriate editable fields
+#### 场景：选择国籍后显示信息填写区
+- 当用户在新建时选择国籍后，则 **信息填写** 分区变为可见，包含七个 Tab 及按类别适配的可编辑字段
 
-#### Scenario: Tabs show fields after nationality selected
-- **WHEN** user selects a nationality on create
-- **THEN** the Information Entry tabs display category-appropriate fields according to the derived Student Category
+#### 场景：选择国籍后 Tab 展示字段
+- 当用户在新建时选择国籍后，则信息填写各 Tab 按推导出的 Student Category 展示对应字段
 
-#### Scenario: Nationality searchable dropdown
-- **WHEN** user interacts with the Nationality field in create or edit mode
-- **THEN** the system provides a searchable dropdown of global nationality values with Malaysia and China listed first, followed by all other nationalities in alphabetical order
+#### 场景：国籍可搜索下拉
+- 当用户在新建或编辑模式下操作「国籍」字段时，则系统提供全球国籍值的可搜索下拉，Malaysia 与 China 置顶，其余国籍按字母序排列
 
-#### Scenario: Student category derived from nationality
-- **WHEN** user selects a nationality
-- **THEN** the system automatically sets Student Category using the rules Malaysia → Local, China → China, any other nationality → International, and displays the category as read-only in the Nationality Information section
+#### 场景：由国籍推导学生类别
+- 当用户选择国籍时，则系统按规则 Malaysia → Local、China → China、其他任何国籍 → International 自动设置 Student Category，并在 **国籍信息** 分区以只读方式展示
 
-#### Scenario: No manual student category selection
-- **WHEN** user views the registration drawer in create or edit mode
-- **THEN** the system does not display Student Category radio buttons or any other manual category selector
+#### 场景：不可手动选择学生类别
+- 当用户在新建或编辑抽屉中查看表单时，则系统不显示 Student Category 单选按钮或其他手动类别选择器
 
-#### Scenario: Nationality required on save
-- **WHEN** user clicks Save without selecting a nationality
-- **THEN** the system prevents save, keeps the Save button enabled, and shows a validation error prompting the user to select nationality on the Nationality field in step 1
+#### 场景：保存时国籍必填
+- 当用户未选择国籍就点击「保存」时，则系统阻止保存、保持「保存」按钮可点击，并在步骤 1 的「国籍」字段显示「请选择国籍」等校验提示
 
-#### Scenario: Nationality switch before save updates category fields
-- **WHEN** user changes nationality in create or edit mode before saving and the derived Student Category changes
-- **THEN** the system prompts for confirmation, clears category-incompatible fields, and updates visible fields to match the new category
+#### 场景：保存前切换国籍更新类别字段
+- 当用户在保存前变更国籍且推导出的 Student Category 发生变化时，则系统提示确认、清空类别不兼容字段，并更新可见字段以匹配新类别
 
-#### Scenario: Nationality switch within same category before save
-- **WHEN** user changes nationality before saving but the derived Student Category remains the same
-- **THEN** the system updates the nationality value without confirmation and without clearing category-specific fields
+#### 场景：同类别内切换国籍无需确认
+- 当用户在保存前变更国籍但推导出的 Student Category 不变时，则系统直接更新国籍值，无需确认且不清空类别专属字段
 
-#### Scenario: Nationality not duplicated in Basic Info tab
-- **WHEN** user views the Basic Info tab in create or edit mode
-- **THEN** the Nationality input is not shown inside Basic Info because it appears only in the Nationality Information section
+#### 场景：Basic Info Tab 不重复国籍
+- 当用户在新建或编辑模式下查看 Basic Info Tab 时，则 Tab 内不显示「国籍」输入，因其仅在 **国籍信息** 分区出现
 
-#### Scenario: Edit nationality change confirmation
-- **WHEN** user changes nationality such that the derived Student Category changes
-- **THEN** the system prompts for confirmation before applying the change and clearing category-incompatible fields
+#### 场景：编辑改国籍需确认
+- 当用户变更国籍导致推导出的 Student Category 变化时，则系统在应用变更并清空类别不兼容字段前提示确认
 
-#### Scenario: Detail drawer matches layout
-- **WHEN** user opens Details for a student record
-- **THEN** the read-only drawer uses step numbers **1** and **2** with the same Nationality Information and Information Entry section structure, showing nationality and derived category as read-only values
+#### 场景：详情抽屉布局一致
+- 当用户打开某学籍记录的「详情」时，则只读抽屉使用步骤序号 **1** 与 **2**，采用相同的 **国籍信息** 与 **信息填写** 分区结构，以只读方式展示国籍与推导出的类别
 
-### Requirement: Student Profile nationality to category mapping
-The system SHALL derive Student Category from nationality using a single shared mapping function used by the student profile form and movement modules.
+### 需求：学籍国籍到类别的映射
+系统应使用学籍表单与异动模块共用的单一映射函数，由国籍推导 Student Category。
 
-#### Scenario: Malaysia maps to Local
-- **WHEN** nationality is Malaysia
-- **THEN** Student Category is Local
+#### 场景：Malaysia 映射为 Local
+- 当国籍为 Malaysia 时，则 Student Category 为 Local
 
-#### Scenario: China maps to China
-- **WHEN** nationality is China
-- **THEN** Student Category is China
+#### 场景：China 映射为 China
+- 当国籍为 China 时，则 Student Category 为 China
 
-#### Scenario: Other nationalities map to International
-- **WHEN** nationality is any value other than Malaysia or China
-- **THEN** Student Category is International
+#### 场景：其他国籍映射为 International
+- 当国籍为 Malaysia 或 China 以外的任何值时，则 Student Category 为 International
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Student Profile create and edit registration form
-The system SHALL provide a New Student Registration drawer for creating and editing student records with a Nationality Information section, an Information Entry section with seven tabs, and category-appropriate fields derived from the selected nationality.
+### 需求：学籍新建与编辑表单
+系统应提供「新建学籍」抽屉用于创建与编辑学籍记录，包含 **国籍信息** 分区、含七个 Tab 的 **信息填写** 分区，以及按所选国籍推导的类别适配字段。
 
-#### Scenario: Open create form
-- **WHEN** user clicks Create on the Student Profile page
-- **THEN** the system opens an empty registration drawer titled for new student registration with a Nationality Information section containing an empty searchable nationality dropdown and no derived Student Category until nationality is selected
+#### 场景：打开新建表单
+- 当用户在学籍列表页点击「新增」时，则系统打开空的注册抽屉，标题为新建学籍，**国籍信息** 分区含空的可搜索国籍下拉，选择国籍前不显示推导出的 Student Category
 
-#### Scenario: Registration tabs displayed
-- **WHEN** the registration drawer is open and a nationality has been selected
-- **THEN** the system shows step **2** **Information Entry** with tabs Basic Info, Enrollment, Contact, Education, Family, Accommodation, and Others
+#### 场景：注册 Tab 展示
+- 当注册抽屉已打开且已选择国籍时，则系统显示步骤 **2** **信息填写**，含 Basic Info、Enrollment、Contact、Education、Family、Accommodation 与 Others 七个 Tab
 
-#### Scenario: Open edit form
-- **WHEN** user clicks Edit on a table row
-- **THEN** the system opens the registration drawer pre-filled with that student's nationality, derived Student Category, and all other data in edit mode
+#### 场景：打开编辑表单
+- 当用户点击表格行的「编辑」时，则系统打开预填该生国籍、推导 Student Category 及其余全部数据的编辑抽屉
 
-#### Scenario: Save new student
-- **WHEN** user completes required fields including nationality and clicks Save on a new student
-- **THEN** the system validates input, adds the student to the list with the derived Student Category, closes the drawer, and shows the new row in the table
+#### 场景：保存新学籍
+- 当用户填写必填字段（含国籍）并在新学籍上点击「保存」时，则系统校验输入、以推导的 Student Category 将学生加入列表、关闭抽屉并在表格中显示新行
 
-#### Scenario: Save edited student
-- **WHEN** user modifies fields and clicks Save in edit mode
-- **THEN** the system validates input, updates the existing record including nationality and derived Student Category, and reflects changes in the table
+#### 场景：保存编辑学籍
+- 当用户在编辑模式下修改字段并点击「保存」时，则系统校验输入、更新现有记录（含国籍与推导 Student Category），并在表格中反映变更
 
-#### Scenario: Duplicate student ID rejected
-- **WHEN** user saves a student whose Student ID already exists on another record
-- **THEN** the system prevents save and shows a validation error
+#### 场景：重复学号被拒绝
+- 当用户保存的 Student ID 已在其他记录中存在时，则系统阻止保存并显示校验错误
 
-#### Scenario: Cancel closes drawer
-- **WHEN** user clicks Cancel in the registration drawer
-- **THEN** the drawer closes without saving unsaved changes
+#### 场景：取消关闭抽屉
+- 当用户在注册抽屉中点击「取消」时，则抽屉关闭且不保存未保存的变更
 
-#### Scenario: Local basic info fields
-- **WHEN** user selects nationality Malaysia so that Student Category is Local
-- **THEN** the Basic Info tab displays IC No. and State of Birth and does not display passport-specific or China-only identity fields
+#### 场景：Local 类 Basic Info 字段
+- 当用户选择 Malaysia 使 Student Category 为 Local 时，则 Basic Info Tab 显示 IC No. 与 State of Birth，不显示护照专属或 China 专属身份字段
 
-#### Scenario: China basic info fields
-- **WHEN** user selects nationality China so that Student Category is China
-- **THEN** the Basic Info tab displays Passport No., Passport Expiry, Place of Birth, Candidate No., Political Outlook, and Identity No. (China ID), and does not display IC No. or State of Birth
+#### 场景：China 类 Basic Info 字段
+- 当用户选择 China 使 Student Category 为 China 时，则 Basic Info Tab 显示 Passport No.、Passport Expiry、Place of Birth、Candidate No.、Political Outlook 与 Identity No. (China ID)，不显示 IC No. 或 State of Birth
 
-#### Scenario: International basic info fields
-- **WHEN** user selects a nationality other than Malaysia or China so that Student Category is International
-- **THEN** the Basic Info tab displays Passport No., Passport Expiry, and Place of Birth, and does not display IC No., State of Birth, or China-only identity fields
+#### 场景：International 类 Basic Info 字段
+- 当用户选择 Malaysia 或 China 以外的国籍使 Student Category 为 International 时，则 Basic Info Tab 显示 Passport No.、Passport Expiry 与 Place of Birth，不显示 IC No.、State of Birth 或 China 专属身份字段
 
-#### Scenario: Category-specific validation on save
-- **WHEN** user saves a Local student without IC No.
-- **THEN** the system prevents save and shows a validation error on Basic Info
+#### 场景：保存时按类别校验
+- 当用户保存 Local 学生但未填写 IC No. 时，则系统阻止保存并在 Basic Info 显示校验错误
 
-#### Scenario: China or International save without IC No
-- **WHEN** user saves a China or International student without IC No. but with required shared fields completed
-- **THEN** the system allows save if other required fields are valid
+#### 场景：China 或 International 无 IC No. 可保存
+- 当用户保存 China 或 International 学生时未填 IC No. 但已完成其他必填共享字段时，则若其他必填字段有效则允许保存
 
-## REMOVED Requirements
+## 移除需求
 
-### Requirement: Student Profile create form manual category selection
-**Reason**: Student Category is now derived from nationality; manual radio selection is replaced by automatic mapping.
-**Migration**: Users select nationality first; the system sets Local, China, or International automatically.
+### 需求：新建表单手动选择学生类别
+**原因**：Student Category 现由国籍推导；手动 radio 选择已由自动映射替代。
+**迁移**：用户先选择国籍；系统自动设置 Local、China 或 International。

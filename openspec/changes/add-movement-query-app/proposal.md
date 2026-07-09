@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 学籍异动侧边栏「学籍异动查询」（`sr-movement-query`）仍为建设中页。教务人员需要在一个**只读**宽表中检索、浏览全部异动申请记录（含各审批状态），并支持字段可选的 **xlsx 导出**，无需像维护页那样实施或改数据。产品图示1–3 定义搜索区、宽表列与行内 **Details | Approval log**；图示4 要求导出交互对齐专业信息模块的 `ExportModal`。
 
-## What Changes
+## 变更内容
 
 ### 主列表页（图示1–3）
 
@@ -35,17 +35,17 @@
 - 复用 `ExportModal`：可选字段 ↔ 已选字段、导出当前页 / 全部结果 / 选中行
 - 输出 **.xlsx**（`xlsx` 库，模式对齐 `ProgrammeVersionView` / `exportProgrammeVersionExcel.js`）
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `movement-query-app`: 异动查询只读宽表、搜索收起、ExportModal xlsx 导出、Details/Log 下钻
 
-### Modified Capabilities
+### 修改的能力
 
 - `student-records-app`: `sr-movement-query` 从建设中升级为已开发
 
-## Impact
+## 影响范围
 
 - **新增**
   - `MovementQueryView.vue`
@@ -59,13 +59,13 @@
 - **复用**
   - `normalizeMaintenanceItem` / 扩展列 extract（`movementMaintenanceQueue.js` 或抽公共）
   - `MovementApprovalReviewView`、`ApprovalLogModal`、`ExportModal`、`TablePagination`
-- **Non-goals**
+- **非目标**
   - 任何 store 写操作（Edit / 实施 / 删除 / 审批）
   - 异动统计页
   - 表头真实排序逻辑
   - 后端 API
 
-## Decisions（探索阶段已确认）
+## 设计决策（探索阶段已确认）
 
 - 数据范围：**全部非 Draft**
 - 导出格式：**xlsx**（与专业信息一致）
@@ -100,7 +100,7 @@
 | 首行字段 | 学年学期、专业代码、状态、异动类型 |
 | 过滤 | `filterQueryBySearch`：`movementType` 精确匹配 `row.sourceKey` |
 
-### Decisions（§8 已确认）
+### 设计决策（
 
 | 项 | 决策 |
 |----|------|
@@ -142,7 +142,13 @@
 
 列表不展示上述列；用户可在 ExportModal 勾选后导出。
 
-### Decisions（§9 已确认）
+---
+
+## §12 是否实施 Y/N 公共 UI 组件（2026-06，原型确认后补档）
+
+与 `add-movement-maintenance` §12 同步：查询页列表「是否实施」列与搜索下拉改用 `ImplementedYnBadge`、`ImplementedYnSearchSelect`，与维护/审批 History 视觉与过滤语义一致。详见 maintenance proposal §12。
+
+### 设计决策（
 
 | 项 | 决策 |
 |----|------|
@@ -164,7 +170,7 @@
 | View | `MovementQueryView` import CSS + `listStatusBadgeClass`；移除 scoped 白字覆盖 |
 | Expired | `status === 'Expired'` → `status-expired` |
 
-### Decisions（§10 已确认）
+### 设计决策（
 
 | 项 | 决策 |
 |----|------|

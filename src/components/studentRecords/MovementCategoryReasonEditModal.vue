@@ -1,12 +1,13 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { validateReasonName } from '../../data/movementCategories.js'
+import YnSwitch from '../common/YnSwitch.vue'
 
 const props = defineProps({
   visible: Boolean,
   mode: { type: String, default: 'create' },
   initialName: { type: String, default: '' },
+  initialAllowStudentApply: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close', 'save'])
@@ -14,17 +15,22 @@ const emit = defineEmits(['close', 'save'])
 const { t } = useAppI18n()
 
 const reasonName = ref('')
+const allowStudentApply = ref(false)
 const error = ref('')
 
 const modalTitle = computed(() =>
   props.mode === 'edit' ? t('movementCategory.reason.editTitle') : t('movementCategory.reason.createTitle'),
 )
 
+const switchOnLabel = computed(() => t('common.yes'))
+const switchOffLabel = computed(() => t('common.no'))
+
 watch(
-  () => [props.visible, props.mode, props.initialName],
+  () => [props.visible, props.mode, props.initialName, props.initialAllowStudentApply],
   () => {
     if (!props.visible) return
     reasonName.value = props.initialName || ''
+    allowStudentApply.value = Boolean(props.initialAllowStudentApply)
     error.value = ''
   },
 )
@@ -38,12 +44,14 @@ function handleOverlayClick(event) {
 }
 
 function handleSave() {
-  const result = validateReasonName(reasonName.value)
-  if (!result.valid) {
+  if (!reasonName.value.trim()) {
     error.value = t('movementCategory.reason.nameRequired')
     return
   }
-  emit('save', reasonName.value.trim())
+  emit('save', {
+    reasonName: reasonName.value.trim(),
+    allowStudentApply: allowStudentApply.value,
+  })
 }
 </script>
 
@@ -60,10 +68,20 @@ function handleSave() {
           <input
             v-model="reasonName"
             type="text"
-            :class="['field-input', { 'is-error': error }]"
+            :class="['field-input', { 'is-error': error && !reasonName.trim() }]"
             :placeholder="t('common.pleaseInput')"
             @keyup.enter="handleSave"
           />
+
+          <label class="field-label allow-student-label">{{ t('movementCategory.reason.allowStudentApply') }}</label>
+          <div class="switch-row">
+            <YnSwitch
+              v-model="allowStudentApply"
+              :on-label="switchOnLabel"
+              :off-label="switchOffLabel"
+            />
+          </div>
+
           <p v-if="error" class="field-error">{{ error }}</p>
         </div>
         <div class="modal-footer">
@@ -88,11 +106,11 @@ function handleSave() {
 }
 .modal-panel {
   width: 100%;
-  max-width: 440px;
+  max-width: 480px;
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
-  overflow: hidden;
+  overflow: visible;
 }
 .modal-header {
   display: flex;
@@ -100,12 +118,23 @@ function handleSave() {
   justify-content: space-between;
   padding: 14px 18px;
   border-bottom: 1px solid #e5e7eb;
+  border-radius: 8px 8px 0 0;
+  background: #fff;
 }
 .modal-title { margin: 0; font-size: 15px; font-weight: 600; }
 .modal-close { border: none; background: transparent; font-size: 22px; color: #6b7280; cursor: pointer; }
-.modal-body { padding: 18px; }
+.modal-body {
+  padding: 18px;
+  overflow: visible;
+}
 .field-label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
 .field-label.required::before { content: '* '; color: #ef4444; }
+.allow-student-label { margin-top: 16px; }
+.switch-row {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+}
 .field-input {
   width: 100%;
   box-sizing: border-box;
@@ -114,15 +143,18 @@ function handleSave() {
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 13px;
+  background: #fff;
 }
 .field-input.is-error { border-color: #ef4444; }
-.field-error { margin: 6px 0 0; font-size: 12px; color: #ef4444; }
+.field-error { margin: 10px 0 0; font-size: 12px; color: #ef4444; }
 .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
   padding: 12px 18px;
   border-top: 1px solid #e5e7eb;
+  border-radius: 0 0 8px 8px;
+  background: #fff;
 }
 .btn { height: 32px; padding: 0 14px; border-radius: 6px; font-size: 13px; cursor: pointer; }
 .btn-default { border: 1px solid #d1d5db; background: #fff; }

@@ -1,10 +1,10 @@
-## Context
+## 背景说明
 
 `add-movement-approval-app`、`add-movement-maintenance` 已实现四 Tab 合并队列与宽表模式。`sr-movement-query` 菜单占位但未实现。查询页与维护页列结构高度重合，但数据范围为**全部非 Draft**，且**只读**（无实施/Edit/Delete），导出需接专业信息式 `ExportModal` + xlsx。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 只读宽表查询页（图示1–3）
 - 双行搜索 + 收起/展开（图示1）
@@ -14,7 +14,7 @@
 - ~~表头 sortable CSS 装饰~~（§9 移除；与维护一致无假排序）
 - 注册 `sr-movement-query`
 
-**Non-goals:**
+**非目标：**
 
 - store 写入、审批动作
 - Draft 记录进入列表
@@ -22,7 +22,7 @@
 - 统计页、列头语言配置
 - vue-router、后端 API
 
-## Decisions
+## 设计决策
 
 ### 1. 队列层 — `movementQueryQueue.js`
 
@@ -148,7 +148,7 @@ studentRecordsDevelopedPages.add('sr-movement-query')
 // App.vue: isMovementQuery → MovementQueryView
 ```
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -157,7 +157,7 @@ studentRecordsDevelopedPages.add('sr-movement-query')
 | 宽表 23+ 列 export 字段多 | ExportModal 默认勾选核心列 |
 | 非 Approved 扩展列为空 | 与维护一致显示 — |
 
-## Migration Plan
+## 迁移说明
 
 1. `movementQueryQueue.js`
 2. `movementQueryExportFields.js` + `exportMovementQueryExcel.js`
@@ -166,7 +166,7 @@ studentRecordsDevelopedPages.add('sr-movement-query')
 5. 冒烟：非 Draft 可见、收起搜索、Export 三 scope xlsx、Details/Log
 6. `npm run build`
 
-## Open Questions
+## 待决问题
 
 （探索阶段已全部确认，无遗留）
 

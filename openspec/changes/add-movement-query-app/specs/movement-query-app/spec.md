@@ -1,215 +1,215 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Movement query list page
-The system SHALL display a paginated read-only wide-table list of movement applications merged from all four movement types under the Status Change Inquiry menu.
+### 需求：学籍异动查询列表页
+系统应在学籍异动查询菜单下展示合并四种异动类型的分页只读列表。
 
-#### Scenario: List excludes draft records
-- **WHEN** user opens Status Change Inquiry
-- **THEN** the list includes all non-draft records from programme transfer, deferment, resumption, and withdrawal stores
-- **AND** draft applications are excluded
+#### 场景：列表排除草稿记录
+- **当** 用户打开学籍异动查询
+- **则** 列表包含转专业、休学、复学、退学存储中所有非草稿记录
+- **且** 排除草稿申请
 
-#### Scenario: Wide table columns match prototype
-- **WHEN** the query list is displayed
-- **THEN** the table shows core columns including status, approval stage, implemented flag, student identifiers, sessions, movement category, movement reason, and movement date
-- **AND** extended columns for passport/IC, student type, intake, current/new school and programme fields where applicable
-- **AND** trailing columns for English name, CGPA, expected graduation time, movement number, remark, and actions
+#### 场景：宽表列与原型一致
+- **当** 展示查询列表
+- **则** 表格展示核心列，含状态、审批阶段、是否实施、学生标识、学期、异动类别、异动原因、异动日期
+- **且** 扩展列含护照/身份证、学生类型、入学批次、适用时的当前/新学院专业
+- **且** 尾部列含英文名、CGPA、预计毕业时间、异动编号、备注与操作
 
-#### Scenario: Non-applicable extended columns
-- **WHEN** a row is not a programme transfer application
-- **THEN** programme-transfer-specific extended columns display an em dash placeholder
+#### 场景：不适用的扩展列
+- **当** 某行非转专业申请
+- **则** 转专业专用扩展列显示 em dash 占位符
 
-#### Scenario: Decorative sortable headers
-- **WHEN** the query table headers are rendered
-- **THEN** data column headers show sortable visual styling
-- **AND** clicking headers does not reorder rows in the first version
+#### 场景：装饰性可排序表头
+- **当** 渲染查询表头
+- **则** 数据列表头展示可排序视觉样式
+- **且** 首版点击表头不重排行
 
-### Requirement: Movement query search with collapse
-The system SHALL provide a two-row search area with collapse support.
+### 需求：学籍异动查询搜索区（可收起）
+系统应提供支持收起的两行搜索区。
 
-#### Scenario: Primary search row always visible
-- **WHEN** the query page loads
-- **THEN** the first search row shows Academic Session, movement reason, and status fields with Search and Reset actions
+#### 场景：首行搜索始终可见
+- **当** 查询页加载
+- **则** 第一行搜索展示学年学期、异动原因、状态及查询、重置操作
 
-#### Scenario: Secondary search row collapsible
-- **WHEN** user toggles collapse
-- **THEN** the second search row showing Student ID and Student Name is shown or hidden
-- **AND** the toggle label switches between collapse and expand text
+#### 场景：第二行搜索可收起
+- **当** 用户切换收起
+- **则** 显示或隐藏含学号、姓名的第二行
+- **且** 切换标签在收起/展开文案间切换
 
-#### Scenario: Search filters list
-- **WHEN** user applies search criteria and clicks Search
-- **THEN** the list shows only matching rows and resets to page 1
+#### 场景：搜索筛选列表
+- **当** 用户应用搜索条件并点击查询
+- **则** 列表仅展示匹配行并重置到第 1 页
 
-#### Scenario: Reset search
-- **WHEN** user clicks Reset
-- **THEN** all search fields clear and the full query list is restored
+#### 场景：重置搜索
+- **当** 用户点击重置
+- **则** 清空所有搜索字段并恢复完整查询列表
 
-### Requirement: Read-only query actions
-The system SHALL not provide any data mutation actions on the query page.
+### 需求：查询页只读操作
+系统不得在查询页提供任何数据变更操作。
 
-#### Scenario: No edit or maintenance toolbar
-- **WHEN** user views the query page toolbar
-- **THEN** only Export is available
-- **AND** implement, modify movement number, delete, and create actions are not shown
+#### 场景：无编辑或维护工具栏
+- **当** 用户查看查询页工具栏
+- **则** 仅提供导出
+- **且** 不展示实施、修改异动编号、删除、新建操作
 
-#### Scenario: Row actions are read-only
-- **WHEN** user views a query row actions column
-- **THEN** only Details and Approval log actions are available
-- **AND** Edit is not available
+#### 场景：行操作为只读
+- **当** 用户查看查询行操作列
+- **则** 仅提供详情与审批日志
+- **且** 不提供编辑
 
-#### Scenario: View details
-- **WHEN** user clicks Details on a row
-- **THEN** the system opens the same read-only application review view used on the approval page without approval controls
+#### 场景：查看详情
+- **当** 用户点击某行详情
+- **则** 系统打开与审批页相同的只读申请审核视图，不含审批控件
 
-#### Scenario: View approval log
-- **WHEN** user clicks Approval log on a row
-- **THEN** the system opens the approval log modal with that record's approval history
+#### 场景：查看审批日志
+- **当** 用户点击某行审批日志
+- **则** 系统打开审批日志弹框，展示该记录的审批历史
 
-### Requirement: Movement query export via ExportModal
-The system SHALL export query results to Excel using the shared ExportModal component.
+### 需求：学籍异动查询通过 ExportModal 导出
+系统应使用共享 `ExportModal` 组件将查询结果导出为 Excel。
 
-#### Scenario: Open export modal
-- **WHEN** user clicks Export and filtered results exist
-- **THEN** the system opens ExportModal with selectable export fields
+#### 场景：打开导出弹框
+- **当** 用户点击导出且存在筛选结果
+- **则** 系统打开 `ExportModal`，展示可选导出字段
 
-#### Scenario: Export current page to xlsx
-- **WHEN** user confirms export with scope current page
-- **THEN** the system downloads an xlsx file containing only the current page rows and selected fields
+#### 场景：导出当前页为 xlsx
+- **当** 用户确认导出范围为当前页
+- **则** 系统下载仅含当前页行与所选字段的 xlsx 文件
 
-#### Scenario: Export all results to xlsx
-- **WHEN** user confirms export with scope all results
-- **THEN** the system downloads an xlsx file containing all filtered rows and selected fields
+#### 场景：导出全部结果为 xlsx
+- **当** 用户确认导出范围为全部结果
+- **则** 系统下载含全部筛选行与所选字段的 xlsx 文件
 
-#### Scenario: Export selected rows to xlsx
-- **WHEN** user selects rows and confirms export with scope selected rows
-- **THEN** the system downloads an xlsx file containing only selected rows and selected fields
+#### 场景：导出所选行为 xlsx
+- **当** 用户选中行并确认导出范围为所选行
+- **则** 系统下载仅含所选行与所选字段的 xlsx 文件
 
-#### Scenario: Export blocked when no data
-- **WHEN** user clicks Export with no filtered results
-- **THEN** the system shows a no-data message and does not open the export modal
+#### 场景：无数据时阻止导出
+- **当** 用户在没有筛选结果时点击导出
+- **则** 系统提示无数据且不打开导出弹框
 
-### Requirement: Student type display on query list
-The system SHALL display student type on the query list using Local, Chinese, and International values with Chinese UI label 中国 for Chinese.
+### 需求：查询列表学生类型展示
+系统应在查询列表展示学生类型，取值 `Local`、`Chinese`、`International`，中文界面下 `Chinese` 显示为「中国」。
 
-#### Scenario: Chinese student type label
-- **WHEN** a query row student category maps to Chinese
-- **THEN** the Chinese UI displays 中国 in the student type column
+#### 场景：中国学生类型标签
+- **当** 查询行学生类别映射为 `Chinese`
+- **则** 中文界面在学生类型列显示「中国」
 
-### Requirement: Movement query pagination
-The system SHALL paginate the query list using the same pagination pattern as other student-records list pages.
+### 需求：学籍异动查询分页
+系统应使用与其他学生档案列表页相同的分页模式对查询列表分页。
 
-#### Scenario: Pagination controls
-- **WHEN** more query rows exist than the page size
-- **THEN** the list shows pagination controls
+#### 场景：分页控件
+- **当** 查询行数超过页大小
+- **则** 列表展示分页控件
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Movement query search with collapse
-The system SHALL provide a two-row search area with collapse support. The first row SHALL include Academic Session, Programme Code, status, and Movement Type. The Movement Reason search field SHALL NOT be shown.
+### 需求：学籍异动查询搜索区（可收起）
+系统应提供与异动查询页一致的两行可收起搜索区。第一行应包含学年学期、专业代码、状态、异动类型。不得展示异动原因搜索字段。
 
-#### Scenario: Primary search row always visible
-- **WHEN** the query page loads
-- **THEN** the first search row shows Academic Session, Programme Code, status, and Movement Type fields with Search and Reset actions
+#### 场景：首行搜索始终可见
+- **当** 查询页加载
+- **则** 第一行搜索展示学年学期、专业代码、状态、异动类型及查询、重置操作
 
-#### Scenario: No movement reason search
-- **WHEN** user views the query search area
-- **THEN** the system does not display a Movement Reason search input
+#### 场景：无异动原因搜索
+- **当** 用户查看查询搜索区
+- **则** 系统不展示异动原因搜索输入框
 
-#### Scenario: Filter by programme code
-- **WHEN** user enters a programme code keyword and clicks Search
-- **THEN** the list shows only rows whose resolved programme code matches the keyword
+#### 场景：按专业代码筛选
+- **当** 用户输入专业代码关键词并点击查询
+- **则** 列表仅展示解析后专业代码匹配关键词的行
 
-#### Scenario: Movement type on first row
-- **WHEN** user views the query search area
-- **THEN** the Movement Type dropdown appears after Status on the first row
+#### 场景：异动类型位于首行
+- **当** 用户查看查询搜索区
+- **则** 异动类型下拉框位于状态字段之后
 
-#### Scenario: Filter by movement type
-- **WHEN** user selects Deferment and clicks Search
-- **THEN** the list shows only deferment application rows
+#### 场景：按异动类型筛选
+- **当** 用户选择休学并点击查询
+- **则** 列表仅展示休学申请行
 
-#### Scenario: All movement types
-- **WHEN** user leaves Movement Type at All and clicks Search
-- **THEN** the list is not filtered by movement type
+#### 场景：全部异动类型
+- **当** 用户将异动类型留为全部并点击查询
+- **则** 列表不按异动类型过滤
 
-#### Scenario: Secondary search row collapsible
-- **WHEN** user toggles collapse
-- **THEN** the second search row showing Student ID and Student Name is shown or hidden
-- **AND** the toggle label switches between collapse and expand text
+#### 场景：第二行搜索可收起
+- **当** 用户切换收起
+- **则** 显示或隐藏含学号、姓名的第二行
+- **且** 切换标签在收起/展开文案间切换
 
-#### Scenario: Search filters list
-- **WHEN** user applies search criteria and clicks Search
-- **THEN** the list shows only matching rows and resets to page 1
+#### 场景：搜索筛选列表
+- **当** 用户应用搜索条件并点击查询
+- **则** 列表仅展示匹配行并重置到第 1 页
 
-#### Scenario: Reset search
-- **WHEN** user clicks Reset
-- **THEN** all search fields clear and the full query list is restored
+#### 场景：重置搜索
+- **当** 用户点击重置
+- **则** 清空所有搜索字段并恢复完整查询列表
 
-### Requirement: Movement query list aligned with maintenance display
-The system SHALL display a streamlined query table matching the maintenance list column set, column order, passport/IC masking, and implemented Y/N display defined in movement maintenance §8.
+### 需求：查询列表与维护展示对齐
+系统应展示与维护列表 §8 定义的列集、列序、护照/身份证脱敏及是否实施 Y/N 展示一致的精简查询表格。
 
-#### Scenario: Streamlined table columns match maintenance
-- **WHEN** the query list is displayed
-- **THEN** the table shows the same streamlined columns as the maintenance list including status, approval stage, implemented flag as Y/N, student identifiers, movement date, masked passport/IC, student type, intake, sessions, movement category, and movement reason
-- **AND** the table does not show columns for CGPA, English name, expected graduation time, movement number, remark, or current/new school and programme fields
+#### 场景：精简表列与维护一致
+- **当** 展示查询列表
+- **则** 表格展示与维护列表相同的精简列，含状态、审批阶段、是否实施（Y/N）、学生标识、异动日期、脱敏护照/身份证、学生类型、入学批次、学期、异动类别、异动原因
+- **且** 不展示 CGPA、英文名、预计毕业时间、异动编号、备注或当前/新学院专业列
 
-#### Scenario: Passport/IC masked on query list
-- **WHEN** a query row displays passport/IC in the list
-- **THEN** the value is partially masked using the shared maskPassportIc helper
+#### 场景：查询列表护照脱敏
+- **当** 查询行在列表中展示护照/身份证
+- **则** 使用共享 `maskPassportIc` 辅助函数部分脱敏
 
-#### Scenario: Implemented displayed as Y/N on query list
-- **WHEN** a query row displays the implemented flag in the list
-- **THEN** the column shows Y or N using the same formatImplementedYn helper as the maintenance list
+#### 场景：查询列表是否实施显示 Y/N
+- **当** 查询行在列表中展示是否实施
+- **则** 该列使用与维护列表相同的 `formatImplementedYn` 辅助函数显示 Y 或 N
 
-#### Scenario: Query details mask sensitive fields
-- **WHEN** user opens Details on a query row
-- **THEN** the read-only review view enables maskSensitiveFields
-- **AND** passport/IC and parent NRIC/passport fields in the detail view are masked
-- **AND** current and new school/programme fields remain visible in the detail view
+#### 场景：查询详情脱敏敏感字段
+- **当** 用户在查询行打开详情
+- **则** 只读审核视图启用 `maskSensitiveFields`
+- **且** 详情中护照/身份证与家长 NRIC/护照字段脱敏
+- **且** 详情中仍可见当前/新学院专业字段
 
-#### Scenario: No sortable header decoration on query list
-- **WHEN** the query table headers are rendered
-- **THEN** data column headers do not show sortable visual styling
+#### 场景：查询列表无装饰性可排序表头
+- **当** 渲染查询表头
+- **则** 数据列表头不展示可排序视觉样式
 
-### Requirement: Movement query export with maintenance defaults and optional extended fields
-The system SHALL export query results using the maintenance export default field set with masking and Y/N formatting, and SHALL offer additional optional export-only extended fields.
+### 需求：查询导出沿用维护默认列与可选扩展列
+系统应使用维护导出默认字段集（含脱敏与 Y/N 格式）导出查询结果，并提供额外的可选仅导出扩展字段。
 
-#### Scenario: Export default fields match maintenance
-- **WHEN** user opens ExportModal on the query page
-- **THEN** the default selected export fields match movementMaintenanceExportColumnMeta
-- **AND** passport/IC values in the export file are masked when exported
-- **AND** implemented values in the export file use Y/N
+#### 场景：导出默认字段与维护一致
+- **当** 用户在查询页打开 `ExportModal`
+- **则** 默认选中导出字段与 `movementMaintenanceExportColumnMeta` 一致
+- **且** 导出文件中护照/身份证脱敏
+- **且** 导出文件中是否实施使用 Y/N
 
-#### Scenario: Optional extended export fields
-- **WHEN** user opens ExportModal on the query page
-- **THEN** optional export fields are available for current/new school and programme, English name, CGPA, movement number, and remark
-- **AND** those optional fields are not selected by default
-- **AND** those optional fields are not shown as list table columns
+#### 场景：可选扩展导出字段
+- **当** 用户在查询页打开 `ExportModal`
+- **则** 可选导出字段含当前/新学院专业、英文名、CGPA、异动编号、备注
+- **且** 这些可选字段默认不选中
+- **且** 这些可选字段不作为列表表格列展示
 
-### Requirement: Query list status badges match application styling
-The system SHALL render status badges on the query list using the same pill styling and color tokens as the four movement application list pages.
+### 需求：查询列表状态 Badge 与申请页一致
+系统应使用与四种异动申请列表页相同的胶囊样式与颜色 token 渲染查询列表状态徽章。
 
-#### Scenario: Status badge uses shared stylesheet
-- **WHEN** the query list displays a status badge
-- **THEN** the badge uses movement-status-badge.css with pill border radius and light-background color tokens matching application lists
+#### 场景：状态徽章使用共享样式表
+- **当** 查询列表展示状态徽章
+- **则** 徽章使用 `movement-status-badge.css`，胶囊圆角与浅色背景 token 与申请列表一致
 
-#### Scenario: Expired status styling on query list
-- **WHEN** a query row has status Expired
-- **THEN** the badge uses the status-expired class
+#### 场景：查询列表 Expired 状态样式
+- **当** 查询行状态为 `Expired`
+- **则** 徽章使用 `status-expired` 类
 
-#### Scenario: No white-text override on query badges
-- **WHEN** the query list renders status badges
-- **THEN** scoped page styles do not force white text on status badges
+#### 场景：查询徽章无白字覆盖
+- **当** 查询列表渲染状态徽章
+- **则** 页面 scoped 样式不得强制徽章白字
 
-## REMOVED Requirements
+## 移除需求
 
-### Requirement: Wide table prototype columns on query list
-**Reason**: §9 aligns query list with maintenance §8 streamlined table; extended school/programme and trailing maintenance fields are export-only optional fields.
-**Migration**: Use Movement query list aligned with maintenance display and Movement query export with maintenance defaults and optional extended fields.
+### 需求：查询列表宽表原型列
+**原因**：§9 将查询列表与维护 §8 精简表对齐；扩展学院专业与尾部维护字段仅作为可选导出字段。
+**迁移说明**：采用与维护展示对齐的异动查询列表，以及含维护默认项与可选扩展字段的异动查询导出。
 
-#### Scenario: Wide table columns match prototype
-- **REMOVED** — superseded by Streamlined table columns match maintenance
+#### 场景：宽表列与原型一致
+- **已移除** — 由「精简表列与维护一致」取代
 
-#### Scenario: Non-applicable extended columns on list
-- **REMOVED** — programme-transfer extended columns are no longer list columns; optional in export only
+#### 场景：列表上不适用的扩展列
+- **已移除** — 转专业扩展列不再作为列表列；仅可选导出
 
-#### Scenario: Decorative sortable headers
-- **REMOVED** — superseded by No sortable header decoration on query list
+#### 场景：装饰性可排序表头
+- **已移除** — 由「查询列表无装饰性可排序表头」取代

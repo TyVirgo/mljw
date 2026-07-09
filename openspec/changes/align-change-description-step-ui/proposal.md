@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 课程变更申请向导 Step 1（变更说明）已实现基础功能，但 UI 布局与原型差距较大：当前为两列简化布局（组件名 + 单行提示 + 矩形 N/Y 按钮），原型要求标准三列表格（组件名 | 重大变更 | 轻微/无变更），每列含 pill 开关与分项说明 bullet list。老师无法清晰对照原型中的变更判定标准进行选择，影响申请准确性与审批一致性。
 
-## What Changes
+## 变更内容
 
 - 重构 `ChangeDescriptionStep.vue` 为三列表格布局，含表头行（Component Name / Major Changes / Minor / No Changes）
 - 将 `changeDescriptionComponents` 数据结构扩展为每行独立的 `majorCriteria[]` 与 `minorCriteria[]` 说明文案（对齐原型英文原文）
@@ -11,17 +11,17 @@
 - 只读模式（详情页）同步展示三列结构与选中状态
 - 补充 i18n 翻译（中英文）覆盖全部 criteria bullet 文案
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 （无 — 本变更为既有能力的 UI 对齐，不引入新业务域）
 
-### Modified Capabilities
+### 修改的能力
 
 - `course-change-application`: 细化「变更说明标注」需求 — 明确三列表格结构、每组件 major/minor 判定标准文案、Toggle Switch 交互与视觉规范
 
-## Impact
+## 影响范围
 
 - `src/components/courseChange/ChangeDescriptionStep.vue` — 模板与样式重写
 - `src/data/courseChangeApplications.js` — `changeDescriptionComponents` 数据结构扩展

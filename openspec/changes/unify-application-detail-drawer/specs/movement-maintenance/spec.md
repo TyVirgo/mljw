@@ -1,14 +1,12 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Maintenance list row actions
-The maintenance list SHALL provide Details as a unified drawer action combining approval timeline and application detail content. Edit and other maintenance-specific toolbar actions SHALL remain outside the drawer as before.
+### 需求：维护列表行操作
+维护列表应提供「详情」作为合并申请详情内容与审批日志表格的统一抽屉操作。Edit 及其他维护专用工具栏操作应仍保留在抽屉外，与改造前一致。
 
-#### Scenario: Maintenance row actions
-- **WHEN** user views Actions on a movement maintenance list row
-- **THEN** Details opens the unified drawer
-- **AND** Approval Log is not a separate row action
-- **AND** Edit remains available on the list row when applicable
+#### 场景：维护行操作
+- **当** 用户查看异动维护列表行的 Actions
+- **则** 「详情」打开统一抽屉，Approval Log 不是独立行操作，且适用时 Edit 仍保留在列表行
 
-#### Scenario: Maintenance details read-only in drawer
-- **WHEN** user opens Details from maintenance list
-- **THEN** the drawer shows timeline and read-only application content without approval actions in the footer
+#### 场景：维护详情在抽屉内只读
+- **当** 用户从维护列表打开「详情」
+- **则** 抽屉先展示只读申请内容、再展示底部审批日志表格，且底栏无审批操作

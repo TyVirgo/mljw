@@ -121,7 +121,7 @@ export function validateApprovalForm(action, comment, item = null) {
   if (comment && comment.length > 200) {
     errors.comment = 'Comments must not exceed 200 characters.'
   }
-  if (action === 'Approved' && item?.approvalStage === 'Dean/HoP') {
+  if (action === 'Approved' && item?.sourceKey === 'programme-transfer') {
     const programme = item.adminNewProgramme || item.newProgrammeFirstChoice
     if (!programme?.trim()) {
       errors.adminNewProgramme = 'New Programme is required for final approval.'

@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 已实现 Phase 2.1 refinement 的主体（版本快照、附件列、Edit 仅元数据等）。产品进一步明确：
 
@@ -15,9 +15,9 @@
 └─────────────────────────┴─────────────────────────────────┘
 ```
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - Create 五字段，无学年学期，无首版 snapshot
 - 新增版本：学期 + 附件 + **是否立即应用**（默认关）
@@ -25,12 +25,12 @@
 - 「新增版本」在表格左上角
 - 列表无 View；mock 备注各行不同
 
-**Non-Goals:**
+**非目标：**
 
 - 按申请学期 lookup
 - 快照内编辑/删除版本
 
-## Decisions
+## 设计决策
 
 ### D1：Create 不再创建版本（修订原 D2）
 
@@ -94,7 +94,7 @@ isApplied = payload.applyImmediately === true
 
 - 12 行 `remark` 各不相同（英文 mock 句子即可）
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -102,7 +102,7 @@ isApplied = payload.applyImmediately === true
 | 全部版本未应用时 lookup 失败 | 预期；下载端已有「联系管理员」 |
 | 立即应用默认关，首版需多一步 | 产品明确要求；开关可手动打开 |
 
-## Migration Plan（代码相对当前实现）
+## 迁移说明
 
 1. `ConsentFormFormModal` — 去掉学年学期，改 5 字段布局
 2. `consentForms.js` — create 不写 versions；addVersion 读 applyImmediately
@@ -110,7 +110,7 @@ isApplied = payload.applyImmediately === true
 4. `ConsentFormView` — 确认无 View（若已实现则仅 spec 对齐）
 5. 更新 i18n `applyImmediately`
 
-## Open Questions
+## 待决问题
 
 （已关闭）
 

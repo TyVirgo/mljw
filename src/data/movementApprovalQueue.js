@@ -118,6 +118,39 @@ export function formatApprovalApplicationDate(sourceKey, item) {
   }
 }
 
+function resolveSubmissionTimestamp(item) {
+  const raw = item.submittedAt || item.applicationDate || item.dateOfApplication
+  const parsed = new Date(raw || 0).getTime()
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+/** 1-based historical application index per student + movement type (non-draft). */
+export function buildHistoricalApplicationSequenceMap(sourceKey, list) {
+  const map = new Map()
+
+  const byStudent = new Map()
+  for (const item of list) {
+    if (item.status === 'Draft') continue
+    const studentId = String(item.studentId || '').trim()
+    if (!studentId) continue
+    if (!byStudent.has(studentId)) byStudent.set(studentId, [])
+    byStudent.get(studentId).push(item)
+  }
+
+  for (const items of byStudent.values()) {
+    const sorted = [...items].sort((a, b) => {
+      const diff = resolveSubmissionTimestamp(a) - resolveSubmissionTimestamp(b)
+      if (diff !== 0) return diff
+      return (a.id || 0) - (b.id || 0)
+    })
+    sorted.forEach((item, index) => {
+      map.set(item.id, index + 1)
+    })
+  }
+
+  return map
+}
+
 export function normalizeQueueItem(sourceKey, item, t) {
   const implemented = resolveImplementedStatus(item)
   return {
@@ -150,11 +183,16 @@ export function mergeMovementApprovalQueue(t) {
     ['resumption', resumptions.value],
     ['withdrawal', withdrawals.value],
   ]
+  const sequenceMaps = Object.fromEntries(
+    sources.map(([sourceKey, list]) => [sourceKey, buildHistoricalApplicationSequenceMap(sourceKey, list)]),
+  )
   const rows = []
   for (const [sourceKey, list] of sources) {
     for (const item of list) {
       if (item.status === 'Draft') continue
-      rows.push(normalizeQueueItem(sourceKey, item, t))
+      const row = normalizeQueueItem(sourceKey, item, t)
+      row.historicalApplicationSequence = sequenceMaps[sourceKey].get(item.id) ?? 1
+      rows.push(row)
     }
   }
   return rows.sort((a, b) => {

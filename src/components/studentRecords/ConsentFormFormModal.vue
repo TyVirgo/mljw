@@ -5,6 +5,7 @@ import {
   createEmptyConsentForm,
   movementTypeKeys,
   consentFormStudentTypes,
+  consentStudentScopeOptions,
   getConsentProgrammeLevelOptions,
   validateConsentFormForm,
 } from '../../data/consentForms.js'
@@ -37,6 +38,7 @@ watch(
     if (isEditMode.value && props.initialData) {
       form.value = {
         formName: props.initialData.formName || '',
+        applicableStudentScope: props.initialData.applicableStudentScope || '',
         remark: props.initialData.remark || '',
       }
     } else {
@@ -59,6 +61,13 @@ function studentTypeLabel(type) {
   const key = `consentForm.studentType.${type}`
   const translated = t(key)
   return translated !== key ? translated : tr(type)
+}
+
+function studentScopeLabel(scope) {
+  if (!scope) return ''
+  const key = `consentForm.applicableStudentScope.${scope}`
+  const translated = t(key)
+  return translated !== key ? translated : scope
 }
 
 function handleClose() {
@@ -107,6 +116,18 @@ function handleSave() {
                 :placeholder="t('common.pleaseInput')"
               />
               <p v-if="errors.formName" class="field-error">{{ tr(errors.formName) }}</p>
+            </div>
+            <div class="form-field">
+              <label class="field-label">{{ t('consentForm.fields.applicableStudentScope') }}</label>
+              <select
+                v-model="form.applicableStudentScope"
+                :class="['control-input', { 'is-empty': !form.applicableStudentScope }]"
+              >
+                <option value="">{{ t('common.pleaseSelect') }}</option>
+                <option v-for="opt in consentStudentScopeOptions" :key="opt" :value="opt">
+                  {{ studentScopeLabel(opt) }}
+                </option>
+              </select>
             </div>
             <div class="form-field">
               <label class="field-label">{{ t('consentForm.fields.remark') }}</label>
@@ -166,6 +187,19 @@ function handleSave() {
                 </option>
               </select>
               <p v-if="errors.programmeLevel" class="field-error">{{ tr(errors.programmeLevel) }}</p>
+            </div>
+
+            <div class="form-field form-field-full">
+              <label class="field-label">{{ t('consentForm.fields.applicableStudentScope') }}</label>
+              <select
+                v-model="form.applicableStudentScope"
+                :class="['control-input', { 'is-empty': !form.applicableStudentScope }]"
+              >
+                <option value="">{{ t('common.pleaseSelect') }}</option>
+                <option v-for="opt in consentStudentScopeOptions" :key="opt" :value="opt">
+                  {{ studentScopeLabel(opt) }}
+                </option>
+              </select>
             </div>
 
             <div class="form-field form-field-full">

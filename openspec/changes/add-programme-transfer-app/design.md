@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 `add-student-records-app` 已交付学籍应用壳层与扁平 6 项菜单；`add-student-profile-crud` 已交付 Student Profile 完整 CRUD。当前 `sr-programme-transfer` 仍走 `UnderConstructionView`。
 
@@ -10,9 +10,9 @@
 
 原型要求：Application History 列表 + 多 Section 申请表单（非 Profile 七 Tab Drawer）+ 7 种业务状态（非 Status 下拉）。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - Programme Transfer 列表页：搜索、分页、状态徽章、进行中/已归档筛选
 - 多 Section Form Modal（Create/Edit）与 Details Modal（只读 + 审批）
@@ -21,7 +21,7 @@
 - Draft/Update Required 完整编辑；Cancel/Resubmit/Delete 等状态驱动操作
 - 注册 `sr-programme-transfer` 为已开发页面
 
-**Non-Goals:**
+**非目标：**
 
 - 其他学籍异动菜单（Deferment、Withdrawal 等）
 - 后端 API、真实文件上传、角色权限
@@ -30,7 +30,7 @@
 - Import/Export Excel
 - 真实 cron Expired（mock 演示入口即可）
 
-## Decisions
+## 设计决策
 
 ### 1. 数据模型 — `src/data/programmeTransfers.js`
 
@@ -246,7 +246,7 @@ const isProgrammeTransfer = computed(() => currentPageId.value === 'sr-programme
   src/i18n/locales/zh.js, en.js, zh-flat.js
 ```
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -256,14 +256,14 @@ const isProgrammeTransfer = computed(() => currentPageId.value === 'sr-programme
 | Expired 无真实定时 | mock 按钮或 dev 工具函数 + deadline 字段演示 |
 | Section VII 与学生填写的 New Programme 混淆 | 列表展示优先 admin 字段；Details 分区只读展示 |
 
-## Migration Plan
+## 迁移说明
 
 1. 新增 data 层与组件（不影响现有 Profile）
 2. 扩展 `developedPages` 与 `App.vue` 注册
 3. 手动冒烟：菜单切换、CRUD 全状态路径、审批 mock
 4. 回滚：从 `developedPages` 移除 `sr-programme-transfer` 即可恢复建设中页
 
-## Open Questions
+## 待定问题
 
 1. 审批阶段名称是否与教务最终流程一致（当前暂定 Academic Affairs → Dean/HoP）
 2. Consent Letter 静态文件路径（首版可用占位下载或空 blob）

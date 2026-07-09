@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 学籍异动侧边栏「学籍异动统计」（`sr-movement-statistics`）仍为建设中页。教务人员需要按 **学院 + 专业 + Intake** 维度查看「该专业本学期各类型学籍异动人数」的**聚合透视表**（产品图示1–2），并支持与维护/查询一致的 **ExportModal + xlsx** 导出。统计页与查询/维护的明细宽表不同：一行代表一个分组，列为各异动类型计数。
 
-## What Changes
+## 变更内容
 
 ### 主列表页（图示1–2）
 
@@ -34,17 +34,17 @@
 - 输出 **.xlsx**（模式对齐 `exportMovementQueryExcel.js` / 维护导出）
 - 导出字段为统计专用（3 维度 + 11 计数列）
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `movement-statistics-app`: 聚合统计透视表、双行搜索收起、supplement 种子、ExportModal xlsx
 
-### Modified Capabilities
+### 修改的能力
 
 - `student-records-app`: `sr-movement-statistics` 从建设中升级为已开发
 
-## Impact
+## 影响范围
 
 - **新增**
   - `MovementStatisticsView.vue`
@@ -61,14 +61,14 @@
   - `filterQueryBySearch` 逻辑（或复用 `movementQueryQueue.js` 的 filter）
   - `ExportModal`、`TablePagination`、`list-page-search.css`
   - `MovementQueryView` 搜索双行 + Export 确认流程
-- **Non-goals**
+- **非目标**
   - 更新 PRD 文档
   - 修改四 Tab store 结构以支撑后 7 列（用 supplement 代替）
   - 行内下钻 Details / Approval log
   - 表头真实排序（首版可选 sortable 装饰，与查询一致）
   - vue-router、后端 API
 
-## Decisions（探索阶段已确认）
+## 设计决策（探索阶段已确认）
 
 - 数据范围：**全部非 Draft**（与查询一致）
 - Session 口径：**applicationSession**
@@ -99,7 +99,7 @@
 | 已开发页 | `studentRecordsDevelopedPages` 移除 `sr-movement-statistics` |
 | 保留 | `MovementStatisticsView.vue` 及数据层不删除 |
 
-### Decisions（§8 已确认）
+### 设计决策（
 
 | 项 | 决策 |
 |----|------|

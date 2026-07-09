@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 ```
 变更前（add-movement-approval-app）          §1–§5 已交付              §6–§10 目标态
@@ -11,9 +11,9 @@
 
 审批引擎 `classifyApprovalBucket(item, currentRole)` 仍依赖角色；UI 不再暴露切换，v1 使用固定默认角色 `Pending Review`。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 列表页视觉与产品图示一致：无 Current approver role
 - 搜索字段在同一区域自适应换行（§8 后 **4 字段**）
@@ -21,12 +21,12 @@
 - Tab 顺序 **待我审批 → 已提交 → 历史**；仅待我审批显示角标
 - 表格：状态 badge 可见；去异动原因；加申请日期；历史 Tab 才显示是否实施 Y/N
 
-**Non-goals:**
+**非目标：**
 
 - 权限系统、Header 角色切换
 - ~~搜索字段增删或 Tab 逻辑变更~~（§6 允许搜索减字段、Tab 顺序/角标与列展示调整；**不**改 `classifyApprovalBucket` 语义）
 
-## Decisions
+## 设计决策
 
 ### 1. 默认审批角色
 
@@ -39,7 +39,7 @@ export const DEFAULT_APPROVER_ROLE = 'Pending Review'
 - `MovementApprovalReviewView` 继续接收 `:current-role="currentRole"`
 - 批量审批、`applyMovementDecision`、`canRecallMovement` 入参不变
 
-**Trade-off:** 失去页内多角色 demo；开发调试可改常量或后续接 auth mock。
+**权衡：** 失去页内多角色 demo；开发调试可改常量或后续接 auth mock。
 
 ### 2. 页面结构顺序（§6–§10 目标态）
 
@@ -239,7 +239,7 @@ showApprovalAction: { type: Boolean, default: false }
 
 按钮顺序：`btn-primary` 审批 → `btn-default` 关闭。
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -249,7 +249,7 @@ showApprovalAction: { type: Boolean, default: false }
 | 状态 badge 仍不可见 | 必须引入 status-* 背景色，不仅补 mock |
 | §12 转专业 Dean/HoP 无 Modal 教务区 | 决策 A：与列表一致；mock 数据预填 first choice |
 
-## Migration Plan
+## 迁移说明
 
 1. 导出 `DEFAULT_APPROVER_ROLE` 并替换 `ref('Pending Review')`
 2. 删除 role-bar 模板与样式
@@ -258,6 +258,6 @@ showApprovalAction: { type: Boolean, default: false }
 5. **§6**：Tab 顺序/角标、列调整、status CSS、implemented Y/N、搜索减字段、seed、export CSV 同步
 6. **§12**：ReviewView 删内联审批；DetailModal footer 审批；Modal 复用
 
-## Open Questions
+## 待决问题
 
 （§12 Section VII 已选 A；若产品要求 Modal 内教务编辑，另开 change。）

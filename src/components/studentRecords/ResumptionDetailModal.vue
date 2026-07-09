@@ -1,15 +1,25 @@
 <script setup>
 import { computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import MovementAttachmentReadonly from './MovementAttachmentReadonly.vue'
+import MovementAttachmentsReadonly from './MovementAttachmentsReadonly.vue'
+import MovementInternationalStudentRemarks from './MovementInternationalStudentRemarks.vue'
+import MovementDeclarationSection from './MovementDeclarationSection.vue'
+import MovementApplicantNotes from './MovementApplicantNotes.vue'
+import { resumptionDeclarationItems } from '../../data/movementDeclarationItems.js'
+import { resumptionApplicantNoteKeys } from '../../data/movementApplicantNotes.js'
 import {
   formatResumptionListDate,
   formatApplicationDateDisplay,
   canEditResumption,
   statusBadgeClass,
 } from '../../data/resumptions.js'
-import { resolveApplicationSessionForDisplay } from '../../data/movementApplicationSession.js'
+import { resolveApplicationSessionForDisplay, resolveCurrentAcademicSessionForDisplay } from '../../data/movementApplicationSession.js'
 import { maskPassportIc } from '../../utils/maskPassportIc.js'
+import {
+  displayMovementVisaExpiry,
+  resolveMovementStudentCategory,
+} from '../../utils/movementVisaExpiry.js'
+import '../../styles/movement-form.css'
 
 const props = defineProps({
   visible: Boolean,
@@ -44,6 +54,10 @@ function displayPassport(value) {
   if (!value) return '—'
   return props.maskSensitiveFields ? maskPassportIc(value) : value
 }
+
+function visaExpiryDisplay(item) {
+  return displayMovementVisaExpiry(item?.visaExpiryDate, resolveMovementStudentCategory(item))
+}
 </script>
 
 <template>
@@ -60,41 +74,51 @@ function displayPassport(value) {
           <span :class="['status-badge', statusBadgeClass(item.status)]">{{ statusLabel(item.status) }}</span>
         </div>
 
+        <MovementApplicantNotes
+          title-key="resumption.notes.title"
+          :item-keys="resumptionApplicantNoteKeys"
+        />
+
+        <MovementInternationalStudentRemarks
+          source-key="resumption"
+          :student-category="resolveMovementStudentCategory(item)"
+        />
+
         <div class="section-bar">{{ t('resumption.sections.studentInfo') }}</div>
         <dl class="detail-grid">
           <div><dt>{{ tr('Student ID') }}</dt><dd>{{ item.studentId }}</dd></div>
           <div><dt>{{ t('resumption.fields.dateOfApplication') }}</dt><dd>{{ formatApplicationDateDisplay(item.dateOfApplication) }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.currentAcademicSession') }}</dt><dd>{{ resolveCurrentAcademicSessionForDisplay(item) }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
           <div><dt>{{ t('resumption.fields.name') }}</dt><dd>{{ item.fullName || '—' }}</dd></div>
           <div><dt>{{ t('resumption.fields.originalIntake') }}</dt><dd>{{ item.originalIntake || '—' }}</dd></div>
           <div><dt>{{ t('resumption.fields.programme') }}</dt><dd>{{ item.programme || '—' }}</dd></div>
           <div><dt>{{ t('resumption.fields.programmeLevel') }}</dt><dd>{{ item.programmeLevel || '—' }}</dd></div>
           <div><dt>{{ t('resumption.fields.nricPassport') }}</dt><dd>{{ displayPassport(item.nricPassport) }}</dd></div>
           <div><dt>{{ t('resumption.fields.nationality') }}</dt><dd>{{ item.nationality || '—' }}</dd></div>
-          <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.visaExpiry') }}</dt><dd>{{ visaExpiryDisplay(item) }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.personalEmail') }}</dt><dd>{{ item.personalEmail || '—' }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || '—' }}</dd></div>
         </dl>
 
-        <div class="section-bar">{{ t('resumption.sections.resumptionDetails') }}</div>
+        <div class="section-bar">{{ t('resumption.sections.studentApplication') }}</div>
         <dl class="detail-grid">
-          <div><dt>{{ t('resumption.fields.personalEmail') }}</dt><dd>{{ item.personalEmail || '—' }}</dd></div>
-          <div><dt>{{ t('resumption.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || '—' }}</dd></div>
           <div><dt>{{ t('resumption.fields.defermentSemester') }}</dt><dd>{{ item.defermentSemester || '—' }}</dd></div>
           <div><dt>{{ t('resumption.fields.resumptionSemester') }}</dt><dd>{{ item.resumptionSemester || '—' }}</dd></div>
+          <div><dt>{{ t('deferment.fields.defermentStartDate') }}</dt><dd>{{ item.defermentStartDate || '—' }}</dd></div>
+          <div><dt>{{ t('deferment.fields.defermentEndDate') }}</dt><dd>{{ item.defermentEndDate || '—' }}</dd></div>
         </dl>
 
         <div class="section-bar">{{ t('resumption.sections.documents') }}</div>
-        <MovementAttachmentReadonly
-          :file-name="item.attachment?.fileName || ''"
-          movement-type="resumption"
-          :student-id="item.studentId"
-          :programme-level="item.programmeLevel"
-          :application-session="item.applicationSession"
-          label-key="resumption.fields.uploadAttachment"
-          download-label-key="resumption.fields.downloadConsent"
-        />
+        <MovementAttachmentsReadonly source-key="resumption" :item="item" />
 
-        <div class="section-bar">{{ tr('Declaration') }}</div>
-        <p class="readonly-text">{{ item.declarationCorrect ? tr('Yes') : tr('No') }} — {{ t('resumption.declaration.correct') }}</p>
-        <p class="readonly-text">{{ item.declarationMaxDuration ? tr('Yes') : tr('No') }} — {{ t('resumption.declaration.maxDuration') }}</p>
+        <MovementDeclarationSection
+          read-only
+          :section-title="t('resumption.sections.declaration')"
+          :items="resumptionDeclarationItems"
+          :checkboxes="[{ field: 'declarationAgreed' }]"
+          :form="item"
+        />
       </div>
 
       <footer class="modal-footer">

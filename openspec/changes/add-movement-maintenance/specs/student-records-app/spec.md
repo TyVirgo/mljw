@@ -1,38 +1,38 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Undeveloped movement and study plan pages
-The system SHALL show the in-app under-construction page for menu items that are not yet developed.
+### 需求：未开发的异动与学习计划页面
+系统应对尚未开发的菜单项展示应用内「建设中」页面。
 
-#### Scenario: Undeveloped movement submenu
-- **WHEN** user selects Status Change Inquiry or Status Change Statistics
-- **THEN** the system shows the under-construction page with a back action to Student Basic Information
+#### 场景：未开发的异动子菜单
+- **当** 用户选择学籍异动查询或学籍异动统计
+- **则** 系统展示「建设中」页面，并提供返回学生基本信息的操作
 
-#### Scenario: Change category is developed
-- **WHEN** user selects Change Category in the sidebar
-- **THEN** the system displays the movement category configuration list page instead of the under-construction page
+#### 场景：异动类别已开发
+- **当** 用户在侧边栏选择异动类别
+- **则** 系统展示异动类别配置列表页，而非「建设中」页面
 
-#### Scenario: Informed consent form is developed
-- **WHEN** user selects Informed Consent Form in the sidebar
-- **THEN** the system displays the consent form configuration list page instead of the under-construction page
+#### 场景：知情同意书已开发
+- **当** 用户在侧边栏选择知情同意书
+- **则** 系统展示知情同意书配置列表页，而非「建设中」页面
 
-#### Scenario: Status change maintenance is developed
-- **WHEN** user selects Status Change Maintenance in the sidebar
-- **THEN** the system displays the movement maintenance list page instead of the under-construction page
+#### 场景：学籍异动维护已开发
+- **当** 用户在侧边栏选择学籍异动维护
+- **则** 系统展示异动维护列表页，而非「建设中」页面
 
-#### Scenario: Undeveloped study plan submenu
-- **WHEN** user selects Personal Curriculum Plan
-- **THEN** the system shows the under-construction page with a back action to Student Basic Information
+#### 场景：未开发的个人学习计划子菜单
+- **当** 用户选择个人培养方案
+- **则** 系统展示「建设中」页面，并提供返回学生基本信息的操作
 
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Movement maintenance registered as developed page
-The system SHALL register `sr-movement-maintenance` as a developed student-records page.
+### 需求：学籍异动维护注册为已开发页面
+系统应将 `sr-movement-maintenance` 注册为已开发的学生档案页面。
 
-#### Scenario: Sidebar navigation
-- **WHEN** user selects Status Change Maintenance under Student Status Change
-- **THEN** the sidebar highlights Status Change Maintenance
-- **AND** the main content renders MovementMaintenanceView
+#### 场景：侧边栏导航
+- **当** 用户在学籍异动下选择学籍异动维护
+- **则** 侧边栏高亮学籍异动维护
+- **且** 主内容区渲染 `MovementMaintenanceView`
 
-#### Scenario: Breadcrumb
-- **WHEN** user is on the Status Change Maintenance page
-- **THEN** the breadcrumb displays the Student Status Change group label and the Status Change Maintenance page label
+#### 场景：面包屑
+- **当** 用户位于学籍异动维护页面
+- **则** 面包屑展示学籍异动分组标签与学籍异动维护页面标签

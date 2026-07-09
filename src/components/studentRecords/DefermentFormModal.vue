@@ -9,18 +9,25 @@ import {
   defermentPeriodOptions,
   formatApplicationDateDisplay,
   canResubmitDeferment,
+  syncDefermentPeriodDates,
 } from '../../data/deferments.js'
 import { getReasonOptionsBySourceKey } from '../../data/movementCategories.js'
 import { initialStudents } from '../../data/students.js'
 import {
   downloadStudentConsentTemplate,
-  downloadParentConsentTemplate,
-  hasParentConsentTemplate,
 } from '../../utils/consentFormDownload.js'
 import StudentSelectModal from './StudentSelectModal.vue'
+import MovementDeclarationSection from './MovementDeclarationSection.vue'
+import MovementApplicantNotes from './MovementApplicantNotes.vue'
+import MovementInternationalStudentRemarks from './MovementInternationalStudentRemarks.vue'
+import MovementDocumentsUploadSection from './MovementDocumentsUploadSection.vue'
+import MovementParentConsentSection from './MovementParentConsentSection.vue'
+import { defermentDeclarationItems } from '../../data/movementDeclarationItems.js'
+import { defermentApplicantNoteKeys } from '../../data/movementApplicantNotes.js'
+import { withMovementAttachments } from '../../data/movementAttachments.js'
+import { withSyncedLegacyParentFields } from '../../data/movementParentContacts.js'
 import { getCurrentStudent } from '../../data/mockCurrentStudent.js'
 import { formatApplicationSessionField } from '../../data/movementApplicationSession.js'
-import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
 import '../../styles/movement-form.css'
 
 const props = defineProps({
@@ -42,8 +49,6 @@ const { t, tr } = useAppI18n()
 const form = ref(createEmptyDeferment())
 const errors = ref({})
 const studentSelectVisible = ref(false)
-const fileInputRef = ref(null)
-const pendingLocalFile = ref(null)
 
 const isEditMode = computed(() => props.mode === 'edit')
 const isResubmitMode = computed(() => props.initialData && canResubmitDeferment(props.initialData))
@@ -70,11 +75,11 @@ function getConsentLookup() {
   }
 }
 
-const showParentConsentDownload = computed(() =>
-  hasParentConsentTemplate('deferment', getSelectedStudentCategory(), getConsentLookup()),
-)
+const reasonOptions = computed(() => getReasonOptionsBySourceKey('deferment', props.applicantMode))
 
-const reasonOptions = computed(() => getReasonOptionsBySourceKey('deferment'))
+const applicantCategory = computed(
+  () => form.value.studentCategory || getSelectedStudentCategory(),
+)
 
 function applyStudentProfile(student) {
   if (!student) return
@@ -92,7 +97,6 @@ watch(
   () => {
     if (!props.visible) return
     errors.value = {}
-    pendingLocalFile.value = null
     form.value =
       isEditMode.value && props.initialData
         ? getDefermentFormData(props.initialData)
@@ -103,41 +107,20 @@ watch(
   },
 )
 
+watch(
+  () => form.value.defermentPeriod,
+  () => {
+    syncDefermentPeriodDates(form.value)
+  },
+  { immediate: true },
+)
+
 function fieldError(key) {
   return errors.value[key] ? 'error' : ''
 }
 
-function onFileChange(event) {
-  const file = event.target.files?.[0]
-  if (!file) {
-    form.value.attachment = null
-    pendingLocalFile.value = null
-    return
-  }
-  const allowed = /\.(pdf|jpg|jpeg|png|docx)$/i
-  if (!allowed.test(file.name)) {
-    errors.value.attachment = 'Supported formats: PDF, JPG, PNG, DOCX.'
-    form.value.attachment = null
-    pendingLocalFile.value = null
-    return
-  }
-  if (file.size > 5 * 1024 * 1024) {
-    errors.value.attachment = 'Max file size is 5MB.'
-    form.value.attachment = null
-    pendingLocalFile.value = null
-    return
-  }
-  delete errors.value.attachment
-  pendingLocalFile.value = file
-  form.value.attachment = { fileName: file.name, size: file.size }
-}
-
 function downloadConsentLetter() {
   downloadStudentConsentTemplate('deferment', getSelectedStudentCategory(), t, getConsentLookup())
-}
-
-function downloadParentConsentLetter() {
-  downloadParentConsentTemplate('deferment', getSelectedStudentCategory(), t, getConsentLookup())
 }
 
 function validateAndEmit(mode, emitter) {
@@ -149,7 +132,7 @@ function validateAndEmit(mode, emitter) {
   )
   errors.value = result.errors
   if (!result.valid) return
-  emitter({ ...form.value })
+  emitter(withMovementAttachments(withSyncedLegacyParentFields({ ...form.value })))
 }
 
 function handleSaveDraft() {
@@ -178,6 +161,16 @@ function handleClose() {
       </header>
 
       <div class="modal-body">
+        <MovementApplicantNotes
+          title-key="deferment.notes.title"
+          :item-keys="defermentApplicantNoteKeys"
+        />
+
+        <MovementInternationalStudentRemarks
+          source-key="deferment"
+          :student-category="applicantCategory"
+        />
+
         <div class="section-bar">{{ t('deferment.sections.studentInfo') }}</div>
         <div class="form-grid">
           <div class="form-field span-2">
@@ -212,6 +205,14 @@ function handleClose() {
             </div>
           </div>
           <div class="form-field">
+            <label>{{ t('movementCommon.fields.currentAcademicSession') }}</label>
+            <input :value="formatApplicationSessionField(form.currentAcademicSession)" type="text" class="form-control" readonly />
+          </div>
+          <div class="form-field">
+            <label>{{ t('movementCommon.fields.applicationAcademicSession') }}</label>
+            <input :value="formatApplicationSessionField(form.applicationSession)" type="text" class="form-control" readonly />
+          </div>
+          <div class="form-field">
             <label>{{ t('deferment.fields.dateOfApplication') }}</label>
             <input :value="dateOfApplicationDisplay" type="text" class="form-control" readonly />
           </div>
@@ -236,34 +237,47 @@ function handleClose() {
             <input v-model="form.programmeLevel" type="text" class="form-control" readonly />
           </div>
           <div class="form-field">
-            <label>{{ t('movementCommon.fields.applicationAcademicSession') }}</label>
-            <input :value="formatApplicationSessionField(form.applicationSession)" type="text" class="form-control" readonly />
+            <label>{{ t('movementCommon.fields.visaExpiry') }}</label>
+            <input v-model="form.visaExpiryDate" type="text" class="form-control" readonly />
+          </div>
+          <div class="form-field">
+            <label>{{ t('movementCommon.fields.personalEmail') }}</label>
+            <input v-model="form.personalEmail" type="text" class="form-control" />
+          </div>
+          <div class="form-field">
+            <label>{{ t('movementCommon.fields.phoneNumber') }}</label>
+            <input v-model="form.phoneNumber" type="text" class="form-control" />
+          </div>
+          <div class="form-field">
+            <label>{{ t('movementCommon.fields.accommodationRoomNo') }}</label>
+            <input v-model="form.accommodationRoomNo" type="text" class="form-control" />
           </div>
         </div>
 
         <div class="section-bar">{{ t('deferment.sections.studentApplication') }}</div>
         <div class="form-grid">
           <div class="form-field">
-            <label>{{ t('deferment.fields.personalEmail') }}</label>
-            <input v-model="form.personalEmail" type="text" class="form-control" />
-          </div>
-          <div class="form-field">
-            <label>{{ t('deferment.fields.phoneNumber') }}</label>
-            <input v-model="form.phoneNumber" type="text" class="form-control" />
-          </div>
-          <div class="form-field">
-            <label>{{ t('deferment.fields.accommodationRoomNo') }}</label>
-            <input v-model="form.accommodationRoomNo" type="text" class="form-control" />
-          </div>
-          <div class="form-field">
-            <label>{{ t('deferment.fields.defermentPeriod') }} <span class="required">*</span></label>
+            <label>
+              {{ t('deferment.fields.defermentPeriod') }}
+              <span class="required">*</span>
+              <span
+                class="field-hint-tip-wrap"
+                tabindex="0"
+                :aria-label="t('deferment.fields.defermentPeriodHint')"
+              >
+                <span class="field-hint-icon" aria-hidden="true">?</span>
+                <span class="field-hint-tooltip" role="tooltip">
+                  {{ t('deferment.fields.defermentPeriodHint') }}
+                </span>
+              </span>
+            </label>
             <select v-model="form.defermentPeriod" :class="['form-control', fieldError('defermentPeriod')]">
               <option value="">{{ tr('pleaseSelect') }}</option>
               <option v-for="opt in defermentPeriodOptions" :key="opt" :value="opt">{{ opt }}</option>
             </select>
             <p v-if="errors.defermentPeriod" class="field-error">{{ tr(errors.defermentPeriod) }}</p>
           </div>
-          <div class="form-field span-2">
+          <div class="form-field">
             <label>{{ t('deferment.fields.mainReason') }} <span class="required">*</span></label>
             <select v-model="form.reasonId" :class="['form-control', fieldError('reasonId')]">
               <option :value="null">{{ tr('pleaseSelect') }}</option>
@@ -273,6 +287,24 @@ function handleClose() {
             </select>
             <p v-if="errors.reasonId" class="field-error">{{ tr(errors.reasonId) }}</p>
           </div>
+          <div class="form-field">
+            <label>{{ t('deferment.fields.defermentStartDate') }}</label>
+            <input
+              :value="form.defermentStartDate"
+              type="text"
+              class="form-control"
+              readonly
+            />
+          </div>
+          <div class="form-field">
+            <label>{{ t('deferment.fields.defermentEndDate') }}</label>
+            <input
+              :value="form.defermentEndDate"
+              type="text"
+              class="form-control"
+              readonly
+            />
+          </div>
           <div class="form-field span-2">
             <label>{{ t('deferment.fields.detailedReason') }}</label>
             <textarea v-model="form.detailedReason" rows="4" class="form-control" />
@@ -280,96 +312,30 @@ function handleClose() {
         </div>
 
         <div class="section-bar">{{ t('deferment.sections.parentConsent') }}</div>
-        <div class="form-grid">
-          <div class="form-field">
-            <label>{{ t('deferment.fields.parentGuardianName') }} <span class="required">*</span></label>
-            <input
-              v-model="form.parentGuardianName"
-              type="text"
-              :class="['form-control', fieldError('parentGuardianName')]"
-            />
-            <p v-if="errors.parentGuardianName" class="field-error">{{ tr(errors.parentGuardianName) }}</p>
-          </div>
-          <div class="form-field">
-            <label>{{ t('deferment.fields.parentContactNo') }} <span class="required">*</span></label>
-            <input
-              v-model="form.parentContactNo"
-              type="text"
-              :class="['form-control', fieldError('parentContactNo')]"
-            />
-            <p v-if="errors.parentContactNo" class="field-error">{{ tr(errors.parentContactNo) }}</p>
-          </div>
-          <div class="form-field">
-            <label>{{ t('deferment.fields.parentNricPassport') }}</label>
-            <input v-model="form.parentNricPassport" type="text" class="form-control" />
-          </div>
-          <div class="form-field">
-            <label>{{ t('deferment.fields.parentRelationship') }}</label>
-            <input v-model="form.parentRelationship" type="text" class="form-control" />
-          </div>
-          <div class="form-field span-2">
-            <label>{{ t('deferment.fields.parentEmail') }}</label>
-            <input v-model="form.parentEmail" type="text" class="form-control" />
-          </div>
-          <div v-if="showParentConsentDownload" class="form-field span-2 parent-download-row">
-            <button type="button" class="btn btn-outline consent-btn" @click="downloadParentConsentLetter">
-              {{ t('consentForm.downloadParentConsent') }}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-            </button>
-          </div>
-        </div>
+        <MovementParentConsentSection
+          source-key="deferment"
+          :contacts="form.parentContacts"
+          :errors="errors"
+          @update:contacts="form.parentContacts = $event"
+        />
 
         <div class="section-bar">{{ t('deferment.sections.documents') }}</div>
-        <div class="documents-panel">
-          <div class="attachment-header">
-            <label class="attachment-label">
-              {{ t('deferment.fields.uploadAttachment') }}
-              <span class="required">*</span>
-              :
-            </label>
-            <button type="button" class="btn btn-outline consent-btn" @click="downloadConsentLetter">
-              {{ t('deferment.fields.downloadConsent') }}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-            </button>
-          </div>
-          <div class="file-row">
-            <button type="button" class="btn btn-default" @click="fileInputRef?.click()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              {{ t('deferment.fields.selectFile') }}
-            </button>
-            <AttachmentPreviewTrigger
-              v-if="form.attachment?.fileName"
-              :file-name="form.attachment.fileName"
-              :file-meta="form.attachment"
-              :local-file="pendingLocalFile"
-              :show-file-icon="false"
-            />
-            <span v-else class="file-name">
-              {{ t('deferment.fields.noFileSelected') }}
-            </span>
-            <input
-              ref="fileInputRef"
-              type="file"
-              class="hidden-file"
-              accept=".pdf,.jpg,.jpeg,.png,.docx"
-              @change="onFileChange"
-            />
-          </div>
-          <p class="hint-text">{{ t('deferment.fields.attachmentHint') }}</p>
-          <p v-if="errors.attachment" class="field-error">{{ tr(errors.attachment) }}</p>
-        </div>
+        <MovementDocumentsUploadSection
+          source-key="deferment"
+          :student-category="applicantCategory"
+          :attachments="form.attachments"
+          :errors="errors"
+          @update:attachments="form.attachments = $event"
+          @download-consent="downloadConsentLetter"
+        />
+
+        <MovementDeclarationSection
+          :section-title="t('deferment.sections.declaration')"
+          :items="defermentDeclarationItems"
+          :checkboxes="[{ field: 'declarationAgreed' }]"
+          :form="form"
+          :errors="errors"
+        />
 
         <div class="info-alert">{{ t('deferment.infoAlert') }}</div>
       </div>

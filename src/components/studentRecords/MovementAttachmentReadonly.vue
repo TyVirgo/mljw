@@ -4,6 +4,7 @@ import { useAppI18n } from '../../composables/useAppI18n.js'
 import { initialStudents } from '../../data/students.js'
 import { downloadStudentConsentTemplate } from '../../utils/consentFormDownload.js'
 import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
+import { downloadAttachmentMock } from '../../utils/attachmentPreview.js'
 
 const props = defineProps({
   fileName: {
@@ -20,7 +21,7 @@ const props = defineProps({
   },
   downloadLabelKey: {
     type: String,
-    required: true,
+    default: '',
   },
   consentHintKey: {
     type: String,
@@ -49,6 +50,14 @@ const props = defineProps({
   required: {
     type: Boolean,
     default: true,
+  },
+  showAttachmentExport: {
+    type: Boolean,
+    default: false,
+  },
+  attachmentExportName: {
+    type: String,
+    default: '',
   },
 })
 
@@ -95,6 +104,11 @@ function downloadConsentLetter() {
     window.alert(t(props.consentHintKey))
   }
 }
+
+function exportAttachment() {
+  if (!props.fileName) return
+  downloadAttachmentMock(props.fileName, props.attachmentExportName || props.fileName)
+}
 </script>
 
 <template>
@@ -105,15 +119,33 @@ function downloadConsentLetter() {
         <span v-if="required" class="required">*</span>
         :
       </label>
-      <button type="button" class="btn btn-outline" @click="downloadConsentLetter">
-        {{ t(downloadLabelKey) }}
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" aria-hidden="true">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="7 10 12 15 17 10" />
-          <line x1="12" y1="15" x2="12" y2="3" />
-        </svg>
-      </button>
-    </div>
+        <button
+          v-if="downloadLabelKey"
+          type="button"
+          class="btn btn-outline"
+          @click="downloadConsentLetter"
+        >
+          {{ t(downloadLabelKey) }}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </button>
+        <button
+          v-if="showAttachmentExport"
+          type="button"
+          class="btn btn-outline"
+          @click="exportAttachment"
+        >
+          {{ t('movementExport.exportAttachment') }}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </button>
+      </div>
     <div class="attachment-file-row">
       <AttachmentPreviewTrigger
         v-if="fileName"

@@ -1,18 +1,18 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Academic session search as dropdown on movement list pages (§11)
-The system SHALL render the Academic Session search field on Status Change Approval, Status Change Maintenance, and Status Change Inquiry list pages as a dropdown populated with distinct application session values from the merged queue for that page, plus an All option.
+### 需求：异动列表页学年学期搜索为下拉（§11）
+系统应在学籍异动审批、学籍异动维护与学籍异动查询列表页将学年学期搜索字段渲染为下拉框，选项来自该页合并队列中不重复的申请学期值，并包含「全部」选项。
 
-#### Scenario: Dropdown options from application session field
-- **WHEN** user opens the search area on approval, maintenance, or inquiry
-- **THEN** the Academic Session control is a select dropdown
-- **AND** options are distinct non-empty `applicationSession` values from records in that page's merged queue, sorted ascending
-- **AND** the first option allows clearing the filter (All)
+#### 场景：下拉选项来自申请学期字段
+- **当** 用户在审批、维护或查询页打开搜索区
+- **则** 学年学期控件为下拉选择框
+- **且** 选项为该页合并队列记录中不重复的非空 `applicationSession` 值，按升序排列
+- **且** 首项为可清空筛选的「全部」
 
-#### Scenario: Exact match filter
-- **WHEN** user selects an academic session value and clicks Search
-- **THEN** the list shows only rows whose application session equals the selected value exactly
+#### 场景：精确匹配筛选
+- **当** 用户选择某一学年学期值并点击查询
+- **则** 列表仅展示申请学期与所选值完全一致的行
 
-#### Scenario: Chinese label unchanged
-- **WHEN** user views the maintenance search area in Chinese UI
-- **THEN** the academic session field label still displays 学年学期
+#### 场景：中文标签不变
+- **当** 用户在中文界面查看维护搜索区
+- **则** 学年学期字段标签仍显示「学年学期」

@@ -1,99 +1,99 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Change description annotations
-The system SHALL allow marking each change component as Major Changes or Minor / No Changes on step 1, using a three-column table layout aligned with the UI prototype.
+### 需求：Change description 标注
+系统应允许在步骤 1 将各变更组件标记为 Major Changes 或 Minor / No Changes，采用与 UI 原型对齐的三列表格布局。
 
-#### Scenario: Three-column table layout
-- **WHEN** user views the Change Description step in create or edit mode
-- **THEN** each component section (MAIN COMPONENTS and OTHER COMPONENTS) displays a table with columns: Component Name, Major Changes, and Minor / No Changes
-- **AND** a table header row labels the Major Changes and Minor / No Changes columns
-- **AND** section headings display a blue vertical accent bar on the left
+#### 场景：三列表格布局
+- **当** 用户在 create 或 edit 模式查看 Change Description 步骤
+- **则** 各组件区块（MAIN COMPONENTS 和 OTHER COMPONENTS）以表格展示，列包括：Component Name、Major Changes 和 Minor / No Changes
+- **且** 表头行标注 Major Changes 与 Minor / No Changes 列
+- **且** 区块标题左侧显示蓝色竖向强调条
 
-#### Scenario: Major and minor criteria per component
-- **WHEN** user views a component row
-- **THEN** the Major Changes column displays a pill toggle (N/Y) and bullet-list criteria describing what constitutes a major change for that component
-- **AND** the Minor / No Changes column displays a pill toggle (N/Y) and bullet-list criteria describing what constitutes a minor or no change for that component
-- **AND** criteria text matches the prototype definitions for each component
+#### 场景：各组件 major 与 minor 判定标准
+- **当** 用户查看组件行
+- **则** Major Changes 列显示 pill 切换（N/Y）及 bullet-list 判定标准，说明该组件何种变更属于 major change
+- **且** Minor / No Changes 列显示 pill 切换（N/Y）及 bullet-list 判定标准，说明何种变更属于 minor 或 no change
+- **且** 判定标准文案与各组件原型定义一致
 
-#### Scenario: Mutually exclusive toggle selection
-- **WHEN** user clicks the toggle in the Major Changes column for a component
-- **THEN** that column toggle shows Y (blue/active) and the Minor / No Changes column toggle shows N (grey/inactive)
-- **AND** the stored value for that component is `major`
+#### 场景：切换互斥选择
+- **当** 用户点击某组件 Major Changes 列的切换
+- **则** 该列切换显示 Y（蓝色/激活），Minor / No Changes 列切换显示 N（灰色/非激活）
+- **且** 该组件存储值为 `major`
 
-#### Scenario: Select minor changes
-- **WHEN** user clicks the toggle in the Minor / No Changes column for a component
-- **THEN** that column toggle shows Y (blue/active) and the Major Changes column toggle shows N (grey/inactive)
-- **AND** the stored value for that component is `minor`
+#### 场景：选择 minor changes
+- **当** 用户点击某组件 Minor / No Changes 列的切换
+- **则** 该列切换显示 Y（蓝色/激活），Major Changes 列切换显示 N（灰色/非激活）
+- **且** 该组件存储值为 `minor`
 
-#### Scenario: Main components
-- **WHEN** user views MAIN COMPONENTS on Change Description step
-- **THEN** the system lists Course Name, Credit Value, Course Classification, and CLO
-- **AND** each row allows selecting Major Changes or Minor / No Changes via the two-column toggle pattern
+#### 场景：Main components
+- **当** 用户在 Change Description 步骤查看 MAIN COMPONENTS
+- **则** 系统列出 Course Name、Credit Value、Course Classification 和 CLO
+- **且** 每行通过双列切换模式选择 Major Changes 或 Minor / No Changes
 
-#### Scenario: Other components
-- **WHEN** user views OTHER COMPONENTS on Change Description step
-- **THEN** the system lists Synopsis, Pre-requisite / co-requisite, Teaching Methods, Course Content, Assessment Methods, and References
-- **AND** each row allows selecting Major Changes or Minor / No Changes via the two-column toggle pattern
+#### 场景：Other components
+- **当** 用户在 Change Description 步骤查看 OTHER COMPONENTS
+- **则** 系统列出 Synopsis、Pre-requisite / co-requisite、Teaching Methods、Course Content、Assessment Methods 和 References
+- **且** 每行通过双列切换模式选择 Major Changes 或 Minor / No Changes
 
-#### Scenario: Default annotation
-- **WHEN** user first loads Change Description for a new application
-- **THEN** all components default to Minor / No Changes unless user changes them
+#### 场景：默认标注
+- **当** 用户首次加载新申请的 Change Description
+- **则** 全部组件默认为 Minor / No Changes，除非用户修改
 
-#### Scenario: Readonly detail view
-- **WHEN** user views Change Description step in detail (readonly) mode
-- **THEN** the same three-column table layout is displayed with toggles shown in disabled state reflecting the saved major/minor selection
+#### 场景：只读详情视图
+- **当** 用户在 detail（readonly）模式查看 Change Description 步骤
+- **则** 展示相同三列表格布局，切换以禁用状态反映已保存的 major/minor 选择
 
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Change description criteria content
-The system SHALL display component-specific criteria bullet lists that guide teachers in selecting the correct change level.
+### 需求：Change description 判定标准内容
+系统应展示组件特定的判定标准 bullet 列表，引导教师选择正确的变更级别。
 
-#### Scenario: Course Name criteria
-- **WHEN** user views the Course Name row
-- **THEN** Major Changes criteria include "Change course name to reflect the change in course content."
-- **AND** Minor / No Changes criteria include "Improve the grammar of the course name." and "No change."
+#### 场景：Course Name 判定标准
+- **当** 用户查看 Course Name 行
+- **则** Major Changes 判定标准包括「Change course name to reflect the change in course content.」
+- **且** Minor / No Changes 判定标准包括「Improve the grammar of the course name.」和「No change.」
 
-#### Scenario: Credit Value criteria
-- **WHEN** user views the Credit Value row
-- **THEN** Major Changes criteria include "Add or reduce the credit value of the course."
-- **AND** Minor / No Changes criteria include "Change credit value to meet MQA/EAC standards." and "No change."
+#### 场景：Credit Value 判定标准
+- **当** 用户查看 Credit Value 行
+- **则** Major Changes 判定标准包括「Add or reduce the credit value of the course.」
+- **且** Minor / No Changes 判定标准包括「Change credit value to meet MQA/EAC standards.」和「No change.」
 
-#### Scenario: Course Classification criteria
-- **WHEN** user views the Course Classification row
-- **THEN** Major Changes criteria include "Change course classification, e.g. from major to elective."
-- **AND** Minor / No Changes criteria include "Change course classification to meet MQA/EAC standards." and "No change."
+#### 场景：Course Classification 判定标准
+- **当** 用户查看 Course Classification 行
+- **则** Major Changes 判定标准包括「Change course classification, e.g. from major to elective.」
+- **且** Minor / No Changes 判定标准包括「Change course classification to meet MQA/EAC standards.」和「No change.」
 
-#### Scenario: CLO criteria
-- **WHEN** user views the CLO row
-- **THEN** Major Changes criteria include "Add or remove CLOs."
-- **AND** Minor / No Changes criteria include "Improve the grammar of the CLOs.", "Rearrange the sequence of the CLOs.", "Combine the CLOs.", and "No change."
+#### 场景：CLO 判定标准
+- **当** 用户查看 CLO 行
+- **则** Major Changes 判定标准包括「Add or remove CLOs.」
+- **且** Minor / No Changes 判定标准包括「Improve the grammar of the CLOs.」、「Rearrange the sequence of the CLOs.」、「Combine the CLOs.」和「No change.」
 
-#### Scenario: Synopsis criteria
-- **WHEN** user views the Synopsis row
-- **THEN** Major Changes criteria include "Revise the synopsis to reflect the change in course content."
-- **AND** Minor / No Changes criteria include "Rephrase the synopsis.", "Improve the grammar of the synopsis.", and "No change."
+#### 场景：Synopsis 判定标准
+- **当** 用户查看 Synopsis 行
+- **则** Major Changes 判定标准包括「Revise the synopsis to reflect the change in course content.」
+- **且** Minor / No Changes 判定标准包括「Rephrase the synopsis.」、「Improve the grammar of the synopsis.」和「No change.」
 
-#### Scenario: Pre-requisite criteria
-- **WHEN** user views the Pre-requisite / co-requisite row
-- **THEN** Major Changes criteria include "Add, remove, or revise the pre-requisite / co-requisite of the course."
-- **AND** Minor / No Changes criteria include "No change."
+#### 场景：Pre-requisite 判定标准
+- **当** 用户查看 Pre-requisite / co-requisite 行
+- **则** Major Changes 判定标准包括「Add, remove, or revise the pre-requisite / co-requisite of the course.」
+- **且** Minor / No Changes 判定标准包括「No change.」
 
-#### Scenario: Teaching Methods criteria
-- **WHEN** user views the Teaching Methods row
-- **THEN** Major Changes criteria include "Add or reduce the number of lectures (L), tutorials (T), practical (P).", "Revise the teaching strategy, e.g. from classroom delivery (CD) to podcast.", and "No change."
-- **AND** Minor / No Changes criteria include "No change."
+#### 场景：Teaching Methods 判定标准
+- **当** 用户查看 Teaching Methods 行
+- **则** Major Changes 判定标准包括「Add or reduce the number of lectures (L), tutorials (T), practical (P).」、「Revise the teaching strategy, e.g. from classroom delivery (CD) to podcast.」和「No change.」
+- **且** Minor / No Changes 判定标准包括「No change.」
 
-#### Scenario: Course Content criteria
-- **WHEN** user views the Course Content row
-- **THEN** Major Changes criteria include "Add or reduce topic in the course content."
-- **AND** Minor / No Changes criteria include "Rearrange the topics.", "Update the topics.", "Add or reduce subtopics in the topics.", and "No change."
+#### 场景：Course Content 判定标准
+- **当** 用户查看 Course Content 行
+- **则** Major Changes 判定标准包括「Add or reduce topic in the course content.」
+- **且** Minor / No Changes 判定标准包括「Rearrange the topics.」、「Update the topics.」、「Add or reduce subtopics in the topics.」和「No change.」
 
-#### Scenario: Assessment Methods criteria
-- **WHEN** user views the Assessment Methods row
-- **THEN** Major Changes criteria include "Change the percentage of continuous assessment and final assessment."
-- **AND** Minor / No Changes criteria include "Revise the coursework components, e.g. test, assignment, etc.", "Revise the exam hours.", and "No change."
+#### 场景：Assessment Methods 判定标准
+- **当** 用户查看 Assessment Methods 行
+- **则** Major Changes 判定标准包括「Change the percentage of continuous assessment and final assessment.」
+- **且** Minor / No Changes 判定标准包括「Revise the coursework components, e.g. test, assignment, etc.」、「Revise the exam hours.」和「No change.」
 
-#### Scenario: References criteria
-- **WHEN** user views the References row
-- **THEN** Major Changes criteria include "Add or reduce the main or additional references."
-- **AND** Minor / No Changes criteria include "Update the publication year or edition of the references.", "Revise the referencing system, e.g. from MLA to APA.", and "No change."
+#### 场景：References 判定标准
+- **当** 用户查看 References 行
+- **则** Major Changes 判定标准包括「Add or reduce the main or additional references.」
+- **且** Minor / No Changes 判定标准包括「Update the publication year or edition of the references.」、「Revise the referencing system, e.g. from MLA to APA.」和「No change.」

@@ -1,75 +1,75 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Student Profile list page with search
-The system SHALL provide a Student Profile Management list page with search filters aligned to the prototype.
+### 需求：Student Profile 列表页搜索
+系统应提供与原型对齐的 Student Profile Management 列表页，并支持搜索筛选。
 
-#### Scenario: Search fields displayed
-- **WHEN** user views the Student Profile page
-- **THEN** the search bar shows Student ID, Name, and Student Type filters with Search and Reset buttons
+#### 场景：展示搜索字段
+- **当** 用户查看 Student Profile 页面
+- **则** 搜索栏展示 Student ID、Name、Student Type 筛选字段，以及 Search、Reset 按钮
 
-#### Scenario: Search by student ID
-- **WHEN** user enters a Student ID and clicks Search
-- **THEN** the table shows only rows whose Student ID contains the entered text (case-insensitive)
+#### 场景：按 Student ID 搜索
+- **当** 用户输入 Student ID 并点击 Search
+- **则** 表格仅展示 Student ID 包含输入文本的行（不区分大小写）
 
-#### Scenario: Search by name
-- **WHEN** user enters a Name and clicks Search
-- **THEN** the table shows only rows whose Student Name or Chinese Name contains the entered text (case-insensitive)
+#### 场景：按姓名搜索
+- **当** 用户输入 Name 并点击 Search
+- **则** 表格仅展示 Student Name 或 Chinese Name 包含输入文本的行（不区分大小写）
 
-#### Scenario: Filter by student type
-- **WHEN** user selects a Student Type other than "All Categories" and clicks Search
-- **THEN** the table shows only rows matching that student type
+#### 场景：按 Student Type 筛选
+- **当** 用户选择非「All Categories」的 Student Type 并点击 Search
+- **则** 表格仅展示匹配该 student type 的行
 
-#### Scenario: Reset search
-- **WHEN** user clicks Reset
-- **THEN** all search fields clear and the table shows the full mock dataset
+#### 场景：重置搜索
+- **当** 用户点击 Reset
+- **则** 所有搜索字段清空，表格展示完整 mock 数据集
 
-### Requirement: Student Profile list toolbar actions
-The system SHALL provide toolbar actions for Create, Import, and Export on the Student Profile page.
+### 需求：Student Profile 列表工具栏操作
+系统应在 Student Profile 页面提供 Create、Import、Export 工具栏操作。
 
-#### Scenario: Create button visible
-- **WHEN** user views the Student Profile page
-- **THEN** a primary Create button is displayed in the toolbar
+#### 场景：Create 按钮可见
+- **当** 用户查看 Student Profile 页面
+- **则** 工具栏展示主色 Create 按钮
 
-#### Scenario: Import placeholder
-- **WHEN** user clicks Import
-- **THEN** the system shows a placeholder notice that import is not yet connected
+#### 场景：Import 占位
+- **当** 用户点击 Import
+- **则** 系统展示占位提示，说明导入功能尚未接入
 
-#### Scenario: Export with data
-- **WHEN** user clicks Export and confirms export in the export modal
-- **THEN** the system downloads an Excel file containing the selected export scope and columns
+#### 场景：Export 导出数据
+- **当** 用户点击 Export 并在导出弹框中确认导出
+- **则** 系统下载包含所选导出范围与列的 Excel 文件
 
-### Requirement: Student Profile data table columns
-The system SHALL display a paginated table with columns matching the prototype.
+### 需求：Student Profile 数据表格列
+系统应展示与原型一致的分页表格列。
 
-#### Scenario: Table columns
-- **WHEN** the Student Profile list is displayed
-- **THEN** columns include No., Student ID, Student Name, Chinese Name, Student Type, Gender, Programme Code, Programme, Intake, Student Status, and Actions
+#### 场景：表格列
+- **当** 展示 Student Profile 列表
+- **则** 列包含 No.、Student ID、Student Name、Chinese Name、Student Type、Gender、Programme Code、Programme、Intake、Student Status、Actions
 
-#### Scenario: Row actions
-- **WHEN** user views a table row
-- **THEN** the Actions column provides Details and Edit links
+#### 场景：行操作
+- **当** 用户查看表格行
+- **则** Actions 列提供 Details 与 Edit 链接
 
-#### Scenario: Pagination
-- **WHEN** the filtered result count exceeds the page size
-- **THEN** the system shows pagination controls and displays the correct page slice
+#### 场景：分页
+- **当** 筛选结果数量超过每页条数
+- **则** 系统展示分页控件，并正确展示当前页数据切片
 
-### Requirement: Student Profile row detail view
-The system SHALL allow users to view student record details from the list.
+### 需求：Student Profile 行详情查看
+系统应支持用户从列表查看学生档案详情。
 
-#### Scenario: Open details
-- **WHEN** user clicks Details on a row
-- **THEN** the system displays a read-only detail view showing that row's student information
+#### 场景：打开详情
+- **当** 用户点击某一行的 Details
+- **则** 系统展示只读详情视图，显示该行学生信息
 
-### Requirement: Student Profile mock data
-The system SHALL use local mock data for the Student Profile list without backend API calls.
+### 需求：Student Profile mock 数据
+系统应使用本地 mock 数据驱动 Student Profile 列表，不调用后端 API。
 
-#### Scenario: Initial data load
-- **WHEN** user opens the Student Profile page
-- **THEN** the table displays at least six mock student records including varied student types and Active status examples
+#### 场景：初始数据加载
+- **当** 用户打开 Student Profile 页面
+- **则** 表格展示至少六条 mock 学生记录，包含多种 student type 与 Active 状态样例
 
-### Requirement: Student Profile page styling matches Basic Data list pages
-The system SHALL use the same list page layout and styling conventions as Basic Data modules such as Lecturer Information.
+### 需求：Student Profile 页面样式与 Basic Data 列表页一致
+系统应使用与 Lecturer Information 等 Basic Data 模块相同的列表页布局与样式约定。
 
-#### Scenario: Page card layout
-- **WHEN** user views the Student Profile page
-- **THEN** content is wrapped in a page card with search bar, toolbar, data table, and pagination consistent with Basic Data list pages
+#### 场景：Page card 布局
+- **当** 用户查看 Student Profile 页面
+- **则** 内容包裹在 page card 中，含搜索栏、工具栏、数据表格与分页，样式与 Basic Data 列表页一致

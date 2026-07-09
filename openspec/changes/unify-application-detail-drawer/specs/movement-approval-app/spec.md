@@ -1,30 +1,27 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: View behavior depends on tab context
-The system SHALL open Details in the unified right-side drawer with read-only application content for Submitted and History tabs, and with read-only application content plus a Review action in the drawer footer for the Pending tab.
+### 需求：查看行为随 tab 上下文变化
+系统应在 Submitted 与 History tab 以统一右侧抽屉打开只读申请内容的「详情」，在 Pending tab 以统一抽屉打开只读申请内容并在抽屉底栏提供 Review 操作。
 
-#### Scenario: Details from Submitted
-- **WHEN** user clicks Details on a Submitted row
-- **THEN** the system opens the drawer with timeline and read-only application details without a Review action in the footer
+#### 场景：从 Submitted 打开详情
+- **当** 用户点击 Submitted 行的「详情」
+- **则** 系统打开含只读申请详情与底部审批日志表格的抽屉，且底栏无 Review 操作
 
-#### Scenario: Details from Pending
-- **WHEN** user clicks Details on a Pending row
-- **THEN** the system opens the drawer with timeline and read-only application sections
-- **AND** the drawer footer provides Review to open the approval decision modal
+#### 场景：从 Pending 打开详情
+- **当** 用户点击 Pending 行的「详情」
+- **则** 系统打开含只读申请区块与底部审批日志表格的抽屉，且底栏提供 Review 以打开审批决策弹框
 
-#### Scenario: Details from History with recall
-- **WHEN** user clicks Details on a History row where recall is permitted for the current role
-- **THEN** the drawer footer provides Close and Recall
+#### 场景：从 History 打开详情且可撤回
+- **当** 用户点击 History 行「详情」且当前角色允许 Recall
+- **则** 抽屉底栏提供 Close 与 Recall
 
-#### Scenario: No full-page review navigation
-- **WHEN** user opens Details from the movement approval list
-- **THEN** the list page remains visible
-- **AND** the system does not navigate to a full-page MovementApprovalReviewView
+#### 场景：无整页审阅导航
+- **当** 用户从异动审批列表打开「详情」
+- **则** 列表页保持可见，且系统不导航至整页 `MovementApprovalReviewView`
 
-### Requirement: Approval log accessible from unified Details action
-The system SHALL provide approval history through the timeline section of the Details drawer instead of a separate Approval Log list action.
+### 需求：通过统一「详情」操作访问审批日志
+系统应通过「详情」抽屉底部的审批日志表格提供审批历史，而非独立的 Approval Log 列表操作。
 
-#### Scenario: Approval history in drawer
-- **WHEN** user opens Details on any movement approval row
-- **THEN** the drawer timeline shows stage, actor, action, and timestamp history
-- **AND** a separate Approval Log row action is not shown
+#### 场景：抽屉内审批历史
+- **当** 用户打开任意异动审批行的「详情」
+- **则** 抽屉以四列表格展示审批历史，且不显示独立的 Approval Log 行操作

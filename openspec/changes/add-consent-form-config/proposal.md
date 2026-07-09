@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 学籍异动侧边栏「知情同意书」（`sr-consent-form`）仍为建设中页。四 Tab 异动申请（转专业/休学/复学/退学）的「下载同意书」目前仅为 `alert` 占位，无法按 **异动类型 × 学生类型** 匹配不同模板；部分异动（休学/退学）还涉及 **家长同意书**。需在管理端维护同意书模板库，并在申请端按所选学生与当前 Tab 自动匹配下载，使「下载 → 签署 → 上传」闭环可演示。
 
-## What Changes
+## 变更内容
 
 ### 主列表页（图示1）
 
@@ -44,18 +44,18 @@
 - **Mock 种子**：覆盖 Programme Transfer / Deferment / Withdrawal × Local / Chinese / International 等组合（至少 8 条），体现差异与家长书
 - 纯前端 mock；无后端 API、Import/Export
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `consent-form-config`: 知情同意书模板列表、CRUD、修读时长规则、模板 upload mock、View 弹窗、lookup helper
 
-### Modified Capabilities
+### 修改的能力
 
 - `student-records-app`: `sr-consent-form` 从建设中升级为已开发
 - `movement-application-details`: 详情/表单「下载同意书」从 alert 占位改为按模板库匹配 mock 下载
 
-## Impact
+## 影响范围
 
 - **新增**
   - `ConsentFormView.vue`
@@ -68,7 +68,7 @@
   - `ProgrammeTransferFormModal.vue`、`DefermentFormModal.vue`、`ResumptionFormModal.vue`、`WithdrawalFormModal.vue`
   - `MovementAttachmentReadonly.vue`
   - `src/i18n/locales/en.js`、`zh.js`、`zh-flat.js`
-- **Non-goals**
+- **非目标（本变更不做）**
   - 真实文件存储 / 后端 API
   - 审批流、异动类别/原因配置联动
   - 最长修读年限的精确学期计算（首版 mock 规则即可）
@@ -99,19 +99,19 @@
   - 命中：该学期 **已应用** 的版本附件；未命中：**不下载**，按钮侧提示 **「未匹配对应同意书，联系管理员」**（i18n）
 - **Mock 种子**：扩展现有 9 条或增行，覆盖至少 2 个 educationLevel × 2 个 academicSession 的 `versions[]` + `isApplied` 样例
 
-### Non-goals（§10）
+### 非目标（§10）
 
 - 真实 PDF 版本 diff、审批发布流
 - 自动按当前学期归档（首版手工在历史弹窗维护）
 - 新增 `06` 月份（沿用 `intakeSets` 的 `02|04|09`）
 - Import/Export 扁平化 versions
 
-### Capabilities（§10）
+### 能力范围（§10）
 
 - `consent-form-config`: 学历层次 + 学期版本历史 + 应用互斥 + lookup 四维匹配
 - `movement-application-details`: 下载未匹配时的统一提示文案
 
-### Impact（§10）
+### 影响范围（§10）
 
 - **修改** `src/data/consentForms.js` — 模型、`versions[]`、`applyConsentVersion`、lookup 签名
 - **新增** `ConsentFormVersionHistoryModal.vue`
@@ -144,19 +144,19 @@
   - 命中：配置行上 **唯一** `isApplied=true` 的快照；未命中 → 「未匹配对应同意书，联系管理员」
 - **配置行 Edit**：Save 仍更新当前字段 **并** append 历史（不再区分「仅 default 不写快照」）
 
-### Non-goals（§11）
+### 非目标（§11）
 
 - 历史弹窗内手工维护版本
 - 历史条目 Delete（审计只追加）
 - 按申请学期匹配 Applied（后续 Phase 可恢复 §10 四维 lookup）
 - 真实后端 audit / 当前登录用户
 
-### Capabilities（§11）
+### 能力范围（§11）
 
 - `consent-form-config`: Status Log 式 version log + Save 驱动 append + 全局 Apply + 日期推导学期
 - `movement-application-details`: lookup 暂时三维（education level 仍映射）
 
-### Impact（§11）
+### 影响范围（§11）
 
 - **修改** `consentForms.js` — `appendVersionLog`、`resolveAcademicSessionFromDate`、`setAppliedVersion` 全局互斥、lookup 签名
 - **修改** `ConsentFormVersionHistoryModal.vue` — 只读表 + Apply

@@ -1,42 +1,42 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Student select modal for staff forms
-The system SHALL provide a reusable student selection modal for staff movement application forms with search and pagination over the student profile mock dataset.
+### 需求：管理端表单用学生选择弹框
+系统应为管理端异动申请表单提供可复用的学生选择弹框，支持对学生档案 mock 数据集搜索与分页。
 
-#### Scenario: Open modal from form
-- **WHEN** staff user clicks Select on Section I Student ID in any movement create form
-- **THEN** a modal opens listing students with Student ID, Name, Programme, and Faculty columns
+#### 场景：从表单打开弹框
+- **当** 管理端用户在任何异动新建表单的 Section I 学号处点击选择
+- **则** 弹框打开，列表展示学号、姓名、专业、学院列
 
-#### Scenario: Programme and faculty columns from enrollment
-- **WHEN** the student select modal displays a student row
-- **THEN** the Programme column shows `enrollment.programme` and the Faculty column shows `enrollment.faculty`, or `—` when empty
+#### 场景：专业与学院列来自学籍
+- **当** 学生选择弹框展示某学生行
+- **则** 专业列显示 `enrollment.programme`，学院列显示 `enrollment.faculty`，为空时显示 `—`
 
-#### Scenario: Search by student id or name
-- **WHEN** staff user enters a keyword in the modal search field
-- **THEN** the list filters students whose student ID, English name, or Chinese name contains the keyword (case-insensitive)
+#### 场景：按学号或姓名搜索
+- **当** 管理端用户在弹框搜索框输入关键词
+- **则** 列表筛选学号、英文名或中文名包含该关键词的学生（不区分大小写）
 
-#### Scenario: Paginated results
-- **WHEN** the filtered student list exceeds the page size
-- **THEN** the modal shows pagination controls and displays one page at a time
+#### 场景：分页结果
+- **当** 筛选后学生列表超过页大小
+- **则** 弹框展示分页控件，每次仅显示一页
 
-#### Scenario: Confirm selection
-- **WHEN** staff user selects a row and confirms
-- **THEN** the modal closes and the form Section I fields are populated from the selected student profile snapshot
+#### 场景：确认选择
+- **当** 管理端用户选中一行并确认
+- **则** 弹框关闭，表单 Section I 字段从所选学生档案快照填充
 
-#### Scenario: Cancel without change
-- **WHEN** staff user closes or cancels the modal without confirming
-- **THEN** the form retains its previous student selection state
+#### 场景：取消且不变更
+- **当** 管理端用户关闭或取消弹框且未确认
+- **则** 表单保留先前的学生选择状态
 
-#### Scenario: Confirm disabled without selection
-- **WHEN** no student row is selected in the modal
-- **THEN** the confirm action is disabled
+#### 场景：未选择时确认禁用
+- **当** 弹框中未选中任何学生行
+- **则** 确认操作禁用
 
-## REMOVED Requirements
+## 移除需求
 
-### Requirement: Inline student filter select on movement forms
-**Reason**: Replaced by StudentSelectModal for scalability when student count is large.
-**Migration**: Remove the paired keyword input and native `<select>` from Section I in all four movement form modals; use read-only display plus Select button opening StudentSelectModal.
+### 需求：异动表单内联学生筛选下拉
+**原因**：学生数量较大时，由 `StudentSelectModal` 取代以提升可扩展性。
+**迁移说明**：从四种异动表单弹框的 Section I 移除配对关键词输入框与原生 `<select>`；改为只读展示加选择按钮打开 `StudentSelectModal`。
 
-#### Scenario: No native select for student pick
-- **WHEN** staff user creates a movement application
-- **THEN** Section I does not render a native HTML select listing all students inline
+#### 场景：学生选择不使用原生 select
+- **当** 管理端用户创建异动申请
+- **则** Section I 不渲染内联列出全部学生的原生 HTML select

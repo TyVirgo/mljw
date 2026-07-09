@@ -1,54 +1,37 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Attachment preview trigger and modal
-The system SHALL provide reusable attachment preview UI consisting of an eye icon button adjacent to a file name and a modal that displays preview content when the eye icon is activated.
+### 需求：附件预览触发器与弹框
+系统应提供可复用的附件预览 UI，由文件名旁的眼图标按钮及激活眼图标时展示预览内容的弹框组成。
 
-#### Scenario: Eye icon visible when file exists
-- **WHEN** a file name is present for an uploaded or saved attachment
-- **THEN** the system shows an eye icon button next to the file name
-- **AND** the eye icon has an accessible preview label
+#### 场景：有文件时显示眼图标
+- 当已上传或已保存附件存在文件名时，则系统在文件名旁显示眼图标按钮，且眼图标具有可访问的预览标签。
 
-#### Scenario: Eye icon hidden when no file
-- **WHEN** no attachment file name is present
-- **THEN** the system does not show the eye icon button
+#### 场景：无文件时隐藏眼图标
+- 当不存在附件文件名时，则系统不显示眼图标按钮。
 
-#### Scenario: Open preview modal from eye icon
-- **WHEN** user clicks the eye icon for an attachment
-- **THEN** the system opens a preview modal titled with the file name
-- **AND** displays preview content appropriate to the file type or demo mock content when only metadata exists
+#### 场景：从眼图标打开预览弹框
+- 当用户点击附件的眼图标时，则系统打开以文件名为标题的预览弹框，并展示适合文件类型的预览内容；若仅有元数据则展示 demo mock 内容。
 
-#### Scenario: Close preview modal
-- **WHEN** user closes the preview modal
-- **THEN** the system hides the modal
-- **AND** revokes any temporary blob preview URL created for the session
+#### 场景：关闭预览弹框
+- 当用户关闭预览弹框时，则系统隐藏弹框，并 revoke 本次会话创建的临时 blob 预览 URL。
 
-### Requirement: Attachment preview mock and blob strategies
-The system SHALL resolve preview content using a local File blob when available from the current upload session, otherwise using demo mock preview content derived from file name and metadata.
+### 需求：附件预览 mock 与 blob 策略
+系统应在当前上传会话存在本地 File blob 时使用其解析预览内容，否则根据文件名与元数据使用 demo mock 预览内容。
 
-#### Scenario: Preview newly selected PDF in form
-- **WHEN** user selects a PDF file in a form upload control during the current modal session
-- **AND** user clicks the eye icon before save
-- **THEN** the preview modal displays the selected PDF using a blob URL
+#### 场景：在表单中预览刚选中的 PDF
+- 当用户在当前弹框会话的表单上传控件中选择 PDF 文件，且在保存前点击眼图标时，则预览弹框使用 blob URL 展示所选 PDF。
 
-#### Scenario: Preview saved mock attachment without blob
-- **WHEN** user opens preview for an attachment stored as mock metadata only
-- **THEN** the preview modal displays demo placeholder content for the file type
-- **AND** shows a notice that content is simulated in the demo environment
+#### 场景：无 blob 时预览已保存 mock 附件
+- 当用户为仅存储 mock 元数据的附件打开预览时，则预览弹框展示该文件类型的 demo 占位内容，并显示演示环境内容为模拟的提示。
 
-#### Scenario: Unsupported file type preview
-- **WHEN** user clicks preview for a file type that cannot be inline previewed in the demo such as DOCX
-- **THEN** the preview modal shows file summary and an unsupported or conversion-required message
-- **AND** does not fail silently
+#### 场景：不支持类型的预览
+- 当用户点击无法在 demo 中内联预览的文件类型（如 DOCX）的预览时，则预览弹框展示文件摘要及不支持或需转换的说明，且不静默失败。
 
-### Requirement: File name and preview actions are separate
-The system SHALL treat file name download and eye icon preview as distinct actions.
+### 需求：文件名与预览操作分离
+系统应将文件名下载与眼图标预览视为独立操作。
 
-#### Scenario: File name triggers download
-- **WHEN** user clicks the attachment file name where download is supported
-- **THEN** the system triggers mock file download behavior
-- **AND** does not open the preview modal unless the eye icon is clicked
+#### 场景：点击文件名触发下载
+- 当用户在支持下载的场景点击附件文件名时，则系统触发 mock 文件下载行为，且除非点击眼图标否则不打开预览弹框。
 
-#### Scenario: Eye icon triggers preview only
-- **WHEN** user clicks the eye icon
-- **THEN** the system opens the preview modal
-- **AND** does not trigger download
+#### 场景：眼图标仅触发预览
+- 当用户点击眼图标时，则系统打开预览弹框，且不触发下载。

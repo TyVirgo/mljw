@@ -3,26 +3,43 @@ import { ref, computed } from 'vue'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
+import DatePickerEn from '../../components/common/DatePickerEn.vue'
 import StudentProfileFormDrawer from '../../components/studentRecords/StudentProfileFormDrawer.vue'
 import StudentProfileDetailDrawer from '../../components/studentRecords/StudentProfileDetailDrawer.vue'
 import StudentProfileImportModal from '../../components/studentRecords/StudentProfileImportModal.vue'
+import StudentProfileTableHeaderLabel from '../../components/studentRecords/StudentProfileTableHeaderLabel.vue'
 import {
   studentCategoryOptions,
+  studentStatusOptions,
   normalizeStudent,
   studentRecords,
+  isChinaOrInternationalCategory,
+  formatStudentPassExpiryEndDate,
+  matchesStudentListFilters,
+  getLatestStudentStatus,
 } from '../../data/students.js'
+import { getEnrollmentProgrammeNameOptions, getEnrollmentIntakeOptions, getEnrollmentProgrammeLevelOptions } from '../../data/studentEnrollmentOptions.js'
+import { formatProgrammeLevelLabel } from '../../utils/formatProgrammeLevel.js'
+import { nationalityOptions } from '../../data/nationalityOptions.js'
 import {
   exportStudentProfilesToExcel,
   studentProfileExportFields,
 } from '../../utils/exportStudentProfileExcel.js'
 import { useListPageI18n } from '../../composables/useListPageI18n.js'
+import { useStudentProfileFieldLabels } from '../../composables/useStudentProfileFieldLabels.js'
+import { enterStudentPreview } from '../../data/mockCurrentStudent.js'
+import '../../styles/list-page-search.css'
+
+const emit = defineEmits(['preview-student'])
 
 const { t, tr, translatedExportFields } = useListPageI18n(studentProfileExportFields)
+const { fieldSearchLabel } = useStudentProfileFieldLabels()
 
 const students = studentRecords
 
 const searchForm = ref(createEmptySearch())
 const appliedSearch = ref(createEmptySearch())
+const searchExpanded = ref(false)
 
 const selectedIds = ref([])
 const currentPage = ref(1)
@@ -42,33 +59,57 @@ const confirmVisible = ref(false)
 const confirmMessage = ref('')
 const pendingDeleteIds = ref([])
 
+const outstandingFeeOptions = ['Y', 'N']
+
 function createEmptySearch() {
   return {
     studentId: '',
-    name: '',
+    studentName: '',
+    chineseName: '',
+    icNo: '',
+    mobilePhone: '',
+    programme: '',
+    intake: '',
+    status: '',
     studentType: '',
+    nationality: '',
+    registrationTime: '',
+    programmeLevel: '',
+    programmeStructure: '',
+    expectedCompletionBatch: '',
+    expectedGraduationBatch: '',
+    outstandingFee: '',
+    studentPassExpiryFrom: '',
+    studentPassExpiryTo: '',
   }
 }
 
-function matchText(value, keyword) {
-  if (!keyword) return true
-  return String(value).toLowerCase().includes(keyword.trim().toLowerCase())
+function uniqueValues(getter) {
+  return [...new Set(students.value.map(getter).filter(Boolean))].sort()
 }
 
-function matchSelect(value, selected) {
-  if (!selected) return true
-  return value === selected
-}
-
-const filteredStudents = computed(() => {
-  const s = appliedSearch.value
-  return students.value.filter(
-    (item) =>
-      matchText(item.studentId, s.studentId) &&
-      (matchText(item.name, s.name) || matchText(item.nameCn, s.name)) &&
-      matchSelect(item.studentType, s.studentType),
-  )
+const programmeOptions = computed(() => {
+  const fromCatalogue = getEnrollmentProgrammeNameOptions()
+  const fromRecords = uniqueValues((item) => item.programme)
+  return [...new Set([...fromCatalogue, ...fromRecords])].sort()
 })
+
+const intakeOptions = computed(() => {
+  const fromCatalogue = getEnrollmentIntakeOptions()
+  const fromRecords = uniqueValues((item) => item.intake)
+  return [...new Set([...fromCatalogue, ...fromRecords])].sort()
+})
+
+const registrationTimeOptions = computed(() => uniqueValues((item) => item.registrationTime))
+const programmeStructureOptions = computed(() => uniqueValues((item) => item.programmeStructure))
+const expectedCompletionBatchOptions = computed(() => uniqueValues((item) => item.expectedCompletionBatch))
+const expectedGraduationBatchOptions = computed(() => uniqueValues((item) => item.expectedGraduationBatch))
+
+const programmeLevelOptions = getEnrollmentProgrammeLevelOptions()
+
+const filteredStudents = computed(() =>
+  students.value.filter((item) => matchesStudentListFilters(item, appliedSearch.value)),
+)
 
 const totalCount = computed(() => filteredStudents.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / pageSize.value)))
@@ -85,6 +126,55 @@ const allPageSelected = computed(() => {
 
 const hasSelection = computed(() => selectedIds.value.length > 0)
 
+const tableColumnCount = 23
+
+function displayIcNo(item) {
+  const category = item.studentType || item.studentCategory
+  if (category !== 'Local') return '—'
+  const value = String(item.icNo || item.basicInfo?.icNo || '').trim()
+  return value || '—'
+}
+
+function displayMobilePhone(item) {
+  const value = String(item.mobilePhone || item.contact?.mobilePhone || '').trim()
+  return value || '—'
+}
+
+function displayCell(value) {
+  const text = String(value ?? '').trim()
+  return text || '—'
+}
+
+function displayProgrammeLevel(item) {
+  const raw = item.programmeLevel || item.enrollment?.programmeLevel
+  const label = formatProgrammeLevelLabel(raw, t)
+  return label || '—'
+}
+
+function handlePreviewStudent(item) {
+  if (enterStudentPreview(item)) {
+    emit('preview-student')
+  }
+}
+
+const previewTooltipVisible = ref(false)
+const previewTooltipStyle = ref({ top: '0px', left: '0px' })
+
+function showPreviewTooltip(event) {
+  const target = event.currentTarget?.querySelector('button') ?? event.currentTarget
+  if (!target?.getBoundingClientRect) return
+  const rect = target.getBoundingClientRect()
+  previewTooltipStyle.value = {
+    top: `${rect.bottom + 8}px`,
+    left: `${rect.left + rect.width / 2}px`,
+  }
+  previewTooltipVisible.value = true
+}
+
+function hidePreviewTooltip() {
+  previewTooltipVisible.value = false
+}
+
 function handleSearch() {
   appliedSearch.value = { ...searchForm.value }
   currentPage.value = 1
@@ -96,6 +186,10 @@ function handleReset() {
   appliedSearch.value = createEmptySearch()
   currentPage.value = 1
   selectedIds.value = []
+}
+
+function toggleSearchExpanded() {
+  searchExpanded.value = !searchExpanded.value
 }
 
 function toggleSelectAll(event) {
@@ -223,6 +317,32 @@ function formatStudentStatus(status) {
   const translated = t(key)
   return translated !== key ? translated : tr(status)
 }
+
+function displayStudentStatus(item) {
+  return formatStudentStatus(getLatestStudentStatus(item))
+}
+
+function formatTrackCategory(value) {
+  const text = String(value || '').trim()
+  if (!text) return '—'
+  const key = `movementCategory.trackCategory.${text}`
+  const translated = t(key)
+  return translated !== key ? translated : tr(text)
+}
+
+function displayTrackCategory(item) {
+  return formatTrackCategory(item.trackCategory || item.enrollment?.trackCategory)
+}
+
+function displayOutstandingFee(item) {
+  const value = String(item.outstandingFee || item.basicInfo?.outstandingFee || '').trim().toUpperCase()
+  return value === 'Y' || value === 'N' ? value : '—'
+}
+
+function displayStudentPassExpiry(item) {
+  if (!isChinaOrInternationalCategory(item.studentType || item.studentCategory)) return '—'
+  return formatStudentPassExpiryEndDate(item.basicInfo || item) || '—'
+}
 </script>
 
 <template>
@@ -232,28 +352,74 @@ function formatStudentStatus(status) {
         <div class="search-row">
           <div class="search-fields">
             <div class="search-item">
-              <label>{{ tr('Student ID:') }}</label>
+              <label>{{ fieldSearchLabel('studentId') }}</label>
               <input
                 v-model="searchForm.studentId"
                 type="text"
+                class="search-input"
                 :placeholder="t('common.pleaseInput')"
                 @keyup.enter="handleSearch"
               />
             </div>
             <div class="search-item">
-              <label>{{ tr('Name:') }}</label>
+              <label>{{ fieldSearchLabel('studentName') }}</label>
               <input
-                v-model="searchForm.name"
+                v-model="searchForm.studentName"
                 type="text"
+                class="search-input"
                 :placeholder="t('common.pleaseInput')"
                 @keyup.enter="handleSearch"
               />
             </div>
             <div class="search-item">
-              <label>{{ tr('Student Type:') }}</label>
-              <select v-model="searchForm.studentType" :class="{ 'is-empty': !searchForm.studentType }">
-                <option value="">{{ tr('All Categories') }}</option>
-                <option v-for="opt in studentCategoryOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
+              <label>{{ fieldSearchLabel('chineseName') }}</label>
+              <input
+                v-model="searchForm.chineseName"
+                type="text"
+                class="search-input"
+                :placeholder="t('common.pleaseInput')"
+                @keyup.enter="handleSearch"
+              />
+            </div>
+            <div class="search-item">
+              <label>{{ fieldSearchLabel('icNo') }}</label>
+              <input
+                v-model="searchForm.icNo"
+                type="text"
+                class="search-input"
+                :placeholder="t('common.pleaseInput')"
+                @keyup.enter="handleSearch"
+              />
+            </div>
+            <div class="search-item">
+              <label>{{ fieldSearchLabel('mobilePhone') }}</label>
+              <input
+                v-model="searchForm.mobilePhone"
+                type="text"
+                class="search-input"
+                :placeholder="t('common.pleaseInput')"
+                @keyup.enter="handleSearch"
+              />
+            </div>
+            <div class="search-item">
+              <label>{{ fieldSearchLabel('programme') }}</label>
+              <select v-model="searchForm.programme" :class="{ 'is-empty': !searchForm.programme }">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in programmeOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ fieldSearchLabel('intake') }}</label>
+              <select v-model="searchForm.intake" :class="{ 'is-empty': !searchForm.intake }">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in intakeOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ fieldSearchLabel('status') }}</label>
+              <select v-model="searchForm.status" :class="{ 'is-empty': !searchForm.status }">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in studentStatusOptions" :key="opt" :value="opt">{{ formatStudentStatus(opt) }}</option>
               </select>
             </div>
           </div>
@@ -266,6 +432,83 @@ function formatStudentStatus(status) {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
               {{ t('common.reset') }}
             </button>
+            <button type="button" class="toggle-link" @click="toggleSearchExpanded">
+              {{ searchExpanded ? t('common.collapse') : t('common.more') }}
+              <svg :class="{ up: searchExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="searchExpanded" class="search-row search-row-secondary">
+          <div class="search-fields">
+            <div class="search-item">
+              <label>{{ fieldSearchLabel('studentType') }}</label>
+              <select v-model="searchForm.studentType" :class="{ 'is-empty': !searchForm.studentType }">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in studentCategoryOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ fieldSearchLabel('nationality') }}</label>
+              <select v-model="searchForm.nationality" :class="{ 'is-empty': !searchForm.nationality }">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in nationalityOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ fieldSearchLabel('registrationTime') }}</label>
+              <select v-model="searchForm.registrationTime" :class="{ 'is-empty': !searchForm.registrationTime }">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in registrationTimeOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ fieldSearchLabel('programmeLevel') }}</label>
+              <select v-model="searchForm.programmeLevel" :class="{ 'is-empty': !searchForm.programmeLevel }">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in programmeLevelOptions" :key="opt" :value="opt">
+                  {{ formatProgrammeLevelLabel(opt, t) }}
+                </option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ fieldSearchLabel('programmeStructure') }}</label>
+              <select v-model="searchForm.programmeStructure" :class="{ 'is-empty': !searchForm.programmeStructure }">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in programmeStructureOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ fieldSearchLabel('expectedCompletionBatch') }}</label>
+              <select v-model="searchForm.expectedCompletionBatch" :class="{ 'is-empty': !searchForm.expectedCompletionBatch }">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in expectedCompletionBatchOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ fieldSearchLabel('expectedGraduationBatch') }}</label>
+              <select v-model="searchForm.expectedGraduationBatch" :class="{ 'is-empty': !searchForm.expectedGraduationBatch }">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in expectedGraduationBatchOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ fieldSearchLabel('outstandingFee') }}</label>
+              <select v-model="searchForm.outstandingFee" :class="{ 'is-empty': !searchForm.outstandingFee }">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in outstandingFeeOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+            </div>
+            <div class="search-item search-item-date-range">
+              <label class="search-date-range-label">{{ fieldSearchLabel('studentPassExpiryDate') }}</label>
+              <div class="search-date-range">
+                <DatePickerEn v-model="searchForm.studentPassExpiryFrom" class="search-date-picker" />
+                <span class="search-date-range-sep">{{ t('common.to') }}</span>
+                <DatePickerEn v-model="searchForm.studentPassExpiryTo" class="search-date-picker search-date-picker-end" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -288,42 +531,75 @@ function formatStudentStatus(status) {
           <table class="data-table">
             <thead>
               <tr>
-                <th class="col-check"><input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" /></th>
-                <th class="col-no">{{ t('common.serialNo') }}</th>
-                <th>{{ tr('Student ID') }}</th>
-                <th>{{ tr('Student Name') }}</th>
-                <th>{{ tr('Chinese Name') }}</th>
-                <th>{{ tr('Student Type') }}</th>
-                <th>{{ tr('Gender') }}</th>
-                <th>{{ tr('Programme Code') }}</th>
-                <th>{{ tr('Programme') }}</th>
-                <th>{{ tr('Intake') }}</th>
-                <th>{{ tr('Student Status') }}</th>
+                <th class="col-check col-sticky-left col-sticky-left-check"><input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" /></th>
+                <th class="col-no col-sticky-left col-sticky-left-no">{{ t('common.serialNo') }}</th>
+                <th class="col-student-id col-sticky-left col-sticky-left-id"><StudentProfileTableHeaderLabel field="studentId" /></th>
+                <th class="col-student-name col-sticky-left col-sticky-left-name"><StudentProfileTableHeaderLabel field="studentName" /></th>
+                <th><StudentProfileTableHeaderLabel field="chineseName" /></th>
+                <th><StudentProfileTableHeaderLabel field="icNo" /></th>
+                <th><StudentProfileTableHeaderLabel field="mobilePhone" /></th>
+                <th><StudentProfileTableHeaderLabel field="status" /></th>
+                <th><StudentProfileTableHeaderLabel field="trackCategory" /></th>
+                <th><StudentProfileTableHeaderLabel field="intake" /></th>
+                <th><StudentProfileTableHeaderLabel field="programmeCode" /></th>
+                <th><StudentProfileTableHeaderLabel field="nationality" /></th>
+                <th><StudentProfileTableHeaderLabel field="studentType" /></th>
+                <th><StudentProfileTableHeaderLabel field="programme" /></th>
+                <th><StudentProfileTableHeaderLabel field="programmeLevel" /></th>
+                <th><StudentProfileTableHeaderLabel field="programmeStructure" /></th>
+                <th><StudentProfileTableHeaderLabel field="registrationTime" /></th>
+                <th><StudentProfileTableHeaderLabel field="expectedCompletionBatch" /></th>
+                <th><StudentProfileTableHeaderLabel field="expectedGraduationBatch" /></th>
+                <th><StudentProfileTableHeaderLabel field="outstandingFee" /></th>
+                <th class="col-pass-expiry"><StudentProfileTableHeaderLabel field="studentPassExpiryDate" /></th>
+                <th><StudentProfileTableHeaderLabel field="gender" /></th>
                 <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!paginatedStudents.length">
-                <td colspan="12" class="empty-cell">{{ t('common.noData') }}</td>
+                <td :colspan="tableColumnCount" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedStudents" :key="item.id">
-                <td class="col-check">
+                <td class="col-check col-sticky-left col-sticky-left-check">
                   <input type="checkbox" :checked="selectedIds.includes(item.id)" @change="toggleSelect(item.id)" />
                 </td>
-                <td class="col-no">{{ getRowNumber(index) }}</td>
-                <td>{{ item.studentId }}</td>
-                <td>{{ item.name }}</td>
+                <td class="col-no col-sticky-left col-sticky-left-no">{{ getRowNumber(index) }}</td>
+                <td class="col-student-id col-sticky-left col-sticky-left-id">{{ item.studentId }}</td>
+                <td class="col-student-name col-sticky-left col-sticky-left-name">{{ item.name }}</td>
                 <td>{{ item.nameCn }}</td>
-                <td>{{ tr(item.studentType) }}</td>
-                <td>{{ tr(item.gender) }}</td>
-                <td>{{ item.programmeCode }}</td>
-                <td>{{ item.programme }}</td>
+                <td>{{ displayIcNo(item) }}</td>
+                <td>{{ displayMobilePhone(item) }}</td>
+                <td>{{ displayStudentStatus(item) }}</td>
+                <td>{{ displayTrackCategory(item) }}</td>
                 <td>{{ item.intake }}</td>
-                <td>{{ formatStudentStatus(item.studentStatus) }}</td>
+                <td>{{ item.programmeCode }}</td>
+                <td>{{ item.nationality || item.basicInfo?.nationality }}</td>
+                <td>{{ tr(item.studentType) }}</td>
+                <td>{{ item.programme }}</td>
+                <td>{{ displayProgrammeLevel(item) }}</td>
+                <td>{{ displayCell(item.programmeStructure || item.enrollment?.programmeStructure) }}</td>
+                <td>{{ displayCell(item.registrationTime || item.enrollment?.registrationTime) }}</td>
+                <td>{{ displayCell(item.expectedCompletionBatch || item.enrollment?.expectedCompletionBatch) }}</td>
+                <td>{{ displayCell(item.expectedGraduationBatch || item.enrollment?.expectedGraduationBatch) }}</td>
+                <td>{{ displayOutstandingFee(item) }}</td>
+                <td class="col-pass-expiry">{{ displayStudentPassExpiry(item) }}</td>
+                <td>{{ tr(item.gender) }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
                     <button type="button" class="link-btn" @click="openDetailDrawer(item)">{{ tr('Details') }}</button>
                     <button type="button" class="link-btn" @click="openEditDrawer(item)">{{ t('common.edit') }}</button>
+                    <span
+                      class="preview-action-wrap"
+                      @mouseenter="showPreviewTooltip"
+                      @mouseleave="hidePreviewTooltip"
+                      @focusin="showPreviewTooltip"
+                      @focusout="hidePreviewTooltip"
+                    >
+                      <button type="button" class="link-btn" @click="handlePreviewStudent(item)">
+                        {{ t('studentProfile.previewAsStudent') }}
+                      </button>
+                    </span>
                     <button type="button" class="link-btn delete" @click="requestDelete([item.id])">{{ t('common.delete') }}</button>
                   </div>
                 </td>
@@ -380,6 +656,17 @@ function formatStudentStatus(status) {
       @close="exportModalVisible = false"
       @confirm="handleExportConfirm"
     />
+
+    <Teleport to="body">
+      <span
+        v-if="previewTooltipVisible"
+        class="preview-action-tooltip-fixed"
+        role="tooltip"
+        :style="previewTooltipStyle"
+      >
+        {{ t('studentProfile.previewAsStudentHint') }}
+      </span>
+    </Teleport>
   </div>
 </template>
 
@@ -517,6 +804,49 @@ function formatStudentStatus(status) {
   min-width: 56px;
 }
 
+.col-student-id {
+  min-width: 120px;
+}
+
+.col-student-name {
+  min-width: 140px;
+}
+
+.col-sticky-left {
+  position: sticky;
+  z-index: 2;
+  background: #fff;
+}
+
+.data-table thead .col-sticky-left {
+  background: #f9fafb;
+  z-index: 4;
+}
+
+.data-table tbody tr:hover .col-sticky-left {
+  background: #fafafa;
+}
+
+.col-sticky-left-check {
+  left: 0;
+  border-right: 1px solid #f3f4f6;
+}
+
+.col-sticky-left-no {
+  left: 44px;
+  border-right: 1px solid #f3f4f6;
+}
+
+.col-sticky-left-id {
+  left: 100px;
+  border-right: 1px solid #f3f4f6;
+}
+
+.col-sticky-left-name {
+  left: 220px;
+  box-shadow: 4px 0 6px -4px rgba(0, 0, 0, 0.08);
+}
+
 .actions-inner {
   display: inline-flex;
   align-items: center;
@@ -530,7 +860,7 @@ function formatStudentStatus(status) {
   z-index: 2;
   background: #fff;
   border-left: 1px solid #f3f4f6;
-  min-width: 180px;
+  min-width: 240px;
 }
 
 .data-table thead .col-sticky-right {
@@ -556,5 +886,105 @@ function formatStudentStatus(status) {
 
 .link-btn.delete {
   color: #ef4444;
+}
+
+.preview-action-wrap {
+  display: inline-flex;
+}
+
+.preview-action-tooltip-fixed {
+  position: fixed;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #1f2937;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+  white-space: normal;
+  pointer-events: none;
+  z-index: 2000;
+}
+
+.preview-action-tooltip-fixed::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: #1f2937;
+}
+
+.student-profile-page .search-item-date-range {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  gap: 8px;
+}
+
+.student-profile-page .search-date-range-label {
+  flex-shrink: 0;
+}
+
+.student-profile-page .search-date-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.student-profile-page .search-date-range-sep {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1;
+  padding: 0 2px;
+  user-select: none;
+}
+
+.student-profile-page .search-date-range :deep(.search-date-picker.date-picker-en) {
+  position: relative;
+  width: 124px;
+  min-width: 124px;
+  max-width: 124px;
+  flex: 0 0 124px;
+}
+
+.student-profile-page .search-date-range :deep(.date-picker-input-wrap) {
+  width: 124px;
+  height: 32px;
+}
+
+.student-profile-page .search-date-range :deep(.date-picker-input) {
+  width: 124px;
+  min-width: 124px;
+  max-width: 124px;
+  height: 32px;
+  padding: 0 30px 0 10px;
+  font-size: 13px;
+}
+
+.student-profile-page .search-date-range :deep(.date-picker-trigger) {
+  width: 30px;
+  height: 32px;
+}
+
+.student-profile-page .search-date-range :deep(.date-picker-panel) {
+  z-index: 120;
+}
+
+.student-profile-page .search-date-range :deep(.search-date-picker-end .date-picker-panel) {
+  left: auto;
+  right: 0;
+}
+
+.col-pass-expiry {
+  min-width: 200px;
 }
 </style>

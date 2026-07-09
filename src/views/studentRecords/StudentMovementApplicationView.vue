@@ -16,7 +16,7 @@ defineProps({
 
 const { t } = useAppI18n()
 
-const activeTab = ref('deferment')
+const activeTab = ref('programme-transfer')
 
 const tabs = [
   { key: 'programme-transfer', labelKey: 'menu.srProgrammeTransfer' },

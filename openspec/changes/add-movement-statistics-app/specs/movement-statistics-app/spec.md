@@ -1,143 +1,143 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Movement statistics aggregated list page
-The system SHALL display a paginated aggregated statistics table under the Status Change Statistics menu, where each row represents one School Code + Programme Code + Intake group and columns show counts per movement type.
+### 需求：学籍异动统计聚合列表页
+系统应在学籍异动统计菜单下展示分页的聚合统计表格，每行代表一个 School Code + Programme Code + Intake 分组，各列展示各异动类型的计数。
 
-#### Scenario: Rows show groups with movement activity only
-- **WHEN** user opens Status Change Statistics
-- **THEN** the list shows only groups where at least one count column is greater than zero
-- **AND** groups with no matching movement records after filtering are excluded
+#### 场景：仅展示有异动活动的分组
+- **当** 用户打开学籍异动统计
+- **则** 列表仅展示至少一列计数大于零的分组
+- **且** 筛选后无匹配异动记录的分组被排除
 
-#### Scenario: Dimension columns match prototype
-- **WHEN** the statistics table is displayed
-- **THEN** each row shows serial number, School Code, Programme Code, and Intake
-- **AND** count columns include Programme Transfer, Deferment, Withdrawal, Resumption, Outbound Mobility, Expel, Incomplete, Completion, Completion without Graduation, Inbound Mobility, and IEP
+#### 场景：维度列与原型一致
+- **当** 展示统计表格
+- **则** 每行展示序号、School Code、Programme Code、Intake
+- **且** 计数列含 Programme Transfer、Deferment、Withdrawal、Resumption、Outbound Mobility、Expel、Incomplete、Completion、Completion without Graduation、Inbound Mobility、IEP
 
-#### Scenario: Wide table horizontal scroll
-- **WHEN** the statistics table is rendered
-- **THEN** all count columns are visible via horizontal scrolling
-- **AND** the table matches prototype figures 1 and 2 column order
+#### 场景：宽表横向滚动
+- **当** 渲染统计表格
+- **则** 所有计数列可通过横向滚动查看
+- **且** 表格列序与原型图 1、图 2 一致
 
-#### Scenario: Count cells are numeric
-- **WHEN** a group has zero records for a movement type column
-- **THEN** the cell displays 0
-- **AND** non-zero counts display as integers
+#### 场景：计数单元格为数字
+- **当** 某分组在某异动类型列无记录
+- **则** 单元格显示 0
+- **且** 非零计数显示为整数
 
-### Requirement: Movement statistics data scope and aggregation
-The system SHALL aggregate non-draft movement applications and statistics supplement seeds using consistent filtering rules.
+### 需求：学籍异动统计数据范围与聚合
+系统应使用一致的筛选规则聚合非草稿异动申请与统计补充种子数据。
 
-#### Scenario: Exclude draft applications from aggregation
-- **WHEN** statistics rows are built from the four movement stores
-- **THEN** draft applications are excluded from counting
-- **AND** the scope matches the movement query list (all non-draft statuses)
+#### 场景：聚合时排除草稿申请
+- **当** 从四种异动存储构建统计行
+- **则** 计数时排除草稿申请
+- **且** 范围与异动查询列表一致（所有非草稿状态）
 
-#### Scenario: First four columns from four-tab source keys
-- **WHEN** a non-draft programme transfer application matches filters
-- **THEN** its group increments the Programme Transfer count
-- **AND** deferment, withdrawal, and resumption applications increment their respective columns
+#### 场景：前四列来自四 Tab 来源键
+- **当** 某非草稿转专业申请匹配筛选条件
+- **则** 其分组 Programme Transfer 计数加 1
+- **且** 休学、退学、复学申请分别递增对应列
 
-#### Scenario: Extended seven columns from supplement seeds
-- **WHEN** statistics rows are built
-- **THEN** Outbound Mobility through IEP counts come from statistics supplement seeds only
-- **AND** supplement seeds do not modify the four movement store lists
+#### 场景：后七列来自补充种子
+- **当** 构建统计行
+- **则** Outbound Mobility 至 IEP 计数仅来自统计补充种子
+- **且** 补充种子不修改四种异动存储列表
 
-#### Scenario: Academic session filter uses application session
-- **WHEN** user filters by Academic Session and clicks Search
-- **THEN** only applications and supplement entries whose applicationSession matches participate in counts
-- **AND** the list resets to page 1
+#### 场景：学年学期筛选使用申请学期
+- **当** 用户按学年学期筛选并点击查询
+- **则** 仅 `applicationSession` 匹配的申请与补充条目参与计数
+- **且** 列表重置到第 1 页
 
-### Requirement: Movement statistics search with collapse
-The system SHALL provide a two-row search area consistent with the movement query page.
+### 需求：学籍异动统计搜索区（可收起）
+系统应提供与异动查询页一致的两行搜索区。
 
-#### Scenario: Primary search row always visible
-- **WHEN** the statistics page loads
-- **THEN** the first search row shows Academic Session, movement reason, and status with Search and Reset actions
+#### 场景：首行搜索始终可见
+- **当** 统计页加载
+- **则** 第一行搜索展示学年学期、异动原因、状态及查询、重置操作
 
-#### Scenario: Secondary search row collapsible and expanded by default
-- **WHEN** the statistics page loads
-- **THEN** the second search row showing Student ID and Student Name is visible
-- **WHEN** user toggles collapse
-- **THEN** the second row is hidden or shown and the toggle label updates
+#### 场景：第二行默认可收起且默认展开
+- **当** 统计页加载
+- **则** 含学号、姓名的第二行搜索可见
+- **当** 用户切换收起
+- **则** 第二行显示或隐藏，切换标签相应更新
 
-#### Scenario: Search filters aggregated results
-- **WHEN** user applies search criteria and clicks Search
-- **THEN** counts are recomputed from filtered source records and supplement seeds only
-- **AND** the list resets to page 1
+#### 场景：搜索筛选聚合结果
+- **当** 用户应用搜索条件并点击查询
+- **则** 计数仅基于筛选后的源记录与补充种子重新计算
+- **且** 列表重置到第 1 页
 
-#### Scenario: Reset search
-- **WHEN** user clicks Reset
-- **THEN** all search fields clear and full statistics are restored
+#### 场景：重置搜索
+- **当** 用户点击重置
+- **则** 清空所有搜索字段并恢复完整统计
 
-### Requirement: Read-only statistics page actions
-The system SHALL not provide data mutation or row drill-down actions on the statistics page.
+### 需求：统计页只读操作
+系统不得在统计页提供数据变更或行下钻操作。
 
-#### Scenario: Toolbar export only
-- **WHEN** user views the statistics page toolbar
-- **THEN** only Export is available
-- **AND** implement, modify movement number, delete, create, and edit actions are not shown
+#### 场景：工具栏仅导出
+- **当** 用户查看统计页工具栏
+- **则** 仅提供导出
+- **且** 不展示实施、修改异动编号、删除、新建、编辑操作
 
-#### Scenario: No row actions column
-- **WHEN** user views the statistics table
-- **THEN** no Details, Edit, or Approval log actions are shown per row
+#### 场景：无行操作列
+- **当** 用户查看统计表格
+- **则** 每行不展示详情、编辑或审批日志操作
 
-### Requirement: Movement statistics export via ExportModal
-The system SHALL export statistics results to Excel using the same ExportModal interaction as movement maintenance and query.
+### 需求：学籍异动统计通过 ExportModal 导出
+系统应使用与异动维护、查询相同的 `ExportModal` 交互将统计结果导出为 Excel。
 
-#### Scenario: Open export modal
-- **WHEN** user clicks Export and filtered results exist
-- **THEN** the system opens ExportModal with selectable statistics export fields
+#### 场景：打开导出弹框
+- **当** 用户点击导出且存在筛选结果
+- **则** 系统打开 `ExportModal`，展示可选统计导出字段
 
-#### Scenario: Export current page to xlsx
-- **WHEN** user confirms export with scope current page
-- **THEN** the system downloads an xlsx file containing only the current page rows and selected fields
+#### 场景：导出当前页为 xlsx
+- **当** 用户确认导出范围为当前页
+- **则** 系统下载仅含当前页行与所选字段的 xlsx 文件
 
-#### Scenario: Export all results to xlsx
-- **WHEN** user confirms export with scope all results
-- **THEN** the system downloads an xlsx file containing all filtered group rows and selected fields
+#### 场景：导出全部结果为 xlsx
+- **当** 用户确认导出范围为全部结果
+- **则** 系统下载含全部筛选分组行与所选字段的 xlsx 文件
 
-#### Scenario: Export selected rows to xlsx
-- **WHEN** user selects rows and confirms export with scope selected rows
-- **THEN** the system downloads an xlsx file containing only selected group rows and selected fields
+#### 场景：导出所选行为 xlsx
+- **当** 用户选中行并确认导出范围为所选行
+- **则** 系统下载仅含所选分组行与所选字段的 xlsx 文件
 
-#### Scenario: Export blocked when no data
-- **WHEN** user clicks Export with no filtered results
-- **THEN** the system shows a no-data message and does not open the export modal
+#### 场景：无数据时阻止导出
+- **当** 用户在没有筛选结果时点击导出
+- **则** 系统提示无数据且不打开导出弹框
 
-### Requirement: Movement statistics pagination
-The system SHALL paginate the statistics list using the same pagination pattern as other student-records list pages.
+### 需求：学籍异动统计分页
+系统应使用与其他学生档案列表页相同的分页模式对统计列表分页。
 
-#### Scenario: Pagination controls
-- **WHEN** more statistics group rows exist than the page size
-- **THEN** the list shows pagination controls
+#### 场景：分页控件
+- **当** 统计分组行数超过页大小
+- **则** 列表展示分页控件
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Movement statistics search with collapse
-The system SHALL provide a two-row search area consistent with the movement query page. The first row SHALL include Academic Session, Programme Code, and status. The Movement Reason search field SHALL NOT be shown.
+### 需求：学籍异动统计搜索区（可收起）
+系统应提供与异动查询页一致的两行可收起搜索区。第一行应包含学年学期、专业代码、状态。不得展示异动原因搜索字段。
 
-#### Scenario: Primary search row always visible
-- **WHEN** the statistics page loads
-- **THEN** the first search row shows Academic Session, Programme Code, and status with Search and Reset actions
+#### 场景：首行搜索始终可见
+- **当** 统计页加载
+- **则** 第一行搜索展示学年学期、专业代码、状态及查询、重置操作
 
-#### Scenario: No movement reason search
-- **WHEN** user views the statistics search area
-- **THEN** the system does not display a Movement Reason search input
+#### 场景：无异动原因搜索
+- **当** 用户查看统计搜索区
+- **则** 系统不展示异动原因搜索输入框
 
-#### Scenario: Filter aggregated rows by programme code
-- **WHEN** user enters a programme code and clicks Search
-- **THEN** application records and supplement seeds that do not match the programme code are excluded before aggregation
+#### 场景：按专业代码筛选聚合行
+- **当** 用户输入专业代码并点击查询
+- **则** 聚合前排除专业代码不匹配的申请记录与补充种子
 
-#### Scenario: Secondary search row collapsible and expanded by default
-- **WHEN** the statistics page loads
-- **THEN** the second search row showing Student ID and Student Name is visible
-- **WHEN** user toggles collapse
-- **THEN** the second row is hidden or shown and the toggle label updates
+#### 场景：第二行默认可收起且默认展开
+- **当** 统计页加载
+- **则** 含学号、姓名的第二行搜索可见
+- **当** 用户切换收起
+- **则** 第二行显示或隐藏，切换标签相应更新
 
-#### Scenario: Search filters aggregated results
-- **WHEN** user applies search criteria and clicks Search
-- **THEN** counts are recomputed from filtered source records and supplement seeds only
-- **AND** the list resets to page 1
+#### 场景：搜索筛选聚合结果
+- **当** 用户应用搜索条件并点击查询
+- **则** 计数仅基于筛选后的源记录与补充种子重新计算
+- **且** 列表重置到第 1 页
 
-#### Scenario: Reset search
-- **WHEN** user clicks Reset
-- **THEN** all search fields clear and full statistics are restored
+#### 场景：重置搜索
+- **当** 用户点击重置
+- **则** 清空所有搜索字段并恢复完整统计

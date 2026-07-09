@@ -1,10 +1,10 @@
-## Why
+## 背景与动机
 
 `refine-movement-approval-search-ui` 为审批页搜索区引入了 scoped 样式：`.search-item { flex-direction: column }` 与 `grid` 栅格。这与项目统一的 `list-page-search.css`（标签与输入框 **同一行** 左对齐）不一致，导致图示中「Academic Session + 输入框」等字段标签在上、控件在下换行显示。
 
 用户反馈：**搜索标签与搜索框应保持同一行，不要换行**。
 
-## What Changes
+## 变更内容
 
 ### 搜索项改为 inline 布局（标签 + 控件同行）
 
@@ -23,18 +23,18 @@
 
 - 标签可统一加冒号后缀（如 `Status:`），与课程审批 `Course Code:` 风格一致（实现时按现有 i18n key 决定是否追加 `:`）
 
-## Capabilities
+## 能力范围
 
-### Modified Capabilities
+### 修改的能力
 
 - `movement-approval-app`: 搜索区字段为 inline label+control 布局，对齐列表页统一规范
 
-## Impact
+## 影响范围
 
 - **修改** `src/views/studentRecords/MovementApprovalView.vue` — 删除/精简 scoped 搜索 CSS
 - **不变** 搜索字段集合、Tab、表格、审批逻辑
 
-## Non-goals
+## 非目标（本变更不做）
 
 - 新增/删除搜索字段
 - 修改 Tab 或工具栏

@@ -153,6 +153,30 @@ export const initialProgrammeIntakes = [
     startingSemester: '2024/02',
     active: 'No',
   },
+  {
+    id: 7,
+    programmeIntake: '202409SWE',
+    intake: '2024/09',
+    years: 3,
+    programmeCode: 'SWE',
+    programmeName: 'Bachelor of Software Engineering (Honours)',
+    schoolId: 'soi',
+    school: 'School of Information',
+    startingSemester: '2024/09',
+    active: 'Yes',
+  },
+  {
+    id: 8,
+    programmeIntake: '202409ACC',
+    intake: '2024/09',
+    years: 3,
+    programmeCode: 'ACC',
+    programmeName: 'Bachelor in Accounting (Honours)',
+    schoolId: 'sob',
+    school: 'School of Business',
+    startingSemester: '2024/09',
+    active: 'Yes',
+  },
 ]
 
 initialProgrammeIntakes.forEach((item, index) => {

@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 学籍异动全链路（四 Tab 申请 → 审批 → 维护 → 查询 → 统计 → Export / Approval log）中，日期字段当前混用多种展示格式（如 `15 Oct 2023`、`20.09.2025 14:30`、ISO 存储值直接展示）。产品图示要求 **统一为 `YYYY-MM-DD`**（如 `2025-09-20`），便于列表、详情、导出与审批日志一致阅读。
 
-## What Changes
+## 变更内容
 
 ### 统一展示格式
 
@@ -28,18 +28,18 @@
 - `DatePickerEn` 输入控件交互（仍可存 ISO；只读展示走 formatter）
 - vue-router、后端 API
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `movement-date-format`: 异动全链路日期展示统一为 `YYYY-MM-DD`
 
-### Modified Capabilities
+### 修改的能力
 
 - `programme-transfer-app`: Section VII 在申请 Form 常显但 disabled 置灰（§17）
 - `movement-date-format`: 新增 effectiveSession 列 YYYY/MM 统一规则（§18）
 
-## Impact
+## 影响范围
 
 - **新增**
   - `src/utils/formatMovementDate.js` — `formatMovementDate(value)` → `YYYY-MM-DD` | `—`
@@ -59,7 +59,7 @@
   - `exportMovementQueryExcel.js`、`exportMovementApprovalExcel.js` — effectiveSession 列
   - （可选）seed `effectiveSession` 与 formatter 对齐
 
-## Decisions（探索阶段已确认）
+## 设计决策（探索阶段已确认）
 
 | 项 | 决策 |
 |----|------|
@@ -72,17 +72,17 @@
 
 ## §17 增量 — 转专业 Section VII 申请侧置灰（2026-06-24）
 
-### Why
+### 背景与动机
 
 产品图示：转专业新建/编辑表单中 **Section VII（FOR ACADEMIC AFFAIRS OFFICE USE ONLY）** 属于教务审批环节填写，不应在申请侧可编辑。当前 `ProgrammeTransferFormModal` 三个字段为可交互下拉/日期，与职责边界不符。
 
-### What Changes
+### 变更内容
 
 - Create / Edit / Resubmit 表单：**Section VII 仍可见**，但 New Programme / New Intake / Date **disabled + 置灰样式**，用户不可填写
 - Submit / Save Draft：**不校验** Section VII；申请侧不写入 `adminNewProgramme` / `adminNewIntake` / `adminDate`
 - **不在本次范围**：审批 ReviewView 补 Section VII 编辑、DetailModal、其他三 Tab
 
-### Decisions
+### 设计决策
 
 | 项 | 决策 |
 |----|------|
@@ -94,18 +94,18 @@
 
 ## §18 增量 — 生效学期列统一 YYYY/MM（2026-06-24）
 
-### Why
+### 背景与动机
 
 审批 / 维护 / 查询列表「生效学期」列混用 `2025/09` 与 `2025-09-20`：退学 `extractEffectiveSession` 直接回退 `lastDateOfAttendance`（日历日），与列语义「生效学期」及 `applicationSession` 的 `YYYY/MM` 不一致。
 
-### What Changes
+### 变更内容
 
 - 新增 `formatEffectiveSession(value)`（或与 `formatMovementDate` 同文件）：输出 **YYYY/MM** 或 `—`
 - 规则：已是 `YYYY/MM` 原样；ISO 日期 `YYYY-MM-DD` → 取年月 → `YYYY/MM`（如 `2025-09-20` → `2025/09`）
 - `movementApprovalQueue.extractEffectiveSession` 及 Export 共用 formatter
 - **不在本次范围**：改列名、拆列、`movementDate` 列（仍 `YYYY-MM-DD`）、`applicationSession`
 
-### Decisions
+### 设计决策
 
 | 项 | 决策 |
 |----|------|
@@ -117,11 +117,11 @@
 
 ## §19 增量 — 展示格式改为 dd.Mmm.YYYY（2026-06-24）
 
-### Why
+### 背景与动机
 
 产品图示更新：申请列表「日期」、审批「申请日期」及异动全链路日历日展示，由 §1 的 `YYYY-MM-DD` 调整为 **`dd.Mmm.YYYY`**（如 `29.Sep.2025`），月名使用英文三字母缩写，与马来教务英文日期习惯一致。
 
-### What Changes
+### 变更内容
 
 - `formatMovementDate(value)` 输出 **`dd.Mmm.YYYY`** 或 `—`（日补零；分隔符 `.`）
 - 新增 `formatMovementDateIso(value)`：存储 / 引擎比较仍用 **`YYYY-MM-DD`**
@@ -129,7 +129,7 @@
 - 四 Tab 列表、Form/Detail 只读、审批列表、维护/查询 movementDate、Export 日期列同步
 - **不在范围**：`applicationSession` / `effectiveSession`（仍 `YYYY/MM`）；DatePicker 输入；非异动模块
 
-### Decisions
+### 设计决策
 
 | 项 | 决策 |
 |----|------|
@@ -143,11 +143,11 @@
 
 ## §20 增量 — 学年学期字段规范 YYYY/02|04|09（2026-06-24）
 
-### Why
+### 背景与动机
 
 图示 Intake、申请学年学期、生效学期混用日历日（如 `2024-07-28`）与非法月份（如 `2025/08`、`2025/01`）。三者语义均为**学年学期**，非日历日期；须与 `semesterInfo` 一致，仅允许 `02/04/09`，且满足 **intake ≤ 申请学年学期 ≤ 生效学期**。
 
-### What Changes
+### 变更内容
 
 - 新增 `normalizeAcademicSession.js`：`normalizeAcademicSession`、`compareAcademicSession`、`validateAcademicSessionOrder`
 - `formatEffectiveSession` 委托 normalize；ISO 日期按校历月映射到 02/04/09
@@ -156,7 +156,7 @@
 - 四 Tab 表单下拉与 seed 仅含合法学期码；提交校验顺序
 - **修订 §18**：退学生效学期仍为 `lastDateOfAttendance` 派生，但经 normalize 到 02/04/09
 
-### Decisions
+### 设计决策
 
 | 项 | 决策 |
 |----|------|

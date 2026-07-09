@@ -1,29 +1,22 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Student records application lists expose workflow log action
-The system SHALL provide a Workflow Log action on every row of programme transfer, deferment, resumption, and withdrawal application history tables, visible regardless of application status.
+### 需求：学籍应用列表暴露流转日志操作
+系统应在转专业、休学、复学、退学申请历史表格的每一行提供 Workflow Log 操作，且无论申请状态如何均可见。
 
-#### Scenario: Workflow log button on every row
-- **WHEN** user views any application in the four student records movement modules
-- **THEN** the Actions column includes a Workflow Log link or button in addition to status-specific actions such as Details or Edit
+#### 场景：每行均有流转日志按钮
+- 当用户在四模块学籍异动申请中查看任意申请时，则 Actions 列除 Details、Edit 等状态相关操作外，还包含 Workflow Log 链接或按钮。
 
-#### Scenario: Workflow log opens separate modal
-- **WHEN** user clicks Workflow Log on a row
-- **THEN** the system opens a dedicated modal showing approval log entries in a table with Stage, Actor, Action, Date and Time, and Comment columns
-- **AND** the modal displays a subtitle with application ID, student ID, and student name
+#### 场景：流转日志打开独立弹框
+- 当用户点击某行的 Workflow Log 时，则系统打开独立弹框，以表格展示 Stage、Actor、Action、Date and Time、Comment 列的审批日志条目，且弹框副标题含 application ID、student ID 与 student name。
 
-#### Scenario: Empty workflow log
-- **WHEN** user clicks Workflow Log on a record with no approval log entries
-- **THEN** the modal opens and displays a no-data message
+#### 场景：空流转日志
+- 当用户点击无审批日志条目的记录的 Workflow Log 时，则弹框打开并显示无数据消息。
 
-### Requirement: Application detail modals do not embed approval log
-The system SHALL NOT display the approval log timeline inside application detail modals for programme transfer, deferment, resumption, or withdrawal.
+### 需求：申请详情弹框不内嵌审批日志
+系统不应在转专业、休学、复学、退学的申请详情弹框内展示审批日志时间线。
 
-#### Scenario: Detail modal without log section
-- **WHEN** user opens Details for any application in the four modules
-- **THEN** the detail modal shows application sections and pending approval controls only
-- **AND** does not show an inline approval log list
+#### 场景：详情弹框无日志区块
+- 当用户在四模块中打开任意申请的 Details 时，则详情弹框仅展示申请区块与 Pending 审批控件（若有），且不展示内嵌 approval log 列表。
 
-#### Scenario: Log accessible from list only
-- **WHEN** user needs to view approval history
-- **THEN** the user accesses it via the Workflow Log action on the list row, not from the detail modal
+#### 场景：仅从列表访问日志
+- 当用户需要查看审批历史时，则通过列表行的 Workflow Log 操作访问，而非从详情弹框访问。

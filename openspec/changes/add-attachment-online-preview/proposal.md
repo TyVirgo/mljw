@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 学籍异动与知情同意书模块中，用户上传附件后仅显示文件名；详情页点击文件名会弹出「演示环境暂不支持文件预览」。产品要求在**附件文件名旁增加小眼睛（在线预览）**，使申请、审批、维护、查询及知情同意书配置在演示阶段即可「点眼即看」，形成与下载并列的附件操作习惯。
 
-## What Changes
+## 变更内容
 
 ### 公共能力
 
@@ -37,18 +37,18 @@
 | JPG / PNG | img 或 mock 占位 |
 | DOCX | Modal 内说明「需后端转换」+ 文件摘要，不 inline 渲染 |
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `attachment-preview`: 公共预览组件、mock 策略、`resolveAttachmentPreview` helper
 
-### Modified Capabilities
+### 修改的能力
 
 - `consent-form-config`: Form/View 附件行增加在线预览
 - `movement-application-details`: Form Documents 区与 `MovementAttachmentReadonly` 增加在线预览
 
-## Impact
+## 影响范围
 
 - **新增**
   - `src/components/common/AttachmentPreviewTrigger.vue`（或 `AttachmentFileRow.vue`）
@@ -59,13 +59,13 @@
   - 四 Tab `*FormModal.vue`
   - `MovementAttachmentReadonly.vue`
   - `src/i18n/locales/en.js`、`zh.js`
-- **Non-goals**
+- **非目标（本变更不做）**
   - 讲师信息、培养方案、课程等其他模块附件
   - 真实文件存储 / 后端 preview API
   - DOCX 在线渲染、OCR、水印
   - 知情同意书历史版本日志 `remarkLines` 内纯文本附件名（无独立文件行）
 
-## Decisions（探索阶段已确认）
+## 设计决策（探索阶段已确认）
 
 | 项 | 决策 |
 |----|------|

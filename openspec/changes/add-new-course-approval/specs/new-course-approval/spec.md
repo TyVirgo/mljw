@@ -1,150 +1,150 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: New course approval list page
-The system SHALL provide an approver-facing list page at menu **New Course Approval** that displays submitted course applications excluding Temporary saved drafts.
+### 需求：新课程审批列表页
+系统应在菜单 **New Course Approval** 提供面向审批人的列表页，展示已提交的课程申请，不含 Temporary saved 草稿。
 
-#### Scenario: Default list load
-- **WHEN** user navigates to New Course Approval
-- **THEN** the system displays a paginated table with columns: No., Status, Approval Stage, Course Code, Course Name, Offering, Course Classification, Credit, Applicant, Application Date and Time, and Actions
-- **AND** Temporary saved applications SHALL NOT appear in the list
+#### 场景：默认列表加载
+- **当** 用户导航至 New Course Approval
+- **则** 系统展示分页表格，列包括：No.、Status、Approval Stage、Course Code、Course Name、Offering、Course Classification、Credit、Applicant、Application Date and Time 和 Actions
+- **且** Temporary saved 申请不得出现在列表中
 
-#### Scenario: Status badge styling
-- **WHEN** a record is displayed in the approval list
-- **THEN** status badges use solid background with white text (consistent with Course Application list styling)
+#### 场景：Status 徽章样式
+- **当** 记录在审批列表中展示
+- **则** status 徽章采用实底背景、白字（与 Course Application 列表样式一致）
 
-#### Scenario: Sticky actions column
-- **WHEN** the table content overflows horizontally
-- **THEN** the Actions column remains sticky on the right while scrolling
+#### 场景：Actions 列固定
+- **当** 表格内容横向溢出
+- **则** 滚动时 Actions 列固定在右侧
 
-### Requirement: Search and filter approval queue
-The system SHALL support searching the approval queue by Course Code, Course Name, Offering, and Course Classification.
+### 需求：搜索与筛选审批队列
+系统应支持按 Course Code、Course Name、Offering 和 Course Classification 搜索审批队列。
 
-#### Scenario: Basic search layout
-- **WHEN** user views the search area
-- **THEN** Course Code, Course Name, and Offering appear on the first row with Search and Reset buttons aligned to the right on the same row
-- **AND** Course Classification appears on the second row
-- **AND** filter labels are right-aligned so colons align vertically
+#### 场景：基础搜索布局
+- **当** 用户查看搜索区域
+- **则** Course Code、Course Name 和 Offering 位于第一行，Search 和 Reset 按钮右对齐于同一行
+- **且** Course Classification 位于第二行
+- **且** 筛选标签右对齐，使冒号垂直对齐
 
-#### Scenario: Search filters results
-- **WHEN** user enters filter criteria and clicks Search
-- **THEN** the list shows only matching submitted applications and resets to page 1
+#### 场景：搜索筛选结果
+- **当** 用户输入筛选条件并点击 Search
+- **则** 列表仅显示匹配的已提交申请，并重置到第 1 页
 
-#### Scenario: Reset filters
-- **WHEN** user clicks Reset
-- **THEN** all search fields are cleared and the full approval queue is restored
+#### 场景：重置筛选
+- **当** 用户点击 Reset
+- **则** 清空全部搜索字段并恢复完整审批队列
 
-### Requirement: Approval toolbar actions
-The system SHALL provide toolbar actions **Approval** and **Export** on the approval list page.
+### 需求：审批工具栏操作
+系统应在审批列表页提供工具栏操作 **Approval** 和 **Export**。
 
-#### Scenario: Approval requires selection
-- **WHEN** user clicks Approval with no eligible row selected
-- **THEN** the system does not open the approval dialog (button disabled or no-op with notice)
+#### 场景：Approval 须先选中
+- **当** 用户未选中符合审批条件的行即点击 Approval
+- **则** 系统不打开审批对话框（按钮禁用或无操作并提示）
 
-#### Scenario: Approval opens modal for selected row
-- **WHEN** user selects one approvable In Progress application and clicks Approval
-- **THEN** the system opens the Approval modal for that application
+#### 场景：Approval 为选中行打开弹框
+- **当** 用户选中一条可审批的 In Progress 申请并点击 Approval
+- **则** 系统为该申请打开 Approval 弹框
 
-#### Scenario: Batch approval
-- **WHEN** user selects two or more approvable In Progress applications at the same approval stage and clicks Approval
-- **THEN** the system opens the Approval modal once
-- **AND** upon Confirm, the same Action and Comments are applied to each selected application
+#### 场景：批量审批
+- **当** 用户选中两条或以上处于同一审批阶段的可审批 In Progress 申请并点击 Approval
+- **则** 系统打开一次 Approval 弹框
+- **且** 确认后，相同的 Action 与 Comments 应用于每条选中申请
 
-#### Scenario: Batch approval requires same stage
-- **WHEN** user selects applications at different approval stages
-- **THEN** the Approval toolbar action is disabled or shows a notice that selections must share the same approval stage
+#### 场景：批量审批须同一阶段
+- **当** 用户选中处于不同审批阶段的申请
+- **则** Approval 工具栏操作禁用或提示选中项须处于同一审批阶段
 
-#### Scenario: Export approval list
-- **WHEN** user clicks Export and confirms field selection
-- **THEN** the system downloads an Excel file of filtered approval queue data
+#### 场景：Export 审批列表
+- **当** 用户点击 Export 并确认字段选择
+- **则** 系统下载筛选后审批队列数据的 Excel 文件
 
-### Requirement: Row actions for approvers
-The system SHALL provide Details and Approval Log actions per row; approvers SHALL NOT have Edit or Delete row actions.
+### 需求：审批人行操作
+系统应为每行提供 Details 和 Approval Log 操作；审批人不得有 Edit 或 Delete 行操作。
 
-#### Scenario: View application details
-- **WHEN** user clicks Details on a row
-- **THEN** the system opens a read-only three-step application view showing General Information, CLO, and SLT data
+#### 场景：查看申请详情
+- **当** 用户点击行的 Details
+- **则** 系统打开只读三步申请视图，展示 General Information、CLO 和 SLT 数据
 
-#### Scenario: View approval log
-- **WHEN** user clicks Approval Log on a row
-- **THEN** the system displays the chronological approval history for that application
+#### 场景：查看审批日志
+- **当** 用户点击行的 Approval Log
+- **则** 系统展示该申请的按时间顺序审批历史
 
-### Requirement: Approval modal
-The system SHALL provide an Approval modal matching the prototype for recording an approver decision.
+### 需求：Approval 弹框
+系统应提供与原型一致的 Approval 弹框，用于记录审批人决定。
 
-#### Scenario: Modal header and context
-- **WHEN** the Approval modal opens
-- **THEN** the title is "Approval" (or localized "审核")
-- **AND** instructional text includes the current approval stage (e.g., Current HoD/HoP Review)
+#### 场景：弹框标题与上下文
+- **当** Approval 弹框打开
+- **则** 标题为「Approval」（或本地化「审核」）
+- **且** 说明文本包含当前审批阶段（如 Current HoD/HoP Review）
 
-#### Scenario: Action selection
-- **WHEN** user views the Action field
-- **THEN** the system provides exactly three radio options: Approved, Rejected, and Update Required
-- **AND** localized labels include 通过 / 拒绝 / 驳回
+#### 场景：Action 选择
+- **当** 用户查看 Action 字段
+- **则** 系统提供恰好三个单选选项：Approved、Rejected 和 Update Required
+- **且** 本地化标签包括 通过 / 拒绝 / 驳回
 
-#### Scenario: Comments field
-- **WHEN** user views the Comments field
-- **THEN** the system provides a textarea with a 100-character limit and a live counter (e.g., 0/100)
-- **AND** a Common Comments control is available to insert text from a preset list of 3–5 static templates
+#### 场景：Comments 字段
+- **当** 用户查看 Comments 字段
+- **则** 系统提供 textarea，限制 100 字符，并显示实时计数（如 0/100）
+- **且** 提供 Common Comments 控件，可从 3–5 条静态模板预设列表插入文本
 
-#### Scenario: Common comments preset
-- **WHEN** user clicks Common Comments and selects a preset template
-- **THEN** the preset text is inserted into the Comments textarea (respecting the 100-character limit)
+#### 场景：Common comments 预设
+- **当** 用户点击 Common Comments 并选择预设模板
+- **则** 预设文本插入 Comments textarea（遵守 100 字符限制）
 
-#### Scenario: Cancel closes modal
-- **WHEN** user clicks Cancel
-- **THEN** the modal closes without changing application data
+#### 场景：Cancel 关闭弹框
+- **当** 用户点击 Cancel
+- **则** 弹框关闭，不修改申请数据
 
-#### Scenario: Confirm requires action
-- **WHEN** user clicks Confirm without selecting an Action
-- **THEN** the system prevents submission and prompts the user to select an approval result
+#### 场景：Confirm 须选择 action
+- **当** 用户未选择 Action 即点击 Confirm
+- **则** 系统阻止提交并提示用户选择审批结果
 
-### Requirement: Approval decision — Approved
-The system SHALL advance the workflow when an approver selects Approved.
+### 需求：审批决定 — Approved
+系统应在审批人选择 Approved 时推进工作流。
 
-#### Scenario: Approve at HoD/HoP Review
-- **WHEN** approver confirms Approved for an application at HoD/HoP Review
-- **THEN** status remains In Progress, approvalStage becomes Senate Review
-- **AND** an entry is appended to approvalLog with actor, action Approved, date/time, and comments
+#### 场景：在 HoD/HoP Review 批准
+- **当** 审批人在 HoD/HoP Review 阶段确认 Approved
+- **则** 状态保持 In Progress，approvalStage 变为 Senate Review
+- **且** 向 approvalLog 追加条目，含 actor、action Approved、date/time 和 comments
 
-#### Scenario: Final approve at Senate Review
-- **WHEN** approver confirms Approved for an application at Senate Review
-- **THEN** status becomes Approved and approvalStage becomes Approved
-- **AND** the application data is archived to Course Information as a formal course record (if Course Code is not already present)
-- **AND** an approvalLog entry is appended
+#### 场景：在 Senate Review 最终批准
+- **当** 审批人在 Senate Review 阶段确认 Approved
+- **则** 状态变为 Approved，approvalStage 变为 Approved
+- **且** 若 Course Code 尚未存在，申请数据归档至 Course Information 作为正式课程记录
+- **且** 追加 approvalLog 条目
 
-### Requirement: Approval decision — Rejected
-The system SHALL record terminal rejection when an approver selects Rejected.
+### 需求：审批决定 — Rejected
+系统应在审批人选择 Rejected 时记录终态拒绝。
 
-#### Scenario: Reject application
-- **WHEN** approver confirms Rejected
-- **THEN** status becomes Rejected
-- **AND** an approvalLog entry is appended with comments
-- **AND** the application remains visible in the approval list as read-only (Details and Approval Log only)
+#### 场景：拒绝申请
+- **当** 审批人确认 Rejected
+- **则** 状态变为 Rejected
+- **且** 向 approvalLog 追加含 comments 的条目
+- **且** 申请仍以只读形式保留在审批列表中（仅 Details 和 Approval Log）
 
-### Requirement: Approval decision — Update Required
-The system SHALL return the application to the applicant when an approver selects Update Required.
+### 需求：审批决定 — Update Required
+系统应在审批人选择 Update Required 时将申请退回申请人。
 
-#### Scenario: Return to draft
-- **WHEN** approver confirms Update Required
-- **THEN** status becomes Temporary saved and approvalStage becomes --
-- **AND** an approvalLog entry is appended
-- **AND** the application is removed from the New Course Approval queue
-- **AND** the applicant can edit and re-submit from Course Application
+#### 场景：退回草稿
+- **当** 审批人确认 Update Required
+- **则** 状态变为 Temporary saved，approvalStage 变为 --
+- **且** 向 approvalLog 追加条目
+- **且** 申请从 New Course Approval 队列中移除
+- **且** 申请人可在 Course Application 中编辑并重新提交
 
-### Requirement: Data source synchronization
-The system SHALL synchronize the approval queue with Course Application submitted records.
+### 需求：数据源同步
+系统应将审批队列与 Course Application 已提交记录同步。
 
-#### Scenario: Submitted application appears in approval queue
-- **WHEN** an applicant submits a Temporary saved application from Course Application
-- **THEN** the application appears in New Course Approval with status In Progress
+#### 场景：已提交申请出现在审批队列
+- **当** 申请人在 Course Application 中提交 Temporary saved 申请
+- **则** 该申请以 In Progress 状态出现在 New Course Approval
 
-#### Scenario: Returned draft disappears from approval queue
-- **WHEN** an approver returns an application via Update Required
-- **THEN** the application no longer appears in New Course Approval until re-submitted
+#### 场景：退回草稿从审批队列消失
+- **当** 审批人通过 Update Required 退回申请
+- **则** 该申请不再出现在 New Course Approval，直至重新提交
 
-### Requirement: App registration
-The system SHALL register New Course Approval as a developed page accessible from the Course Info submenu.
+### 需求：应用注册
+系统应将 New Course Approval 注册为可从 Course Info 子菜单访问的已开发页面。
 
-#### Scenario: Menu access
-- **WHEN** user clicks New Course Approval in the sidebar
-- **THEN** the Course Approval view loads instead of Under Construction
+#### 场景：菜单访问
+- **当** 用户在侧边栏点击 New Course Approval
+- **则** 加载 Course Approval 视图，而非 Under Construction

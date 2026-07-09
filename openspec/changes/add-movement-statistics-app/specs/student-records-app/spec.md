@@ -1,26 +1,26 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Undeveloped movement and study plan pages
-The system SHALL show the in-app under-construction page for menu items that are not yet developed.
+### 需求：未开发的异动与学习计划页面
+系统应对尚未开发的菜单项展示应用内「建设中」页面。
 
-#### Scenario: Change category is developed
-- **WHEN** user selects Change Category in the sidebar
-- **THEN** the system displays the movement category configuration list page instead of the under-construction page
+#### 场景：异动类别已开发
+- **当** 用户在侧边栏选择异动类别
+- **则** 系统展示异动类别配置列表页，而非「建设中」页面
 
-#### Scenario: Status change inquiry is developed
-- **WHEN** user selects Status Change Inquiry in the sidebar
-- **THEN** the system displays the movement query list page instead of the under-construction page
+#### 场景：学籍异动查询已开发
+- **当** 用户在侧边栏选择学籍异动查询
+- **则** 系统展示异动查询列表页，而非「建设中」页面
 
-#### Scenario: Status change statistics menu hidden
-- **WHEN** user views the Student Status Change sidebar group
-- **THEN** Status Change Statistics is not shown as a menu item in this release
+#### 场景：学籍异动统计菜单隐藏
+- **当** 用户查看学籍异动侧边栏分组
+- **则** 本版本不展示学籍异动统计菜单项
 
-#### Scenario: Undeveloped study plan submenu
-- **WHEN** user selects Personal Curriculum Plan
-- **THEN** the system shows the under-construction page with a back action to Student Basic Information
+#### 场景：未开发的个人学习计划子菜单
+- **当** 用户选择个人培养方案
+- **则** 系统展示「建设中」页面，并提供返回学生基本信息的操作
 
-## REMOVED Requirements
+## 移除需求
 
-### Requirement: Status change statistics registered as developed page
-**Reason**: Product deferred the statistics menu entry for this release; implementation remains in codebase for a future enablement change.
-**Migration**: Remove `sr-movement-statistics` from sidebar menu and `studentRecordsDevelopedPages`; keep MovementStatisticsView source files.
+### 需求：学籍异动统计注册为已开发页面
+**原因**：产品在本版本延后统计菜单入口；实现代码保留于代码库，供后续启用变更使用。
+**迁移说明**：从侧边栏菜单与 `studentRecordsDevelopedPages` 移除 `sr-movement-statistics`；保留 `MovementStatisticsView` 源文件。

@@ -1,395 +1,318 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Student Profile list toolbar actions
-The system SHALL provide toolbar actions for Create, Delete, Import, and Export on the Student Profile page.
+### 需求：Student Profile 列表工具栏操作
+系统应在 Student Profile 页面提供新增、删除、导入与导出工具栏操作。
 
-#### Scenario: Create button visible
-- **WHEN** user views the Student Profile page
-- **THEN** a primary Create button is displayed in the toolbar
+#### 场景：显示新增按钮
+- 当用户查看 Student Profile 页面时，则工具栏中显示主操作「新增」按钮
 
-#### Scenario: Delete requires selection
-- **WHEN** user views the Student Profile page
-- **THEN** a Delete button is displayed and is disabled when no rows are selected
+#### 场景：删除需先选中行
+- 当用户查看 Student Profile 页面时，则显示「删除」按钮，且未选中任何行时该按钮为禁用状态
 
-#### Scenario: Import opens import modal
-- **WHEN** user clicks Import
-- **THEN** the system opens a student profile import modal with template download and file upload
+#### 场景：导入打开导入弹框
+- 当用户点击「导入」时，则系统打开学籍导入弹框，提供模板下载与文件上传
 
-#### Scenario: Export with data
-- **WHEN** user clicks Export and confirms export in the export modal
-- **THEN** the system downloads an Excel file containing the selected export scope and columns
+#### 场景：有数据时导出
+- 当用户点击「导出」并在导出弹框中确认导出时，则系统下载包含所选导出范围与列的 Excel 文件
 
-### Requirement: Student Profile data table columns
-The system SHALL display a paginated table with columns matching the prototype.
+### 需求：Student Profile 数据表格列
+系统应显示与原型一致列结构的分页表格。
 
-#### Scenario: Table columns
-- **WHEN** the Student Profile list is displayed
-- **THEN** columns include a selection checkbox, No., Student ID, Student Name, Chinese Name, Student Type, Gender, Programme Code, Programme, Intake, Student Status, and Actions
+#### 场景：表格列
+- 当显示 Student Profile 列表时，则列包括选择复选框、No.、Student ID、Student Name、Chinese Name、Student Type、Gender、Programme Code、Programme、Intake、Student Status 与 Actions
 
-#### Scenario: Row actions
-- **WHEN** user views a table row
-- **THEN** the Actions column provides Details, Edit, and Delete links
+#### 场景：行操作
+- 当用户查看表格行时，则 Actions 列提供「详情」「编辑」与「删除」链接
 
-#### Scenario: Pagination
-- **WHEN** the filtered result count exceeds the page size
-- **THEN** the system shows pagination controls and displays the correct page slice
+#### 场景：分页
+- 当筛选结果数量超过每页条数时，则系统显示分页控件并展示正确的当前页数据
 
-#### Scenario: Filter by student type uses prototype categories
-- **WHEN** user filters by Student Type
-- **THEN** available options include Local, China, and International
+#### 场景：按学生类型筛选使用原型类别
+- 当用户按 Student Type 筛选时，则可选值包括 Local、China 与 International
 
-### Requirement: Student Profile row detail view
-The system SHALL allow users to view complete student record details from the list using the same seven-tab structure as the registration form, plus a read-only Status Log tab after Others.
+### 需求：Student Profile 行详情视图
+系统应允许用户从列表查看完整学籍详情，采用与注册表单相同的七个 Tab 结构，并在 Others 之后增加只读 Status Log Tab。
 
-#### Scenario: Open details drawer
-- **WHEN** user clicks Details on a row
-- **THEN** the system displays a read-only drawer with tabs Basic Info, Enrollment, Contact, Education, Family, Accommodation, Others, and Status Log showing all stored fields for that student
+#### 场景：打开详情抽屉
+- 当用户点击某行的「详情」时，则系统显示只读抽屉，含 Basic Info、Enrollment、Contact、Education、Family、Accommodation、Others 与 Status Log 等 Tab，展示该生的全部已存字段
 
-#### Scenario: Details respects student category fields
-- **WHEN** user opens Details for a China or International student
-- **THEN** the Basic Info tab shows passport fields and hides Local-only IC fields according to that student's category
+#### 场景：详情按学生类别展示字段
+- 当用户打开 China 或 International 学生的「详情」时，则 Basic Info Tab 显示护照相关字段，并按该生类别隐藏 Local 专属的 IC 字段
 
-### Requirement: Student Profile mock data
-The system SHALL use local mock data for the Student Profile list without backend API calls.
+### 需求：Student Profile 模拟数据
+系统应使用本地模拟数据展示 Student Profile 列表，不调用后端 API。
 
-#### Scenario: Initial data load
-- **WHEN** user opens the Student Profile page
-- **THEN** the table displays mock student records including prototype-aligned examples such as XMUM2309001 with Local, China, and International categories and Active status
+#### 场景：初始数据加载
+- 当用户打开 Student Profile 页面时，则表格显示模拟学籍记录，含与原型对齐的示例，如 XMUM2309001，涵盖 Local、China、International 类别及 Active 状态
 
-#### Scenario: China mock uses passport or China identity fields
-- **WHEN** user opens Details for mock student XMUM2309002 with category China
-- **THEN** Basic Info shows China-appropriate identity fields rather than Local IC No. as the primary identifier
+#### 场景：China 模拟数据使用护照或中国身份字段
+- 当用户打开类别为 China 的模拟学生 XMUM2309002 的「详情」时，则 Basic Info 显示适用于 China 的身份字段，而非以 Local IC No. 作为主标识
 
-#### Scenario: International mock uses passport fields
-- **WHEN** user opens Details for mock student XMUM2309003 with category International
-- **THEN** Basic Info shows passport-related fields rather than Local IC No. as the primary identifier
+#### 场景：International 模拟数据使用护照字段
+- 当用户打开类别为 International 的模拟学生 XMUM2309003 的「详情」时，则 Basic Info 显示护照相关字段，而非以 Local IC No. 作为主标识
 
-## REMOVED Requirements
+## 移除需求
 
-### Requirement: Student Profile list toolbar actions
-#### Scenario: Import placeholder
-**Reason**: Import is implemented with template download and Excel parsing.
-**Migration**: Use the Import modal to upload student profile Excel files.
+### 需求：Student Profile 列表工具栏操作
+#### 场景：导入占位
+**原因**：导入已实现模板下载与 Excel 解析。
+**迁移说明**：使用导入弹框上传学籍 Excel 文件。
 
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Student Profile create and edit registration form
-The system SHALL provide a New Student Registration drawer for creating and editing student records with seven tabs aligned to the prototype.
+### 需求：Student Profile 新建与编辑注册表单
+系统应提供「新建学籍注册」抽屉，用于创建与编辑学籍记录，含与原型对齐的七个 Tab。
 
-#### Scenario: Open create form
-- **WHEN** user clicks Create on the Student Profile page
-- **THEN** the system opens an empty registration drawer titled for new student registration with Student Category radio options Local, China, and International
+#### 场景：打开新建表单
+- 当用户在 Student Profile 页面点击「新增」时，则系统打开空的注册抽屉，标题为新建学籍注册，Student Category 单选选项为 Local、China 与 International
 
-#### Scenario: Registration tabs displayed
-- **WHEN** the registration drawer is open
-- **THEN** the system shows tabs Basic Info, Enrollment, Contact, Education, Family, Accommodation, and Others
+#### 场景：注册 Tab 展示
+- 当注册抽屉已打开时，则系统显示 Basic Info、Enrollment、Contact、Education、Family、Accommodation 与 Others 七个 Tab
 
-#### Scenario: Open edit form
-- **WHEN** user clicks Edit on a table row
-- **THEN** the system opens the registration drawer pre-filled with that student's data in edit mode
+#### 场景：打开编辑表单
+- 当用户点击表格行的「编辑」时，则系统以编辑模式打开预填该生数据的注册抽屉
 
-#### Scenario: Save new student
-- **WHEN** user completes required fields and clicks Save on a new student
-- **THEN** the system validates input, adds the student to the list, closes the drawer, and shows the new row in the table
+#### 场景：保存新学籍
+- 当用户填写必填字段并在新学籍上点击「保存」时，则系统校验输入、将学生加入列表、关闭抽屉并在表格中显示新行
 
-#### Scenario: Save edited student
-- **WHEN** user modifies fields and clicks Save in edit mode
-- **THEN** the system validates input, updates the existing record, and reflects changes in the table
+#### 场景：保存编辑学籍
+- 当用户在编辑模式下修改字段并点击「保存」时，则系统校验输入、更新现有记录，并在表格中反映变更
 
-#### Scenario: Duplicate student ID rejected
-- **WHEN** user saves a student whose Student ID already exists on another record
-- **THEN** the system prevents save and shows a validation error
+#### 场景：重复学号被拒绝
+- 当用户保存的 Student ID 已在其他记录中存在时，则系统阻止保存并显示校验错误
 
-#### Scenario: Cancel closes drawer
-- **WHEN** user clicks Cancel in the registration drawer
-- **THEN** the drawer closes without saving unsaved changes
+#### 场景：取消关闭抽屉
+- 当用户在注册抽屉中点击「取消」时，则抽屉关闭且不保存未保存的变更
 
-#### Scenario: Local basic info fields
-- **WHEN** user selects Student Category Local in the registration drawer Basic Info tab
-- **THEN** the form displays IC No. and State of Birth and does not display passport-specific or China-only identity fields
+#### 场景：Local Basic Info 字段
+- 当用户在注册抽屉 Basic Info Tab 中选择 Student Category Local 时，则表单显示 IC No. 与 State of Birth，不显示护照专属或 China 专属身份字段
 
-#### Scenario: China basic info fields
-- **WHEN** user selects Student Category China in the registration drawer Basic Info tab
-- **THEN** the form displays Passport No., Passport Expiry, Place of Birth, Candidate No., Political Outlook, and Identity No. (China ID), and does not display IC No. or State of Birth
+#### 场景：China Basic Info 字段
+- 当用户在注册抽屉 Basic Info Tab 中选择 Student Category China 时，则表单显示 Passport No.、Passport Expiry、Place of Birth、Candidate No.、Political Outlook 与 Identity No. (China ID)，不显示 IC No. 或 State of Birth
 
-#### Scenario: International basic info fields
-- **WHEN** user selects Student Category International in the registration drawer Basic Info tab
-- **THEN** the form displays Passport No., Passport Expiry, and Place of Birth, and does not display IC No., State of Birth, or China-only identity fields
+#### 场景：International Basic Info 字段
+- 当用户在注册抽屉 Basic Info Tab 中选择 Student Category International 时，则表单显示 Passport No.、Passport Expiry 与 Place of Birth，不显示 IC No.、State of Birth 或 China 专属身份字段
 
-#### Scenario: Category-specific validation on save
-- **WHEN** user saves a Local student without IC No.
-- **THEN** the system prevents save and shows a validation error on Basic Info
+#### 场景：保存时按类别校验
+- 当用户保存未填写 IC No. 的 Local 学生时，则系统阻止保存并在 Basic Info 显示校验错误
 
-#### Scenario: China or International save without IC No
-- **WHEN** user saves a China or International student without IC No. but with required shared fields completed
-- **THEN** the system allows save if other required fields are valid
+#### 场景：China 或 International 无 IC No. 可保存
+- 当用户保存 China 或 International 学生且未填写 IC No.，但其他必填共享字段已填写完整时，则若其他必填字段有效，系统允许保存
 
-### Requirement: Student Profile delete records
-The system SHALL allow users to delete student records individually or in bulk.
+### 需求：Student Profile 删除记录
+系统应允许用户单独或批量删除学籍记录。
 
-#### Scenario: Delete single row
-- **WHEN** user clicks Delete on a row and confirms
-- **THEN** the system removes that student from the list
+#### 场景：删除单行
+- 当用户点击某行的「删除」并确认时，则系统从列表中移除该学生
 
-#### Scenario: Delete selected rows
-- **WHEN** user selects one or more rows, clicks toolbar Delete, and confirms
-- **THEN** the system removes all selected students from the list
+#### 场景：删除选中行
+- 当用户选中一行或多行、点击工具栏「删除」并确认时，则系统从列表中移除所有选中的学生
 
-### Requirement: Student Profile import from Excel
-The system SHALL import student records from an Excel template covering list, basic, and enrollment core fields.
+### 需求：Student Profile 从 Excel 导入
+系统应支持从 Excel 模板导入学籍记录，覆盖列表、基本信息与学籍核心字段。
 
-#### Scenario: Download import template
-- **WHEN** user opens the import modal and clicks download template
-- **THEN** the system downloads an Excel file with column headers and a sample row
+#### 场景：下载导入模板
+- 当用户打开导入弹框并点击下载模板时，则系统下载含列标题与示例行的 Excel 文件
 
-#### Scenario: Import valid rows
-- **WHEN** user uploads a valid Excel file and confirms import
-- **THEN** the system adds parsed student records to the list and shows a success summary with the count imported
+#### 场景：导入有效行
+- 当用户上传有效 Excel 文件并确认导入时，则系统将解析出的学籍记录加入列表，并显示含导入条数的成功摘要
 
-#### Scenario: Import skips duplicate student IDs
-- **WHEN** user uploads a file containing a Student ID that already exists
-- **THEN** the system skips those rows and reports them in the import result
+#### 场景：导入跳过重复学号
+- 当用户上传的文件中包含已存在的 Student ID 时，则系统跳过这些行并在导入结果中报告
 
-#### Scenario: Import validation errors
-- **WHEN** user uploads a file with missing required fields on a row
-- **THEN** the system skips invalid rows and reports row numbers and reasons
+#### 场景：导入校验错误
+- 当用户上传的文件中某行缺少必填字段时，则系统跳过无效行并报告行号与原因
 
-#### Scenario: Import validates IC No for Local rows only
-- **WHEN** user uploads a row with Student Category Local and missing IC No.
-- **THEN** the system skips that row and reports a validation error
+#### 场景：导入仅对 Local 行校验 IC No.
+- 当用户上传 Student Category 为 Local 且缺少 IC No. 的行时，则系统跳过该行并报告校验错误
 
-#### Scenario: Import accepts China row without IC No
-- **WHEN** user uploads a row with Student Category China, valid passport or China identity fields, and no IC No.
-- **THEN** the system may import the row if other required fields are valid
+#### 场景：导入接受无 IC No. 的 China 行
+- 当用户上传 Student Category 为 China、护照或中国身份字段有效且无 IC No. 的行时，则若其他必填字段有效，系统可导入该行
 
-### Requirement: Student Profile extended export
-The system SHALL support exporting both list columns and extended profile fields.
+### 需求：Student Profile 扩展导出
+系统应支持导出列表列与扩展档案字段。
 
-#### Scenario: Export list columns
-- **WHEN** user exports with only list column fields selected
-- **THEN** the downloaded Excel matches the table column set
+#### 场景：导出列表列
+- 当用户仅选中列表列字段导出时，则下载的 Excel 与表格列集合一致
 
-#### Scenario: Export extended profile fields
-- **WHEN** user exports with extended profile fields selected
-- **THEN** the downloaded Excel includes flattened fields from the seven registration tabs
+#### 场景：导出扩展档案字段
+- 当用户选中扩展档案字段导出时，则下载的 Excel 包含七个注册 Tab 的扁平化字段
 
-### Requirement: Student Profile basic info photo upload
-The system SHALL support uploading a student photo in the Basic Info tab during create and edit.
+### 需求：Student Profile Basic Info 照片上传
+系统应在新建与编辑时支持在 Basic Info Tab 上传学生照片。
 
-#### Scenario: Upload photo preview
-- **WHEN** user selects an image file in the Basic Info tab
-- **THEN** the system displays a preview of the selected photo in the form without requiring a backend upload
+#### 场景：上传照片预览
+- 当用户在 Basic Info Tab 选择图片文件时，则系统在表单中显示所选照片预览，无需后端上传
 
-#### Scenario: Photo shown in details
-- **WHEN** user views Details for a student with a stored photo
-- **THEN** the Basic Info tab displays the photo preview
+#### 场景：详情中显示照片
+- 当用户查看已存照片的学生的「详情」时，则 Basic Info Tab 显示照片预览
 
-### Requirement: Student Profile category-specific education fields
-The system SHALL display different Education tab fields based on Student Category.
+### 需求：Student Profile 按类别的 Education 字段
+系统应根据 Student Category 显示不同的 Education Tab 字段。
 
-#### Scenario: Local education shows Chinese language tests
-- **WHEN** user views the Education tab for a Local student in create, edit, or details mode
-- **THEN** the form displays Chinese Test Result, Chinese Test Date, and Chinese Test Expiry fields
+#### 场景：Local Education 显示中文语言测试
+- 当用户在新建、编辑或详情模式下查看 Local 学生的 Education Tab 时，则表单显示 Chinese Test Result、Chinese Test Date 与 Chinese Test Expiry 字段
 
-#### Scenario: China education hides Chinese language tests
-- **WHEN** user views the Education tab for a China student in create, edit, or details mode
-- **THEN** the form does not display Chinese Test Result, Chinese Test Date, or Chinese Test Expiry fields
+#### 场景：China Education 隐藏中文语言测试
+- 当用户在新建、编辑或详情模式下查看 China 学生的 Education Tab 时，则表单不显示 Chinese Test Result、Chinese Test Date 或 Chinese Test Expiry 字段
 
-#### Scenario: International education shows Chinese language tests
-- **WHEN** user views the Education tab for an International student in create, edit, or details mode
-- **THEN** the form displays Chinese Test Result, Chinese Test Date, and Chinese Test Expiry fields
+#### 场景：International Education 显示中文语言测试
+- 当用户在新建、编辑或详情模式下查看 International 学生的 Education Tab 时，则表单显示 Chinese Test Result、Chinese Test Date 与 Chinese Test Expiry 字段
 
-#### Scenario: Qualification dropdown for all categories
-- **WHEN** user views the Education tab for a Local, China, or International student in create or edit mode
-- **THEN** Qualification is presented as a dropdown selection
+#### 场景：所有类别的 Qualification 下拉
+- 当用户在新建或编辑模式下查看 Local、China 或 International 学生的 Education Tab 时，则 Qualification 以下拉选择方式呈现
 
-### Requirement: Student Profile category-specific others fields
-The system SHALL display different Others tab fields based on Student Category. The Others tab SHALL NOT include a Status Change Log text field; status history is shown only in the details Status Log tab.
+### 需求：Student Profile 按类别的 Others 字段
+系统应根据 Student Category 显示不同的 Others Tab 字段。Others Tab 不得包含 Status Change Log 文本字段；状态历史仅在详情 Status Log Tab 中展示。
 
-#### Scenario: Local others includes tax registration
-- **WHEN** user views the Others tab for a Local student
-- **THEN** the form displays Tax Registration No along with Registration Date, Sponsor, and Remarks
+#### 场景：Local Others 含税务登记
+- 当用户查看 Local 学生的 Others Tab 时，则表单显示 Tax Registration No，以及 Registration Date、Sponsor 与 Remarks
 
-#### Scenario: China or International others excludes tax registration
-- **WHEN** user views the Others tab for a China or International student
-- **THEN** the form displays Registration Date, Sponsor, and Remarks and does not display Tax Registration No
+#### 场景：China 或 International Others 不含税务登记
+- 当用户查看 China 或 International 学生的 Others Tab 时，则表单显示 Registration Date、Sponsor 与 Remarks，不显示 Tax Registration No
 
-### Requirement: Student Profile detail status log tab
-The system SHALL display a read-only **Status Log** tab in the student profile details drawer after the Others tab. The Status Log tab SHALL NOT appear in create or edit registration drawers.
+### 需求：Student Profile 详情 Status Log Tab
+系统应在学籍详情抽屉 Others Tab 之后显示只读 **Status Log** Tab。Status Log Tab 不得出现在新建或编辑注册抽屉中。
 
-#### Scenario: Status log tab only in details
-- **WHEN** user opens Details for a student record
-- **THEN** the drawer shows a Status Log tab after Others
-- **WHEN** user opens Create or Edit registration
-- **THEN** the drawer does not show a Status Log tab
+#### 场景：Status Log Tab 仅在详情中
+- 当用户打开某学籍记录的「详情」时，则抽屉在 Others 之后显示 Status Log Tab
+- 当用户打开「新增」或「编辑」注册时，则抽屉不显示 Status Log Tab
 
-#### Scenario: Status log table columns
-- **WHEN** user views the Status Log tab in details mode
-- **THEN** the system displays a read-only table with columns Status, Date Effective, Changed By, and Remarks
+#### 场景：Status Log 表格列
+- 当用户在详情模式下查看 Status Log Tab 时，则系统显示只读表格，列包括 Status、Date Effective、Changed By 与 Remarks
 
-#### Scenario: Date effective format
-- **WHEN** a status log entry has a date effective value
-- **THEN** the Date Effective column displays the date in DD/MM/YYYY format
+#### 场景：Date Effective 格式
+- 当状态日志条目有 date effective 值时，则 Date Effective 列以 DD/MM/YYYY 格式显示日期
 
-#### Scenario: Remarks multi-line content
-- **WHEN** user views a status log entry in the Remarks column
-- **THEN** the system displays a bold remark title followed by one or more label-value lines such as Program, Intake, Old StudentID, or New StudentID
+#### 场景：Remarks 多行内容
+- 当用户查看 Status Log 条目的 Remarks 列时，则系统显示加粗的备注标题，后跟一行或多行标签-值内容，如 Program、Intake、Old StudentID 或 New StudentID
 
-#### Scenario: Status log empty state
-- **WHEN** a student record has no status log entries
-- **THEN** the Status Log tab displays an empty-state message
+#### 场景：Status Log 空状态
+- 当学籍记录无状态日志条目时，则 Status Log Tab 显示空状态提示
 
-#### Scenario: Others tab excludes legacy status change log field
-- **WHEN** user views the Others tab in create, edit, or details mode
-- **THEN** the system does not display the legacy Status Change Log textarea field
+#### 场景：Others Tab 不含旧版 Status Change Log 字段
+- 当用户在新建、编辑或详情模式下查看 Others Tab 时，则系统不显示旧版 Status Change Log 文本域字段
 
-#### Scenario: Showcase mock includes status logs
-- **WHEN** user opens Details for mock students XMUM2309001, XMUM2309002, or XMUM2309003
-- **THEN** the Status Log tab displays multiple structured entries including registration and status change examples
+#### 场景：展示用模拟数据含状态日志
+- 当用户打开模拟学生 XMUM2309001、XMUM2309002 或 XMUM2309003 的「详情」时，则 Status Log Tab 显示多条结构化条目，含注册与状态变更示例
 
-### Requirement: Student Profile category-specific enrollment fields
-The system SHALL display enrollment field control differences for China and International students where specified by the prototype.
+### 需求：Student Profile 按类别的 Enrollment 字段
+系统应按原型规定，为 China 与 International 学生显示 Enrollment 字段控件差异。
 
-#### Scenario: Recruited by dropdown for all categories
-- **WHEN** user views the Enrollment tab for a Local, China, or International student in create or edit mode
-- **THEN** Recruited By is presented as a dropdown
+#### 场景：所有类别的 Recruited By 下拉
+- 当用户在新建或编辑模式下查看 Local、China 或 International 学生的 Enrollment Tab 时，则 Recruited By 以下拉方式呈现
 
-#### Scenario: Fujian scholarship for Local only
-- **WHEN** user views the Enrollment tab for a Local student
-- **THEN** Fujian Scholarship Amt is displayed
+#### 场景：Fujian Scholarship 仅 Local 显示
+- 当用户查看 Local 学生的 Enrollment Tab 时，则显示 Fujian Scholarship Amt
 
-#### Scenario: Fujian scholarship hidden for China and International
-- **WHEN** user views the Enrollment tab for a China or International student
-- **THEN** Fujian Scholarship Amt is not displayed
+#### 场景：China 与 International 隐藏 Fujian Scholarship
+- 当用户查看 China 或 International 学生的 Enrollment Tab 时，则不显示 Fujian Scholarship Amt
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Student Profile enrollment master-data selects
-The system SHALL present Programme as the primary dropdown on the Enrollment tab, sourced from the programme catalogue names. When the user selects a programme name, the system SHALL auto-populate programme code, faculty, programme level, and duration as read-only derived fields from the same catalogue record (including programme level stored as values such as L6-Bachelor aligned with programme version master data). Intake (YYYY/MM) and Academic Session SHALL remain independently selectable dropdowns without cascading from programme selection.
+### 需求：Student Profile Enrollment 主数据下拉
+系统应在 Enrollment Tab 将 Programme 作为主下拉，选项来自专业目录名称。当用户选择专业名称时，系统应从同一目录记录自动填充 programme code、faculty、programme level 与 duration 为只读派生字段（含 programme level 存为与专业版本主数据对齐的值，如 L6-Bachelor）。Intake (YYYY/MM) 与 Academic Session 应保持可独立选择的下拉，不随专业选择级联。
 
-#### Scenario: Programme name drives derived enrollment fields
-- **WHEN** user selects a programme name on the Enrollment tab in create or edit mode
-- **THEN** the system sets programme code, faculty, programme level, and duration from the matching programme catalogue entry
-- **AND** programme code, faculty, programme level, and duration are read-only and not separately editable by the user
+#### 场景：专业名称驱动派生 Enrollment 字段
+- 当用户在新建或编辑模式的 Enrollment Tab 选择专业名称时，则系统从匹配的专业目录条目设置 programme code、faculty、programme level 与 duration
+- 且 programme code、faculty、programme level 与 duration 为只读，用户不可单独编辑
 
-#### Scenario: Programme level stored as catalogue level code
-- **WHEN** the system persists enrollment after programme selection
-- **THEN** programme level is stored using catalogue level values such as L6-Bachelor rather than free-text labels such as Undergraduate
+#### 场景：Programme level 存为目录级别代码
+- 当系统在选择专业后持久化 Enrollment 时，则 programme level 使用目录级别值（如 L6-Bachelor）存储，而非 Undergraduate 等自由文本标签
 
-#### Scenario: Intake and academic session remain independent
-- **WHEN** user changes programme name after selecting intake or academic session
-- **THEN** the system retains the previously selected intake and academic session values unless the user changes them explicitly
+#### 场景：Intake 与 Academic Session 保持独立
+- 当用户在选择 intake 或 academic session 后变更专业名称时，则系统保留先前选中的 intake 与 academic session 值，除非用户显式变更
 
-#### Scenario: Enrollment intake and session options unchanged
-- **WHEN** user views the Enrollment tab in create or edit mode
-- **THEN** intake options come from active intake set batches
-- **AND** academic session options come from semester information academic sessions
+#### 场景：Enrollment Intake 与 Session 选项不变
+- 当用户在新建或编辑模式下查看 Enrollment Tab 时，则 intake 选项来自活跃 intake 批次集合
+- 且 academic session 选项来自学期信息中的 academic sessions
 
-#### Scenario: List details and edit show the same enrollment values
-- **WHEN** user views a student row in the list and opens Details or Edit for that student
-- **THEN** programme, programme code, faculty, programme level, duration, intake, and related list columns display the same stored enrollment values
-- **AND** edit mode shows the stored programme name as selected in the programme dropdown when it exists in the catalogue
+#### 场景：列表、详情与编辑显示相同 Enrollment 值
+- 当用户在列表中查看某生并打开「详情」或「编辑」时，则 programme、programme code、faculty、programme level、duration、intake 及相关列表列显示相同的已存 Enrollment 值
+- 且编辑模式下，若目录中存在已存专业名称，则在专业下拉中显示为选中项
 
-#### Scenario: Showcase mock aligns with catalogue level and options
-- **WHEN** user opens Edit for mock students XMUM2309001, XMUM2309002, or XMUM2309003
-- **THEN** enrollment programme level values match catalogue level codes such as L6-Bachelor
-- **AND** programme-derived fields are consistent with the selected programme name
+#### 场景：展示用模拟数据与目录级别及选项对齐
+- 当用户打开模拟学生 XMUM2309001、XMUM2309002 或 XMUM2309003 的「编辑」时，则 Enrollment programme level 值与目录级别代码（如 L6-Bachelor）一致
+- 且专业派生字段与所选专业名称一致
 
-### Requirement: Student Profile accommodation code-set selects
-The system SHALL present Hostel Status, Room Type, Campus, Block No, and Room No on the Accommodation tab as dropdown selections sourced from Student Code Sets in the basic-data code set module. Floor No, Unit No, Bed No, date fields, and amount fields SHALL remain non-code-set controls as specified.
+### 需求：Student Profile Accommodation 代码集下拉
+系统应在 Accommodation Tab 将 Hostel Status、Room Type、Campus、Block No 与 Room No 以下拉方式呈现，选项来自基础数据代码集模块中的 Student Code Sets。Floor No、Unit No、Bed No、日期字段与金额字段应按规格保持非代码集控件。
 
-#### Scenario: Accommodation code-set dropdowns in create or edit
-- **WHEN** user views the Accommodation tab in create or edit mode
-- **THEN** hostel status, room type, campus, block no, and room no are dropdowns populated from code set entries
-- **AND** floor no, unit no, and bed no remain text inputs in this phase
+#### 场景：新建或编辑中 Accommodation 代码集下拉
+- 当用户在新建或编辑模式下查看 Accommodation Tab 时，则 hostel status、room type、campus、block no 与 room no 为由代码集条目填充的下拉
+- 且 floor no、unit no 与 bed no 在本阶段仍为文本输入
 
-#### Scenario: Code set options from student code sets
-- **WHEN** the system loads accommodation dropdown options
-- **THEN** options are resolved from Student Code Sets entries managed in code set management (mock seed and local storage in this phase)
+#### 场景：代码集选项来自 Student Code Sets
+- 当系统加载 Accommodation 下拉选项时，则从代码集管理中维护的 Student Code Sets 条目解析选项（本阶段为模拟种子与本地存储）
 
-#### Scenario: Accommodation details and edit consistency
-- **WHEN** user opens Details or Edit for a student with accommodation values
-- **THEN** stored accommodation dropdown values display as selected options when present in the code set lists
+#### 场景：Accommodation 详情与编辑一致性
+- 当用户打开含 Accommodation 值的学生的「详情」或「编辑」时，则已存的下拉值在代码集列表中存在时显示为选中项
 
-#### Scenario: Showcase mock aligns with accommodation code sets
-- **WHEN** user opens Edit for mock students XMUM2309001, XMUM2309002, or XMUM2309003
-- **THEN** accommodation dropdown field values match entries available in the corresponding Student Code Sets
+#### 场景：展示用模拟数据与 Accommodation 代码集对齐
+- 当用户打开模拟学生 XMUM2309001、XMUM2309002 或 XMUM2309003 的「编辑」时，则 Accommodation 下拉字段值与对应 Student Code Sets 中的条目一致
 
-## REMOVED Requirements
+## 移除需求
 
-### Requirement: Student Profile enrollment master-data selects (§14 independent five-field model)
-**Reason**: §16 replaces independent Programme Code / Faculty dropdowns with programme-name-driven linkage; programme level and duration become read-only derived fields.
-**Migration**: See §16 MODIFIED requirement for Student Profile enrollment master-data selects.
+### 需求：Student Profile Enrollment 主数据下拉（§14 独立五字段模型）
+**原因**：§16 以专业名称驱动联动取代独立的 Programme Code / Faculty 下拉；programme level 与 duration 变为只读派生字段。
+**迁移说明**：参见 §16 修改需求「Student Profile Enrollment 主数据下拉」。
 
-#### Scenario: Enrollment fields use basic-data options in create or edit (§14 five independent dropdowns)
-- **REMOVED** — programme code and faculty are no longer independent primary dropdowns
+#### 场景：Enrollment 字段在新建或编辑中使用基础数据选项（§14 五个独立下拉）
+- **已移除** — programme code 与 faculty 不再作为独立主下拉
 
-#### Scenario: Independent selection without linkage
-- **REMOVED** — programme name now drives programme code, faculty, programme level, and duration
+#### 场景：独立选择无联动
+- **已移除** — 专业名称现驱动 programme code、faculty、programme level 与 duration
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Student Profile extended export
-The system SHALL provide an export dialog matching the Programme Version module: dual-list field shuttle (Available Fields / Selected Fields), move buttons, and Export Setting with Current Page, All Results, and Selected Rows options.
+### 需求：Student Profile 扩展导出
+系统应提供与 Programme Version 模块一致的导出对话框：双列表字段穿梭（Available Fields / Selected Fields）、移动按钮，以及 Export Setting 中的 Current Page、All Results 与 Selected Rows 选项。
 
-#### Scenario: Export dialog shuttle layout
-- **WHEN** user clicks Export on the Student Profile page with data available
-- **THEN** the system opens the shared Export modal with Available Fields on the left and Selected Fields on the right, consistent with Programme Version
+#### 场景：导出对话框穿梭布局
+- 当用户在 Student Profile 页面有数据可导出时点击「导出」，则系统打开共享 Export 弹框，左侧为 Available Fields、右侧为 Selected Fields，与 Programme Version 一致
 
-#### Scenario: Default selected list columns
-- **WHEN** the export modal opens
-- **THEN** list table columns including No. are pre-selected in Selected Fields
-- **AND** extended profile fields appear in Available Fields until moved by the user
+#### 场景：默认选中列表列
+- 当导出弹框打开时，则列表表格列（含 No.）预选中于 Selected Fields
+- 且扩展档案字段出现在 Available Fields 中，直至用户手动移入
 
-#### Scenario: Export scope current page
-- **WHEN** user selects Export Current Page and confirms with at least one selected field
-- **THEN** the system exports only rows visible on the current list page using the selected columns
+#### 场景：导出范围当前页
+- 当用户选择 Export Current Page 并至少选中一个字段后确认时，则系统仅导出当前列表页可见行，使用所选列
 
-#### Scenario: Export scope all results
-- **WHEN** user selects Export All Results and confirms
-- **THEN** the system exports all rows matching the current search filter using the selected columns
+#### 场景：导出范围全部结果
+- 当用户选择 Export All Results 并确认时，则系统导出符合当前搜索筛选条件的全部行，使用所选列
 
-#### Scenario: Export scope selected rows
-- **WHEN** user selects Export Selected Rows without any table row checked
-- **THEN** the system shows a toast prompting the user to select rows first
-- **WHEN** user selects Export Selected Rows with checked rows and confirms
-- **THEN** the system exports only the checked rows using the selected columns
+#### 场景：导出范围选中行
+- 当用户选择 Export Selected Rows 但未勾选任何表格行时，则系统显示 Toast 提示用户先选中行
+- 当用户选择 Export Selected Rows 且已勾选行并确认时，则系统仅导出勾选行，使用所选列
 
-#### Scenario: Export list columns
-- **WHEN** user exports with only list column fields selected
-- **THEN** the downloaded Excel matches the table column set
+#### 场景：导出列表列
+- 当用户仅选中列表列字段导出时，则下载的 Excel 与表格列集合一致
 
-#### Scenario: Export extended profile fields
-- **WHEN** user moves extended profile fields to Selected Fields and confirms export
-- **THEN** the downloaded Excel includes flattened fields from the seven registration tabs
+#### 场景：导出扩展档案字段
+- 当用户将扩展档案字段移入 Selected Fields 并确认导出时，则下载的 Excel 包含七个注册 Tab 的扁平化字段
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Student Profile row detail view
-The system SHALL display read-only field labels and values with distinct typography in the details drawer across all seven tabs. Field labels SHALL use a smaller, muted style; field values SHALL use a larger, emphasized style. Empty values displayed as an em dash SHALL use a subdued empty-state style distinct from filled values.
+### 需求：Student Profile 行详情视图
+系统应在详情抽屉的全部七个 Tab 中以不同 typography 展示只读字段标签与值。字段标签应使用较小、较淡的样式；字段值应使用较大、强调的样式。显示为 em dash 的空值应使用与有值字段区分的 subdued 空状态样式。
 
-#### Scenario: Label and value visual hierarchy in details
-- **WHEN** user opens Details and views any tab
-- **THEN** field labels are visually distinct from field values by size, weight, and color
-- **AND** edit mode form inputs are unaffected
+#### 场景：详情中标签与值的视觉层级
+- 当用户打开「详情」并查看任意 Tab 时，则字段标签与字段值在字号、字重与颜色上视觉区分
+- 且编辑模式表单输入不受影响
 
-#### Scenario: Empty value styling in details
-- **WHEN** a field has no stored value in details mode
-- **THEN** the system displays an em dash with subdued empty-state styling
+#### 场景：详情中空值样式
+- 当某字段在详情模式下无已存值时，则系统以 subdued 空状态样式显示 em dash
 
-#### Scenario: Student category row in details header area
-- **WHEN** user opens Details
-- **THEN** the student category label and value above the tabs follow the same label/value hierarchy
+#### 场景：详情头部区域的学生类别行
+- 当用户打开「详情」时，则 Tab 上方的学生类别标签与值遵循相同的标签/值层级
 
-### Requirement: Student Profile mock data
-The system SHALL seed showcase student records with representative tab content so that details views are not dominated by empty placeholders.
+### 需求：Student Profile 模拟数据
+系统应为展示用学籍记录填充具有代表性的 Tab 内容，使详情视图不被大量空占位符占据。
 
-#### Scenario: Local showcase record richness
-- **WHEN** user opens Details for mock student XMUM2309001
-- **THEN** Basic Info, Enrollment, Contact, Education, Family, Accommodation, and Others tabs show concrete demo values across most fields
-- **AND** a small number of optional fields may remain empty per tab
+#### 场景：Local 展示记录内容丰富
+- 当用户打开模拟学生 XMUM2309001 的「详情」时，则 Basic Info、Enrollment、Contact、Education、Family、Accommodation 与 Others 各 Tab 在大多数字段上显示具体演示值
+- 且每个 Tab 可有少量可选字段保持为空
 
-#### Scenario: China and International showcase records
-- **WHEN** user opens Details for XMUM2309002 or XMUM2309003
-- **THEN** category-appropriate fields are populated with concrete demo values across multiple tabs
-- **AND** empty optional fields may remain for demonstration
+#### 场景：China 与 International 展示记录
+- 当用户打开 XMUM2309002 或 XMUM2309003 的「详情」时，则按类别适配的字段在多个 Tab 上填充具体演示值
+- 且可为演示目的保留部分空的可选字段

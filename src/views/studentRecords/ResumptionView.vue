@@ -11,6 +11,7 @@ import ResumptionFormModal from '../../components/studentRecords/ResumptionFormM
 import MovementApplicationDetailDrawer from '../../components/studentRecords/MovementApplicationDetailDrawer.vue'
 
 import MovementApplicationSearchBar from '../../components/studentRecords/MovementApplicationSearchBar.vue'
+import MovementStudentCancelAction from '../../components/studentRecords/MovementStudentCancelAction.vue'
 
 import {
 
@@ -338,7 +339,7 @@ function requestDelete(item) {
 
 function requestCancel(item) {
 
-  confirmMessage.value = t('resumption.cancelOne')
+  confirmMessage.value = t('movementStudentCancel.confirmMessage')
 
   confirmAction.value = () => {
 
@@ -496,11 +497,10 @@ function displayDate(item) {
 
                   </button>
 
-                  <button v-if="canCancelResumption(item)" type="button" class="link-btn" @click="requestCancel(item)">
-
-                    {{ t('resumption.actions.cancelApplication') }}
-
-                  </button>
+                  <MovementStudentCancelAction
+                    v-if="applicantMode === 'student' && canCancelResumption(item)"
+                    @cancel="requestCancel(item)"
+                  />
 
                 </td>
 
@@ -557,6 +557,7 @@ function displayDate(item) {
       source-key="resumption"
       :item="detailItem"
       mode="student"
+      :enable-export-pdf="applicantMode === 'teacher'"
       @close="closeDrawer"
     />
 

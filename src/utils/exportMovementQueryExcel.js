@@ -56,17 +56,19 @@ export function formatQueryExportRow(row, index, { t, tr, implementedAsYn = fals
       : implementedLabel(row.implemented, t),
     studentId: row.studentId || '',
     fullName: row.fullName || '',
-    applicationSession: row.applicationSession || '',
-    effectiveSession: formatExportEffectiveSession(row.effectiveSession),
+    nationality: displayCell(row.nationality),
     movementCategory: t(row.movementCategoryKey),
-    movementReason: row.movementReason || '',
-    movementDate: formatExportDate(row.movementDate),
+    effectiveSession: formatExportEffectiveSession(row.effectiveSession),
+    effectiveDate: formatExportDate(row.movementDate),
     passportIc:
       maskPassport && passportRaw !== MAINTENANCE_EMPTY
         ? maskPassportIc(passportRaw)
         : passportRaw,
     studentType: studentTypeLabel(row.studentType, t),
     intake: displayCell(row.intake),
+    applicationSession: row.applicationSession || '',
+    movementReason: row.movementReason || '',
+    movementDate: formatExportDate(row.movementDate),
     currentSchool: displayCell(row.currentSchool),
     currentProgrammeCode: displayCell(row.currentProgrammeCode),
     newSchool: displayCell(row.newSchool),

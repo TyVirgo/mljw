@@ -13,6 +13,10 @@ export const movementTypeKeys = [
 
 export const consentFormStudentTypes = ['Local', 'Chinese', 'International']
 
+export const consentStudentScopeOptions = ['firstYear', 'secondYearAndAbove']
+
+const VALID_CONSENT_STUDENT_SCOPES = new Set(consentStudentScopeOptions)
+
 const MOCK_CONSENT_CHANGED_BY = 'ADMIN USER'
 
 let nextConsentFormId = 13
@@ -73,6 +77,11 @@ function normalizeVersion(raw) {
   }
 }
 
+function normalizeApplicableStudentScope(value) {
+  const text = String(value || '').trim()
+  return VALID_CONSENT_STUDENT_SCOPES.has(text) ? text : ''
+}
+
 function normalizeRow(raw) {
   return {
     id: raw.id,
@@ -80,6 +89,7 @@ function normalizeRow(raw) {
     movementType: raw.movementType || '',
     studentType: raw.studentType || 'Local',
     programmeLevel: migrateToProgrammeLevel(raw),
+    applicableStudentScope: normalizeApplicableStudentScope(raw.applicableStudentScope),
     remark: String(raw.remark || '').trim(),
     studentConsentFile: normalizeFile(raw.studentConsentFile),
     parentConsentFile: normalizeFile(raw.parentConsentFile),
@@ -126,6 +136,7 @@ export const initialConsentForms = [
     movementType: 'programme-transfer',
     studentType: 'Local',
     programmeLevel: 'Undergraduate',
+    applicableStudentScope: 'secondYearAndAbove',
     remark: 'Default template for local undergraduate programme transfer',
     versions: undergradVersions('pt-consent-local.pdf', null),
   },
@@ -135,6 +146,7 @@ export const initialConsentForms = [
     movementType: 'programme-transfer',
     studentType: 'Chinese',
     programmeLevel: 'Undergraduate',
+    applicableStudentScope: 'firstYear',
     remark: 'Bilingual footnotes required for mainland Chinese students',
     versions: undergradVersions('pt-consent-chinese.pdf', null),
   },
@@ -322,6 +334,7 @@ export function createEmptyConsentForm() {
     movementType: '',
     studentType: '',
     programmeLevel: '',
+    applicableStudentScope: '',
     remark: '',
   }
 }
@@ -419,6 +432,7 @@ export function createConsentForm(form) {
     movementType: form.movementType,
     studentType: form.studentType,
     programmeLevel: form.programmeLevel,
+    applicableStudentScope: form.applicableStudentScope,
     remark: form.remark,
     studentConsentFile: null,
     parentConsentFile: null,

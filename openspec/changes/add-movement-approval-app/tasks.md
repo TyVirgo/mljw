@@ -52,3 +52,13 @@
 - [x] 8.3 `MovementApprovalView.vue`：移除 CSV `handleExport`；接入 `ExportModal` + 三 scope
 - [x] 8.4 `formatApprovalExportRow`：status/类别 i18n；implemented 可选 Y/N
 - [x] 8.5 冒烟：Export 当前页/全部/选中行 → xlsx + `npm run build` 通过
+
+## 9. 详情抽屉集成（`unify-application-detail-drawer`）
+
+- [x] 9.1 `MovementApprovalView`：View + Log → `MovementApplicationDetailDrawer`
+- [x] 9.2 Pending footer Review → `MovementApprovalModal`；移除整页 ReviewView 分支
+
+## 10. 关联变更补档（2026-06-30）
+
+- [x] 10.1 History Tab「是否实施」列：`ImplementedYnBadge`（见 `add-movement-maintenance` §12）
+- [x] 10.2 `MovementApprovalModal` Action 文案：通过/不通过/驳回（见 `refine-approval-modal-action-labels`）

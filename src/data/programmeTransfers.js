@@ -1,5 +1,13 @@
-import { isLocalCategory } from './students.js'
-import { resolveApplicationSessionFromStudent } from './movementApplicationSession.js'
+import {
+  createEmptyMovementAttachments,
+  validateMovementAttachments,
+  withMovementAttachments,
+} from './movementAttachments.js'
+import {
+  isLocalCategory,
+} from './students.js'
+import { resolveMovementVisaExpiryFromStudent } from '../utils/movementVisaExpiry.js'
+import { resolveApplicationSessionFromStudent, resolveCurrentAcademicSessionFromStudent } from './movementApplicationSession.js'
 import { validateAcademicSessionOrder } from '../utils/normalizeAcademicSession.js'
 import {
   PT_OTHERS_REASON_ID,
@@ -35,24 +43,41 @@ export const intakeOptions = ['2023/09', '2024/02', '2024/09', '2025/02', '2025/
 
 export const semesterOptions = ['2024/09', '2025/02', '2025/09', '2026/02']
 
+export function resolveProgrammeTransferOfficeUseDefaults(item = {}) {
+  const today = new Date().toISOString().slice(0, 10)
+  return {
+    adminNewProgramme: item.adminNewProgramme || item.newProgrammeFirstChoice || '',
+    adminNewIntake: item.adminNewIntake || item.startSemester || '',
+    adminDate: item.adminDate || today,
+  }
+}
+
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export function getTransferReasonDisplay(item) {
-  const fromConfig = resolveReasonLabel(PT_CATEGORY_CODE, item?.reasonId)
-  if (fromConfig) return fromConfig
-  return item?.transferReason || ''
+  const text = String(item?.transferReason || '').trim()
+  if (text) return item.transferReason
+  return resolveReasonLabel(PT_CATEGORY_CODE, item?.reasonId) || ''
 }
 
 function syncTransferReasonFields(base) {
+  const text = String(base.transferReason || '').trim()
   let reasonId = base.reasonId
-  if (!isValidReasonIdForCategory(PT_CATEGORY_CODE, reasonId)) {
-    reasonId =
-      resolveReasonIdByName(PT_CATEGORY_CODE, base.transferReason) ??
-      (String(base.transferReason || '').trim() ? PT_OTHERS_REASON_ID : null)
+
+  if (text) {
+    if (!isValidReasonIdForCategory(PT_CATEGORY_CODE, reasonId)) {
+      reasonId =
+        resolveReasonIdByName(PT_CATEGORY_CODE, text) ?? PT_OTHERS_REASON_ID
+    }
+    return { reasonId, transferReason: base.transferReason }
   }
-  const transferReason =
-    resolveReasonLabel(PT_CATEGORY_CODE, reasonId) || base.transferReason || ''
-  return { reasonId, transferReason }
+
+  if (isValidReasonIdForCategory(PT_CATEGORY_CODE, reasonId)) {
+    const label = resolveReasonLabel(PT_CATEGORY_CODE, reasonId)
+    return { reasonId, transferReason: label || '' }
+  }
+
+  return { reasonId: null, transferReason: '' }
 }
 
 let nextId = 15
@@ -77,7 +102,12 @@ export function formatTransferListDate(value) {
   return formatMovementDate(value)
 }
 
+export function formatApplicationDateDisplay(value) {
+  return formatMovementDate(value)
+}
+
 export function createEmptyTransfer() {
+  const today = new Date().toISOString().slice(0, 10)
   return {
     id: null,
     applicationId: '',
@@ -89,12 +119,16 @@ export function createEmptyTransfer() {
     submittedAt: null,
     cancelledAt: null,
     expiredAt: null,
+    dateOfApplication: today,
     applicationDeadline: '2026-12-31',
     applicationSession: '',
+    currentAcademicSession: '',
     targetSemester: '',
     fullName: '',
     nricPassport: '',
     nationality: '',
+    personalEmail: '',
+    phoneNumber: '',
     email: '',
     contactNo: '',
     visaExpiryDate: '',
@@ -106,8 +140,10 @@ export function createEmptyTransfer() {
     startSemester: '',
     reasonId: null,
     transferReason: '',
+    studentCategory: '',
     declarationAgreed: false,
     attachment: null,
+    attachments: createEmptyMovementAttachments(),
     adminNewProgramme: '',
     adminNewIntake: '',
     adminDate: '',
@@ -117,12 +153,11 @@ export function createEmptyTransfer() {
 
 export function getTransferFormData(record) {
   if (!record) return createEmptyTransfer()
-  return {
+  return withMovementAttachments({
     ...createEmptyTransfer(),
     ...record,
-    attachment: record.attachment ? { ...record.attachment } : null,
     approvalLog: (record.approvalLog || []).map((entry) => ({ ...entry })),
-  }
+  })
 }
 
 export function normalizeTransfer(raw) {
@@ -133,8 +168,13 @@ export function normalizeTransfer(raw) {
     base.newProgrammeFirstChoice ||
     base.newProgramme ||
     ''
+  const dateOfApplication =
+    raw?.dateOfApplication ||
+    (raw?.submittedAt ? String(raw.submittedAt).slice(0, 10) : null) ||
+    (raw?.applicationDate ? String(raw.applicationDate).slice(0, 10) : null) ||
+    base.dateOfApplication
 
-  return {
+  return withMovementAttachments({
     ...base,
     id: base.id ?? createTransferId(),
     applicationId: base.applicationId || createApplicationId(),
@@ -144,12 +184,19 @@ export function normalizeTransfer(raw) {
     oldProgramme: base.currentProgramme || base.oldProgramme || '',
     newProgramme,
     transferReason,
-    applicationDate: base.submittedAt || base.applicationDate || base.createdAt || null,
+    dateOfApplication,
+    personalEmail: base.personalEmail || base.email || '',
+    phoneNumber: base.phoneNumber || base.contactNo || '',
+    email: base.personalEmail || base.email || '',
+    contactNo: base.phoneNumber || base.contactNo || '',
+    applicationDate: base.submittedAt || base.applicationDate || dateOfApplication || null,
     archived:
       base.archived === true ||
       ['Approved', 'Rejected', 'Cancelled', 'Expired'].includes(base.status),
-  }
+  })
 }
+
+export { buildProgrammeTransferStatusLogRemarkLines } from './programmeTransferStatusLog.js'
 
 export function buildStudentSnapshotFromProfile(student) {
   if (!student) return {}
@@ -167,14 +214,18 @@ export function buildStudentSnapshotFromProfile(student) {
     fullName: basic.fullName || student.name || '',
     nricPassport,
     nationality: basic.nationality || '',
+    personalEmail: contact.email || '',
+    phoneNumber: contact.mobilePhone || '',
     email: contact.email || '',
     contactNo: contact.mobilePhone || '',
-    visaExpiryDate: basic.passportExpiry || '',
+    studentCategory: category,
+    visaExpiryDate: resolveMovementVisaExpiryFromStudent(student),
     currentProgramme: enrollment.programme || '',
     currentIntake: enrollment.intake || '',
     currentSchool: enrollment.faculty || '',
     programmeLevel: enrollment.programmeLevel || '',
     applicationSession: resolveApplicationSessionFromStudent(student),
+    currentAcademicSession: resolveCurrentAcademicSessionFromStudent(student),
   }
 }
 
@@ -273,15 +324,13 @@ export function validateTransferForm(data, mode = 'submit', existingList = [], e
   if (!String(data.startSemester || '').trim()) {
     requireField('startSemester', 'Start Semester is required.')
   }
-  if (!isValidReasonIdForCategory(PT_CATEGORY_CODE, data.reasonId)) {
-    requireField('reasonId', 'Reasons to transfer are required.')
+  if (!String(data.transferReason || '').trim()) {
+    requireField('transferReason', 'Reasons to transfer are required.')
   }
   if (!data.declarationAgreed) {
     requireField('declarationAgreed', 'You must agree to the declaration.')
   }
-  if (!data.attachment?.fileName) {
-    requireField('attachment', 'Supporting document is required.')
-  }
+  validateMovementAttachments('programme-transfer', data, requireField, mode)
 
   if (
     mode === 'submit' &&
@@ -318,6 +367,7 @@ export function prepareDraftPayload(form, meta = {}) {
     status: 'Draft',
     approvalStage: '--',
     archived: false,
+    dateOfApplication: form.dateOfApplication || now.slice(0, 10),
     applicationDate: form.applicationDate || now,
     ...meta,
   })
@@ -343,6 +393,7 @@ export function submitApplication(item, actor = 'Student') {
     approvalStage: 'Pending Review',
     archived: false,
     submittedAt,
+    dateOfApplication: item.dateOfApplication || submittedAt.slice(0, 10),
     applicationDate: submittedAt,
   })
 }
@@ -354,7 +405,10 @@ export function cancelApplication(item, actor = 'Student') {
     actor,
     action: 'Cancelled',
     dateTime: now,
-    comment: 'Application cancelled by student.',
+    comment:
+      actor === 'Student'
+        ? 'Application cancelled by student.'
+        : 'Application cancelled by AC.',
   })
   return normalizeTransfer({
     ...updated,
@@ -490,6 +544,7 @@ export const initialProgrammeTransfers = [
     adminNewProgramme: 'Bachelor of Finance',
     adminNewIntake: '2024/09',
     adminDate: '2023-09-20',
+    applicationSession: '2023/09',
     status: 'Approved',
     approvalStage: 'Approved',
     implemented: 'Implemented',
@@ -535,6 +590,7 @@ export const initialProgrammeTransfers = [
     adminNewProgramme: 'Bachelor of Data Science',
     adminNewIntake: '2025/09',
     adminDate: '2025-02-18',
+    applicationSession: '2025/02',
     status: 'Approved',
     approvalStage: 'Approved',
     archived: true,

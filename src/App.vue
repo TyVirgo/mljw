@@ -29,6 +29,7 @@ import ConsentFormView from './views/studentRecords/ConsentFormView.vue'
 import MovementMaintenanceView from './views/studentRecords/MovementMaintenanceView.vue'
 import MovementQueryView from './views/studentRecords/MovementQueryView.vue'
 import MovementStatisticsView from './views/studentRecords/MovementStatisticsView.vue'
+import MovementRuleSettingsView from './views/studentRecords/MovementRuleSettingsView.vue'
 import UnderConstructionView from './views/UnderConstructionView.vue'
 import AcademicPortalView from './views/AcademicPortalView.vue'
 import { developedPages, basicDataModuleKey } from './config/menu.js'
@@ -78,6 +79,7 @@ const isMovementApplicationStudent = computed(
 const isMovementApproval = computed(() => currentPageId.value === 'sr-movement-approval')
 const isMovementCategory = computed(() => currentPageId.value === 'sr-movement-category')
 const isConsentForm = computed(() => currentPageId.value === 'sr-consent-form')
+const isMovementRules = computed(() => currentPageId.value === 'sr-movement-rules')
 const isMovementMaintenance = computed(() => currentPageId.value === 'sr-movement-maintenance')
 const isMovementQuery = computed(() => currentPageId.value === 'sr-movement-query')
 const isMovementStatistics = computed(() => currentPageId.value === 'sr-movement-statistics')
@@ -122,6 +124,10 @@ function openStudentRecordsApp() {
   appView.value = 'student-records'
   currentPageId.value = 'sr-student-profile'
 }
+
+function openStudentPreviewPortal() {
+  currentPageId.value = 'sr-movement-application-student'
+}
 </script>
 
 <template>
@@ -148,9 +154,10 @@ function openStudentRecordsApp() {
         />
         <main class="main-content">
           <template v-if="isStudentRecordsApp">
-            <StudentProfileView v-if="isStudentProfile" />
+            <StudentProfileView v-if="isStudentProfile" @preview-student="openStudentPreviewPortal" />
             <MovementCategoryView v-else-if="isMovementCategory" />
             <ConsentFormView v-else-if="isConsentForm" />
+            <MovementRuleSettingsView v-else-if="isMovementRules" />
             <StudentMovementApplicationView
               v-else-if="isMovementApplicationTeacher"
               applicant-mode="teacher"
@@ -222,4 +229,5 @@ function openStudentRecordsApp() {
   background: #f3f4f6;
   min-width: 0;
 }
+
 </style>

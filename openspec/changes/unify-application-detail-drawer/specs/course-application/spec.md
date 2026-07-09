@@ -1,24 +1,23 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Application list provides unified Details action
-The system SHALL display a paginated table of course applications with Actions that include a unified Details action opening timeline and read-only detail content in a right-side drawer. Separate Approval Log row actions SHALL NOT be shown.
+### 需求：申请列表提供统一「详情」操作
+系统应展示分页课程申请表格，Actions 含统一「详情」操作，在右侧抽屉中打开只读详情内容与审批日志表格。不应再显示独立的 Approval Log 行操作。
 
-#### Scenario: Details opens drawer with timeline
-- **WHEN** user clicks Details on a course application list row
-- **THEN** the system opens the drawer with approval timeline above application details
+#### 场景：「详情」打开含审批日志的抽屉
+- **当** 用户点击课程申请列表行的「详情」
+- **则** 系统在可滚动区内先展示申请详情字段，再在下方展示 Approval Log 四列表格
 
-#### Scenario: No separate approval log action
-- **WHEN** user views Actions on a course application row where Approval Log was previously available
-- **THEN** only Details is shown for viewing log and detail content together
+#### 场景：无独立审批日志操作
+- **当** 用户查看原先有 Approval Log 的课程申请行 Actions
+- **则** 仅「详情」用于同时查看详情内容与审批日志表格
 
-#### Scenario: Edit remains on list when applicable
-- **WHEN** a course application row allows Edit
-- **THEN** Edit remains in the list Actions column and is not moved to the drawer footer
+#### 场景：适用时 Edit 仍保留在列表
+- **当** 课程申请行允许 Edit
+- **则** Edit 仍保留在列表 Actions 列，且不移至抽屉底栏
 
-### Requirement: Read-only Details and Approval Log combined
-The system SHALL provide read-only application details and approval history together through the unified Details drawer.
+### 需求：只读详情与审批日志合并
+系统应通过统一「详情」抽屉同时提供只读申请详情与审批历史表格。
 
-#### Scenario: Rejected read-only application
-- **WHEN** application status is Rejected
-- **THEN** the system does not provide an Edit action on the list row
-- **AND** Details opens the combined drawer with timeline and read-only detail fields
+#### 场景：Rejected 只读申请
+- **当** 申请状态为 Rejected
+- **则** 列表行不提供 Edit 操作，且「详情」打开含详情字段与审批日志表格的合并抽屉

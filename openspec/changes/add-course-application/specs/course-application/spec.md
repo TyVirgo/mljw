@@ -1,148 +1,148 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Course application list page
-The system SHALL display a paginated table of course applications with columns: No., Status, Approval Stage, Course Name, Offering, Course Classification, Credit, Applicant, Application Date and Time, and Actions (Details, Approval Log).
+### 需求：课程申请列表页
+系统应展示分页的课程申请表格，列包括：No.、Status、Approval Stage、Course Name、Offering、Course Classification、Credit、Applicant、Application Date and Time 和 Actions（Details、Approval Log）。
 
-#### Scenario: Default list load
-- **WHEN** user navigates to Course Application
-- **THEN** the system displays the first page of application records with all listed columns
+#### 场景：默认列表加载
+- **当** 用户导航至 Course Application
+- **则** 系统展示申请记录第一页，包含上述全部列
 
-#### Scenario: Status badge colors
-- **WHEN** an application has status In Progress, Approved, Temporary saved, or Rejected
-- **THEN** the system displays the status with distinct badge styling (blue, green, grey, red respectively)
+#### 场景：Status 徽章颜色
+- **当** 申请状态为 In Progress、Approved、Temporary saved 或 Rejected
+- **则** 系统以区分明显的徽章样式展示状态（分别为蓝色、绿色、灰色、红色）
 
-### Requirement: Search and filter applications
-The system SHALL support searching by Course Code, Course Name, Offering, and Course Classification, with optional expanded filters via More.
+### 需求：搜索与筛选申请
+系统应支持按 Course Code、Course Name、Offering 和 Course Classification 搜索，并可通过 More 展开可选筛选。
 
-#### Scenario: Basic search
-- **WHEN** user enters Course Code or Course Name and clicks Search
-- **THEN** the list shows only matching records and resets to page 1
+#### 场景：基础搜索
+- **当** 用户输入 Course Code 或 Course Name 并点击 Search
+- **则** 列表仅显示匹配记录，并重置到第 1 页
 
-#### Scenario: Reset filters
-- **WHEN** user clicks Reset
-- **THEN** all search fields are cleared and the full list is restored
+#### 场景：重置筛选
+- **当** 用户点击 Reset
+- **则** 清空全部搜索字段并恢复完整列表
 
-### Requirement: Apply new course via three-step wizard
-The system SHALL provide a full-page Apply New Course flow with three steps: (1) General Information, (2) Course Learning Outcome (CLO), (3) Student Learning Time (SLT).
+### 需求：通过三步向导申请新课程
+系统应提供全页 Apply New Course 流程，包含三步：(1) General Information、(2) Course Learning Outcome (CLO)、(3) Student Learning Time (SLT)。
 
-#### Scenario: Wizard navigation
-- **WHEN** user clicks Apply New Course
-- **THEN** the list is replaced by a full-page wizard with a clickable step indicator, Back button, and Previous / Next / Save controls in the header area
-- **AND** step content is rendered inline in a scrollable page area, not inside a large modal dialog
+#### 场景：向导导航
+- **当** 用户点击 Apply New Course
+- **则** 列表替换为全页向导，含可点击步骤指示器、Back 按钮，以及页眉区域的 Previous / Next / Save 控件
+- **且** 步骤内容在可滚动页面区域内行内渲染，而非大型 modal 弹框内
 
-#### Scenario: Step indicator highlights current step only
-- **WHEN** user is on a wizard step
-- **THEN** only the current step title and circle are styled active (blue)
-- **AND** other step titles remain inactive (grey)
+#### 场景：步骤指示器仅高亮当前步骤
+- **当** 用户位于向导某一步
+- **则** 仅当前步骤标题与圆圈为激活样式（蓝色）
+- **且** 其他步骤标题保持非激活（灰色）
 
-#### Scenario: Click step to navigate
-- **WHEN** user clicks a step title in the step indicator
-- **THEN** the wizard navigates directly to that step's content
+#### 场景：点击步骤跳转
+- **当** 用户点击步骤指示器中的步骤标题
+- **则** 向导直接导航至该步骤内容
 
-#### Scenario: Back confirmation
-- **WHEN** user clicks Back
-- **THEN** the system shows a confirmation dialog before returning to the list
+#### 场景：返回确认
+- **当** 用户点击 Back
+- **则** 系统在返回列表前显示确认对话框
 
-#### Scenario: Save from header
-- **WHEN** user clicks Save in the wizard header
-- **THEN** the application is saved as Temporary saved without using a Cancel button
-- **AND** Save is positioned to the right of Next
+#### 场景：从页眉保存
+- **当** 用户点击向导页眉中的 Save
+- **则** 申请以 Temporary saved 状态保存，不使用 Cancel 按钮
+- **且** Save 位于 Next 右侧
 
-#### Scenario: Step 1 — General Information layout
-- **WHEN** user is on step 1
-- **THEN** the system shows the same general fields as Course Information in a two-column scrollable form layout
-- **AND** the Credit field input width matches the select dropdown width in the same column
+#### 场景：步骤 1 — General Information 布局
+- **当** 用户位于步骤 1
+- **则** 系统展示与 Course Information 相同的一般字段，采用双列可滚动表单布局
+- **且** Credit 字段输入宽度与同列 select 下拉框宽度一致
 
-#### Scenario: CLO required before step 3
-- **WHEN** user is on step 2 with zero CLO records and clicks Next
-- **THEN** the system prevents navigation and displays a validation message that at least one CLO is required
+#### 场景：进入步骤 3 前须填写 CLO
+- **当** 用户在步骤 2 且 CLO 记录为零条时点击 Next
+- **则** 系统阻止导航并显示校验提示：至少须有一条 CLO
 
-#### Scenario: CLO required on save
-- **WHEN** user attempts to save the application on step 3 with zero CLO records
-- **THEN** the system prevents save and displays a validation message that at least one CLO is required
+#### 场景：保存时须填写 CLO
+- **当** 用户在步骤 3 且 CLO 记录为零条时尝试保存申请
+- **则** 系统阻止保存并显示校验提示：至少须有一条 CLO
 
-#### Scenario: Step 2 — CLO management
-- **WHEN** user is on step 2
-- **THEN** the system displays a CLO table with Create and Delete actions and per-row Edit and Delete
-- **AND** Create opens a modal with CLO, Outcome (max 100 chars), Bloom's Taxonomy Level (single select), Teaching Methods (multi-select), and Assessment Methods (multi-select)
+#### 场景：步骤 2 — CLO 管理
+- **当** 用户位于步骤 2
+- **则** 系统展示 CLO 表格，含 Create 和 Delete 操作，以及每行 Edit 和 Delete
+- **且** Create 打开弹框，字段含 CLO、Outcome（最多 100 字符）、Bloom's Taxonomy Level（单选）、Teaching Methods（多选）和 Assessment Methods（多选）
 
-#### Scenario: CLO field options
-- **WHEN** user selects Bloom's Taxonomy Level
-- **THEN** options include A1–A5, C1–C6, and P1–P7
-- **WHEN** user selects Teaching Methods
-- **THEN** options include Lecture, Practical, and Others (multi-select)
-- **WHEN** user selects Assessment Methods
-- **THEN** options include Assignments, Quiz, Mid-term Examination, Practical Test, Lab Report, Presentation, Project, and Final Examination (multi-select)
+#### 场景：CLO 字段选项
+- **当** 用户选择 Bloom's Taxonomy Level
+- **则** 选项包括 A1–A5、C1–C6 和 P1–P7
+- **当** 用户选择 Teaching Methods
+- **则** 选项包括 Lecture、Practical 和 Others（多选）
+- **当** 用户选择 Assessment Methods
+- **则** 选项包括 Assignments、Quiz、Mid-term Examination、Practical Test、Lab Report、Presentation、Project 和 Final Examination（多选）
 
-#### Scenario: Step 3 — SLT management
-- **WHEN** user is on step 3
-- **THEN** the system provides subsections for Course Content Outline and Subtopics, Continuous Assessment, and Final Assessment, each with table CRUD and Create modals
+#### 场景：步骤 3 — SLT 管理
+- **当** 用户位于步骤 3
+- **则** 系统提供 Course Content Outline and Subtopics、Continuous Assessment 和 Final Assessment 子区块，各含表格 CRUD 与 Create 弹框
 
-#### Scenario: Course content outline modal
-- **WHEN** user creates a course content outline entry
-- **THEN** the modal requires Course Content and CLO selection and provides Learning Time inputs for F2F Physical, F2F Online/Technology-mediated, and NF2F with auto-calculated Total SLT
+#### 场景：Course content outline 弹框
+- **当** 用户创建 course content outline 条目
+- **则** 弹框要求填写 Course Content 与 CLO 选择，并提供 F2F Physical、F2F Online/Technology-mediated 和 NF2F 的 Learning Time 输入，Total SLT 自动计算
 
-#### Scenario: Continuous and final assessment modals
-- **WHEN** user creates a continuous or final assessment entry
-- **THEN** the modal requires assessment type and percentage and provides Learning Time fields with auto-calculated Total SLT
+#### 场景：Continuous 与 final assessment 弹框
+- **当** 用户创建 continuous 或 final assessment 条目
+- **则** 弹框要求填写 assessment type 与 percentage，并提供 Learning Time 字段，Total SLT 自动计算
 
-#### Scenario: Save draft
-- **WHEN** user completes the wizard and confirms save on the final step
-- **THEN** the application is saved with status Temporary saved and appears in the list
+#### 场景：保存草稿
+- **当** 用户完成向导并在最后一步确认保存
+- **则** 申请以 Temporary saved 状态保存，并出现在列表中
 
-### Requirement: Submit applications for review
-The system SHALL allow submitting selected Temporary saved applications for approval.
+### 需求：提交申请以供审核
+系统应允许将选中的 Temporary saved 申请提交审批。
 
-#### Scenario: Submit from list
-- **WHEN** user selects one or more Temporary saved applications and clicks Submit
-- **THEN** each selected application changes to status In Progress with approval stage HoD/HoP Review and an entry is appended to approval log
+#### 场景：从列表提交
+- **当** 用户选中一条或多条 Temporary saved 申请并点击 Submit
+- **则** 每条选中申请状态变为 In Progress，审批阶段为 HoD/HoP Review，并在 approval log 中追加条目
 
-#### Scenario: Rejected applications cannot be resubmitted
-- **WHEN** an application has status Rejected
-- **THEN** the system does not offer Edit or Submit actions for that application
-- **AND** Details and Approval Log remain available as read-only actions
+#### 场景：Rejected 申请不可重新提交
+- **当** 申请状态为 Rejected
+- **则** 系统不提供 Edit 或 Submit 操作
+- **且** Details 和 Approval Log 仍可作为只读操作使用
 
-### Requirement: View details and approval log
-The system SHALL provide read-only Details and an Approval Log for each application.
+### 需求：查看详情与审批日志
+系统应为每条申请提供只读 Details 与 Approval Log。
 
-#### Scenario: Details
-- **WHEN** user clicks Details on a list row
-- **THEN** the system opens a read-only view of all three wizard steps' data
+#### 场景：Details
+- **当** 用户点击列表行的 Details
+- **则** 系统打开三步向导数据的只读视图
 
-#### Scenario: Approval log
-- **WHEN** user clicks Approval Log on a list row
-- **THEN** the system displays a chronological list of approval events for that application
+#### 场景：Approval log
+- **当** 用户点击列表行的 Approval Log
+- **则** 系统按时间顺序展示该申请的审批事件列表
 
-### Requirement: Delete and export applications
-The system SHALL support batch delete and export of application records.
+### 需求：删除与导出申请
+系统应支持批量删除与导出申请记录。
 
-#### Scenario: Delete with confirmation
-- **WHEN** user selects applications and clicks Delete
-- **THEN** the system prompts for confirmation and removes deletable records (Approved applications SHALL NOT be deletable)
+#### 场景：删除须确认
+- **当** 用户选中申请并点击 Delete
+- **则** 系统提示确认并移除可删除记录（Approved 申请不得删除）
 
-#### Scenario: Export
-- **WHEN** user clicks Export and selects fields
-- **THEN** the system downloads an Excel file of filtered application list data
+#### 场景：Export
+- **当** 用户点击 Export 并选择字段
+- **则** 系统下载筛选后申请列表数据的 Excel 文件
 
-#### Scenario: Import placeholder
-- **WHEN** user clicks Import
-- **THEN** the system displays a placeholder notice that import is not yet available
-- **AND** no file upload or Excel parsing is performed in this phase
+#### 场景：Import 占位
+- **当** 用户点击 Import
+- **则** 系统显示占位提示：导入功能尚未开放
+- **且** 本阶段不执行文件上传或 Excel 解析
 
-### Requirement: Edit permissions by status
-The system SHALL restrict editing to Temporary saved applications only.
+### 需求：按状态限制编辑权限
+系统应仅允许编辑 Temporary saved 申请。
 
-#### Scenario: Edit draft only
-- **WHEN** user opens a Temporary saved application for editing
-- **THEN** the three-step wizard opens in editable apply mode
+#### 场景：仅草稿可编辑
+- **当** 用户打开 Temporary saved 申请进行编辑
+- **则** 三步向导以可编辑 apply 模式打开
 
-#### Scenario: No edit for other statuses
-- **WHEN** an application has status In Progress, Approved, or Rejected
-- **THEN** the system does not provide an Edit action; only Details and Approval Log (where applicable) are available
+#### 场景：其他状态不可编辑
+- **当** 申请状态为 In Progress、Approved 或 Rejected
+- **则** 系统不提供 Edit 操作；仅提供 Details 和 Approval Log（适用时）
 
-### Requirement: App registration
-The system SHALL register Course Application as a developed page accessible from the Course Info submenu.
+### 需求：应用注册
+系统应将 Course Application 注册为可从 Course Info 子菜单访问的已开发页面。
 
-#### Scenario: Menu access
-- **WHEN** user clicks Course Application in the sidebar
-- **THEN** the Course Application view loads instead of Under Construction
+#### 场景：菜单访问
+- **当** 用户在侧边栏点击 Course Application
+- **则** 加载 Course Application 视图，而非 Under Construction

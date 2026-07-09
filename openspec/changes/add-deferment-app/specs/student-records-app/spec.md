@@ -1,24 +1,24 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Student Records sidebar flat menu
-The system SHALL provide a flat sidebar menu matching the prototype with six top-level items.
+### 需求：Student Records 侧边栏扁平菜单
+系统应提供与原型一致的扁平侧边栏菜单，包含六个顶级菜单项。
 
-#### Scenario: Menu items listed
-- **WHEN** user opens the Student Records Application
-- **THEN** the sidebar lists Student Profile, Family Info, Programme Transfer, Deferment, Resumption, and Withdrawal in that order
+#### 场景：菜单项列表
+- **当** 用户打开 Student Records Application
+- **则** 侧边栏按顺序列出 Student Profile、Family Info、Programme Transfer、Deferment、Resumption、Withdrawal
 
-#### Scenario: Deferment navigation
-- **WHEN** user selects Deferment in the sidebar
-- **THEN** the system displays the Deferment History list page
+#### 场景：Deferment 导航
+- **当** 用户在侧边栏选择 Deferment
+- **则** 系统展示 Deferment History 列表页
 
-#### Scenario: Undeveloped menu page
-- **WHEN** user selects Family Info
-- **THEN** the system shows the in-app under-construction page with a back action to Student Profile
+#### 场景：未开发菜单页
+- **当** 用户选择 Family Info
+- **则** 系统展示应用内建设中页，并提供返回 Student Profile 的操作
 
-### Requirement: Deferment list aligns with student records workflow log pattern
-The system SHALL apply the same Workflow Log externalization pattern used in programme transfer to the Deferment module.
+### 需求：Deferment 列表对齐学籍流转日志模式
+系统应将 Programme Transfer 使用的流转日志外置模式应用于 Deferment 模块。
 
-#### Scenario: Deferment participates in four-module log consistency
-- **WHEN** user compares Deferment with Programme Transfer, Resumption, or Withdrawal list pages
-- **THEN** each module exposes Workflow Log on every row via the shared ApprovalLogModal component
-- **AND** none of the four modules embed approval log in the detail modal
+#### 场景：Deferment 参与四模块日志一致性
+- **当** 用户对比 Deferment 与 Programme Transfer、Resumption、Withdrawal 列表页
+- **则** 各模块均在每行通过共享 `ApprovalLogModal` 组件暴露 Workflow Log
+- **且** 四个模块均不在详情 Modal 内嵌 approval log

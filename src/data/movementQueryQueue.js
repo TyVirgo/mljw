@@ -5,7 +5,8 @@ import {
   withdrawals,
 } from './movementStore.js'
 import { normalizeMaintenanceItem } from './movementMaintenanceQueue.js'
-import { movementApprovalStatusOptions, matchesImplementedYnFilter } from './movementApprovalQueue.js'
+import { movementApprovalStatusOptions } from './movementApprovalQueue.js'
+import { filterMovementListBySearch } from './movementListSearchFilters.js'
 
 export { movementApprovalStatusOptions as movementQueryStatusOptions }
 
@@ -45,22 +46,5 @@ export function mergeMovementQueryQueue(t) {
 }
 
 export function filterQueryBySearch(items, search) {
-  const s = search || {}
-  return items.filter((row) => {
-    if (s.academicSession && row.applicationSession !== String(s.academicSession).trim()) return false
-    if (s.programmeCode && !matchText(row.programmeCode, s.programmeCode)) return false
-    if (s.status && row.status !== s.status) return false
-    if (s.movementType && row.sourceKey !== s.movementType) return false
-    if (s.studentId && !matchText(row.studentId, s.studentId)) return false
-    if (s.studentName && !matchText(row.fullName, s.studentName)) return false
-    if (!matchesImplementedYnFilter(row.implemented, s.implemented)) return false
-    return true
-  })
-}
-
-function matchText(value, keyword) {
-  if (!keyword) return true
-  return String(value ?? '')
-    .toLowerCase()
-    .includes(String(keyword).trim().toLowerCase())
+  return filterMovementListBySearch(items, search)
 }

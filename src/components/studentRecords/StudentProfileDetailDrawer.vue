@@ -118,12 +118,14 @@ function handleEdit() {
                 :form="form"
                 :read-only="true"
                 :nationality-selected="true"
+                :show-student-pass-expiry-detail="activeTab === 'basic'"
               />
             </div>
           </section>
         </div>
 
         <div class="drawer-footer">
+          <button type="button" class="btn btn-outline footer-export">{{ t('studentProfile.exportStudentCard') }}</button>
           <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.close') }}</button>
           <button type="button" class="btn btn-primary" @click="handleEdit">{{ t('common.edit') }}</button>
         </div>
@@ -282,10 +284,21 @@ function handleEdit() {
 .drawer-footer {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
   padding: 16px 24px;
   border-top: 1px solid #f0f0f0;
   flex-shrink: 0;
+}
+
+.footer-export {
+  margin-right: auto;
+}
+
+.btn-outline {
+  background: #fff;
+  border: 1px solid #2563eb;
+  color: #2563eb;
 }
 
 .btn {

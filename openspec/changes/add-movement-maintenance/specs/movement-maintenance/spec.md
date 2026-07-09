@@ -1,187 +1,187 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Movement maintenance list page
-The system SHALL display a paginated list of approved movement applications merged from all four movement types under the Status Change Maintenance menu.
+### 需求：学籍异动维护列表页
+系统应在学籍异动维护菜单下展示已审批异动申请的分页列表，合并四种异动类型的数据。
 
-#### Scenario: List shows approved records only
-- **WHEN** user opens Status Change Maintenance
-- **THEN** the list includes only records with status Approved from programme transfer, deferment, resumption, and withdrawal stores
-- **AND** draft and in-progress applications are excluded
+#### 场景：列表仅展示已审批记录
+- **当** 用户打开学籍异动维护
+- **则** 列表仅包含转专业、休学、复学、退学存储中状态为 `Approved` 的记录
+- **且** 排除草稿与进行中的申请
 
-### Requirement: Implement approved movement records
-The system SHALL allow batch marking of selected pending-implement rows as implemented, applying student profile changes immediately only when the current application session equals the row effective session; otherwise the system SHALL queue the row for deferred implementation until the effective session is reached.
+### 需求：实施已审批的异动记录
+系统应允许批量将所选待实施行标记为已实施；仅当当前申请学期等于该行生效学期时立即应用学生档案变更，否则系统将行排队延后实施，直至达到生效学期。
 
-#### Scenario: Implement pending rows at effective session
-- **WHEN** user selects one or more rows with implemented status Pending and clicks Implement
-- **AND** the current application session equals the row effective session for each selected row
-- **THEN** the system shows a confirmation dialog
-- **AND** on confirm applies student profile changes per movement category config and sets implemented to Implemented
+#### 场景：在生效学期实施待实施行
+- **当** 用户选择一条或多条 `implemented` 为 `Pending` 的行并点击实施
+- **且** 当前申请学期等于每条所选行的生效学期
+- **则** 系统展示确认对话框
+- **且** 确认后按异动类别配置应用学生档案变更，并将 `implemented` 设为 `Implemented`
 
-#### Scenario: Schedule implement before effective session
-- **WHEN** user confirms Implement on a Pending row whose effective session is not the current application session
-- **THEN** the system sets implemented to Scheduled on the store record
-- **AND** does not apply student profile changes or other application field mutations at confirm time
-- **AND** the Implemented column continues to display N
+#### 场景：生效学期前排队实施
+- **当** 用户对生效学期非当前申请学期的 `Pending` 行确认实施
+- **则** 系统将存储记录的 `implemented` 设为 `Scheduled`
+- **且** 确认时不应用学生档案变更或其他申请字段变更
+- **且** 「是否实施」列继续显示 N
 
-#### Scenario: Deferred implement runs when session due
-- **WHEN** the mock implementation processor runs and the current application session equals or follows the row effective session for a Scheduled record
-- **THEN** the system applies student profile changes and sets implemented to Implemented
+#### 场景：到期时执行延后实施
+- **当** mock 实施处理器运行，且当前申请学期等于或晚于 `Scheduled` 记录的生效学期
+- **则** 系统应用学生档案变更并将 `implemented` 设为 `Implemented`
 
-#### Scenario: Implement disabled for already implemented
-- **WHEN** all selected rows are already Implemented or Scheduled
-- **THEN** the Implement action is disabled or shows no eligible rows message
+#### 场景：已实施行不可再次实施
+- **当** 所选行均已为 `Implemented` 或 `Scheduled`
+- **则** 实施操作禁用，或提示无可实施行
 
-### Requirement: Maintenance list row selection for bulk actions (§11)
-The system SHALL allow row checkboxes only for rows with implemented status Pending. Rows with Implemented or Scheduled status SHALL NOT be selectable. The header select-all control SHALL select only selectable rows on the current page.
+### 需求：维护列表批量操作行勾选规则（§11）
+系统应仅允许 `implemented` 为 `Pending` 的行勾选。`Implemented` 或 `Scheduled` 状态的行不得可选。表头全选控件应仅选中当前页可选行。
 
-#### Scenario: Implemented rows not selectable
-- **WHEN** a maintenance row displays Implemented (Y)
-- **THEN** its row checkbox is disabled and cannot be added to the selection
+#### 场景：已实施行不可选
+- **当** 维护行在「是否实施」列显示 Y（`Implemented`）
+- **则** 该行复选框禁用，且无法加入选中集合
 
-#### Scenario: Scheduled rows not selectable
-- **WHEN** a maintenance row has implemented status Scheduled
-- **THEN** its row checkbox is disabled
+#### 场景：已排期行不可选
+- **当** 维护行的 `implemented` 为 `Scheduled`
+- **则** 该行复选框禁用
 
-#### Scenario: Select all pending only
-- **WHEN** user checks the header checkbox on a page containing both Pending and Implemented rows
-- **THEN** only Pending rows on that page are selected
+#### 场景：全选仅选待实施行
+- **当** 用户在同时包含 `Pending` 与 `Implemented` 行的页面上勾选表头复选框
+- **则** 仅选中该页上的 `Pending` 行
 
-#### Scenario: Selection cleared on ineligible rows
-- **WHEN** user searches or changes page after selecting rows
-- **THEN** any previously selected Implemented or Scheduled row keys are removed from the selection
+#### 场景：切换筛选后清除不可选行的选中
+- **当** 用户在选中行后执行搜索或翻页
+- **则** 从选中集合中移除此前选中的 `Implemented` 或 `Scheduled` 行键
 
-### Requirement: Auto implement respects effective session (§11)
-When a movement category has auto implement enabled and an application is approved, the system SHALL use the same effective-session gate as manual maintenance implement: immediate profile apply only when current session equals effective session, otherwise Scheduled.
+### 需求：自动实施遵循生效学期门控（§11）
+当异动类别启用自动实施且申请获批时，系统应使用与手动维护实施相同的生效学期门控：仅当当前学期等于生效学期时立即应用档案，否则设为 `Scheduled`。
 
-#### Scenario: Auto implement deferred
-- **WHEN** an approved application belongs to a category with auto implement enabled
-- **AND** current application session does not equal effective session
-- **THEN** the record is set to implemented Scheduled without immediate profile changes
+#### 场景：自动实施延后
+- **当** 已审批申请所属类别启用了自动实施
+- **且** 当前申请学期不等于生效学期
+- **则** 记录设为 `implemented` `Scheduled`，且不立即变更档案
 
-### Requirement: Export and delete maintenance rows
-The system SHALL support export and delete actions on the maintenance list.
+### 需求：维护行导出与删除
+系统应支持维护列表的导出与删除操作。
 
-#### Scenario: Export maintenance list
-- **WHEN** user clicks Export
-- **THEN** the system triggers an export consistent with other student-records list pages
+#### 场景：导出维护列表
+- **当** 用户点击导出
+- **则** 系统触发与其他学生档案列表页一致的导出流程
 
-#### Scenario: Delete selected rows
-- **WHEN** user selects rows and clicks Delete
-- **THEN** the system shows a confirmation dialog
-- **AND** on confirm removes the selected records from the corresponding movement store lists
+#### 场景：删除所选行
+- **当** 用户选中行并点击删除
+- **则** 系统展示确认对话框
+- **且** 确认后从对应异动存储列表中移除所选记录
 
-### Requirement: Student type display on maintenance list
-The system SHALL display student type on the maintenance list using Local, Chinese, and International values with Chinese UI label 中国 for Chinese.
+### 需求：维护列表学生类型展示
+系统应在维护列表展示学生类型，取值 `Local`、`Chinese`、`International`，中文界面下 `Chinese` 显示为「中国」。
 
-#### Scenario: Chinese student type label
-- **WHEN** a maintenance row student category maps to Chinese
-- **THEN** the Chinese UI displays 中国 in the student type column
+#### 场景：中国学生类型标签
+- **当** 维护行学生类别映射为 `Chinese`
+- **则** 中文界面在学生类型列显示「中国」
 
-### Requirement: Maintenance list pagination
-The system SHALL paginate the maintenance list using the same pagination pattern as other student-records list pages.
+### 需求：维护列表分页
+系统应使用与其他学生档案列表页相同的分页模式对维护列表分页。
 
-#### Scenario: Pagination controls
-- **WHEN** more maintenance rows exist than the page size
-- **THEN** the list shows pagination controls
+#### 场景：分页控件
+- **当** 维护行数超过页大小
+- **则** 列表展示分页控件
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Movement maintenance search
-The system SHALL provide search filters for the maintenance list using Academic Session as a dropdown of distinct application session values, Programme Code, status, student ID, and student name. The Movement Reason search field SHALL NOT be shown. In Chinese UI the academic session label SHALL display 学年学期.
+### 需求：学籍异动维护搜索
+系统应为维护列表提供搜索筛选：学年学期为申请学期不重复值的下拉框，以及专业代码、状态、学号、姓名。不得展示异动原因搜索字段。中文界面下学年学期标签应显示「学年学期」。
 
-#### Scenario: Academic session dropdown on maintenance
-- **WHEN** user views the maintenance search area
-- **THEN** Academic Session is a dropdown populated from distinct application session values on the maintenance queue
+#### 场景：维护页学年学期下拉
+- **当** 用户查看维护搜索区
+- **则** 学年学期为下拉框，选项来自维护队列中不重复的申请学期值
 
-#### Scenario: Search filters list
-- **WHEN** user filters by academic session, programme code, status, student ID, or student name and clicks Search
-- **THEN** the list shows only matching rows and resets to page 1
+#### 场景：搜索筛选列表
+- **当** 用户按学年学期、专业代码、状态、学号或姓名筛选并点击查询
+- **则** 列表仅展示匹配行并重置到第 1 页
 
-#### Scenario: No movement reason search
-- **WHEN** user views the maintenance search area
-- **THEN** the system does not display a Movement Reason search input
+#### 场景：无异动原因搜索
+- **当** 用户查看维护搜索区
+- **则** 系统不展示异动原因搜索输入框
 
-#### Scenario: Programme code next to academic session
-- **WHEN** user views the maintenance search area
-- **THEN** the Programme Code input appears immediately after the Academic Session input
+#### 场景：专业代码紧邻学年学期
+- **当** 用户查看维护搜索区
+- **则** 专业代码输入框紧接在学年学期输入框之后
 
-#### Scenario: Filter by programme code
-- **WHEN** user enters a programme code keyword and clicks Search
-- **THEN** the list shows only rows whose resolved programme code matches the keyword
+#### 场景：按专业代码筛选
+- **当** 用户输入专业代码关键词并点击查询
+- **则** 列表仅展示解析后专业代码匹配关键词的行
 
-#### Scenario: Reset search
-- **WHEN** user clicks Reset
-- **THEN** all search fields clear and the full maintenance list is restored
+#### 场景：重置搜索
+- **当** 用户点击重置
+- **则** 清空所有搜索字段并恢复完整维护列表
 
-#### Scenario: Academic session search label in Chinese
-- **WHEN** user views the maintenance search area in Chinese UI
-- **THEN** the academic session field label displays 学年学期
+#### 场景：中文界面学年学期标签
+- **当** 用户在中文界面查看维护搜索区
+- **则** 学年学期字段标签显示「学年学期」
 
-### Requirement: Maintenance list table columns and read-only actions
-The system SHALL display a streamlined maintenance table without Edit or Modify Movement Number actions. The Implemented column SHALL display Y or N (Scheduled displays N until Implemented). Passport/IC values in the list SHALL be masked. The table SHALL NOT show columns for CGPA, English name, expected graduation time, movement number, remark, or current/new school and programme fields; those programme fields SHALL remain visible in Details. The toolbar SHALL provide Implement, Export, and Delete only. Row actions SHALL provide Details and Approval log only.
+### 需求：维护列表表格列与只读操作
+系统应展示精简的维护表格，不含编辑或修改异动编号操作。「是否实施」列应显示 Y 或 N（`Scheduled` 在变为 `Implemented` 前显示 N）。列表中护照/身份证号应脱敏。表格不得展示 CGPA、英文名、预计毕业时间、异动编号、备注或当前/新学院专业列；学院专业字段仅在详情中可见。工具栏仅提供实施、导出、删除。行操作仅提供详情与审批日志。
 
-#### Scenario: No edit or modify number
-- **WHEN** user views the maintenance list
-- **THEN** the toolbar does not show Modify Movement Number and row actions do not include Edit
+#### 场景：无编辑或改号
+- **当** 用户查看维护列表
+- **则** 工具栏不展示修改异动编号，行操作不含编辑
 
-#### Scenario: Implemented Y/N on list
-- **WHEN** user views the Implemented column
-- **THEN** Implemented status displays Y
-- **AND** Pending and Scheduled statuses display N
+#### 场景：列表是否实施显示 Y/N
+- **当** 用户查看「是否实施」列
+- **则** `Implemented` 显示 Y
+- **且** `Pending` 与 `Scheduled` 显示 N
 
-#### Scenario: Masked passport in list
-- **WHEN** user views the Passport/IC column
-- **THEN** values are partially masked using the shared maskPassportIc helper
+#### 场景：列表护照脱敏
+- **当** 用户查看护照/身份证列
+- **则** 使用共享 `maskPassportIc` 辅助函数部分脱敏
 
-#### Scenario: Programme fields in details only
-- **WHEN** user opens Details for a programme transfer row
-- **THEN** current and new school/programme fields are visible in the read-only detail view even though they are not list columns
+#### 场景：学院专业仅在详情
+- **当** 用户打开转专业行的详情
+- **则** 只读详情视图展示当前/新学院专业字段，尽管列表无对应列
 
-#### Scenario: Masked passport in maintenance details
-- **WHEN** user opens Details from the maintenance list
-- **THEN** student and parent NRIC/Passport fields in the detail view use the same masking as the list
+#### 场景：维护详情护照脱敏
+- **当** 用户从维护列表打开详情
+- **则** 详情中学生与家长 NRIC/护照字段使用与列表相同的脱敏规则
 
-#### Scenario: Masked passport in maintenance export
-- **WHEN** user exports from the maintenance list
-- **THEN** Passport/IC column values in the export file are masked and Implemented uses Y/N
+#### 场景：维护导出护照脱敏
+- **当** 用户从维护列表导出
+- **则** 导出文件中护照/身份证列脱敏，「是否实施」使用 Y/N
 
-#### Scenario: View details
-- **WHEN** user clicks Details on a row
-- **THEN** the system opens the same read-only application review view used on the approval page without approval controls
+#### 场景：查看详情
+- **当** 用户点击某行详情
+- **则** 系统打开与审批页相同的只读申请审核视图，不含审批控件
 
-#### Scenario: View approval log
-- **WHEN** user clicks Approval log on a row
-- **THEN** the system opens the approval log modal with that record's approval history
+#### 场景：查看审批日志
+- **当** 用户点击某行审批日志
+- **则** 系统打开审批日志弹框，展示该记录的审批历史
 
-## REMOVED Requirements
+## 移除需求
 
-### Requirement: Modify movement numbers
-**Reason**: Product removed movement number editing from the maintenance workspace.
-**Migration**: Remove toolbar button, number modal wiring, and movement number list column.
+### 需求：修改异动编号
+**原因**：产品已从维护工作区移除异动编号编辑功能。
+**迁移说明**：移除工具栏按钮、编号弹框绑定及列表异动编号列。
 
-### Requirement: Edit maintenance fields from list
-**Reason**: Maintenance module is read-only except Implement and Delete.
-**Migration**: Remove Edit row action and edit modal wiring from MovementMaintenanceView.
+### 需求：从列表编辑维护字段
+**原因**：维护模块除实施与删除外为只读。
+**迁移说明**：从 `MovementMaintenanceView` 移除编辑行操作与编辑弹框绑定。
 
-### Requirement: Wide table extended and trailing columns on list
-**Reason**: §8 streamlined table; school/programme columns are details-only; CGPA, English, movement number, and remark removed from list.
-**Migration**: Update table template and maintenance export field list.
+### 需求：列表宽表扩展列与尾部列
+**原因**：§8 精简表格；学院专业列仅详情可见；列表移除 CGPA、英文名、异动编号与备注。
+**迁移说明**：更新表格模板与维护导出字段列表。
 
-### Requirement: Implemented text labels on maintenance list
-**Reason**: Product requires Y/N display aligned with approval History tab.
-**Migration**: Use formatImplementedYn in list and maintenance export.
+### 需求：维护列表是否实施文本标签
+**原因**：产品要求与审批历史 Tab 一致的 Y/N 展示。
+**迁移说明**：列表与维护导出使用 `formatImplementedYn`。
 
-### Requirement: Maintenance list status badges match application styling
-The system SHALL render status badges on the maintenance list using the same pill styling and color tokens as the four movement application list pages.
+### 需求：维护列表状态 Badge 与申请页一致
+系统应使用与四种异动申请列表页相同的胶囊样式与颜色 token 渲染维护列表状态徽章。
 
-#### Scenario: Status badge uses shared stylesheet
-- **WHEN** the maintenance list displays a status badge
-- **THEN** the badge uses movement-status-badge.css with pill border radius and light-background color tokens matching application lists
+#### 场景：状态徽章使用共享样式表
+- **当** 维护列表展示状态徽章
+- **则** 徽章使用 `movement-status-badge.css`，胶囊圆角与浅色背景 token 与申请列表一致
 
-#### Scenario: Expired status styling
-- **WHEN** a maintenance row has status Expired
-- **THEN** the badge uses the status-expired class
+#### 场景：Expired 状态样式
+- **当** 维护行状态为 `Expired`
+- **则** 徽章使用 `status-expired` 类
 
-#### Scenario: No white-text override on maintenance badges
-- **WHEN** the maintenance list renders status badges
-- **THEN** scoped page styles do not force white text on status badges
+#### 场景：维护徽章无白字覆盖
+- **当** 维护列表渲染状态徽章
+- **则** 页面 scoped 样式不得强制徽章白字

@@ -1,11 +1,50 @@
 import { ref } from 'vue'
+import { isValidDdMmYyyy, parseDdMmYyyy } from './universityInfo.js'
+import { programmeLevelsMatch } from '../utils/formatProgrammeLevel.js'
+import {
+  formatEnrollmentProgrammeStructure,
+  syncEnrollmentDerivedScheduleFields,
+  syncRegistrationTimeWithIntake,
+} from './studentEnrollmentOptions.js'
+import { buildGraduationStatusLogRemarkLines } from './graduationStatusLog.js'
+import { buildWithdrawalStatusLogRemarkLines } from './withdrawalStatusLog.js'
+import { buildDefermentStatusLogRemarkLines } from './defermentStatusLog.js'
+import { buildProgrammeTransferStatusLogRemarkLines } from './programmeTransferStatusLog.js'
+import { studentStatusCategoryMap } from './movementCategories.js'
 
 export const studentCategoryOptions = ['Local', 'China', 'International']
 /** @deprecated use studentCategoryOptions */
 export const studentTypeOptions = studentCategoryOptions
 
 export const genderOptions = ['Male', 'Female']
-export const studentStatusOptions = ['Active', 'Inactive', 'Deferred', 'Withdrawn']
+export const studentStatusOptions = ['Active', 'Inactive', 'Deferred', 'Withdrawn', 'Graduated']
+
+/** 档案学籍状态 → 参考表学籍状态（不扩充档案状态枚举） */
+const PROFILE_STATUS_REFERENCE_KEY = {
+  Active: 'Active',
+  Deferred: 'Deferment',
+  Withdrawn: 'Withdrawal',
+  Graduated: 'Graduated',
+}
+
+export function getTrackCategoriesForProfileStatus(status) {
+  if (status === 'Inactive') return ['Normal']
+  const refKey = PROFILE_STATUS_REFERENCE_KEY[status] || status
+  return studentStatusCategoryMap[refKey] ? [...studentStatusCategoryMap[refKey]] : []
+}
+
+export function syncEnrollmentTrackCategory(enrollment) {
+  if (!enrollment) return
+  const allowed = getTrackCategoriesForProfileStatus(enrollment.status)
+  if (!allowed.length) {
+    enrollment.trackCategory = ''
+    return
+  }
+  if (!allowed.includes(enrollment.trackCategory)) {
+    enrollment.trackCategory = allowed[0]
+  }
+}
+
 export const studyModeOptions = ['Full Time', 'Part Time']
 export const financialAidOptions = ['None', 'Scholarship', 'Loan', 'Grant']
 export const maritalStatusOptions = ['Single', 'Married', 'Divorced', 'Widowed']
@@ -69,10 +108,13 @@ export function clearCategorySpecificFields(form, oldCategory) {
   if (isLocalCategory(oldCategory)) {
     basicInfo.icNo = ''
     basicInfo.stateOfBirth = ''
+    if (form.education) form.education.spmMalayScore = ''
   }
   if (isChinaOrInternationalCategory(oldCategory)) {
     basicInfo.passportNo = ''
     basicInfo.passportExpiry = ''
+    basicInfo.studentPassExpiryStartDate = ''
+    basicInfo.studentPassExpiryEndDate = ''
     basicInfo.placeOfBirth = ''
   }
   if (isChinaCategory(oldCategory)) {
@@ -114,6 +156,9 @@ export function createEmptyBasicInfo() {
     stateOfBirth: '',
     passportNo: '',
     passportExpiry: '',
+    studentPassExpiryStartDate: '',
+    studentPassExpiryEndDate: '',
+    outstandingFee: '',
     placeOfBirth: '',
     candidateNo: '',
     politicalOutlook: '',
@@ -130,11 +175,14 @@ export function createEmptyBasicInfo() {
 
 export function createEmptyEnrollment() {
   return {
+    programmeIntakeKey: '',
     programmeCode: '',
     programme: '',
     faculty: '',
     status: 'Active',
+    trackCategory: 'Normal',
     programmeLevel: '',
+    programmeStructure: '',
     duration: '',
     semester: '',
     intake: '',
@@ -147,6 +195,9 @@ export function createEmptyEnrollment() {
     scholarshipOfferNo: '',
     tuitionFeeAnnual: '',
     fujianScholarshipAmt: '',
+    registrationTime: '',
+    expectedCompletionBatch: '',
+    expectedGraduationBatch: '',
   }
 }
 
@@ -169,6 +220,7 @@ export function createEmptyEducation() {
     yearGraduated: '',
     gradeResult: '',
     subject: '',
+    spmMalayScore: '',
     englishTestType: '',
     englishResult: '',
     englishDate: '',
@@ -181,21 +233,57 @@ export function createEmptyEducation() {
   }
 }
 
-export function createEmptyFamily() {
+let nextFamilyMemberId = 1
+
+export function createFamilyMemberId() {
+  return nextFamilyMemberId++
+}
+
+export function createEmptyFamilyMember(partial = {}) {
   return {
-    name: '',
-    icPassport: '',
-    relationship: '',
-    occupation: '',
-    race: '',
-    mobilePhone: '',
-    officePhone: '',
-    fax: '',
-    email: '',
-    income: '',
-    totalLiabilities: '',
-    mailingAddress: '',
+    id: partial.id ?? createFamilyMemberId(),
+    name: partial.name ?? '',
+    icPassport: partial.icPassport ?? '',
+    relationship: partial.relationship ?? '',
+    occupation: partial.occupation ?? '',
+    race: partial.race ?? '',
+    mobilePhone: partial.mobilePhone ?? '',
+    officePhone: partial.officePhone ?? '',
+    fax: partial.fax ?? '',
+    email: partial.email ?? '',
+    income: partial.income ?? '',
+    totalLiabilities: partial.totalLiabilities ?? '',
+    mailingAddress: partial.mailingAddress ?? '',
   }
+}
+
+export function normalizeFamilyContacts(family) {
+  if (Array.isArray(family)) {
+    return family.length
+      ? family.map((item) => createEmptyFamilyMember(item))
+      : [createEmptyFamilyMember()]
+  }
+  if (family && typeof family === 'object') {
+    return [createEmptyFamilyMember(family)]
+  }
+  return [createEmptyFamilyMember()]
+}
+
+export function getPrimaryFamilyContact(student) {
+  const contacts = normalizeFamilyContacts(student?.family)
+  return contacts.find((item) => String(item.name || '').trim()) || contacts[0] || createEmptyFamilyMember()
+}
+
+export function formatFamilyContactNames(family) {
+  return normalizeFamilyContacts(family)
+    .map((item) => String(item.name || '').trim())
+    .filter(Boolean)
+    .join('; ')
+}
+
+/** @deprecated use createEmptyFamilyMember / normalizeFamilyContacts */
+export function createEmptyFamily() {
+  return createEmptyFamilyMember()
 }
 
 export function createEmptyAccommodation() {
@@ -247,7 +335,7 @@ export function createEmptyStudent() {
     enrollment: createEmptyEnrollment(),
     contact: createEmptyContact(),
     education: createEmptyEducation(),
-    family: createEmptyFamily(),
+    family: normalizeFamilyContacts([]),
     accommodation: createEmptyAccommodation(),
     others: createEmptyOthers(),
     statusLogs: [],
@@ -268,7 +356,7 @@ export function getStudentFormData(record) {
     enrollment: cloneSection(record.enrollment, createEmptyEnrollment),
     contact: cloneSection(record.contact, createEmptyContact),
     education: cloneSection(record.education, createEmptyEducation),
-    family: cloneSection(record.family, createEmptyFamily),
+    family: normalizeFamilyContacts(record.family),
     accommodation: cloneSection(record.accommodation, createEmptyAccommodation),
     others: cloneSection(record.others, createEmptyOthers),
     statusLogs: Array.isArray(record.statusLogs)
@@ -277,10 +365,112 @@ export function getStudentFormData(record) {
   }
 }
 
+export function getLatestStatusLogEntry(statusLogs) {
+  const logs = (Array.isArray(statusLogs) ? statusLogs : []).filter((entry) =>
+    String(entry?.status || '').trim(),
+  )
+  if (!logs.length) return null
+
+  return [...logs].sort((a, b) => {
+    const dateA = normalizeStudentProfileDate(a.dateEffective)
+    const dateB = normalizeStudentProfileDate(b.dateEffective)
+    if (dateA && dateB) {
+      const diff = dateB.getTime() - dateA.getTime()
+      if (diff !== 0) return diff
+    } else if (dateA && !dateB) return -1
+    else if (!dateA && dateB) return 1
+    return (Number(b.id) || 0) - (Number(a.id) || 0)
+  })[0]
+}
+
+export function getLatestStudentStatus(student) {
+  const entry = getLatestStatusLogEntry(student?.statusLogs)
+  if (entry?.status) return entry.status
+  return student?.enrollment?.status || student?.studentStatus || ''
+}
+
+function matchFuzzyField(value, keyword) {
+  const normalized = String(keyword || '').trim().toLowerCase()
+  if (!normalized) return true
+  return String(value || '').toLowerCase().includes(normalized)
+}
+
+export function matchesStudentTextFilters(item, search) {
+  if (!matchFuzzyField(item.studentId, search?.studentId)) return false
+  if (!matchFuzzyField(item.name, search?.studentName)) return false
+  if (!matchFuzzyField(item.nameCn, search?.chineseName)) return false
+  if (!matchFuzzyField(item.icNo ?? item.basicInfo?.icNo, search?.icNo)) return false
+  if (!matchFuzzyField(item.mobilePhone ?? item.contact?.mobilePhone, search?.mobilePhone)) {
+    return false
+  }
+  return true
+}
+
+export function matchesStudentListFilters(item, search) {
+  if (!matchesStudentTextFilters(item, search)) return false
+  if (search?.programme && item.programme !== search.programme) return false
+  if (search?.intake && item.intake !== search.intake) return false
+  if (search?.status && getLatestStudentStatus(item) !== search.status) return false
+  if (search?.studentType && item.studentType !== search.studentType) return false
+  if (search?.nationality && item.nationality !== search.nationality) return false
+  if (search?.registrationTime && item.registrationTime !== search.registrationTime) return false
+  if (
+    search?.programmeLevel &&
+    !programmeLevelsMatch(item.programmeLevel || item.enrollment?.programmeLevel, search.programmeLevel)
+  ) {
+    return false
+  }
+  if (search?.programmeStructure && item.programmeStructure !== search.programmeStructure) return false
+  if (search?.expectedCompletionBatch && item.expectedCompletionBatch !== search.expectedCompletionBatch) {
+    return false
+  }
+  if (search?.expectedGraduationBatch && item.expectedGraduationBatch !== search.expectedGraduationBatch) {
+    return false
+  }
+  if (search?.outstandingFee && item.outstandingFee !== search.outstandingFee) return false
+  if (!matchesStudentPassExpiryDateRange(item, search?.studentPassExpiryFrom, search?.studentPassExpiryTo)) {
+    return false
+  }
+  return true
+}
+
+function backfillEnrollmentDerivedFields(enrollment) {
+  if (!enrollment?.intake) return
+
+  if (!String(enrollment.registrationTime || '').trim()) {
+    syncRegistrationTimeWithIntake(enrollment)
+  }
+
+  if (
+    !String(enrollment.expectedCompletionBatch || '').trim() ||
+    !String(enrollment.expectedGraduationBatch || '').trim()
+  ) {
+    syncEnrollmentDerivedScheduleFields(enrollment)
+  }
+
+  if (!String(enrollment.programmeStructure || '').trim() && enrollment.programmeCode) {
+    enrollment.programmeStructure = formatEnrollmentProgrammeStructure(
+      enrollment.programmeCode,
+      enrollment.intake,
+      enrollment.programme,
+    )
+  }
+}
+
 export function normalizeStudent(raw) {
   const basicInfo = cloneSection(raw.basicInfo, createEmptyBasicInfo)
   const enrollment = cloneSection(raw.enrollment, createEmptyEnrollment)
+  backfillEnrollmentDerivedFields(enrollment)
+  if (!String(enrollment.trackCategory || '').trim()) {
+    enrollment.trackCategory = 'Normal'
+  }
+  syncEnrollmentTrackCategory(enrollment)
+  const contact = cloneSection(raw.contact, createEmptyContact)
   const id = raw.id ?? createStudentRecordId()
+  const statusLogs = Array.isArray(raw.statusLogs)
+    ? raw.statusLogs.map((entry) => createEmptyStatusLogEntry(entry))
+    : []
+  const latestStatus = getLatestStudentStatus({ statusLogs, enrollment })
 
   return {
     id,
@@ -288,30 +478,104 @@ export function normalizeStudent(raw) {
     basicInfo,
     photo: raw.photo ? { ...raw.photo } : null,
     enrollment,
-    contact: cloneSection(raw.contact, createEmptyContact),
+    contact,
     education: cloneSection(raw.education, createEmptyEducation),
-    family: cloneSection(raw.family, createEmptyFamily),
+    family: normalizeFamilyContacts(raw.family),
     accommodation: cloneSection(raw.accommodation, createEmptyAccommodation),
     others: cloneSection(raw.others, createEmptyOthers),
-    statusLogs: Array.isArray(raw.statusLogs)
-      ? raw.statusLogs.map((entry) => createEmptyStatusLogEntry(entry))
-      : [],
+    statusLogs,
     studentId: basicInfo.studentId,
     name: basicInfo.fullName,
     nameCn: basicInfo.chineseName,
     studentType: raw.studentCategory || 'Local',
     gender: basicInfo.gender,
+    nationality: basicInfo.nationality,
+    icNo: basicInfo.icNo,
+    mobilePhone: contact.mobilePhone,
+    outstandingFee: basicInfo.outstandingFee,
     programmeCode: enrollment.programmeCode,
     programme: enrollment.programme,
     intake: enrollment.intake,
-    studentStatus: enrollment.status,
+    trackCategory: enrollment.trackCategory,
+    registrationTime: enrollment.registrationTime,
+    programmeLevel: enrollment.programmeLevel,
+    programmeStructure: enrollment.programmeStructure,
+    expectedCompletionBatch: enrollment.expectedCompletionBatch,
+    expectedGraduationBatch: enrollment.expectedGraduationBatch,
+    studentStatus: latestStatus,
+    latestStatus,
+    studentPassExpiryStartDate: basicInfo.studentPassExpiryStartDate,
+    studentPassExpiryEndDate: basicInfo.studentPassExpiryEndDate,
+    studentPassExpiryPeriod: formatStudentPassExpiryEndDate(basicInfo),
   }
+}
+
+export function normalizeStudentProfileDate(value) {
+  if (!String(value || '').trim()) return null
+  const normalized = String(value).trim().replace(/\./g, '/')
+  if (!isValidDdMmYyyy(normalized)) return null
+  return parseDdMmYyyy(normalized)
+}
+
+export function formatStudentPassExpiryDate(value) {
+  const parsed = normalizeStudentProfileDate(value)
+  if (!parsed) return value || ''
+  const dd = String(parsed.getDate()).padStart(2, '0')
+  const mm = String(parsed.getMonth() + 1).padStart(2, '0')
+  const yyyy = parsed.getFullYear()
+  return `${dd}/${mm}/${yyyy}`
+}
+
+export function formatStudentPassExpiryPeriod(basicInfo = {}) {
+  const start = formatStudentPassExpiryDate(basicInfo.studentPassExpiryStartDate)
+  const end = formatStudentPassExpiryDate(basicInfo.studentPassExpiryEndDate)
+  if (start && end) return `${start} - ${end}`
+  if (end) return end
+  if (start) return start
+  return ''
+}
+
+/** Display Student Pass Expiry Date as end date only (dd/mm/yyyy). */
+export function formatStudentPassExpiryEndDate(basicInfo = {}) {
+  return formatStudentPassExpiryDate(basicInfo.studentPassExpiryEndDate) || ''
+}
+
+/** Normalize stored pass expiry text (object or legacy range string) to end date. */
+export function resolveStudentPassExpiryEndDisplay(valueOrBasic) {
+  if (valueOrBasic && typeof valueOrBasic === 'object') {
+    return formatStudentPassExpiryEndDate(valueOrBasic) || ''
+  }
+  const text = String(valueOrBasic || '').trim()
+  if (!text || text === '—') return ''
+  if (text.includes(' - ')) {
+    return text.split(' - ').pop().trim()
+  }
+  return text
+}
+
+export function matchesStudentPassExpiryDateRange(item, from, to) {
+  const fromValue = String(from || '').trim()
+  const toValue = String(to || '').trim()
+  if (!fromValue && !toValue) return true
+
+  const basic = item.basicInfo || item
+  const date = normalizeStudentProfileDate(basic.studentPassExpiryEndDate)
+  if (!date) return false
+
+  const fromDate = fromValue ? normalizeStudentProfileDate(fromValue) : null
+  const toDate = toValue ? normalizeStudentProfileDate(toValue) : null
+  if (fromValue && !fromDate) return false
+  if (toValue && !toDate) return false
+  if (fromDate && date < fromDate) return false
+  if (toDate && date > toDate) return false
+  return true
 }
 
 const TAB_FIELD_MAP = {
   basicInfo: ['fullName', 'studentId', 'icNo'],
   contact: ['mobilePhone', 'email'],
-  enrollment: ['programmeCode', 'programme'],
+  enrollment: ['programmeLevel', 'faculty', 'programmeCode', 'programme', 'intake', 'academicSession'],
+  education: ['spmMalayScore'],
 }
 
 export function validateStudentForm(form, existingStudents = [], editingId = null) {
@@ -322,7 +586,10 @@ export function validateStudentForm(form, existingStudents = [], editingId = nul
     const key = `${tab}.${field}`
     if (!errors[key]) {
       errors[key] = message
-      if (!firstErrorTab) firstErrorTab = tab === 'basicInfo' ? 'basic' : tab === 'enrollment' ? 'enrollment' : tab
+      if (!firstErrorTab) {
+        firstErrorTab =
+          tab === 'basicInfo' ? 'basic' : tab === 'enrollment' ? 'enrollment' : tab === 'education' ? 'education' : tab
+      }
     }
   }
 
@@ -343,17 +610,40 @@ export function validateStudentForm(form, existingStudents = [], editingId = nul
   if (category === 'Local' && !String(form.basicInfo?.icNo || '').trim()) {
     setError('basicInfo', 'icNo', 'IC No. is required.')
   }
+  if (category === 'Local' && !String(form.education?.spmMalayScore || '').trim()) {
+    setError('education', 'spmMalayScore', 'SPM Malay Score is required.')
+  }
   if (!String(form.contact?.mobilePhone || '').trim()) {
     setError('contact', 'mobilePhone', 'Mobile Phone is required.')
   }
   if (!String(form.contact?.email || '').trim()) {
     setError('contact', 'email', 'Email is required.')
   }
-  if (!String(form.enrollment?.programmeCode || '').trim()) {
-    setError('enrollment', 'programmeCode', 'Programme Code is required.')
+  if (!String(form.enrollment?.programmeLevel || '').trim()) {
+    setError('enrollment', 'programmeLevel', 'Programme Level is required.')
+  }
+  if (!String(form.enrollment?.faculty || '').trim()) {
+    setError('enrollment', 'faculty', 'Faculty is required.')
   }
   if (!String(form.enrollment?.programme || '').trim()) {
     setError('enrollment', 'programme', 'Programme is required.')
+  }
+  if (!String(form.enrollment?.programmeCode || '').trim()) {
+    setError('enrollment', 'programmeCode', 'Programme Code is required.')
+  }
+  if (!String(form.enrollment?.intake || '').trim()) {
+    setError('enrollment', 'intake', 'Intake is required.')
+  }
+  if (!String(form.enrollment?.academicSession || '').trim()) {
+    setError('enrollment', 'academicSession', 'Current Academic Session is required.')
+  }
+
+  const allowedTrackCategories = getTrackCategoriesForProfileStatus(form.enrollment?.status)
+  const trackCategory = String(form.enrollment?.trackCategory || '').trim()
+  if (!trackCategory) {
+    setError('enrollment', 'trackCategory', 'Track category is required.')
+  } else if (!allowedTrackCategories.includes(trackCategory)) {
+    setError('enrollment', 'trackCategory', 'Track category is invalid.')
   }
 
   const studentId = String(form.basicInfo?.studentId || '').trim().toLowerCase()
@@ -415,6 +705,7 @@ export const initialStudents = [
       religion: 'Buddhism',
       maritalStatus: 'Single',
       disability: 'No',
+      outstandingFee: 'N',
     },
     contact: {
       mobilePhone: '0123456789',
@@ -423,15 +714,19 @@ export const initialStudents = [
       mailingAddress: '123 Jalan University, 43900 Sepang, Selangor',
     },
     enrollment: {
+      programmeIntakeKey: '202409SWE',
       programmeCode: 'SWE',
       programme: 'Bachelor of Software Engineering (Honours)',
       faculty: 'School of Information',
-      status: 'Active',
-      programmeLevel: 'L6-Bachelor',
+      status: 'Graduated',
+      programmeLevel: 'Undergraduate',
       duration: '3',
-      semester: '6',
+      semester: '1',
       intake: '2024/09',
-      academicSession: '2025/09',
+      academicSession: '2024/09',
+      registrationTime: '2024/09',
+      expectedCompletionBatch: '2027/08',
+      expectedGraduationBatch: '2027/08',
       studyMode: 'Full Time',
       recruitedBy: 'Direct Application',
       sourceOfRecruit: 'School Counsellor',
@@ -447,6 +742,7 @@ export const initialStudents = [
       yearGraduated: '2022',
       gradeResult: '3.67 CGPA equivalent',
       subject: 'Science Stream',
+      spmMalayScore: 'A',
       englishTestType: 'MUET',
       englishResult: 'Band 4',
       englishDate: '15.03.2022',
@@ -454,19 +750,32 @@ export const initialStudents = [
       chineseTestDate: '01.06.2022',
       creditTransfer: 'No',
     },
-    family: {
-      name: 'Tan Ah Kow',
-      icPassport: '600101010102',
-      relationship: 'Father',
-      occupation: 'Engineer',
-      race: 'Chinese',
-      mobilePhone: '0123334455',
-      officePhone: '03-87654321',
-      email: 'ahkow.tan@email.com',
-      income: '8500 MYR/month',
-      totalLiabilities: '120000',
-      mailingAddress: '123 Jalan University, 43900 Sepang, Selangor',
-    },
+    family: [
+      {
+        name: 'Tan Ah Kow',
+        icPassport: '600101010102',
+        relationship: 'Father',
+        occupation: 'Engineer',
+        race: 'Chinese',
+        mobilePhone: '0123334455',
+        officePhone: '03-87654321',
+        email: 'ahkow.tan@email.com',
+        income: '8500 MYR/month',
+        totalLiabilities: '120000',
+        mailingAddress: '123 Jalan University, 43900 Sepang, Selangor',
+      },
+      {
+        name: 'Tan Bee Lan',
+        icPassport: '620202020202',
+        relationship: 'Mother',
+        occupation: 'Accountant',
+        race: 'Chinese',
+        mobilePhone: '0124445566',
+        email: 'beelan.tan@email.com',
+        income: '6500 MYR/month',
+        mailingAddress: '123 Jalan University, 43900 Sepang, Selangor',
+      },
+    ],
     accommodation: {
       hostelStatus: 'Checked In',
       roomType: 'Double',
@@ -530,9 +839,7 @@ export const initialStudents = [
         movementCategory: 'Programme Transfer',
         remarkTitle: 'Programme Transfer Approved',
         remarkLines: [
-          'Old Programme : Bachelor of Software Engineering (Honours)',
-          'New Programme : Bachelor of Data Science',
-          'Effective Session : 2025/09',
+          'Programme transfer, SWE to DS, approved in 2025/02, effective from 2025/09',
         ],
       },
       {
@@ -543,7 +850,11 @@ export const initialStudents = [
         movementCategoryKey: 'menu.srDeferment',
         movementCategory: 'Deferment',
         remarkTitle: 'Deferment Approved',
-        remarkLines: ['Deferment Period : 2026/02', 'Reason : Personal Reason'],
+        remarkLines: [
+          '1st Deferment: 01/02/2026-15/03/2026',
+          'Deferment Period : 2026/02',
+          'Reason : Personal Reason',
+        ],
       },
       {
         id: 6,
@@ -554,6 +865,14 @@ export const initialStudents = [
         movementCategory: 'Resumption',
         remarkTitle: 'Resumption Approved',
         remarkLines: ['Resumption Semester : 2026/02', 'Application ID : RES002'],
+      },
+      {
+        id: 7,
+        status: 'Graduated',
+        dateEffective: '2029-06-30',
+        changedBy: 'ADMIN SYSTEM',
+        remarkTitle: 'Graduation',
+        remarkLines: buildGraduationStatusLogRemarkLines(),
       },
     ],
   }),
@@ -567,6 +886,8 @@ export const initialStudents = [
       applicationNo: 'APP202309002',
       passportNo: 'E12345678',
       passportExpiry: '31.12.2030',
+      studentPassExpiryStartDate: '15/09/2024',
+      studentPassExpiryEndDate: '14/09/2029',
       placeOfBirth: 'Fujian',
       identityNoChina: '350102199001011234',
       candidateNo: 'CN2023001',
@@ -578,6 +899,7 @@ export const initialStudents = [
       religion: 'None',
       maritalStatus: 'Single',
       disability: 'No',
+      outstandingFee: 'Y',
     },
     contact: {
       mobilePhone: '0139876543',
@@ -586,15 +908,19 @@ export const initialStudents = [
       mailingAddress: 'Block C-1208, Student Village, XMUM Campus, Sepang',
     },
     enrollment: {
+      programmeIntakeKey: '202409ACC',
       programmeCode: 'ACC',
       programme: 'Bachelor in Accounting (Honours)',
       faculty: 'School of Business',
       status: 'Active',
-      programmeLevel: 'L6-Bachelor',
+      programmeLevel: 'Undergraduate',
       duration: '3',
-      semester: '6',
+      semester: '1',
       intake: '2024/09',
-      academicSession: '2025/09',
+      academicSession: '2024/09',
+      registrationTime: '2024/09',
+      expectedCompletionBatch: '2027/08',
+      expectedGraduationBatch: '2027/08',
       studyMode: 'Full Time',
       recruitedBy: 'University Partner',
       sourceOfRecruit: 'XMUM China Office',
@@ -693,9 +1019,7 @@ export const initialStudents = [
         movementCategory: 'Programme Transfer',
         remarkTitle: 'Programme Transfer Approved',
         remarkLines: [
-          'Old Programme : Bachelor in Accounting (Honours)',
-          'New Programme : Bachelor of Finance',
-          'Effective Session : 2025/09',
+          'Programme transfer, ACC to FIN, approved in 2025/02, effective from 2025/09',
         ],
       },
       {
@@ -706,11 +1030,11 @@ export const initialStudents = [
         movementCategoryKey: 'menu.srWithdrawal',
         movementCategory: 'Withdrawal',
         remarkTitle: 'Withdrawal Approved',
-        remarkLines: [
-          'Last Date of Attendance : 15.11.2024',
-          'Reason : Financial Problem',
-          'Note : Reinstated via appeal on 01.12.2024',
-        ],
+        remarkLines: buildWithdrawalStatusLogRemarkLines({
+          lastDateOfAttendance: '2024-11-15',
+          reasonId: 6,
+          note: 'Reinstated via appeal on 01.12.2024',
+        }),
       },
     ],
   }),
@@ -724,6 +1048,8 @@ export const initialStudents = [
       applicationNo: 'APP202304003',
       passportNo: 'GB1234567',
       passportExpiry: '15.06.2029',
+      studentPassExpiryStartDate: '01/09/2025',
+      studentPassExpiryEndDate: '31/08/2029',
       placeOfBirth: 'London',
       dateOfBirth: '15.06.2002',
       age: '22',
@@ -732,6 +1058,7 @@ export const initialStudents = [
       religion: 'Christianity',
       maritalStatus: 'Single',
       disability: 'No',
+      outstandingFee: 'N',
     },
     contact: {
       mobilePhone: '0145566778',
@@ -740,15 +1067,19 @@ export const initialStudents = [
       mailingAddress: 'Block B-204, Student Village, XMUM Campus, Sepang',
     },
     enrollment: {
+      programmeIntakeKey: '202504IBU',
       programmeCode: 'IBU',
       programme: 'Bachelor of Management in International Business (Honours)',
       faculty: 'School of Business',
       status: 'Active',
-      programmeLevel: 'L6-Bachelor',
+      programmeLevel: 'Undergraduate',
       duration: '3',
-      semester: '4',
-      intake: '2024/04',
+      semester: '1',
+      intake: '2025/04',
       academicSession: '2025/04',
+      registrationTime: '2025/04',
+      expectedCompletionBatch: '2028/03',
+      expectedGraduationBatch: '2028/03',
       studyMode: 'Full Time',
       recruitedBy: 'Agent A',
       sourceOfRecruit: 'Education Agent UK',
@@ -843,7 +1174,11 @@ export const initialStudents = [
         movementCategoryKey: 'menu.srDeferment',
         movementCategory: 'Deferment',
         remarkTitle: 'Deferment Approved',
-        remarkLines: ['Deferment Period : 2025/09', 'Reason : Health Issue'],
+        remarkLines: [
+          '1st Deferment: 02/09/2025-15/06/2026',
+          'Deferment Period : 2025/09',
+          'Reason : Health Issue',
+        ],
       },
       {
         id: 5,
@@ -874,6 +1209,7 @@ export const initialStudents = [
       religion: 'Buddhism',
       maritalStatus: 'Single',
       disability: 'No',
+      outstandingFee: 'N',
     },
     contact: {
       mobilePhone: '0112233445',
@@ -886,7 +1222,7 @@ export const initialStudents = [
       programme: 'Bachelor of Software Engineering (Honours)',
       faculty: 'School of Information',
       status: 'Deferred',
-      programmeLevel: 'L6-Bachelor',
+      programmeLevel: 'Undergraduate',
       duration: '3',
       semester: '4',
       intake: '2023/09',
@@ -905,6 +1241,7 @@ export const initialStudents = [
       yearGraduated: '2021',
       gradeResult: '3.50 CGPA equivalent',
       subject: 'Science Stream',
+      spmMalayScore: 'B+',
       englishTestType: 'MUET',
       englishResult: 'Band 4',
       englishDate: '15.03.2021',
@@ -978,6 +1315,7 @@ export const initialStudents = [
       religion: 'Islam',
       maritalStatus: 'Single',
       disability: 'No',
+      outstandingFee: 'Y',
     },
     contact: {
       mobilePhone: '0135566778',
@@ -986,11 +1324,11 @@ export const initialStudents = [
       mailingAddress: '56 Jalan Merdeka, 43000 Kajang, Selangor',
     },
     enrollment: {
-      programmeCode: 'CS',
-      programme: 'Bachelor of Computer Science',
+      programmeCode: 'CSN',
+      programme: 'Bachelor of Computer Science (Honours)',
       faculty: 'School of Information',
       status: 'Deferred',
-      programmeLevel: 'L6-Bachelor',
+      programmeLevel: 'Undergraduate',
       duration: '3',
       semester: '3',
       intake: '2024/02',
@@ -1009,6 +1347,7 @@ export const initialStudents = [
       yearGraduated: '2023',
       gradeResult: '3.40 CGPA equivalent',
       subject: 'Science Stream',
+      spmMalayScore: 'A-',
       creditTransfer: 'No',
     },
     family: {
@@ -1058,7 +1397,11 @@ export const initialStudents = [
         movementCategoryKey: 'menu.srDeferment',
         movementCategory: 'Deferment',
         remarkTitle: 'Deferment Approved',
-        remarkLines: ['Deferment Period : 2025/09', 'Reason : Military Service'],
+        remarkLines: [
+          '1st Deferment: 02/09/2025-15/06/2026',
+          'Deferment Period : 2025/09',
+          'Reason : Military Service',
+        ],
       },
     ],
   }),
@@ -1072,6 +1415,8 @@ export const initialStudents = [
       applicationNo: 'APP202409903',
       passportNo: 'E99887766',
       passportExpiry: '31.12.2029',
+      studentPassExpiryStartDate: '01/03/2024',
+      studentPassExpiryEndDate: '28/02/2027',
       placeOfBirth: 'Guangdong',
       identityNoChina: '440105200205051234',
       candidateNo: 'CN2024003',
@@ -1083,6 +1428,7 @@ export const initialStudents = [
       religion: 'None',
       maritalStatus: 'Single',
       disability: 'No',
+      outstandingFee: 'N',
     },
     contact: {
       mobilePhone: '0146677889',
@@ -1095,7 +1441,7 @@ export const initialStudents = [
       programme: 'Bachelor in Accounting (Honours)',
       faculty: 'School of Business',
       status: 'Deferred',
-      programmeLevel: 'L6-Bachelor',
+      programmeLevel: 'Undergraduate',
       duration: '3',
       semester: '5',
       intake: '2023/09',
@@ -1165,7 +1511,11 @@ export const initialStudents = [
         movementCategoryKey: 'menu.srDeferment',
         movementCategory: 'Deferment',
         remarkTitle: 'Deferment Approved',
-        remarkLines: ['Deferment Period : 2024/09', 'Reason : Health Issue'],
+        remarkLines: [
+          '1st Deferment: 02/09/2024-15/06/2025',
+          'Deferment Period : 2024/09',
+          'Reason : Health Issue',
+        ],
       },
     ],
   }),
@@ -1186,6 +1536,7 @@ export const initialStudents = [
       religion: 'Islam',
       maritalStatus: 'Single',
       disability: 'No',
+      outstandingFee: 'Y',
     },
     contact: {
       mobilePhone: '0178899001',
@@ -1198,7 +1549,7 @@ export const initialStudents = [
       programme: 'Bachelor of Finance',
       faculty: 'School of Business',
       status: 'Withdrawn',
-      programmeLevel: 'L6-Bachelor',
+      programmeLevel: 'Undergraduate',
       duration: '3',
       semester: '2',
       intake: '2024/09',
@@ -1217,6 +1568,7 @@ export const initialStudents = [
       yearGraduated: '2023',
       gradeResult: '3.20 CGPA equivalent',
       subject: 'Accounting Stream',
+      spmMalayScore: 'B',
       creditTransfer: 'No',
     },
     family: {
@@ -1266,10 +1618,10 @@ export const initialStudents = [
         movementCategoryKey: 'menu.srWithdrawal',
         movementCategory: 'Withdrawal',
         remarkTitle: 'Withdrawal Approved',
-        remarkLines: [
-          'Last Date of Attendance : 26.09.2025',
-          'Reason : Financial Problem',
-        ],
+        remarkLines: buildWithdrawalStatusLogRemarkLines({
+          lastDateOfAttendance: '2025-09-26',
+          reasonId: 6,
+        }),
       },
     ],
   }),
@@ -1283,19 +1635,22 @@ export const initialStudents = [
       applicationNo: 'APP202409905',
       passportNo: 'K12345678',
       passportExpiry: '20.08.2028',
-      placeOfBirth: 'Taipei',
+      studentPassExpiryStartDate: '10/02/2025',
+      studentPassExpiryEndDate: '09/02/2026',
+      placeOfBirth: 'Singapore',
       dateOfBirth: '21.02.2004',
       age: '21',
-      nationality: 'Taiwan',
+      nationality: 'Singapore',
       race: 'Chinese',
       religion: 'None',
       maritalStatus: 'Single',
       disability: 'No',
+      outstandingFee: 'N',
     },
     contact: {
       mobilePhone: '0167788990',
       email: 'elson.lai@student.xmum.edu.my',
-      permanentAddress: 'No. 88 Xinyi Road, Taipei 110, Taiwan',
+      permanentAddress: '88 Orchard Road, Singapore 238874',
       mailingAddress: 'Block E-102, Student Village, XMUM Campus, Sepang',
     },
     enrollment: {
@@ -1303,21 +1658,21 @@ export const initialStudents = [
       programme: 'Bachelor of Data Science',
       faculty: 'School of Information',
       status: 'Withdrawn',
-      programmeLevel: 'L6-Bachelor',
+      programmeLevel: 'Undergraduate',
       duration: '3',
       semester: '4',
       intake: '2024/02',
       academicSession: '2025/02',
       studyMode: 'Full Time',
       recruitedBy: 'Agent A',
-      sourceOfRecruit: 'Education Agent TW',
+      sourceOfRecruit: 'Education Agent SG',
       typeOfFinancialAid: 'None',
       tuitionFeeAnnual: '30000',
     },
     education: {
       qualification: 'A-Level',
-      institutionName: 'Taipei International School',
-      institutionLocation: 'Taipei, Taiwan',
+      institutionName: 'Singapore International School',
+      institutionLocation: 'Singapore',
       institutionType: 'Private',
       yearGraduated: '2023',
       gradeResult: 'ABB',
@@ -1333,10 +1688,10 @@ export const initialStudents = [
       relationship: 'Father',
       occupation: 'Consultant',
       race: 'Chinese',
-      mobilePhone: '+886 912345678',
-      email: 'lai.chen@email.tw',
-      income: 'TWD 120000/month',
-      mailingAddress: 'No. 88 Xinyi Road, Taipei 110, Taiwan',
+      mobilePhone: '+65 9123 4567',
+      email: 'lai.chen@email.sg',
+      income: 'SGD 8000/month',
+      mailingAddress: '88 Orchard Road, Singapore 238874',
     },
     accommodation: {
       hostelStatus: 'Checked Out',
@@ -1374,10 +1729,10 @@ export const initialStudents = [
         movementCategoryKey: 'menu.srWithdrawal',
         movementCategory: 'Withdrawal',
         remarkTitle: 'Withdrawal Approved',
-        remarkLines: [
-          'Last Date of Attendance : 29.09.2025',
-          'Reason : Personal Reason',
-        ],
+        remarkLines: buildWithdrawalStatusLogRemarkLines({
+          lastDateOfAttendance: '2025-09-29',
+          reasonId: 7,
+        }),
       },
     ],
   }),
@@ -1398,7 +1753,7 @@ const CATEGORY_STATUS_TO_PROFILE = {
   Unregistered: 'Inactive',
   'Defer Registration': 'Inactive',
   Completion: 'Active',
-  Graduated: 'Active',
+  Graduated: 'Graduated',
   'Completion without Graduation': 'Active',
   Incomplete: 'Inactive',
   Expel: 'Withdrawn',
@@ -1416,7 +1771,11 @@ export function findStudentByStudentId(studentId) {
   )
 }
 
-export function applyStudentProfileFromMovement(studentId, categoryConfig) {
+function nextStatusLogId(logs) {
+  return Math.max(0, ...(logs || []).map((entry) => Number(entry.id) || 0)) + 1
+}
+
+export function applyStudentProfileFromMovement(studentId, categoryConfig, movementContext = null) {
   if (!categoryConfig || !studentId) return false
   const index = studentRecords.value.findIndex(
     (item) =>
@@ -1427,6 +1786,26 @@ export function applyStudentProfileFromMovement(studentId, categoryConfig) {
 
   const current = studentRecords.value[index]
   const patch = {}
+  let profileUpdated = false
+
+  if (movementContext?.sourceKey === 'programme-transfer' && movementContext.item) {
+    const categoryKey = CATEGORY_CODE_TO_MENU_KEY['PT001'] || 'menu.srProgrammeTransfer'
+    const statusLogs = patch.statusLogs || current.statusLogs || []
+    patch.statusLogs = [
+      ...statusLogs,
+      createEmptyStatusLogEntry({
+        id: nextStatusLogId(statusLogs),
+        status: current.enrollment?.status || 'Active',
+        dateEffective: new Date().toISOString().slice(0, 10),
+        changedBy: 'ADMIN SYSTEM',
+        movementCategoryKey: categoryKey,
+        movementCategory: 'Programme Transfer',
+        remarkTitle: 'Programme Transfer Approved',
+        remarkLines: buildProgrammeTransferStatusLogRemarkLines(movementContext.item),
+      }),
+    ]
+    profileUpdated = true
+  }
 
   if (categoryConfig.modifyStudentStatus && categoryConfig.studentStatus) {
     const newStatus =
@@ -1437,25 +1816,37 @@ export function applyStudentProfileFromMovement(studentId, categoryConfig) {
     }
     const categoryKey =
       CATEGORY_CODE_TO_MENU_KEY[categoryConfig.categoryCode] || ''
-    const nextLogId =
-      Math.max(0, ...(current.statusLogs || []).map((entry) => Number(entry.id) || 0)) + 1
+    const statusLogs = patch.statusLogs || current.statusLogs || []
+
+    let remarkTitle = categoryConfig.categoryName
+      ? `${categoryConfig.categoryName} Implemented`
+      : 'Status Updated'
+    let remarkLines = categoryConfig.categoryName
+      ? [`Movement Category : ${categoryConfig.categoryName}`]
+      : []
+
+    if (movementContext?.sourceKey === 'deferment' && movementContext.item) {
+      remarkTitle = 'Deferment Approved'
+      remarkLines = buildDefermentStatusLogRemarkLines(current, movementContext.item)
+    } else if (movementContext?.sourceKey === 'withdrawal' && movementContext.item) {
+      remarkTitle = 'Withdrawal Approved'
+      remarkLines = buildWithdrawalStatusLogRemarkLines(movementContext.item)
+    }
+
     patch.statusLogs = [
-      ...(current.statusLogs || []),
+      ...statusLogs,
       createEmptyStatusLogEntry({
-        id: nextLogId,
+        id: nextStatusLogId(statusLogs),
         status: newStatus,
         dateEffective: new Date().toISOString().slice(0, 10),
         changedBy: 'ADMIN SYSTEM',
         movementCategoryKey: categoryKey,
         movementCategory: categoryConfig.categoryName || '',
-        remarkTitle: categoryConfig.categoryName
-          ? `${categoryConfig.categoryName} Implemented`
-          : 'Status Updated',
-        remarkLines: categoryConfig.categoryName
-          ? [`Movement Category : ${categoryConfig.categoryName}`]
-          : [],
+        remarkTitle,
+        remarkLines,
       }),
     ]
+    profileUpdated = true
   }
 
   if (categoryConfig.modifyStudentType && categoryConfig.category) {
@@ -1463,9 +1854,10 @@ export function applyStudentProfileFromMovement(studentId, categoryConfig) {
       ...(patch.enrollment || current.enrollment),
       trackCategory: categoryConfig.category,
     }
+    profileUpdated = true
   }
 
-  if (!patch.enrollment) return false
+  if (!profileUpdated) return false
 
   studentRecords.value[index] = normalizeStudent({ ...current, ...patch })
   return true

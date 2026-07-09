@@ -1,26 +1,26 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Movement records carry maintenance fields
-The system SHALL store maintenance-specific fields on movement application records in the shared movement store so maintenance, approval, and application views read the same underlying record.
+### 需求：异动记录携带维护字段
+系统应在共享异动存储中为异动申请记录保存维护专用字段，使维护、审批与申请视图读取同一条底层记录。
 
-#### Scenario: Maintenance fields on approved records
-- **WHEN** a movement application record is approved and eligible for maintenance
-- **THEN** the record may include movementNumber, cgpa, expectedGraduationTime, maintenanceRemark, movementDate, and implemented status
+#### 场景：已审批记录携带维护字段
+- **当** 某条异动申请记录已审批且符合维护条件
+- **则** 该记录可包含 `movementNumber`、`cgpa`、`expectedGraduationTime`、`maintenanceRemark`、`movementDate` 及 `implemented` 状态
 
-#### Scenario: Maintenance edit updates shared store
-- **WHEN** user saves maintenance edits for a row
-- **THEN** the updated fields are persisted on the same store record used by the application and approval modules
+#### 场景：维护编辑更新共享存储
+- **当** 用户保存某行的维护编辑
+- **则** 更新后的字段持久化于申请与审批模块共用的同一条存储记录
 
-#### Scenario: Details view reads updated maintenance context
-- **WHEN** user opens Details from the maintenance list after editing maintenance fields
-- **THEN** the read-only application review view reflects the underlying store record without approval actions
+#### 场景：详情视图读取更新后的维护上下文
+- **当** 用户在编辑维护字段后从维护列表打开详情
+- **则** 只读申请审核视图反映底层存储记录，且不展示审批操作
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Movement records carry maintenance fields
-The system SHALL store maintenance-specific fields on movement application records in the shared movement store so maintenance, approval, and application views read the same underlying record. The implemented field SHALL support values Pending, Scheduled, and Implemented.
+### 需求：异动记录携带维护字段
+系统应在共享异动存储中为异动申请记录保存维护专用字段，使维护、审批与申请视图读取同一条底层记录。`implemented` 字段应支持 `Pending`、`Scheduled`、`Implemented` 三种取值。
 
-#### Scenario: Scheduled implement state on record
-- **WHEN** a user or auto-implement flow queues deferred implementation
-- **THEN** the store record sets implemented to Scheduled without mutating student profile fields
-- **AND** the record remains eligible for the mock implementation processor until current session reaches effective session
+#### 场景：记录上的 Scheduled 实施状态
+- **当** 用户或自动实施流程将实施排队延后
+- **则** 存储记录将 `implemented` 设为 `Scheduled`，且不修改学生档案字段
+- **且** 该记录仍可由 mock 实施处理器处理，直至当前学期达到生效学期

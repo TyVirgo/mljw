@@ -7,6 +7,7 @@ export const movementApprovalExportColumnMeta = [
   { key: 'applicationSession', labelKey: 'movementApproval.columns.applicationSession', width: 16, selectedByDefault: true },
   { key: 'effectiveSession', labelKey: 'movementApproval.columns.effectiveSession', width: 16, selectedByDefault: true },
   { key: 'movementCategory', labelKey: 'movementApproval.columns.movementCategory', width: 18, selectedByDefault: true },
+  { key: 'historicalApplicationSequence', labelKey: 'movementApproval.columns.applicationSequence', width: 14, selectedByDefault: true },
   { key: 'applicationDate', labelKey: 'movementApproval.columns.applicationDate', width: 14, selectedByDefault: true },
   { key: 'implemented', labelKey: 'movementQuery.export.implemented', width: 14, selectedByDefault: false },
 ]

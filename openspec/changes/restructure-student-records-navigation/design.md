@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 `add-student-records-app` 交付扁平 6 项侧边栏；后续 `add-programme-transfer-app`、`add-deferment-app`、`add-resumption-app`、`add-withdrawal-app` 已将四异动实现为独立 sidebar 页面。
 
@@ -8,9 +8,9 @@
 
 现有技术栈：`App.vue` 用 `currentPageId` + `v-if` 切换；`Sidebar.vue` 已支持 `{ children: [] }` 分组（Basic Data 模式）；`menuBreadcrumb.js` 支持 **一层 parent + leaf** 面包屑。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - **2 分组**侧边栏 IA（学籍管理 + 学籍异动；§8 移除学生个人学习计划）
 - 「学籍异动申请」Tab 壳层嵌入四异动 View（薄壳）
@@ -19,7 +19,7 @@
 - 未开发二级菜单走 `UnderConstructionView`
 - 中英文 i18n 同步
 
-**Non-Goals:**
+**非目标：**
 
 - 图2 统一列表 + 批量送审
 - 保留入学资格 / 其它异动 Tab
@@ -28,7 +28,7 @@
 - 修改四异动 data / modal 业务逻辑
 - **学生个人培养方案**菜单（§8 整组移除）
 
-## Decisions
+## 设计决策
 
 ### 1. 侧边栏结构 — `studentRecordsMenu.js`
 
@@ -99,7 +99,7 @@ new Set(['sr-student-profile', 'sr-movement-application'])
 
 **Tab key 枚举**：`programme-transfer` | `deferment` | `resumption` | `withdrawal`
 
-**默认 Tab**：`deferment`
+**默认 Tab**：`programme-transfer`
 
 **状态保持**：四 View 同时挂载、`v-show` 切换（避免切换 Tab 丢失列表内存状态）
 
@@ -165,7 +165,7 @@ defineProps({ embedded: { type: Boolean, default: false } })
 
 本 change 完成后，各 `add-*-app` 中 `student-records-app` delta spec 的「sidebar 点 Deferment 进入 DefermentView」场景在归档/sync 时需改为「学籍异动申请 Tab 进入 DefermentView」。本 change 的 spec 以新 IA 为准。
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -174,7 +174,7 @@ defineProps({ embedded: { type: Boolean, default: false } })
 | 分组菜单默认全展开 | `defaultExpandedGroups` 三项全开，对齐 Basic Data 首访体验 |
 | Tab 与图2 列数不一致 | 本 change 只做 Tab 壳层；统一表另开 change |
 
-## Migration Plan
+## 迁移说明
 
 1. 重写 `studentRecordsMenu.js` 分组结构
 2. 新增 `StudentMovementApplicationView.vue`
@@ -184,7 +184,7 @@ defineProps({ embedded: { type: Boolean, default: false } })
 6. 移除 Family Info 与四异动 sidebar 项
 7. `npm run build`
 
-## Open Questions
+## 待决问题
 
 1. 是否在 v2 增加「保留入学资格 / 其它异动」Tab（占位 UnderConstruction）
 2. 是否在 v2 将 Tab 名写入面包屑第三级

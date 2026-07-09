@@ -1,88 +1,88 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Movement application list advanced search
-The system SHALL provide advanced list search on all four movement application tabs for both staff and student portals.
+### 需求：异动申请列表高级搜索
+系统应在管理端与学生端门户的全部四个异动申请 Tab 上提供高级列表搜索。
 
-#### Scenario: Staff first-row search fields
-- **WHEN** staff user views any movement application tab in teacher mode
-- **THEN** the search bar first row includes Student ID or Name, Programme Code, Application Session, and Approval Status filters with Search and Reset actions
+#### 场景：管理端首行搜索字段
+- **当** 管理端用户在管理端模式下查看任一异动申请 Tab
+- **则** 搜索栏第一行含学号或姓名、专业代码、申请学期、审批状态筛选及查询、重置操作
 
-#### Scenario: Student first-row search fields
-- **WHEN** student user views any movement application tab in student mode
-- **THEN** the search bar first row includes Programme Code, Application Session, and Approval Status filters but does not show the Student ID or Name filter
+#### 场景：学生端首行搜索字段
+- **当** 学生端用户在学生端模式下查看任一异动申请 Tab
+- **则** 搜索栏第一行含专业代码、申请学期、审批状态筛选，但不展示学号或姓名筛选
 
-#### Scenario: Collapsible second row for implemented filter
-- **WHEN** user views the movement application list search bar
-- **THEN** a collapsible second row provides the Implemented filter, defaulting to expanded, with a collapse/expand control consistent with Status Change Inquiry layout
+#### 场景：是否实施筛选位于可收起第二行
+- **当** 用户查看异动申请列表搜索栏
+- **则** 可收起的第二行提供是否实施筛选，默认展开，收起/展开控件与学籍异动查询布局一致
 
-#### Scenario: Programme code matches current programme only
-- **WHEN** user filters by Programme Code on any movement tab
-- **THEN** the system matches against the derived current programme code for that application, not the new programme code for programme transfer
+#### 场景：专业代码仅匹配当前专业
+- **当** 用户在任一异动 Tab 按专业代码筛选
+- **则** 系统匹配该申请的解析后当前专业代码，而非转专业的新专业代码
 
-#### Scenario: Approval status includes Draft
-- **WHEN** user selects an Approval Status filter on an application list tab
-- **THEN** available statuses include Draft and other workflow statuses for that movement type
+#### 场景：审批状态含 Draft
+- **当** 用户在申请列表 Tab 选择审批状态筛选
+- **则** 可选状态含 `Draft` 及该异动类型的其他工作流状态
 
-#### Scenario: Shared filter logic
-- **WHEN** any movement application view applies list search
-- **THEN** it uses shared movement application search helpers that reuse application session and programme code extraction consistent with inquiry and maintenance modules
+#### 场景：共享筛选逻辑
+- **当** 任一异动申请视图应用列表搜索
+- **则** 使用共享异动申请搜索辅助函数，复用与查询、维护模块一致的申请学期与专业代码提取逻辑
 
-### Requirement: Movement application search action button styling (§23)
-The system SHALL render Search and Reset controls in the movement application list search bar using the same solid-primary and outlined-default button styles as the Change Category list page.
+### 需求：异动申请搜索操作按钮样式（§23）
+系统应在异动申请列表搜索栏使用与异动类别列表页相同的实心主色与描边默认按钮样式渲染查询与重置控件。
 
-#### Scenario: Search and reset match change category buttons
-- **WHEN** staff or student user views the search bar on any movement application tab
-- **THEN** the Search action appears as a blue primary button with white label text
-- **AND** the Reset action appears as a white button with gray border
-- **AND** the Collapse/More control remains a text-style action unchanged
+#### 场景：查询与重置与异动类别按钮一致
+- **当** 管理端或学生端用户查看任一异动申请 Tab 的搜索栏
+- **则** 查询操作为蓝色主色按钮、白字标签
+- **且** 重置操作为白底灰边按钮
+- **且** 收起/更多控件仍为文本样式，不变
 
-#### Scenario: Styling applies in shared search component
-- **WHEN** MovementApplicationSearchBar is rendered for teacher or student applicant mode
-- **THEN** Search and Reset button styling is applied via shared list-page search styles without duplicating per-view scoped CSS
+#### 场景：样式在共享搜索组件中应用
+- **当** 为管理端或学生端 `applicantMode` 渲染 `MovementApplicationSearchBar`
+- **则** 查询与重置按钮样式通过共享列表页搜索样式应用，不在各视图重复 scoped CSS
 
-### Requirement: Programme transfer list without active archived tabs
-The system SHALL show programme transfer applications in a single unified list without In Progress versus Archived tab segmentation for both staff and student portals.
+### 需求：转专业列表无进行中/已归档 Tab
+系统应在管理端与学生端门户以单一统一列表展示转专业申请，不区分进行中与已归档 Tab。
 
-#### Scenario: No active archived tab controls
-- **WHEN** user views Programme Transfer in either portal
-- **THEN** In Progress and Archived tab buttons are not displayed
+#### 场景：无进行中/已归档 Tab 控件
+- **当** 用户在任一门户查看转专业
+- **则** 不展示进行中与已归档 Tab 按钮
 
-#### Scenario: Unified list includes terminal statuses
-- **WHEN** user views Programme Transfer without applying status filters
-- **THEN** the list includes applications in all statuses including terminal statuses such as Rejected, Cancelled, and Expired alongside in-progress records
+#### 场景：统一列表含终态
+- **当** 用户在不应用状态筛选的情况下查看转专业
+- **则** 列表含所有状态的申请，包括 `Rejected`、`Cancelled`、`Expired` 等终态及进行中记录
 
-#### Scenario: Terminal records discoverable by status filter
-- **WHEN** staff or student user filters Programme Transfer by a terminal approval status
-- **THEN** matching terminal applications appear in the unified list
+#### 场景：终态记录可通过状态筛选发现
+- **当** 管理端或学生端用户按终态审批状态筛选转专业
+- **则** 匹配的终态申请出现在统一列表中
 
-### Requirement: Student portal hides redundant identity columns
-The system SHALL hide Student ID and Name columns from movement application history tables in student mode across all four movement types.
+### 需求：学生端隐藏冗余身份列
+系统应在学生端模式下，于四种异动类型的申请历史表格中隐藏学号与姓名列。
 
-#### Scenario: Student table columns
-- **WHEN** student user views application history on Deferment, Resumption, Withdrawal, or Programme Transfer
-- **THEN** the table does not render Student ID or Name columns
+#### 场景：学生端表格列
+- **当** 学生端用户查看休学、复学、退学或转专业的申请历史
+- **则** 表格不渲染学号或姓名列
 
-#### Scenario: Staff table columns unchanged
-- **WHEN** staff user views the same movement application history tables
-- **THEN** Student ID and Name columns remain visible
+#### 场景：管理端表格列不变
+- **当** 管理端用户查看相同异动申请历史表格
+- **则** 学号与姓名列仍可见
 
-#### Scenario: Empty state colspan
-- **WHEN** student user sees an empty application history table
-- **THEN** the empty row colspan reflects the reduced column count without Student ID and Name
+#### 场景：空状态 colspan
+- **当** 学生端用户看到空的申请历史表格
+- **则** 空行 colspan 反映去除学号与姓名后的列数
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Applicant mode controls list scope
-The system SHALL filter movement application lists by applicant mode so student self-service portals show only the current student's applications, then apply advanced search filters on that scoped list.
+### 需求：申请方模式控制列表范围
+系统应按申请方模式筛选异动申请列表，使学生自助门户仅展示当前学生的申请，再在该范围内应用高级搜索筛选。
 
-#### Scenario: Teacher list shows all applications
-- **WHEN** user views any movement tab with `applicantMode` set to `teacher`
-- **THEN** the list includes applications for all students subject to advanced search and pagination filters
+#### 场景：管理端列表展示全部申请
+- **当** 用户在 `applicantMode` 为 `teacher` 下查看任一异动 Tab
+- **则** 列表含所有学生的申请，受高级搜索与分页筛选约束
 
-#### Scenario: Student list shows own applications only
-- **WHEN** user views any movement tab with `applicantMode` set to `student`
-- **THEN** the list includes only applications whose student ID matches the current mock logged-in student before advanced search is applied
+#### 场景：学生端列表仅展示本人申请
+- **当** 用户在 `applicantMode` 为 `student` 下查看任一异动 Tab
+- **则** 列表在应用高级搜索前，仅含学号与当前 mock 登录学生匹配的申请
 
-#### Scenario: Student advanced search within own records
-- **WHEN** student user applies Programme Code, Application Session, Approval Status, or Implemented filters
-- **THEN** search operates only within the current student's applications
+#### 场景：学生端在本人记录内高级搜索
+- **当** 学生端用户应用专业代码、申请学期、审批状态或是否实施筛选
+- **则** 搜索仅在当前学生的申请范围内操作

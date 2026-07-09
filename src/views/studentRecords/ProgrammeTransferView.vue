@@ -11,6 +11,7 @@ import ProgrammeTransferFormModal from '../../components/studentRecords/Programm
 import MovementApplicationDetailDrawer from '../../components/studentRecords/MovementApplicationDetailDrawer.vue'
 
 import MovementApplicationSearchBar from '../../components/studentRecords/MovementApplicationSearchBar.vue'
+import MovementStudentCancelAction from '../../components/studentRecords/MovementStudentCancelAction.vue'
 
 import {
 
@@ -364,7 +365,7 @@ function requestDelete(item) {
 
 function requestCancel(item) {
 
-  confirmMessage.value = t('programmeTransfer.cancelOne')
+  confirmMessage.value = t('movementStudentCancel.confirmMessage')
 
   confirmAction.value = () => {
 
@@ -526,11 +527,10 @@ function displayDate(item) {
 
                   </button>
 
-                  <button v-if="canCancelTransfer(item)" type="button" class="link-btn" @click="requestCancel(item)">
-
-                    {{ t('programmeTransfer.actions.cancelApplication') }}
-
-                  </button>
+                  <MovementStudentCancelAction
+                    v-if="applicantMode === 'student' && canCancelTransfer(item)"
+                    @cancel="requestCancel(item)"
+                  />
 
                 </td>
 
@@ -589,6 +589,7 @@ function displayDate(item) {
       source-key="programme-transfer"
       :item="detailItem"
       mode="student"
+      :enable-export-pdf="applicantMode === 'teacher'"
       @close="closeDrawer"
     />
 

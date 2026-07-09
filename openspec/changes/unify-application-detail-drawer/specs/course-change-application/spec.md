@@ -1,21 +1,20 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Change application list actions use unified Details
-The system SHALL expose a unified Details action on course change application and review list rows that opens approval timeline and read-only detail content in a right-side drawer. Separate Approval Log actions SHALL NOT be shown.
+### 需求：变更申请列表使用统一「详情」
+系统应在课程变更申请与变更审阅列表行暴露统一「详情」操作，在右侧抽屉中打开只读详情内容与审批日志表格。不应再显示独立的 Approval Log 操作。
 
-#### Scenario: Change application Details drawer
-- **WHEN** user clicks Details on a course change application list row
-- **THEN** the drawer shows timeline above change application detail content
+#### 场景：变更申请「详情」抽屉
+- **当** 用户点击课程变更申请列表行的「详情」
+- **则** 抽屉先展示变更申请详情内容，再在下方展示审批日志表格
 
-#### Scenario: Change review list Details drawer
-- **WHEN** approver clicks Details on course change review list row
-- **THEN** the drawer shows timeline and read-only details
-- **AND** approval actions remain in the drawer footer when applicable to the review context
+#### 场景：变更审阅列表「详情」抽屉
+- **当** 审批人在课程变更审阅列表行点击「详情」
+- **则** 抽屉先展示只读详情、再展示审批日志表格，且适用时审批操作仍保留在抽屉底栏
 
-#### Scenario: Edit remains on list
-- **WHEN** a change application row allows Edit
-- **THEN** Edit remains in the list Actions column
+#### 场景：Edit 仍保留在列表
+- **当** 变更申请行允许 Edit
+- **则** Edit 仍保留在列表 Actions 列
 
-#### Scenario: Rejected read-only row
-- **WHEN** change application status is Rejected
-- **THEN** only Details is available for viewing combined log and detail content
+#### 场景：Rejected 只读行
+- **当** 变更申请状态为 Rejected
+- **则** 仅「详情」可用于查看合并的详情内容与审批日志

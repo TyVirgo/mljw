@@ -3,18 +3,21 @@ import { ref, computed } from 'vue'
 import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import MovementApplicationDetailDrawer from '../../components/studentRecords/MovementApplicationDetailDrawer.vue'
+import MovementDetailPdfPreviewModal from '../../components/studentRecords/MovementDetailPdfPreviewModal.vue'
+import MovementListSearchBar from '../../components/studentRecords/MovementListSearchBar.vue'
 import ImplementedYnBadge from '../../components/common/ImplementedYnBadge.vue'
-import ImplementedYnSearchSelect from '../../components/common/ImplementedYnSearchSelect.vue'
 import { useListPageI18n } from '../../composables/useListPageI18n.js'
 import { DEFAULT_APPROVER_ROLE } from '../../data/movementApprovalEngine.js'
+import { MOVEMENT_LIST_TABLE_COLUMNS } from '../../data/movementListColumnConfig.js'
+import {
+  createMovementListSearch,
+  getDistinctEffectiveSessions,
+} from '../../data/movementListSearchFilters.js'
 import {
   mergeMovementQueryQueue,
   filterQueryBySearch,
   movementQueryStatusOptions,
-  movementQueryTypeOptions,
-  movementQueryTypeLabelKeys,
 } from '../../data/movementQueryQueue.js'
-import { getDistinctApplicationSessions } from '../../data/movementListSearchOptions.js'
 import { movementQueryExportFields, movementQueryExportColumnMeta } from '../../data/movementQueryExportFields.js'
 import { MAINTENANCE_EMPTY } from '../../data/movementMaintenanceFields.js'
 import { exportMovementQueryToExcel } from '../../utils/exportMovementQueryExcel.js'
@@ -26,7 +29,6 @@ const { t, tr, translatedExportFields } = useListPageI18n(movementQueryExportFie
 
 const currentRole = DEFAULT_APPROVER_ROLE
 
-const searchExpanded = ref(true)
 const searchForm = ref(createEmptySearch())
 const appliedSearch = ref(createEmptySearch())
 
@@ -35,23 +37,19 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 
 const detailItem = ref(null)
+const pdfPreviewItem = ref(null)
 const exportModalVisible = ref(false)
 
 function createEmptySearch() {
-  return {
-    academicSession: '',
-    programmeCode: '',
-    status: '',
-    movementType: '',
-    studentId: '',
-    studentName: '',
-    implemented: '',
-  }
+  return createMovementListSearch()
 }
 
 const fullQueue = computed(() => mergeMovementQueryQueue(t))
 
-const sessionOptions = computed(() => getDistinctApplicationSessions(fullQueue.value))
+const effectiveSessionOptions = computed(() => getDistinctEffectiveSessions(fullQueue.value))
+
+const tableColumns = MOVEMENT_LIST_TABLE_COLUMNS
+const tableColspan = 2 + tableColumns.length + 1
 
 const filteredItems = computed(() => filterQueryBySearch(fullQueue.value, appliedSearch.value))
 
@@ -89,10 +87,6 @@ function handleReset() {
   selectedKeys.value = []
 }
 
-function toggleSearchExpanded() {
-  searchExpanded.value = !searchExpanded.value
-}
-
 function toggleSelectAll(event) {
   const pageKeys = paginatedItems.value.map((item) => item.queueKey)
   if (event.target.checked) {
@@ -116,6 +110,14 @@ function openDetails(row) {
 
 function closeDetails() {
   detailItem.value = null
+}
+
+function openPdfPreview(row) {
+  pdfPreviewItem.value = row
+}
+
+function closePdfPreview() {
+  pdfPreviewItem.value = null
 }
 
 function openExportModal() {
@@ -194,102 +196,37 @@ function displayPassportIc(value) {
   if (raw === MAINTENANCE_EMPTY) return raw
   return maskPassportIc(raw)
 }
+
+function getCellValue(item, column) {
+  switch (column.key) {
+    case 'approvalStage':
+      return tr(item.approvalStage)
+    case 'movementCategory':
+      return t(item.movementCategoryKey)
+    case 'effectiveDate':
+      return displayCell(item.movementDate)
+    case 'passportIc':
+      return displayPassportIc(item.passportIc)
+    case 'studentType':
+      return studentTypeLabel(item.studentType)
+    case 'nationality':
+      return displayCell(item.nationality)
+    default:
+      return displayCell(item[column.key])
+  }
+}
 </script>
 
 <template>
   <div class="movement-query-page">
     <div class="page-card">
-      <div class="search-bar">
-        <div class="search-row">
-          <div class="search-fields">
-            <div class="search-item">
-              <label>{{ t('movementQuery.search.academicSession') }}</label>
-              <select
-                v-model="searchForm.academicSession"
-                class="search-select"
-                :class="{ 'is-empty': !searchForm.academicSession }"
-              >
-                <option value="">{{ t('common.all') }}</option>
-                <option v-for="session in sessionOptions" :key="session" :value="session">
-                  {{ session }}
-                </option>
-              </select>
-            </div>
-            <div class="search-item">
-              <label>{{ t('movementQuery.search.programmeCode') }}</label>
-              <input
-                v-model="searchForm.programmeCode"
-                type="text"
-                class="search-input"
-                :placeholder="t('common.pleaseInput')"
-              />
-            </div>
-            <div class="search-item">
-              <label>{{ tr('Status') }}</label>
-              <select v-model="searchForm.status" class="search-select" :class="{ 'is-empty': !searchForm.status }">
-                <option value="">{{ t('common.all') }}</option>
-                <option v-for="opt in movementQueryStatusOptions" :key="opt" :value="opt">
-                  {{ statusLabel(opt) }}
-                </option>
-              </select>
-            </div>
-            <div class="search-item">
-              <label>{{ t('movementQuery.search.movementType') }}</label>
-              <select
-                v-model="searchForm.movementType"
-                class="search-select"
-                :class="{ 'is-empty': !searchForm.movementType }"
-              >
-                <option value="">{{ t('common.all') }}</option>
-                <option v-for="opt in movementQueryTypeOptions" :key="opt" :value="opt">
-                  {{ t(movementQueryTypeLabelKeys[opt]) }}
-                </option>
-              </select>
-            </div>
-          </div>
-
-          <div class="search-actions">
-            <button type="button" class="btn btn-primary" @click="handleSearch">
-              {{ t('common.search') }}
-            </button>
-            <button type="button" class="btn btn-default" @click="handleReset">
-              {{ t('common.reset') }}
-            </button>
-            <button type="button" class="btn btn-text" @click="toggleSearchExpanded">
-              {{ searchExpanded ? t('common.collapse') : t('common.more') }}
-              <svg :class="{ up: searchExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <Transition name="search-expand">
-          <div v-if="searchExpanded" class="search-row search-row-secondary">
-            <div class="search-fields">
-              <div class="search-item">
-                <label>{{ tr('Student ID') }}</label>
-                <input
-                  v-model="searchForm.studentId"
-                  type="text"
-                  class="search-input"
-                  :placeholder="t('common.pleaseInput')"
-                />
-              </div>
-              <div class="search-item">
-                <label>{{ tr('Student Name') }}</label>
-                <input
-                  v-model="searchForm.studentName"
-                  type="text"
-                  class="search-input"
-                  :placeholder="t('common.pleaseInput')"
-                />
-              </div>
-              <ImplementedYnSearchSelect v-model="searchForm.implemented" />
-            </div>
-          </div>
-        </Transition>
-      </div>
+      <MovementListSearchBar
+        v-model="searchForm"
+        :status-options="movementQueryStatusOptions"
+        :effective-session-options="effectiveSessionOptions"
+        @search="handleSearch"
+        @reset="handleReset"
+      />
 
       <div class="toolbar">
         <button type="button" class="btn btn-outline" @click="openExportModal">
@@ -306,25 +243,13 @@ function displayPassportIc(value) {
                   <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
                 </th>
                 <th>{{ t('common.serialNo') }}</th>
-                <th>{{ tr('Status') }}</th>
-                <th>{{ tr('Approval Stage') }}</th>
-                <th>{{ tr('Implemented') }}</th>
-                <th>{{ t('movementApproval.columns.movementCategory') }}</th>
-                <th>{{ tr('Student ID') }}</th>
-                <th>{{ tr('Student Name') }}</th>
-                <th>{{ t('movementMaintenance.columns.movementDate') }}</th>
-                <th>{{ t('movementMaintenance.columns.passportIc') }}</th>
-                <th>{{ t('movementMaintenance.columns.studentType') }}</th>
-                <th>{{ t('movementMaintenance.columns.intake') }}</th>
-                <th>{{ t('movementApproval.columns.applicationSession') }}</th>
-                <th>{{ t('movementApproval.columns.effectiveSession') }}</th>
-                <th>{{ t('movementApproval.columns.movementReason') }}</th>
+                <th v-for="col in tableColumns" :key="col.key">{{ t(col.labelKey) }}</th>
                 <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!paginatedItems.length">
-                <td colspan="16" class="empty-cell">{{ t('common.noData') }}</td>
+                <td :colspan="tableColspan" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedItems" :key="item.queueKey">
                 <td class="col-check">
@@ -335,26 +260,23 @@ function displayPassportIc(value) {
                   />
                 </td>
                 <td>{{ getRowNumber(index) }}</td>
-                <td>
-                  <span class="status-badge" :class="movementListStatusBadgeClass(item.status)">
+                <td v-for="col in tableColumns" :key="col.key" :class="col.cellClass">
+                  <span
+                    v-if="col.cellType === 'status'"
+                    class="status-badge"
+                    :class="movementListStatusBadgeClass(item.status)"
+                  >
                     {{ statusLabel(item.status) }}
                   </span>
+                  <ImplementedYnBadge v-else-if="col.cellType === 'implemented'" :value="item.implemented" />
+                  <template v-else>{{ getCellValue(item, col) }}</template>
                 </td>
-                <td>{{ tr(item.approvalStage) }}</td>
-                <td><ImplementedYnBadge :value="item.implemented" /></td>
-                <td>{{ t(item.movementCategoryKey) }}</td>
-                <td>{{ item.studentId }}</td>
-                <td>{{ item.fullName }}</td>
-                <td>{{ displayCell(item.movementDate) }}</td>
-                <td>{{ displayPassportIc(item.passportIc) }}</td>
-                <td>{{ studentTypeLabel(item.studentType) }}</td>
-                <td>{{ displayCell(item.intake) }}</td>
-                <td>{{ item.applicationSession }}</td>
-                <td>{{ item.effectiveSession }}</td>
-                <td class="reason-cell">{{ item.movementReason }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
                     <button type="button" class="link-btn" @click="openDetails(item)">{{ t('common.details') }}</button>
+                    <button type="button" class="link-btn" @click="openPdfPreview(item)">
+                      {{ t('movementExport.previewPdf') }}
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -386,6 +308,13 @@ function displayPassportIc(value) {
       :current-role="currentRole"
       :mask-sensitive-fields="true"
       @close="closeDetails"
+    />
+
+    <MovementDetailPdfPreviewModal
+      :visible="!!pdfPreviewItem"
+      :queue-item="pdfPreviewItem"
+      :mask-sensitive-fields="true"
+      @close="closePdfPreview"
     />
   </div>
 </template>
@@ -522,7 +451,7 @@ function displayPassportIc(value) {
   z-index: 2;
   background: #fff;
   border-left: 1px solid #f3f4f6;
-  min-width: 180px;
+  min-width: 280px;
 }
 
 .data-table thead .col-sticky-right {
@@ -536,26 +465,5 @@ function displayPassportIc(value) {
   border: none;
   background: none;
   cursor: pointer;
-}
-
-.search-expand-enter-active,
-.search-expand-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.search-expand-enter-from,
-.search-expand-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-
-.btn-text svg {
-  width: 14px;
-  height: 14px;
-  transition: transform 0.2s ease;
-}
-
-.btn-text svg.up {
-  transform: rotate(180deg);
 }
 </style>

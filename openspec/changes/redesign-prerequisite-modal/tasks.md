@@ -1,42 +1,42 @@
-## 1. Modal Shell & Layout
+## 1. Modal 壳层与布局
 
-- [ ] 1.1 Rewrite `CoursePrerequisiteModal.vue` panel: title **Add**, `max-width: 1000px`, flex column (header / body / footer)
-- [ ] 1.2 Style header (16px title, × close) and footer (**Discard** + **Confirm**, button radius 8px) per prototype
-- [ ] 1.3 Wire close overlay, ×, and Discard to `emit('close')` without persisting selection
+- [ ] 1.1 重写 `CoursePrerequisiteModal.vue` 面板：标题 **Add**，`max-width: 1000px`，flex 列布局（header / body / footer）
+- [ ] 1.2 样式：标题 16px、× 关闭；底栏 **Discard** + **Confirm**，按钮圆角 8px，对齐原型
+- [ ] 1.3 遮罩、×、Discard 均 `emit('close')`，不持久化选择
 
-## 2. Search Area
+## 2. 搜索区
 
-- [ ] 2.1 Add search row: Course Name, Course Code, Offering (select from `getOfferingOptions(initialDepartments)`)
-- [ ] 2.2 Implement draft vs applied search state; **Search** applies filters and resets page to 1; **Reset** clears both
-- [ ] 2.3 Layout: three fields on one row with Search/Reset aligned right; labels left-aligned with compact spacing (match list-page search style)
-- [ ] 2.4 Client-side filter: partial match on name/code; exact match on offering code; exclude `excludeCode`
+- [ ] 2.1 新增搜索行：Course Name、Course Code、Offering（下拉，来自 `getOfferingOptions(initialDepartments)`）
+- [ ] 2.2 实现 draft 与 applied 搜索状态；**Search** 应用筛选并重置页码为 1；**Reset** 清空两者
+- [ ] 2.3 布局：一行三字段 + 右侧 Search/Reset；标签左对齐、紧凑间距（对齐列表页搜索样式）
+- [ ] 2.4 客户端筛选：name/code 部分匹配；offering 精确匹配；排除 `excludeCode`
 
-## 3. Data Table
+## 3. 数据表格
 
-- [ ] 3.1 Render table columns: checkbox, No., Course code, Course Name, Offering, Credit Value, Course Classification
-- [ ] 3.2 Offering column via `getOfferingLabel`; classification via `tr(course.courseClassification)`; missing values as `--`
-- [ ] 3.3 Multi-select with `checkedCodes`; header checkbox select-all / indeterminate for **current page only**
-- [ ] 3.4 Preserve cross-page selections; empty state `common.noData`
-- [ ] 3.5 Table body scrollable within modal; horizontal scroll if needed on narrow viewports
+- [ ] 3.1 渲染列：checkbox、No.、Course code、Course Name、Offering、Credit Value、Course Classification
+- [ ] 3.2 Offering 列使用 `getOfferingLabel`；Classification 使用 `tr(course.courseClassification)`；缺失值显示 `--`
+- [ ] 3.3 多选 `checkedCodes`；表头全选/半选仅作用于**当前页**
+- [ ] 3.4 跨页选择保留；空态 `common.noData`
+- [ ] 3.5 表格 body 在 Modal 内可滚动；窄屏时表格横向滚动
 
-## 4. Pagination
+## 4. 分页
 
-- [ ] 4.1 Integrate `TablePagination` below table (`total = filtered.length`, default pageSize 10)
-- [ ] 4.2 Paginate filtered results before render; compute No. from page offset
+- [ ] 4.1 表格下方集成 `TablePagination`（`total = filtered.length`，默认 pageSize 10）
+- [ ] 4.2 对筛选结果分页后再渲染；No. 按页偏移计算
 
-## 5. Confirm & Integration
+## 5. Confirm 与集成
 
-- [ ] 5.1 Confirm emits `checkedCodes.join(', ')` then close
-- [ ] 5.2 On open: restore selection from `selectedCodes`, reset search fields
-- [ ] 5.3 Normalize course rows from both `courses` and application payloads (ensure code/name/offering/credit/classification available)
-- [ ] 5.4 Smoke test: Course Information wizard Choose flow; Course Application wizard Choose flow
+- [ ] 5.1 Confirm 时 `emit('checkedCodes.join(', ')')` 后关闭
+- [ ] 5.2 打开时：从 `selectedCodes` 恢复选中，重置搜索字段
+- [ ] 5.3 规范化来自 `courses` 与 application 载荷的课程行（确保 code/name/offering/credit/classification 可用）
+- [ ] 5.4 冒烟：Course Information 向导 Choose 流程；Course Application 向导 Choose 流程
 
 ## 6. i18n
 
-- [ ] 6.1 Add `Discard` → 放弃 (or 取消 per product) and `Add` title keys if missing in `zh-flat.js` / locales
-- [ ] 6.2 Reuse existing keys: Search, Reset, Course Name, Course Code, Offering, Credit Value, Course Classification, Confirm
+- [ ] 6.1 在 `zh-flat.js` / locales 补充 `Discard` → 放弃（或按产品用取消）及 `Add` 标题 key（若缺失）
+- [ ] 6.2 复用现有 key：Search、Reset、Course Name、Course Code、Offering、Credit Value、Course Classification、Confirm
 
-## 7. Verification
+## 7. 验证
 
-- [ ] 7.1 Visual check against prototype: wide modal, 3-field search, 7-column table, pagination bar, Discard/Confirm
-- [ ] 7.2 Run `npm run build`
+- [ ] 7.1 视觉对照原型：宽 Modal、三字段搜索、七列表格、分页条、Discard/Confirm
+- [ ] 7.2 运行 `npm run build`

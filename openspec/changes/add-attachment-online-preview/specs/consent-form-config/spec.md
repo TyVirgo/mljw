@@ -1,48 +1,37 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Create and edit consent form templates
-The system SHALL provide a Create/Edit modal to maintain consent form templates with required form name, applicable movement type, Student Type, and student consent file upload.
+### 需求：新建与编辑同意书模板
+系统应提供 Create/Edit 弹框维护同意书模板，含必填表单名称、适用异动类型、Student Type 及学生同意书文件上传。
 
-#### Scenario: Open create form
-- **WHEN** user clicks Create on the list page
-- **THEN** the system opens the Create/Edit modal with empty fields and Cancel + Save footer actions
+#### 场景：打开新建表单
+- 当用户在列表页点击 Create 时，则系统打开字段为空且底栏为 Cancel + Save 的 Create/Edit 弹框。
 
-#### Scenario: Optional parent consent upload
-- **WHEN** user uploads a parent consent file in Create/Edit
-- **THEN** the system stores the parent file metadata on the template record
+#### 场景：可选家长同意书上传
+- 当用户在 Create/Edit 中上传家长同意书文件时，则系统将家长文件元数据存储在模板记录上。
 
-#### Scenario: Required student consent upload
-- **WHEN** user submits Create/Edit without a student consent file
-- **THEN** the system prevents save and shows validation feedback
+#### 场景：必填学生同意书上传
+- 当用户在未上传学生同意书文件的情况下提交 Create/Edit 时，则系统阻止保存并显示校验反馈。
 
-#### Scenario: Duplicate movement type and student type
-- **WHEN** user creates or edits a template that would duplicate the same applicable movement type and Student Type pair
-- **THEN** the system prevents save and shows a validation message
+#### 场景：重复的异动类型与学生类型
+- 当用户创建或编辑会导致相同适用异动类型与 Student Type 组合重复的模板时，则系统阻止保存并显示校验消息。
 
-#### Scenario: Education level required on create or edit
-- **WHEN** user opens Create or Edit for a consent form template
-- **THEN** the form includes a required Education Level dropdown with options Foundation, Undergraduate, and Postgraduate
-- **AND** the UI displays Chinese labels 预科, 本科, and 研究生 when the locale is Chinese
+#### 场景：新建或编辑时学历层次必填
+- 当用户打开同意书模板的 Create 或 Edit 时，则表单包含必填 Education Level 下拉（Foundation、Undergraduate、Postgraduate），且 locale 为中文时 UI 显示预科、本科、研究生。
 
-#### Scenario: Unique movement type student type and education level
-- **WHEN** user saves a template that duplicates the same applicable movement type, Student Type, and Education Level combination
-- **THEN** the system prevents save and shows a validation message
+#### 场景：异动类型、学生类型与学历层次唯一
+- 当用户保存会重复相同适用异动类型、Student Type 与 Education Level 组合的模板时，则系统阻止保存并显示校验消息。
 
-#### Scenario: Preview uploaded consent files in form
-- **WHEN** user uploads a student or parent consent file in Create/Edit
-- **THEN** the system shows the file name with an eye icon for online preview next to each uploaded file name
+#### 场景：在表单中预览已上传同意书文件
+- 当用户在 Create/Edit 中上传学生或家长同意书文件时，则系统在每个已上传文件名旁显示用于在线预览的眼图标。
 
-### Requirement: View consent form template
-The system SHALL provide a View action that opens a read-only modal showing all template fields and uploaded file names.
+### 需求：查看同意书模板
+系统应提供 View 操作，打开只读弹框展示全部模板字段与已上传文件名。
 
-#### Scenario: Open view modal
-- **WHEN** user clicks View on a list row
-- **THEN** the system opens a read-only modal with form name, movement type, Student Type, Education Level, remark, and file names
+#### 场景：打开查看弹框
+- 当用户点击列表行的 View 时，则系统打开只读弹框，展示表单名称、异动类型、Student Type、Education Level、Remark 与文件名。
 
-#### Scenario: Mock download from view
-- **WHEN** user clicks a file name link in the View modal
-- **THEN** the system triggers a mock file download for that template file
+#### 场景：从查看弹框 mock 下载
+- 当用户在 View 弹框中点击文件名链接时，则系统触发该模板文件的 mock 下载。
 
-#### Scenario: Preview consent files in view modal
-- **WHEN** user clicks the eye icon next to a student or parent consent file name in the View modal
-- **THEN** the system opens the attachment preview modal for that template file
+#### 场景：在查看弹框中预览同意书文件
+- 当用户点击 View 弹框中学生或家长同意书文件名旁的预览眼图标时，则系统为该模板文件打开附件预览弹框。

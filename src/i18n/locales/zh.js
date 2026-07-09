@@ -43,6 +43,7 @@ export default {
     srMovementGroup: '学籍异动',
     srMovementCategory: '异动类别',
     srConsentForm: '知情同意书',
+    srMovementRules: '异动规则设置',
     srMovementApplication: '学籍异动申请',
     srMovementApplicationTeacher: '学籍异动申请（管理端）',
     srMovementApplicationStudent: '学籍异动申请（学生）',
@@ -139,6 +140,13 @@ export default {
       rejected: '已拒绝',
       updateRequired: '需修改',
       cancelled: '已取消',
+    },
+  },
+  approvalModal: {
+    action: {
+      approved: '通过',
+      rejected: '不通过',
+      updateRequired: '驳回',
     },
   },
   modal: {
@@ -242,6 +250,9 @@ export default {
     importFailedCount: '导入失败，共 {count} 行存在错误。',
     deleteOne: '确定要删除该学生档案吗？此操作无法撤销。',
     deleteMany: '确定要删除选中的 {count} 条学生档案吗？此操作无法撤销。',
+    previewAsStudent: '预览',
+    previewAsStudentHint: '以该学生账号登录系统，并跳转到学籍异动申请（学生端）。',
+    exportStudentCard: '导出学籍卡',
     form: {
       createTitle: '新生注册',
       editTitle: '编辑学生档案',
@@ -252,6 +263,9 @@ export default {
       nationalityChangeConfirm: '修改国籍将变更学生类别并清空不兼容的证件字段，是否继续？',
       nationalityRequired: '请选择国籍。',
       nationalityHint: '选择国籍后将自动带出学生类别；保存前可随时修改，下方字段会随之更新。',
+      studentPassExpiryHint:
+        '由 IO（国际学生办公室）维护，学籍侧只读展示；仅 China / International 类别学生有此字段，Local 学生不适用。',
+      outstandingFeeHint: '由财务系统维护，学籍侧只读展示，不允许编辑。',
     },
     tabs: {
       basicInfo: '基本信息',
@@ -275,6 +289,11 @@ export default {
       inactive: '非在读',
       deferred: '休学',
       withdrawn: '退学',
+      graduated: '毕业',
+    },
+    search: {
+      keywordLabel: '学号 | 姓名 | 中文名 | NRIC | 电话：',
+      keywordPlaceholder: '按学号、姓名、NRIC 或电话搜索',
     },
   },
   programmeTransfer: {
@@ -312,7 +331,7 @@ export default {
       saveDraft: '保存草稿',
       submit: '提交',
       resubmit: '再次提交',
-      cancelApplication: '撤销申请',
+      cancelApplication: '撤销',
     },
     notes: {
       title: '说明',
@@ -320,12 +339,22 @@ export default {
       item2: '提交前请先与现任院长/系主任/专业负责人沟通。',
       item3: '提交前请了解学费、学分转换及学习年限等相关政策。',
     },
+    internationalRemarks: {
+      title: '国际学生须知：',
+      intro:
+        '国际学生办公室（IO）可能需协助办理与学生签证相关的行政手续；提交转专业申请前请预留充足时间。',
+      bullet1: '请至少提前 14 个工作日向 IO 咨询签证与学籍衔接要求。',
+      bullet2: '如有疑问，请携带护照至 B1#104 国际学生办公室咨询。',
+      attentionTitle: '注意！',
+      attention: '转专业获批后，请及时与 IO 确认签证及入境相关安排。',
+    },
     sections: {
-      studentDetails: 'SECTION I : STUDENT DETAILS',
-      transferInfo: 'SECTION II : PROGRAMME TRANSFER INFORMATION',
-      declaration: 'SECTION III : DECLARATION BY THE STUDENT',
-      documents: 'SECTION IV : SUPPORTING DOCUMENTS',
-      officeUse: 'SECTION VII : FOR ACADEMIC AFFAIRS OFFICE USE ONLY',
+      studentDetails: 'SECTION I : 学生信息',
+      studentApplication: 'SECTION II : 学生申请',
+      transferInfo: 'SECTION II : 学生申请',
+      documents: 'SECTION IV : 支持性文件',
+      declaration: 'SECTION V : 学生声明',
+      officeUse: 'SECTION VII : 仅供教务办使用',
     },
     fields: {
       studentId: 'Student ID',
@@ -335,6 +364,7 @@ export default {
       email: 'Email',
       contactNo: 'Contact No.',
       visaExpiry: 'Student Visa Expiry Date',
+      dateOfApplication: '申请日期',
       currentProgramme: 'Current Programme',
       currentIntake: 'Current Intake',
       currentSchool: 'Current School',
@@ -349,16 +379,23 @@ export default {
       noFileSelected: 'No file selected',
       attachmentHint: 'Supported formats: PDF, JPG, PNG, DOCX. Max size: 5MB.',
       downloadConsent: 'Download Consent Letter',
+      consentLetter: 'Letter of Consent for Programme Transfer',
       adminNewProgramme: 'New Programme',
       adminNewIntake: 'New Intake',
       adminDate: 'Date',
+      adminApprovalDate: '审批日期',
       selectStudent: 'Select Student',
       selectProgramme: 'Select Programme',
       selectIntake: 'Select Intake',
     },
     declaration: {
-      item1: 'I hereby undertake that I am fully aware of and will be bound by the Xiamen University Malaysia rules and regulations for this application.',
-      item2: 'I declare that all the information provided in support of my application is correct and complete.',
+      rulesUndertake:
+        '本人特此承诺，已充分了解并将遵守厦门大学马来西亚分校与本申请相关的各项规章制度。',
+      visaCancellation:
+        '本人知悉并同意，转专业申请获批后，本人当前专业所对应的学生签证将被注销；本人承诺遵守与新专业学生签证申请相关的全部移民规定与指引。',
+      item1:
+        '本人特此承诺，已充分了解并将遵守厦门大学马来西亚分校与本申请相关的各项规章制度。',
+      item2: '我声明，为支持我的申请而提供的所有信息均真实且完整。',
     },
     form: {
       createTitle: 'PROGRAMME TRANSFER APPLICATION',
@@ -410,11 +447,27 @@ export default {
       cancelApplication: '撤销',
       close: '关闭',
     },
+    notes: {
+      title: '说明',
+      item1: '提交休学申请前，请先与学院院长/系主任/专业负责人沟通。',
+      item2: '请了解休学期间学费、住宿及学分修读相关政策。',
+      item3: '休学申请获批后，须按学校规定办理离校及后续复学手续。',
+    },
+    internationalRemarks: {
+      title: '国际学生须知：',
+      intro:
+        '国际学生办公室（IO）可能需协助办理与学生签证相关的行政手续；休学离校前请预留充足时间。',
+      bullet1: '请至少提前 14 个工作日向 IO 咨询签证与离校要求。',
+      bullet2: '如需协助，请携带护照至 B1#104 国际学生办公室咨询。',
+      attentionTitle: '注意！',
+      attention: '休学期间请保持与 IO 及所在专业 AC 的邮件沟通。',
+    },
     sections: {
       studentInfo: 'SECTION I : 学生信息',
       studentApplication: 'SECTION II : 学生申请',
       parentConsent: 'SECTION III : 家长/监护人确认与同意',
-      documents: '支持性文件',
+      documents: 'SECTION IV : 支持性文件',
+      declaration: 'SECTION V : 学生声明',
     },
     fields: {
       selectStudent: '选择学生',
@@ -428,7 +481,11 @@ export default {
       personalEmail: '个人邮箱',
       phoneNumber: '联系电话',
       accommodationRoomNo: '宿舍房间号',
-      defermentPeriod: '休学期间（YYYY/MM）',
+      defermentPeriod: '休学期间（学年学期）',
+      defermentPeriodHint:
+        '下拉数据允许选择当前申请日期之前（休学补回）和之后的休学学期。',
+      defermentStartDate: '休学开始日期',
+      defermentEndDate: '休学结束日期',
       mainReason: '休学主要原因',
       detailedReason: '详细原因',
       parentGuardianName: '家长/监护人姓名',
@@ -441,6 +498,7 @@ export default {
       noFileSelected: '未选择文件',
       attachmentHint: '支持格式：PDF、JPG、PNG、DOCX。最大 5MB。',
       downloadConsent: '下载同意书',
+      consentLetter: '休学同意书',
     },
     mainReasons: {
       personalReason: '个人原因',
@@ -498,10 +556,27 @@ export default {
       cancelApplication: '撤销',
       close: '关闭',
     },
+    notes: {
+      title: '说明',
+      item1: '仅处于休学（Deferred）学籍状态的学生可提交复学申请。',
+      item2: '复学名额取决于课程容量及是否结清所有欠费。',
+      item3: '提交前请准备所需支持性文件（如医疗证明、付款凭证等）。',
+    },
+    internationalRemarks: {
+      title: '国际学生须知：',
+      intro:
+        '国际学生办公室（IO）可能需协助确认复学后的签证与入境安排；请提前咨询。',
+      bullet1: '请至少提前 14 个工作日向 IO 了解复学相关签证要求。',
+      bullet2: '如有疑问，请携带护照至 B1#104 国际学生办公室咨询。',
+      attentionTitle: '注意！',
+      attention: '复学获批后，请及时与 IO 确认签证及入境相关安排。',
+    },
     sections: {
       studentInfo: 'SECTION I : 学生信息',
-      resumptionDetails: 'SECTION II : 复学详情',
-      documents: '支持性文件',
+      studentApplication: 'SECTION II : 学生申请',
+      resumptionDetails: 'SECTION II : 学生申请',
+      documents: 'SECTION IV : 支持性文件',
+      declaration: 'SECTION V : 学生声明',
     },
     fields: {
       selectStudent: '选择学生',
@@ -514,13 +589,14 @@ export default {
       programmeLevel: '专业层次',
       personalEmail: '个人邮箱',
       phoneNumber: '联系电话',
-      defermentSemester: '休学学期',
-      resumptionSemester: '复学学期',
+      defermentSemester: '休学期间（学年学期）',
+      resumptionSemester: '复学学年学期',
       uploadAttachment: '上传附件（如：医疗证明、付款凭证）',
       selectFile: '选择文件',
       noFileSelected: '未选择文件',
       attachmentHint: '支持格式：PDF、JPG、PNG、DOCX。最大 5MB。',
       downloadConsent: '下载同意书',
+      consentLetter: '复学同意书',
     },
     declaration: {
       correct: '我声明，为支持我的申请而提供的所有信息均真实且完整。',
@@ -580,11 +656,36 @@ export default {
       cancelApplication: '撤销',
       close: '关闭',
     },
+    notes: {
+      title: '申请人须知：',
+      item1:
+        '只有在各部门完成并批准本表申请程序后，才会正式办理从厦门大学马来西亚分校退学手续。',
+      item2:
+        '请查看下方退学同意书链接，下载、填写并作为附件与本申请表一并提交。',
+      item3:
+        '信息技术与图书馆：学生须归还学生卡、图书及属于学校的财物；遗失或损坏须承担赔偿费用。',
+      item4:
+        '财务处：批准退学前须结清所有官方费用；新学期前两周内未缴费将收取50%学费，之后收取100%。详见学生手册。',
+      item5:
+        '住宿处：学生须按规定办理退宿、结清损坏赔偿（如适用）及终止勤工助学（如适用）等手续。',
+      item6: '各部门可能通过邮件联系学生；请每日查收邮件以确保退学流程顺利进行。',
+    },
+    internationalRemarks: {
+      title: '国际学生须知：',
+      intro:
+        '国际学生办公室（IO）需收取国际学生护照以注销签证，并签发离境所需的 Check-Out Memo，以便学生依法离开马来西亚。',
+      bullet1: '学生须提前申请（至少于退学日期前 14 个工作日）。',
+      bullet2: '学生须提交护照及机票以办理签证注销。',
+      attentionTitle: '注意！',
+      attention:
+        '请根据 IO 工作人员提供的日期预订并提交返回原籍国的机票。如需更多信息，请前往 B1#104 办公室咨询。',
+    },
     sections: {
       studentInfo: 'SECTION I : 学生信息',
       studentApplication: 'SECTION II : 学生申请',
       parentConsent: 'SECTION III : 家长/监护人确认与同意',
-      documents: '支持性文件',
+      documents: 'SECTION IV : 支持性文件',
+      declaration: 'SECTION V : 学生声明',
     },
     fields: {
       selectStudent: '选择学生',
@@ -601,6 +702,7 @@ export default {
       destinationAfterLeaving: '离校去向',
       mainReason: '主要退学原因',
       currentWhereabout: '目前所在地',
+      selectCurrentWhereabout: '请选择目前所在地',
       detailedReason: '详细原因',
       parentGuardianName: '家长/监护人姓名',
       parentContactNo: '联系电话',
@@ -612,6 +714,7 @@ export default {
       noFileSelected: '未选择文件',
       attachmentHint: '支持格式：PDF、JPG、PNG、DOCX。最大 5MB。',
       downloadConsent: '下载同意书',
+      consentLetter: '退学同意书',
     },
     mainReasons: {
       financialProblem: '经济困难',
@@ -641,6 +744,32 @@ export default {
     deleteOne: '确定要删除该草稿申请吗？此操作无法撤销。',
     cancelOne: '确定要撤销该申请吗？撤销后将归档且不可编辑。',
     consentLetterHint: '同意书模板下载尚未对接后端文件。',
+  },
+  movementRules: {
+    columns: {
+      ruleName: '规则名称',
+      ruleValue: '规则值',
+      enabled: '是否启用',
+    },
+    validation: {
+      invalidValue: '规则值须为非负整数。',
+      booleanValue: '该规则值仅允许 0 或 1。',
+      notFound: '规则不存在。',
+    },
+    items: {
+      MR001: {
+        name: 'Local 学生，本学期申请本学期转专业（长学期）：须在学期第 {value} 周内提交。超过该时限，系统仅显示转入下学期的选项。',
+      },
+      MR002: {
+        name: 'Local 学生，本学期申请本学期转专业（短学期）：须在学期第 {value} 周内提交。超过该时限，系统仅显示转入下学期的选项。',
+      },
+      MR003: {
+        name: '国际学生转专业（签证办理约需 2–3 个月）：距下学期开学前少于 {value} 个月时，仅可选择下下学期。',
+      },
+      MR004: {
+        name: '中国学生转专业：须在固定申请时段内提交；逾期将提示不受理。规则值 {value} 表示逾期是否仍允许提交（1=是，0=否）。',
+      },
+    },
   },
   movementCategory: {
     setReason: '设置原因',
@@ -682,8 +811,16 @@ export default {
       editTitle: '编辑原因',
       nameLabel: '原因名称',
       nameColumn: '原因名称',
+      allowStudentApply: '是否允许学生申请',
+      applicablePersonnelCategory: '适用人员类别',
       nameRequired: '原因名称为必填项',
+      personnelRequired: '请选择适用人员类别',
       deleteConfirm: '确定要删除选中的 {count} 条原因吗？',
+      personnel: {
+        All: '全部',
+        Teacher: '老师',
+        Student: '学生',
+      },
     },
     studentType: {
       Local: '本地',
@@ -736,6 +873,7 @@ export default {
       movementType: '适用异动类别',
       studentType: 'Student Type',
       programmeLevel: '专业层级',
+      applicableStudentScope: '适用学生范围',
       studyDuration: '修读时长',
       remark: 'Remark',
     },
@@ -744,6 +882,7 @@ export default {
       movementType: '适用异动类别',
       studentType: 'Student Type',
       programmeLevel: '专业层级',
+      applicableStudentScope: '适用学生范围',
       studyDurationRule: '修读时长',
       remark: 'Remark',
       effectiveAcademicSession: '生效学年学期',
@@ -775,6 +914,10 @@ export default {
       Undergraduate: '本科',
       Postgraduate: '研究生',
     },
+    applicableStudentScope: {
+      firstYear: '第一年',
+      secondYearAndAbove: '第二年及以上',
+    },
     versionHistory: {
       action: '历史版本',
       title: '知情同意书历史版本',
@@ -788,8 +931,8 @@ export default {
       notApplied: '未应用',
     },
     versionSnapshot: {
-      action: '版本快照',
-      title: '知情同意书版本快照',
+      action: '版本记录',
+      title: '知情同意书版本记录',
       addVersion: '新增版本',
       createVersionTitle: '新增版本',
       academicSession: '生效学年学期',
@@ -800,7 +943,7 @@ export default {
       applied: '已应用',
       notApplied: '未应用',
       applyImmediately: '是否立即应用',
-      deleteOne: '确定要删除该版本快照吗？此操作无法撤销。',
+      deleteOne: '确定要删除该版本记录吗？此操作无法撤销。',
     },
     studyDurationRule: {
       none: '不限',
@@ -848,6 +991,22 @@ export default {
       iep: 'IEP',
     },
   },
+  movementList: {
+    search: {
+      studentId: '学号',
+      studentName: '学生姓名',
+      movementCategory: '异动类别',
+      effectiveSession: '生效学期',
+      effectiveDate: '生效日期',
+      approvalStatus: '审批状态',
+      nationality: '国籍',
+      studentCategory: '国籍类别',
+    },
+    columns: {
+      nationality: '国籍',
+      studentCategory: '国籍类别',
+    },
+  },
   movementMaintenance: {
     implement: '实施',
     modifyMovementNumber: '修改异动编号',
@@ -859,12 +1018,17 @@ export default {
     implementNoneEligible: '所选记录中没有待实施项。',
     editTitle: '编辑异动维护',
     numberModalTitle: '修改异动编号',
+    editArchiveNumber: '修改文号',
+    archiveNumberPlaceholder: '请输入文号',
+    archiveNumberHint: '1–100 个字符，仅支持英文字母与数字。',
+    archiveNumberInvalid: '文号须为 1–100 个英文字母或数字。',
     search: {
       academicSession: '学年学期',
       programmeCode: '专业代码',
     },
     columns: {
       movementDate: '异动日期',
+      effectiveDate: '生效日期',
       passportIc: 'Passport Number / IC',
       studentType: 'Student Type',
       intake: 'Intake',
@@ -877,6 +1041,7 @@ export default {
       cgpa: 'CGPA',
       expectedGraduationTime: 'Expected Graduation Time',
       movementNumber: '异动编号',
+      archiveNumber: '文号',
       remark: 'Remark',
     },
     fields: {
@@ -901,7 +1066,60 @@ export default {
   movementCommon: {
     fields: {
       applicationAcademicSession: '申请学年学期',
+      currentAcademicSession: '目前所在学期',
+      visaExpiry: 'Student Visa Expiry Date',
+      personalEmail: '个人邮箱',
+      phoneNumber: '电话号码',
+      accommodationRoomNo: '住宿房间号',
     },
+    declaration: {
+      correct: '我声明，为支持我的申请而提供的所有信息均真实且完整。',
+      maxStudyDuration:
+        '我知悉，学生必须在 XMUM 规定的最长修读年限内完成毕业所需的学分。XMUM 的最长修读年限不得超过 6 年（五年制课程为 7 年），包括任何休学期间。',
+    },
+  },
+  movementDocuments: {
+    selectFile: '选择文件',
+    noFileSelected: '未选择文件',
+    fields: {
+      flightTickets: 'Flight Tickets (International Students)',
+      medicalRecovery: 'Medical Recovery Supporting Documents (Optional)',
+    },
+  },
+  movementExport: {
+    exportPdf: '导出 PDF',
+    previewPdf: '预览 PDF',
+    previewPdfTitle: 'PDF 预览',
+    downloadPdf: '下载 PDF',
+    generatingPdf: '正在生成 PDF…',
+    previewPdfError: 'PDF 生成失败，请稍后重试。',
+    exportAttachment: 'Export',
+    approvalLogTitle: 'Approval Log',
+    approvalLog: {
+      description: 'Description',
+      actionBy: 'Action By',
+      actionByRole: 'Action By Role',
+      createdAt: 'Created At',
+    },
+  },
+  movementAdminCancel: {
+    action: '撤销',
+    tooltipTitle: '撤销说明',
+    tooltipApprovalHistoryItem1:
+      'AC 在「学籍异动审批」历史 Tab 列表对 In Progress（进行中/审批中）申请执行撤销。',
+    tooltipItem2:
+      '确认撤销后，申请流程被终止结束，通知流程的各个部门该流程已终止。',
+    confirmTitle: '确认撤销',
+    confirmMessage: '确定要撤销该申请吗？撤销后将归档且不可再编辑或重新提交。',
+  },
+  movementStudentCancel: {
+    action: '取消',
+    tooltipTitle: '取消说明',
+    tooltipItem1: '审批开始前，学生可自行取消尚未进入审核流程的申请。',
+    tooltipItem2: '此为「取消」，与 AC 在审批历史 Tab 执行的「撤销」不是同一操作。',
+    tooltipItem3: '若申请已进入审核或需由教务终止，请联系 AC，由管理人员在学籍异动审批历史 Tab 撤销。',
+    confirmTitle: '确认取消',
+    confirmMessage: '确定要取消该申请吗？取消后将归档且不可再编辑或重新提交。',
   },
   movementApproval: {
     currentRole: '当前审批角色',
@@ -926,7 +1144,15 @@ export default {
       effectiveSession: '生效学期',
       movementCategory: '异动类别',
       movementReason: '异动原因',
+      applicationSequence: '申请次序',
+      lastActionTime: '最近审核时间',
       applicationDate: '申请日期',
+    },
+    columnHints: {
+      applicationSequence:
+        '表示该学生在相同异动类型下第几次提交申请，按提交时间先后从 1 开始累计，不含草稿。',
+      lastActionTime:
+        '表示该申请最近一次审批操作（通过/不通过/需修改）的时间，格式与审批日志 Created At 一致；尚未发生审批操作时显示 —。',
     },
     search: {
       academicSession: '学年学期',

@@ -1,189 +1,161 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Consent form list page
-The system SHALL display a paginated informed consent form configuration table under the Informed Consent Form menu with columns: selection checkbox, serial number, form name, applicable movement type, Student Type, Education Level, remark, and Actions including Edit, View, and Version History.
+### 需求：知情同意书列表页
+系统应在「知情同意书」菜单下展示分页的知情同意书配置表格，列包括：选择复选框、序号、表单名称、适用异动类型、Student Type、Education Level、备注，以及含「编辑」「查看」「版本历史」的操作列。
 
-#### Scenario: Initial list with seed data
-- **WHEN** user opens Informed Consent Form for the first time
-- **THEN** the system displays pre-seeded template rows covering multiple movement types and Student Types
+#### 场景：首次打开列表展示种子数据
+- 当用户首次打开「知情同意书」页面时，则系统展示预置模板行，覆盖多种异动类型与 Student Type
 
-#### Scenario: Search filters list
-- **WHEN** user filters by applicable movement type, form name, Student Type, or Education Level and clicks Search
-- **THEN** the list shows only matching rows and resets to page 1
+#### 场景：搜索筛选列表
+- 当用户按适用异动类型、表单名称、Student Type 或 Education Level 筛选并点击「查询」时，则列表仅显示匹配行并重置到第 1 页
 
-#### Scenario: Reset search
-- **WHEN** user clicks Reset
-- **THEN** all search fields clear and the full list is restored
+#### 场景：重置搜索
+- 当用户点击「重置」时，则所有搜索字段清空并恢复完整列表
 
-### Requirement: Create and edit consent form templates
-The system SHALL provide a Create/Edit modal to maintain consent form templates with required form name, applicable movement type, Student Type, and student consent file upload.
+### 需求：新建与编辑同意书模板
+系统应提供 Create/Edit 弹框维护同意书模板，含必填表单名称、适用异动类型、Student Type 及学生同意书文件上传。
 
-#### Scenario: Open create form
-- **WHEN** user clicks Create on the list page
-- **THEN** the system opens the Create/Edit modal with empty fields and Cancel + Save footer actions
+#### 场景：打开新建表单
+- 当用户在列表页点击 Create 时，则系统打开字段为空且底栏为 Cancel + Save 的 Create/Edit 弹框
 
-#### Scenario: Optional parent consent upload
-- **WHEN** user uploads a parent consent file in Create/Edit
-- **THEN** the system stores the parent file metadata on the template record
+#### 场景：可选家长同意书上传
+- 当用户在 Create/Edit 中上传家长同意书文件时，则系统将家长文件元数据存储在模板记录上
 
-#### Scenario: Required student consent upload
-- **WHEN** user submits Create/Edit without a student consent file
-- **THEN** the system prevents save and shows validation feedback
+#### 场景：必填学生同意书上传
+- 当用户在未上传学生同意书文件的情况下提交 Create/Edit 时，则系统阻止保存并显示校验反馈
 
-#### Scenario: Duplicate movement type and student type
-- **WHEN** user creates or edits a template that would duplicate the same applicable movement type and Student Type pair
-- **THEN** the system prevents save and shows a validation message
+#### 场景：重复的异动类型与学生类型
+- 当用户创建或编辑会导致相同适用异动类型与 Student Type 组合重复的模板时，则系统阻止保存并显示校验消息
 
-#### Scenario: Education level required on create or edit
-- **WHEN** user opens Create or Edit for a consent form template
-- **THEN** the form includes a required Education Level dropdown with options Foundation, Undergraduate, and Postgraduate
-- **AND** the UI displays Chinese labels 预科, 本科, and 研究生 when the locale is Chinese
+#### 场景：新建或编辑时学历层次必填
+- 当用户打开同意书模板的 Create 或 Edit 时，则表单包含必填 Education Level 下拉（Foundation、Undergraduate、Postgraduate）
+- 且 locale 为中文时 UI 显示预科、本科、研究生
 
-#### Scenario: Unique movement type student type and education level
-- **WHEN** user saves a template that duplicates the same applicable movement type, Student Type, and Education Level combination
-- **THEN** the system prevents save and shows a validation message
+#### 场景：异动类型、学生类型与学历层次唯一
+- 当用户保存会重复相同适用异动类型、Student Type 与 Education Level 组合的模板时，则系统阻止保存并显示校验消息
 
-### Requirement: Consent form version history by academic session
-The system SHALL provide a Version History action on each consent form list row that opens a modal listing version snapshots for the same movement type, Student Type, and Education Level grouped by academic session in YYYY/MM format aligned with intake sets and movement application session fields.
+### 需求：按学年学期维护的同意书版本历史
+系统应在每条知情同意书列表行提供「版本历史」操作，打开弹框列出同一异动类型、Student Type 与 Education Level 下按学年学期（YYYY/MM 格式，与 intake sets 及异动申请学年学期字段对齐）分组的版本快照。
 
-#### Scenario: Open version history from list row
-- **WHEN** user clicks Version History on a consent form list row
-- **THEN** the system opens a history modal scoped to that row's movement type, Student Type, and Education Level
-- **AND** the modal lists version entries with academic session, attachment summary, update time, and an Apply toggle
+#### 场景：从列表行打开版本历史
+- 当用户点击列表行的「版本历史」时，则系统打开限定于该行异动类型、Student Type 与 Education Level 的历史弹框
+- 且弹框列出含学年学期、附件摘要、更新时间与 Apply 开关的版本条目
 
-#### Scenario: Version belongs to academic session where maintained
-- **WHEN** user adds or edits a consent version for academic session 2025/04 in the history modal
-- **THEN** the system stores or updates a version entry under academicSession 2025/04 for that configuration row
+#### 场景：版本归属维护时的学年学期
+- 当用户在历史弹框中为学年学期 2025/04 新增或编辑同意书版本时，则系统在该配置行下以 academicSession 2025/04 存储或更新版本条目
 
-#### Scenario: One applied version per academic session
-- **WHEN** user turns Apply on for a version under academic session 2025/04
-- **THEN** the system sets isApplied true for that version
-- **AND** sets isApplied false for all other versions of the same configuration row under academic session 2025/04
+#### 场景：每个学年学期仅一个应用版本
+- 当用户为学年学期 2025/04 下的某版本开启 Apply 时，则系统将该版本 isApplied 设为 true
+- 且将同一配置行在学年学期 2025/04 下所有其他版本的 isApplied 设为 false
 
-#### Scenario: Edit list row updates defaults only
-- **WHEN** user clicks Edit on the consent form list and saves changes to attachments or remark
-- **THEN** the system updates the configuration row default fields only
-- **AND** does not automatically create or replace academic session version snapshots
+#### 场景：编辑列表行仅更新默认值
+- 当用户点击列表「编辑」并保存附件或备注变更时，则系统仅更新配置行默认字段
+- 且不会自动创建或替换学年学期版本快照
 
-### Requirement: Resolve applied consent template for movement applications
-The system SHALL resolve consent templates using movement type, student category, student programme level mapped to education level, and the application's academic session, returning the applied version snapshot for that session when one exists.
+### 需求：为异动申请解析已应用的同意书模板
+系统应使用异动类型、学生类别、映射至 Education Level 的学生项目层次及申请的学年学期解析同意书模板，若该学年学期存在已应用版本快照则返回该快照。
 
-#### Scenario: Match applied version by four dimensions
-- **WHEN** lookup is called with movement type deferment, student category Local, programme level Undergraduate, and academic session 2025/09
-- **AND** a configuration row exists for deferment, Local, and Undergraduate
-- **AND** a version under academic session 2025/09 has isApplied true
-- **THEN** the helper returns that applied version's file metadata
+#### 场景：按四个维度匹配已应用版本
+- 当 lookup 以异动类型 deferment、学生类别 Local、项目层次 Undergraduate 及学年学期 2025/09 调用时
+- 且存在 deferment、Local 与 Undergraduate 的配置行
+- 且学年学期 2025/09 下某版本 isApplied 为 true
+- 则 helper 返回该已应用版本的文件元数据
 
-#### Scenario: No applied version for session
-- **WHEN** lookup finds a configuration row but no applied version for the requested academic session
-- **THEN** the helper returns null
+#### 场景：该学年学期无已应用版本
+- 当 lookup 找到配置行但请求学年学期无已应用版本时，则 helper 返回 null
 
-#### Scenario: Download shows contact admin when unmatched
-- **WHEN** user clicks Download Consent Letter or Download Parent Consent Letter in a movement application form or detail attachment panel
-- **AND** lookup returns null
-- **THEN** the system shows the message that no matching consent form was found and the user should contact an administrator
-- **AND** does not download a file
+#### 场景：未匹配时下载提示联系管理员
+- 当用户在异动申请表单或详情附件面板点击 Download Consent Letter 或 Download Parent Consent Letter 时
+- 且 lookup 返回 null
+- 则系统显示未找到匹配同意书、请联系管理员的消息
+- 且不下载文件
 
-### Requirement: View consent form template
-The system SHALL provide a View action that opens a read-only modal showing all template fields and uploaded file names.
+### 需求：查看同意书模板
+系统应提供 View 操作，打开只读弹框展示全部模板字段与已上传文件名。
 
-#### Scenario: Open view modal
-- **WHEN** user clicks View on a list row
-- **THEN** the system opens a read-only modal with form name, movement type, Student Type, Education Level, remark, and file names
+#### 场景：打开查看弹框
+- 当用户点击列表行的 View 时，则系统打开只读弹框，展示表单名称、异动类型、Student Type、Education Level、备注与文件名
 
-#### Scenario: Mock download from view
-- **WHEN** user clicks a file name link in the View modal
-- **THEN** the system triggers a mock file download for that template file
+#### 场景：从查看弹框 mock 下载
+- 当用户在 View 弹框中点击文件名链接时，则系统触发该模板文件的 mock 下载
 
-### Requirement: Delete consent form templates
-The system SHALL support deleting one or more selected template rows with confirmation.
+### 需求：删除同意书模板
+系统应支持删除一条或多条所选模板行，并需确认。
 
-#### Scenario: Bulk delete
-- **WHEN** user selects rows and clicks Delete
-- **THEN** the system shows a confirmation dialog
-- **AND** confirmed deletion removes the selected rows from mock storage
+#### 场景：批量删除
+- 当用户选中行并点击 Delete 时，则系统显示确认对话框
+- 且确认后从 mock 存储中移除所选行
 
-### Requirement: Resolve consent template for movement applications
-The system SHALL expose a lookup helper that returns the applied consent form version snapshot matching a movement application type, the selected student's category, programme level mapped to education level, and the application's academic session.
+### 需求：为异动申请解析同意书模板
+系统应暴露 lookup helper，返回与异动申请类型、所选学生类别、映射至 Education Level 的项目层次及申请学年学期匹配的已应用同意书版本快照。
 
-#### Scenario: Match by movement type and student type
-- **WHEN** lookup is called with movement type programme-transfer and student category China
-- **THEN** the system resolves Student Type Chinese and continues matching education level and academic session
+#### 场景：按异动类型与学生类型匹配
+- 当 lookup 以异动类型 programme-transfer 与学生类别 China 调用时，则系统将 Student Type 解析为 Chinese 并继续匹配 Education Level 与学年学期
 
-#### Scenario: No template configured
-- **WHEN** lookup finds no configuration row or no applied version for the academic session
-- **THEN** the helper returns null
+#### 场景：未配置模板
+- 当 lookup 未找到配置行或该学年学期无已应用版本时，则 helper 返回 null
 
-## REMOVED Requirements
+## 移除需求
 
-### Requirement: Study duration eligibility for programme transfer
-**Reason**: Product defers study duration configuration and eligibility checks to a later phase.
-**Migration**: Remove study duration from consent form admin UI and programme transfer submit validation; template lookup and download unchanged.
+### 需求：转专业学制年限资格
+**原因**：产品将学制配置与资格校验延后至后续阶段。
+**迁移说明**：从同意书管理 UI 与转专业提交校验中移除学制；模板 lookup 与下载逻辑不变。
 
-### Requirement: Consent form page pagination
-The system SHALL paginate the consent form list using the same pagination pattern as other student-records list pages.
+### 需求：同意书列表分页
+系统应使用与其他 student-records 列表页相同的分页模式对同意书列表分页。
 
-#### Scenario: List pagination
-- **WHEN** more template rows exist than the page size
-- **THEN** the list shows pagination controls
+#### 场景：列表分页
+- 当模板行数超过每页大小时，则列表显示分页控件
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Consent form version history by academic session
-The system SHALL provide a Version History action that opens a **read-only** modal listing append-only version log entries for the configuration row, styled like the student profile Status Log table with a light green header. The history modal SHALL NOT provide controls to create, edit, upload, or delete version entries.
+### 需求：按学年学期维护的同意书版本历史
+系统应提供「版本历史」操作，打开**只读**弹框，列出配置行的仅追加版本日志条目，样式与学生档案 Status Log 表格一致、表头为浅绿色。历史弹框**不得**提供创建、编辑、上传或删除版本条目的控件。
 
-#### Scenario: Open read-only version history
-- **WHEN** user clicks Version History on a consent form list row
-- **THEN** the system opens a modal showing columns Academic Session, Changed By, Change Details, Updated At, and Apply
-- **AND** the Change Details column displays a bold remark title followed by one or more diff lines
+#### 场景：打开只读版本历史
+- 当用户点击列表行的「版本历史」时，则系统打开弹框，列包括 Academic Session、Changed By、Change Details、Updated At 与 Apply
+- 且 Change Details 列显示加粗备注标题及一行或多行 diff 内容
 
-#### Scenario: Save appends version log on create
-- **WHEN** user saves a new consent form template successfully
-- **THEN** the system appends a version log entry with remark title indicating new registration
-- **AND** sets academic session from the current date using resolveAcademicSessionFromDate
-- **AND** sets the new entry as the globally applied version for that configuration row
+#### 场景：新建保存时追加版本日志
+- 当用户成功保存新的同意书模板时，则系统追加备注标题表明新建的版本日志条目
+- 且使用 resolveAcademicSessionFromDate 根据当前日期设置学年学期
+- 且将该新条目设为该配置行的全局应用版本
 
-#### Scenario: Save appends version log on edit
-- **WHEN** user saves edits to an existing consent form template successfully
-- **THEN** the system appends a version log entry with remark title indicating an update and diff lines for changed fields such as attachment file names
-- **AND** sets the new entry as the globally applied version and clears isApplied on all other entries for that row
+#### 场景：编辑保存时追加版本日志
+- 当用户成功保存对已有同意书模板的编辑时，则系统追加备注标题表明更新的版本日志条目，并含附件文件名等变更字段的 diff 行
+- 且将新条目设为全局应用版本，并清除该行所有其他条目的 isApplied
 
-#### Scenario: One globally applied version per configuration row
-- **WHEN** user turns Apply on for a version log entry in the history modal
-- **THEN** the system sets isApplied true for that entry
-- **AND** sets isApplied false for every other version entry on the same configuration row regardless of academic session
+#### 场景：每条配置行仅一个全局应用版本
+- 当用户在历史弹框中为某版本日志条目开启 Apply 时，则系统将该条目 isApplied 设为 true
+- 且将同一配置行所有其他版本条目（不论学年学期）的 isApplied 设为 false
 
-#### Scenario: History modal excludes manual maintenance
-- **WHEN** user opens the version history modal
-- **THEN** the system does not show a form to add or edit version entries with file uploads
+#### 场景：历史弹框不含手动维护
+- 当用户打开版本历史弹框时，则系统不显示用于新增或编辑版本条目及文件上传的表单
 
-### Requirement: Resolve applied consent template for movement applications
-The system SHALL resolve consent templates using movement type, student category, and student programme level mapped to education level, returning the **globally applied** version snapshot on the matching configuration row. In this phase the application's academic session SHALL NOT be used for consent template matching.
+### 需求：为异动申请解析已应用的同意书模板
+系统应使用异动类型、学生类别及映射至 Education Level 的学生项目层次解析同意书模板，返回匹配配置行上的**全局应用**版本快照。本阶段**不得**使用申请的学年学期进行同意书模板匹配。
 
-#### Scenario: Match globally applied snapshot
-- **WHEN** lookup is called with movement type deferment, student category Local, and programme level Undergraduate
-- **AND** a configuration row exists for deferment, Local, and Undergraduate
-- **AND** exactly one version entry on that row has isApplied true
-- **THEN** the helper returns that version entry's student and parent file metadata
+#### 场景：匹配全局应用快照
+- 当 lookup 以异动类型 deferment、学生类别 Local 及项目层次 Undergraduate 调用时
+- 且存在 deferment、Local 与 Undergraduate 的配置行
+- 且该行恰好一个版本条目 isApplied 为 true
+- 则 helper 返回该版本条目的学生与家长文件元数据
 
-#### Scenario: No globally applied version
-- **WHEN** lookup finds a configuration row but no version entry with isApplied true
-- **THEN** the helper returns null
+#### 场景：无全局应用版本
+- 当 lookup 找到配置行但无 isApplied 为 true 的版本条目时，则 helper 返回 null
 
-#### Scenario: Download shows contact admin when unmatched
-- **WHEN** user clicks Download Consent Letter or Download Parent Consent Letter in a movement application form or detail attachment panel
-- **AND** lookup returns null
-- **THEN** the system shows the message that no matching consent form was found and the user should contact an administrator
-- **AND** does not download a file
+#### 场景：未匹配时下载提示联系管理员
+- 当用户在异动申请表单或详情附件面板点击 Download Consent Letter 或 Download Parent Consent Letter 时
+- 且 lookup 返回 null
+- 则系统显示未找到匹配同意书、请联系管理员的消息
+- 且不下载文件
 
-### Requirement: Resolve consent template for movement applications
-The system SHALL expose a lookup helper that returns the globally applied consent form version snapshot matching movement application type, student category, and programme level mapped to education level.
+### 需求：为异动申请解析同意书模板
+系统应暴露 lookup helper，返回与异动申请类型、学生类别及映射至 Education Level 的项目层次匹配的全局应用同意书版本快照。
 
-#### Scenario: Match by movement type student type and education level
-- **WHEN** lookup is called with movement type programme-transfer and student category China
-- **THEN** the system resolves Student Type Chinese and education level from programme level
-- **AND** returns the globally applied version snapshot when one exists
+#### 场景：按异动类型、Student Type 与 Education Level 匹配
+- 当 lookup 以异动类型 programme-transfer 与学生类别 China 调用时，则系统将 Student Type 解析为 Chinese 并从项目层次解析 Education Level
+- 且若存在全局应用版本快照则返回该快照
 
-#### Scenario: No template configured
-- **WHEN** lookup finds no configuration row or no globally applied version entry
-- **THEN** the helper returns null
+#### 场景：未配置模板
+- 当 lookup 未找到配置行或无全局应用版本条目时，则 helper 返回 null

@@ -1,18 +1,20 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
-import ApprovalTimeline from '../common/ApprovalTimeline.vue'
-import MovementDetailContent from './MovementDetailContent.vue'
+import MovementDetailExportBody from './MovementDetailExportBody.vue'
 import MovementApprovalModal from './MovementApprovalModal.vue'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { findInStore } from '../../data/movementStore.js'
-import { buildMovementTimelineNodes } from '../../utils/buildApprovalTimelineNodes.js'
 import {
   applyMovementDecision,
   canRecallMovement,
   recallMovementDecision,
+  validateApprovalForm,
 } from '../../data/movementApprovalEngine.js'
+import { resolveProgrammeTransferOfficeUseDefaults } from '../../data/programmeTransfers.js'
+import { exportMovementDetailPdf } from '../../utils/exportMovementDetailPdf.js'
+import { buildMovementFormPdfFilename } from '../../utils/movementExportNames.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -24,14 +26,18 @@ const props = defineProps({
   mode: { type: String, default: 'readonly' },
   currentRole: { type: String, default: '' },
   maskSensitiveFields: { type: Boolean, default: false },
+  enableExportPdf: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close', 'decided', 'recalled'])
 
-const { t } = useAppI18n()
+const { t, tr } = useAppI18n()
 
 const approvalModalVisible = ref(false)
 const recallConfirmVisible = ref(false)
+const exportContentRef = ref(null)
+const exportingPdf = ref(false)
+const officeUseFields = ref(resolveProgrammeTransferOfficeUseDefaults())
 
 const resolvedSourceKey = computed(() => props.queueItem?.sourceKey || props.sourceKey || '')
 const liveItem = computed(() => {
@@ -50,11 +56,17 @@ const drawerSubtitle = computed(() => {
   return [id, name].filter(Boolean).join(' · ')
 })
 
-const timelineNodes = computed(() =>
-  buildMovementTimelineNodes(liveItem.value, resolvedSourceKey.value),
+const showReviewAction = computed(() => props.mode === 'approve')
+
+const showOfficeUseEditable = computed(
+  () => resolvedSourceKey.value === 'programme-transfer' && showReviewAction.value,
 )
 
-const showReviewAction = computed(() => props.mode === 'approve')
+const showOfficeUseReadonly = computed(() => {
+  if (resolvedSourceKey.value !== 'programme-transfer') return false
+  if (props.mode === 'student' || showOfficeUseEditable.value) return false
+  return liveItem.value?.status === 'Approved'
+})
 
 const canRecall = computed(() =>
   props.mode === 'history' && props.queueItem
@@ -68,8 +80,19 @@ watch(
     if (!visible) {
       approvalModalVisible.value = false
       recallConfirmVisible.value = false
+      exportingPdf.value = false
     }
   },
+)
+
+watch(
+  () => [props.visible, liveItem.value?.id],
+  () => {
+    if (props.visible && liveItem.value) {
+      officeUseFields.value = resolveProgrammeTransferOfficeUseDefaults(liveItem.value)
+    }
+  },
+  { immediate: true },
 )
 
 function handleClose() {
@@ -82,12 +105,23 @@ function openApprovalModal() {
 
 function handleApprovalConfirm({ action, comment }) {
   if (!props.queueItem) return
+  const validationItem = {
+    ...liveItem.value,
+    sourceKey: resolvedSourceKey.value,
+    ...officeUseFields.value,
+  }
+  const errors = validateApprovalForm(action, comment, validationItem)
+  if (errors.adminNewProgramme) {
+    window.alert(tr(errors.adminNewProgramme))
+    return
+  }
   applyMovementDecision(
     resolvedSourceKey.value,
     liveItem.value,
     action,
     comment,
     props.currentRole,
+    officeUseFields.value,
   )
   approvalModalVisible.value = false
   emit('decided')
@@ -101,6 +135,17 @@ function confirmRecall() {
   emit('recalled')
   emit('close')
 }
+
+async function handleExportPdf() {
+  if (!exportContentRef.value || !liveItem.value) return
+  exportingPdf.value = true
+  try {
+    const filename = buildMovementFormPdfFilename(resolvedSourceKey.value, liveItem.value)
+    await exportMovementDetailPdf(exportContentRef.value, filename)
+  } finally {
+    exportingPdf.value = false
+  }
+}
 </script>
 
 <template>
@@ -110,15 +155,27 @@ function confirmRecall() {
     :subtitle="drawerSubtitle"
     @close="handleClose"
   >
-    <ApprovalTimeline :nodes="timelineNodes" />
-    <h3 class="detail-section-title">{{ t('common.details') }}</h3>
-    <MovementDetailContent
-      :source-key="resolvedSourceKey"
-      :item="liveItem"
-      :mask-sensitive-fields="maskSensitiveFields"
-    />
+    <div ref="exportContentRef">
+      <MovementDetailExportBody
+        :source-key="resolvedSourceKey"
+        :item="liveItem"
+        :mask-sensitive-fields="maskSensitiveFields"
+        :show-office-use-editable="showOfficeUseEditable"
+        :show-office-use-readonly="showOfficeUseReadonly"
+        v-model:office-use-fields="officeUseFields"
+      />
+    </div>
 
     <template #footer>
+      <button
+        v-if="enableExportPdf"
+        type="button"
+        class="btn btn-outline"
+        :disabled="exportingPdf"
+        @click="handleExportPdf"
+      >
+        {{ t('movementExport.exportPdf') }}
+      </button>
       <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.close') }}</button>
       <button v-if="canRecall" type="button" class="btn btn-outline" @click="recallConfirmVisible = true">
         {{ t('movementApproval.recall') }}
@@ -149,12 +206,9 @@ function confirmRecall() {
 </template>
 
 <style scoped>
-.detail-section-title {
-  margin: 0 0 12px;
-  padding-top: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #111827;
-  border-top: 1px solid #e5e7eb;
+.btn-outline {
+  background: #fff;
+  border: 1px solid #2563eb;
+  color: #2563eb;
 }
 </style>

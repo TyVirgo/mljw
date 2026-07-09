@@ -1,71 +1,71 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Portal displays Student Status Management card as available
-The system SHALL show the student records portal card without an "under development" badge.
+### 需求：门户展示可用的学籍管理卡片
+系统应展示学籍管理门户卡片，且不显示「建设中」徽章。
 
-#### Scenario: Chinese portal label
-- **WHEN** user views the Academic Portal with Chinese locale
-- **THEN** the student records card title displays「学籍管理」
+#### 场景：中文门户标签
+- **当** 用户以中文语言查看 Academic Portal
+- **则** 学籍管理卡片标题显示「学籍管理」
 
-#### Scenario: English portal label
-- **WHEN** user views the Academic Portal with English locale
-- **THEN** the student records card title displays "Student Status Management"
+#### 场景：英文门户标签
+- **当** 用户以英文语言查看 Academic Portal
+- **则** 学籍管理卡片标题显示 "Student Status Management"
 
-#### Scenario: Card is available
-- **WHEN** user views the student records card on the portal home
-- **THEN** the card does not show the under-development badge
+#### 场景：卡片可用
+- **当** 用户在门户首页查看学籍管理卡片
+- **则** 卡片不显示建设中徽章
 
-### Requirement: Portal opens Student Records Application shell
-The system SHALL navigate from the portal into a dedicated Student Records admin shell when the user clicks the student records card.
+### 需求：从门户打开 Student Records Application 壳层
+系统应支持用户点击学籍管理卡片后，从门户进入独立的 Student Records 管理壳层。
 
-#### Scenario: Open from portal
-- **WHEN** user clicks the student records card on the Academic Portal
-- **THEN** the system leaves the portal view and displays the Student Records Application layout with header, sidebar, breadcrumb, and main content area
+#### 场景：从门户打开
+- **当** 用户在 Academic Portal 点击学籍管理卡片
+- **则** 系统离开门户视图，展示 Student Records Application 布局（含顶栏、侧边栏、面包屑与主内容区）
 
-#### Scenario: Default landing page
-- **WHEN** user opens the Student Records Application from the portal
-- **THEN** the main content area displays the Student Profile list page
+#### 场景：默认落地页
+- **当** 用户从门户打开 Student Records Application
+- **则** 主内容区展示 Student Profile 列表页
 
-#### Scenario: Return to portal
-- **WHEN** user clicks "Back to Portal" in the Student Records Application header
-- **THEN** the system returns to the Academic Portal home screen
+#### 场景：返回门户
+- **当** 用户在 Student Records Application 顶栏点击「返回门户」
+- **则** 系统返回 Academic Portal 首页
 
-### Requirement: Student Records Application shows module title
-The system SHALL display the Student Records module name in the application header.
+### 需求：Student Records Application 展示模块标题
+系统应在应用顶栏展示 Student Records 模块名称。
 
-#### Scenario: Header module title
-- **WHEN** user is inside the Student Records Application
-- **THEN** the header title displays the localized Student Status Management module name (not Basic Data)
+#### 场景：顶栏模块标题
+- **当** 用户处于 Student Records Application 内
+- **则** 顶栏标题显示本地化的 Student Status Management 模块名（非 Basic Data）
 
-### Requirement: Student Records sidebar flat menu
-The system SHALL provide a flat sidebar menu matching the prototype with six top-level items.
+### 需求：Student Records 侧边栏扁平菜单
+系统应提供与原型一致的扁平侧边栏菜单，包含六个顶级菜单项。
 
-#### Scenario: Menu items listed
-- **WHEN** user opens the Student Records Application
-- **THEN** the sidebar lists Student Profile, Family Info, Programme Transfer, Deferment, Resumption, and Withdrawal in that order
+#### 场景：菜单项列表
+- **当** 用户打开 Student Records Application
+- **则** 侧边栏按顺序列出 Student Profile、Family Info、Programme Transfer、Deferment、Resumption、Withdrawal
 
-#### Scenario: Student Profile navigation
-- **WHEN** user selects Student Profile in the sidebar
-- **THEN** the system displays the Student Profile list page
+#### 场景：Student Profile 导航
+- **当** 用户在侧边栏选择 Student Profile
+- **则** 系统展示 Student Profile 列表页
 
-#### Scenario: Undeveloped menu page
-- **WHEN** user selects Family Info, Programme Transfer, Deferment, Resumption, or Withdrawal
-- **THEN** the system shows the in-app under-construction page with a back action to Student Profile
+#### 场景：未开发菜单页
+- **当** 用户选择 Family Info、Programme Transfer、Deferment、Resumption 或 Withdrawal
+- **则** 系统展示应用内建设中页，并提供返回 Student Profile 的操作
 
-### Requirement: Student Records app matches Basic Data shell styling
-The system SHALL reuse the same admin shell components and visual patterns as the Basic Data application.
+### 需求：Student Records 应用与 Basic Data 壳层样式一致
+系统应复用 Basic Data 应用的相同管理壳层组件与视觉模式。
 
-#### Scenario: Shared layout components
-- **WHEN** user is in the Student Records Application
-- **THEN** the layout uses the same HeaderBar, Sidebar, and PageBreadcrumb components as Basic Data with student-records menu configuration
+#### 场景：共享布局组件
+- **当** 用户处于 Student Records Application 内
+- **则** 布局使用与 Basic Data 相同的 `HeaderBar`、`Sidebar`、`PageBreadcrumb` 组件，并加载 student-records 菜单配置
 
-#### Scenario: Sidebar active state styling
-- **WHEN** user selects a menu item in the Student Records sidebar
-- **THEN** the active item uses the same highlight styling as Basic Data sidebar items
+#### 场景：侧边栏激活态样式
+- **当** 用户在 Student Records 侧边栏选择菜单项
+- **则** 激活项使用与 Basic Data 侧边栏项相同的高亮样式
 
-### Requirement: Student Records app is isolated from Basic Data menu
-The system SHALL NOT show Basic Data menu items when the user is in the Student Records Application.
+### 需求：Student Records 应用与 Basic Data 菜单隔离
+系统不得在 Student Records Application 中展示 Basic Data 菜单项。
 
-#### Scenario: Sidebar isolation
-- **WHEN** `appView` is student-records
-- **THEN** the sidebar renders only student-records menu items from `studentRecordsMenu.js`, not items from `menu.js`
+#### 场景：侧边栏隔离
+- **当** `appView` 为 `student-records`
+- **则** 侧边栏仅渲染 `studentRecordsMenu.js` 中的 student-records 菜单项，不渲染 `menu.js` 中的项

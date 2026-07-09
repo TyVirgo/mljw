@@ -1,26 +1,26 @@
-## Context
+## 背景说明
 
 学籍异动附件当前仅存 mock 元数据 `{ fileName, size }`；Form 上传时浏览器短暂持有 `File` 对象。`MovementAttachmentReadonly` 点击文件名触发 `common.attachmentPreviewHint` alert。知情同意书 View 仅支持 mock 下载。无全站统一预览组件。
 
 产品要求：附件旁 👁 在线预览；覆盖知情同意书、四 Tab 申请 Form、审批/维护/查询/详情只读附件区。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 公共 `AttachmentPreviewTrigger` + `AttachmentPreviewModal`
 - Mock 预览使种子数据可演示；刚上传文件可 blob 真预览
 - 文件名下载、小眼睛预览职责分离
 - 单点改造 `MovementAttachmentReadonly` 覆盖审批/维护/查询详情
 
-**Non-Goals:**
+**非目标：**
 
 - 后端 `/files/{id}/preview`
 - DOCX inline 渲染
 - 非学籍异动 / 非同意书模块
 - 版本历史 remark 文本行上的附件名
 
-## Decisions
+## 设计决策
 
 ### 1. 组件分层
 
@@ -118,7 +118,7 @@ attachmentPreview.mockNotice: 'Demo preview — file content is simulated.'
   en.js, zh.js
 ```
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -127,6 +127,6 @@ attachmentPreview.mockNotice: 'Demo preview — file content is simulated.'
 | iframe 跨域 | 仅用 blob: 同源 |
 | 多处重复 file-row | 优先抽 Trigger，Form 各 1 行改动 |
 
-## Migration
+## 迁移说明
 
 无数据迁移。`common.attachmentPreviewHint` 可保留给 truly unsupported 类型，或废弃改为 Modal 内文案。

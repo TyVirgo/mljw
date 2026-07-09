@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 Vue 3 + Vite 单页应用。Course Application 已实现申请端：Submit 后 status=`In Progress`、approvalStage=`HoD/HoP Review`。New Course Approval 是**审批端镜像**，菜单 id 为 `course-approval-process`，label **New Course Approval**。
 
@@ -20,22 +20,22 @@ Vue 3 + Vite 单页应用。Course Application 已实现申请端：Submit 后 s
                                            └──────────────────────┘
 ```
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 - 实现与原型一致的列表 + Approval 弹窗 UI
 - 数据源：Course Application 已提交单据（status ≠ Temporary saved，或专门 `submittedAt` 标记）
 - 支持三态审批动作及 approvalLog 追加
 - 终审通过后 mock 写入 `courses` 列表
 - Update Required 退回申请端草稿
 
-**Non-Goals:**
+**非目标：**
 - 真实角色权限、待办推送、会签/加签
 - 按登录用户过滤「仅我的节点」— 首版展示全部 mock 单据，弹窗标题展示**当前模拟节点**（如 HoD/HoP Review）
 - 常用意见维护后台（首版 **3–5 条静态模板**，见 Resolved）
 - Course Change Application / Review 模块
 
-## Decisions
+## 设计决策
 
 ### 1. 页面与路由
 
@@ -140,7 +140,7 @@ const STAGE_FLOW = {
 
 新增键：`Approval`、`Action`、`Comments`、`Common Comments`、`Update Required`、`Please fill in the following information before submitting (Current {stage})`、中文「审核」「请选择审核结果」「办理意见」「常用意见」「驳回」等。
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -149,15 +149,15 @@ const STAGE_FLOW = {
 | 无 RBAC 时所有单据可见 | 文档标注 demo；弹窗显示 mock 当前节点 |
 | 归档与 Course Information 列表分离 | 实现 shared courses state |
 
-## Migration Plan
+## 迁移说明
 
 纯前端新增。合并后验证菜单 **New Course Approval** 可访问、Submit 后单据出现在审批列表、Approved 后 Course Information 可见新课程。
 
-## Open Questions
+## 待定问题
 
 （无）
 
-## Resolved
+## 已确认
 
 - **Common Comments**（2026-06-02）：首版使用 **3–5 条静态模板**，点击填入 Comments 文本框；无维护后台。
 - **批量 Approval**（2026-06-02）：**支持批量审核**；所选记录须同一 approvalStage，Confirm 后统一 Action/Comments 逐条生效。

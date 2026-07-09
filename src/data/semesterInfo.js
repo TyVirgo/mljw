@@ -10,6 +10,28 @@ export const yesNoOptions = ['Yes', 'No']
 
 export const initialSemesterRecords = [
   {
+    id: 7,
+    academicYear: '2024',
+    semester: '02',
+    semesterType: 'Short',
+    startDate: '01/02/2024',
+    endDate: '15/03/2024',
+    currentSemester: 'No',
+    generateCalendar: 'No',
+    weekStartDay: 'Sunday',
+  },
+  {
+    id: 8,
+    academicYear: '2024',
+    semester: '09',
+    semesterType: 'Long',
+    startDate: '02/09/2024',
+    endDate: '15/06/2025',
+    currentSemester: 'No',
+    generateCalendar: 'No',
+    weekStartDay: 'Sunday',
+  },
+  {
     id: 1,
     academicYear: '2025',
     semester: '02',

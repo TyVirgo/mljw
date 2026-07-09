@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 Vue 3 + Vite 单页应用。Course Info 下已有：
 - **Course Information** — 正式课库 CRUD + 详情四步（含 changeRecords）
@@ -27,9 +27,9 @@ Vue 3 + Vite 单页应用。Course Info 下已有：
 - Step 2 基础信息：与 Course Information 相同双列表单（Course Code 等只读或可编辑按字段规则）
 - Step 3/4：与 Course Application 的 CLO / SLT 一致
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 - 实现与原型一致的列表 + 四步向导 UI
 - 从 `courses` store 选择基线并深拷贝到申请单
 - 变更说明逐步标注 major/minor
@@ -39,13 +39,13 @@ Vue 3 + Vite 单页应用。Course Info 下已有：
 - Rejected 为**只读终态**，不可 Edit / 重提；需修改内容须新建变更申请
 - 终审回写由 **`applyApprovedChangeToCourse` helper** 实现；完整审批 UI 在 **Course Change Review** 后续模块
 
-**Non-Goals:**
+**非目标：**
 - **Course Change Review** 审批端完整实现（独立菜单 `course-change-review`，后续变更）
 - 真实工作流引擎、RBAC、附件
 - 按 major/minor 自动路由不同审批路径（首版仅存储标注，审批逻辑与 New Course 类似）
 - 同一课程并发多笔变更冲突检测（首版允许，文档标注）
 
-## Decisions
+## 设计决策
 
 ### 1. 页面与路由
 
@@ -203,7 +203,7 @@ Course Change Application 与 Course Information 共用 `courses` ref 以实现�
 
 新增：Change Description、Basic Information、Major Changes、Minor / No Changes、MAIN COMPONENTS、OTHER COMPONENTS、Credit Value、Teaching Methods、Course Content、Withdraw、变更说明、重大变更、无变更/轻微变更、撤回 等；菜单已有 `courseChangeApplication`。
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -212,15 +212,15 @@ Course Change Application 与 Course Information 共用 `courses` ref 以实现�
 | 回写与 Course Information 详情 changeRecords 不同步 | 共用 courses ref + buildCourseChangeLogs |
 | Step 1「Course Content」vs SLT 大纲语义重叠 | Step 1 仅标注变更类型；实际内容在 Step 4 SLT 编辑 |
 
-## Migration Plan
+## 迁移说明
 
 纯前端新增。合并后验证：菜单 Course Change Application 可访问、Create 选课带出数据、Save/Submit/Withdraw、Details 四步只读、mock 回写后 Course Information 可见更新。
 
-## Open Questions
+## 待定问题
 
 （无）
 
-## Resolved
+## 已确认
 
 - **Course Code 不可变更**（2026-06-02）：变更申请**不允许修改 Course Code**；Step 2 中 Course Code 只读，始终与基线课程一致；校验时 courseCode 须等于 baselineSnapshot.courseCode。
 - **Rejected 只读终态**（2026-06-02）：status = Rejected 的单据**不可 Edit、不可 Submit、不可 Withdraw**；仅 Details 与 Approval Log。退回可编辑草稿通过 **Withdraw**（In Progress → Temporary saved）实现；Rejected 与退回草稿为不同终态/路径。

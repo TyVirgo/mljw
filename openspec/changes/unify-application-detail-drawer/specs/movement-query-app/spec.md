@@ -1,18 +1,16 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Query list row actions are read-only
-The system SHALL provide only read-appropriate row actions on the movement query list. Details SHALL open the unified drawer combining approval timeline and application detail content.
+### 需求：查询列表行操作为只读
+系统应在异动查询列表上仅提供只读适用的行操作。「详情」应打开合并申请详情内容与审批日志表格的统一抽屉。
 
-#### Scenario: Query row actions
-- **WHEN** user views Actions on a movement query list row
-- **THEN** only Details is available for viewing application content and approval history
-- **AND** Approval Log is not a separate action
+#### 场景：查询行操作
+- **当** 用户查看异动查询列表行的 Actions
+- **则** 仅「详情」可用于查看申请内容与审批历史，且 Approval Log 不是独立操作
 
-#### Scenario: Query details in drawer with masking
-- **WHEN** user opens Details from movement query
-- **THEN** the drawer opens with timeline and read-only detail fields
-- **AND** sensitive passport or IC fields are masked in the detail section
+#### 场景：带脱敏的查询详情抽屉
+- **当** 用户从异动查询打开「详情」
+- **则** 抽屉先展示只读详情字段、再展示底部审批日志表格，且详情区敏感护照或 IC 字段脱敏
 
-#### Scenario: No full-page review from query
-- **WHEN** user opens Details from movement query
-- **THEN** the query list remains visible behind the drawer
+#### 场景：查询不进入整页审阅
+- **当** 用户从异动查询打开「详情」
+- **则** 查询列表在抽屉后方保持可见

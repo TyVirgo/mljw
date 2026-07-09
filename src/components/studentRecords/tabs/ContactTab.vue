@@ -1,5 +1,6 @@
 <script setup>
 import StudentFormField from '../StudentFormField.vue'
+import { getStudentProfileFieldLabelKey } from '../../../data/studentProfileFieldLabels.js'
 
 const props = defineProps({
   form: { type: Object, required: true },
@@ -15,7 +16,7 @@ function err(field) {
 
 <template>
   <div class="form-grid">
-    <StudentFormField label="Mobile Phone" required :read-only="readOnly" :error="err('mobilePhone')" :display-value="form.contact.mobilePhone">
+    <StudentFormField :label="getStudentProfileFieldLabelKey('mobilePhone')" required :read-only="readOnly" :error="err('mobilePhone')" :display-value="form.contact.mobilePhone">
       <input v-model="form.contact.mobilePhone" type="text" />
     </StudentFormField>
     <StudentFormField label="House Phone" :read-only="readOnly" :display-value="form.contact.housePhone">

@@ -1,34 +1,27 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Undeveloped movement and study plan pages
-The system SHALL show the in-app under-construction page for menu items that are not yet developed.
+### 需求：未开发的异动与培养方案页面
+系统应对尚未开发的菜单项展示应用内「建设中」页面。
 
-#### Scenario: Undeveloped movement submenu
-- **WHEN** user selects Status Change Maintenance, Status Change Inquiry, or Status Change Statistics
-- **THEN** the system shows the under-construction page with a back action to Student Basic Information
+#### 场景：未开发的异动子菜单
+- 当用户选择 Status Change Maintenance、Status Change Inquiry 或 Status Change Statistics 时，则系统展示带返回 Student Basic Information 操作的建设中页面。
 
-#### Scenario: Change category is developed
-- **WHEN** user selects Change Category in the sidebar
-- **THEN** the system displays the movement category configuration list page instead of the under-construction page
+#### 场景：异动类别已开发
+- 当用户在侧边栏选择 Change Category 时，则系统展示异动类别配置列表页，而非建设中页面。
 
-#### Scenario: Informed consent form is developed
-- **WHEN** user selects Informed Consent Form in the sidebar
-- **THEN** the system displays the consent form configuration list page instead of the under-construction page
+#### 场景：知情同意书已开发
+- 当用户在侧边栏选择 Informed Consent Form 时，则系统展示同意书配置列表页，而非建设中页面。
 
-#### Scenario: Undeveloped study plan submenu
-- **WHEN** user selects Personal Curriculum Plan
-- **THEN** the system shows the under-construction page with a back action to Student Basic Information
+#### 场景：未开发的培养方案子菜单
+- 当用户选择 Personal Curriculum Plan 时，则系统展示带返回 Student Basic Information 操作的建设中页面。
 
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Informed consent form registered as developed page
-The system SHALL register `sr-consent-form` as a developed student-records page alongside Student Basic Information, Change Category, Status Change Application, and Status Change Approval.
+### 需求：知情同意书注册为已开发页面
+系统应将 `sr-consent-form` 注册为与 Student Basic Information、Change Category、Status Change Application、Status Change Approval 并列的已开发学籍页面。
 
-#### Scenario: Sidebar navigation
-- **WHEN** user selects Informed Consent Form under Student Status Change
-- **THEN** the sidebar highlights Informed Consent Form
-- **AND** the main content renders ConsentFormView
+#### 场景：侧边栏导航
+- 当用户在 Student Status Change 下选择 Informed Consent Form 时，则侧边栏高亮 Informed Consent Form，且主内容区渲染 `ConsentFormView`。
 
-#### Scenario: Breadcrumb
-- **WHEN** user is on the Informed Consent Form page
-- **THEN** the breadcrumb displays the Student Status Change group label and the Informed Consent Form page label
+#### 场景：面包屑
+- 当用户位于 Informed Consent Form 页面时，则面包屑展示 Student Status Change 分组标签与 Informed Consent Form 页面标签。

@@ -1,12 +1,12 @@
-## Context
+## 背景说明
 
 `add-movement-category-config` 首版已实现 `MovementCategoryView` + 表单/原因 CRUD + 6 条 mock，且 **Non-goal** 为不读写申请 store。`add-movement-approval-app`、`add-movement-maintenance` 已落地：`Approved` 后默认 `implemented: 'Pending'`，维护页手动「实施」→ `Implemented`。
 
 产品图示1 要求弹框新增三个开关，并将类别配置作为**实施策略**供审批/维护消费。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 弹框新增 `modifyStudentStatus`、`modifyStudentType`、`autoImplement` 三个开关（默认 false）
 - 数据模型、normalize、Create/Edit 持久化三字段
@@ -16,14 +16,14 @@
 - 实施时按 modify 开关 mock 回写 `students.js`（轻量）
 - Mock 扩展至 **12 条**（补 WDR001、RES001 各 ×3）
 
-**Non-Goals:**
+**非目标：**
 
 - 申请四 Tab 表单改读类别/原因配置
 - 取消实施
 - 维护列表展示三开关列
 - 真实后端、vue-router
 
-## Decisions
+## 设计决策
 
 ### 1. 数据模型扩展 — `movementCategories.js`
 
@@ -115,7 +115,7 @@ updated.implemented = auto ? 'Implemented' : (updated.implemented || 'Pending')
 
 `movementCategory.fields.*` 含 `modifyStudentStatusHint`、`modifyStudentTypeHint`、`autoImplementHint`。
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -124,7 +124,7 @@ updated.implemented = auto ? 'Implemented' : (updated.implemented || 'Pending')
 | 学籍状态枚举不一致（类别 vs students） | mock 映射表写在 implementation helper |
 | 12 行列表分页 | 仍用现有分页，pageSize 10 |
 
-## Migration Plan
+## 迁移说明
 
 1. 扩展 `movementCategories.js` + 6 条新种子 + lookup
 2. 表单 Modal 三开关 + i18n
@@ -133,7 +133,7 @@ updated.implemented = auto ? 'Implemented' : (updated.implemented || 'Pending')
 5. 冒烟：RES Local 自动实施、WDR manual、维护列表均可见
 6. `npm run build`
 
-## Open Questions
+## 待决问题
 
 - modify 回写目标字段与类别 `studentStatus` 是否 1:1 映射：mock 阶段用简化映射表即可
 - 后续申请记录是否加 `categoryCode`：本期仍 sourceKey 硬映射
@@ -236,7 +236,7 @@ if (categoryConfig.modifyStudentType && categoryConfig.category) {
 - `MovementCategoryView`：删除 Student Type 列
 - `MovementCategoryReasonModal`：副标题 `code · name`（去掉 studentType）
 
-## Risks / Trade-offs（增量）
+## 风险与应对（增量）
 
 | 风险 | 缓解 |
 |------|------|
@@ -244,7 +244,7 @@ if (categoryConfig.modifyStudentType && categoryConfig.category) {
 | 旧 spec 与 12 行 seed 冲突 | 本 change spec delta MODIFIED/REMOVED |
 | modifyStudentType 档案字段缺失 | mock 用 enrollment.trackCategory |
 
-## Migration Plan（增量）
+## 迁移说明（增量）
 
 1. `movementCategories.js` 模型 + 4 seed + lookup + validate
 2. FormModal 布局重构
@@ -253,7 +253,7 @@ if (categoryConfig.modifyStudentType && categoryConfig.category) {
 5. 冒烟 + build
 6. 清 mock localStorage 或文档说明
 
-## Open Questions（增量）
+## 待决问题（增量）
 
 （均已确认）
 
@@ -322,7 +322,7 @@ if (categoryConfig.modifyStudentType && categoryConfig.category) {
 2. 视觉对照 Row1 与 Row2/3 标签列对齐
 3. `npm run build`
 
-## Risks / Trade-offs（§15）
+## 风险与应对（§15）
 
 | 风险 | 缓解 |
 |------|------|
@@ -366,7 +366,7 @@ if (categoryConfig.modifyStudentType && categoryConfig.category) {
 2. 视觉对照图示1
 3. `npm run build`
 
-## Risks / Trade-offs（§16）
+## 风险与应对（§16）
 
 | 风险 | 缓解 |
 |------|------|
@@ -429,7 +429,7 @@ fallback 保留至存量 seed 全部映射完成。
 4. movementApprovalQueue
 5. 冒烟 + build
 
-## Risks / Trade-offs（§17）
+## 风险与应对（§17）
 
 | 风险 | 缓解 |
 |------|------|
@@ -468,7 +468,7 @@ fallback 保留至存量 seed 全部映射完成。
 2. `MovementCategoryView.vue` + `MovementCategoryFormModal.vue`
 3. 冒烟：4 行 seed 可见；无新增/删除；Edit + Set Reason 可用；build 通过
 
-## Risks / Trade-offs（§19）
+## 风险与应对（§19）
 
 | 风险 | 缓解 |
 |------|------|
@@ -523,7 +523,7 @@ excludeGradedFromPreset: boolean  // §21: independent; no dependency on presetN
 3. PT001 seed 可预勾一项供演示
 4. 冒烟：DEF001 开关 ON 时学籍状态下拉 disabled；PT001 见选课区；build 通过
 
-## Risks / Trade-offs（§20）
+## 风险与应对（§20）
 
 | 风险 | 缓解 |
 |------|------|
@@ -571,7 +571,7 @@ watch(() => form.presetNewProgrammeBatchList, ...)
 2. `MovementCategoryFormModal.vue` — 移除 watch/disabled；CSS/markup 按 §31
 3. 冒烟：PT001 三项可任意勾选；标签与首项同行；字号一致；build 通过
 
-## Risks / Trade-offs（§21）
+## 风险与应对（§21）
 
 | 风险 | 缓解 |
 |------|------|
@@ -612,7 +612,7 @@ watch(() => form.presetNewProgrammeBatchList, ...)
 3. `movementCategories.js` — 非 PT seed 补三字段（可选）
 4. 冒烟：四类 Edit 均见选课区；DEF/WDR/RES 默认未勾选；build 通过
 
-## Risks / Trade-offs（§22）
+## 风险与应对（§22）
 
 | 风险 | 缓解 |
 |------|------|

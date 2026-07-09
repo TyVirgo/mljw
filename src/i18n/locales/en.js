@@ -43,6 +43,7 @@ export default {
     srMovementGroup: 'Student Status Change',
     srMovementCategory: 'Change Category',
     srConsentForm: 'Informed Consent Form',
+    srMovementRules: 'Movement Rule Settings',
     srMovementApplication: 'Status Change Application',
     srMovementApplicationTeacher: 'Status Change Application (Management)',
     srMovementApplicationStudent: 'Status Change Application (Student)',
@@ -139,6 +140,13 @@ export default {
       rejected: 'Rejected',
       updateRequired: 'Update Required',
       cancelled: 'Cancelled',
+    },
+  },
+  approvalModal: {
+    action: {
+      approved: 'Pass',
+      rejected: 'Not Pass',
+      updateRequired: 'Return',
     },
   },
   modal: {
@@ -244,6 +252,10 @@ export default {
     importFailedCount: 'Import failed. {count} row(s) had errors.',
     deleteOne: 'Are you sure you want to delete this student profile? This action cannot be undone.',
     deleteMany: 'Are you sure you want to delete {count} selected student profiles? This action cannot be undone.',
+    previewAsStudent: 'Preview',
+    previewAsStudentHint:
+      'Log in as this student and open Status Change Application (student portal).',
+    exportStudentCard: 'Export Student Card',
     form: {
       createTitle: 'New Student Registration',
       editTitle: 'Edit Student Profile',
@@ -256,6 +268,10 @@ export default {
       nationalityRequired: 'Nationality is required.',
       nationalityHint:
         'Student category is derived automatically. You can change nationality before saving and the form fields will update accordingly.',
+      studentPassExpiryHint:
+        'Maintained by IO (International Office) and read-only here. Applicable to China and International students only; not used for Local students.',
+      outstandingFeeHint:
+        'Maintained by Finance and read-only here. Not editable in student records.',
     },
     tabs: {
       basicInfo: 'Basic Info',
@@ -279,6 +295,11 @@ export default {
       inactive: 'Inactive',
       deferred: 'Deferred',
       withdrawn: 'Withdrawn',
+      graduated: 'Graduated',
+    },
+    search: {
+      keywordLabel: 'Student ID | Name | Chinese Name | NRIC | Phone:',
+      keywordPlaceholder: 'Search by ID, name, NRIC or phone',
     },
   },
   programmeTransfer: {
@@ -324,11 +345,22 @@ export default {
       item2: 'Students should discuss the transfer with their current Dean/Head of Department/Head of Programme first.',
       item3: 'Students should understand policies regarding tuition fees, credit transfers, and learning duration before submitting.',
     },
+    internationalRemarks: {
+      title: 'Remarks for international students:',
+      intro:
+        'The International Office (IO) may need to assist with visa-related administrative matters; allow sufficient time before submitting a programme transfer application.',
+      bullet1: 'Consult IO at least 14 working days in advance regarding visa and enrolment continuity.',
+      bullet2: 'Walk in to the B1#104 office with your passport if you need assistance.',
+      attentionTitle: 'Attention!',
+      attention:
+        'After approval, confirm visa and entry arrangements with IO promptly.',
+    },
     sections: {
       studentDetails: 'SECTION I : STUDENT DETAILS',
-      transferInfo: 'SECTION II : PROGRAMME TRANSFER INFORMATION',
-      declaration: 'SECTION III : DECLARATION BY THE STUDENT',
+      studentApplication: 'SECTION II : STUDENT APPLICATION',
+      transferInfo: 'SECTION II : STUDENT APPLICATION',
       documents: 'SECTION IV : SUPPORTING DOCUMENTS',
+      declaration: 'SECTION V : DECLARATION BY THE STUDENT',
       officeUse: 'SECTION VII : FOR ACADEMIC AFFAIRS OFFICE USE ONLY',
     },
     fields: {
@@ -339,6 +371,7 @@ export default {
       email: 'Email',
       contactNo: 'Contact No.',
       visaExpiry: 'Student Visa Expiry Date',
+      dateOfApplication: 'Date of Application',
       currentProgramme: 'Current Programme',
       currentIntake: 'Current Intake',
       currentSchool: 'Current School',
@@ -353,16 +386,24 @@ export default {
       noFileSelected: 'No file selected',
       attachmentHint: 'Supported formats: PDF, JPG, PNG, DOCX. Max size: 5MB.',
       downloadConsent: 'Download Consent Letter',
+      consentLetter: 'Letter of Consent for Programme Transfer',
       adminNewProgramme: 'New Programme',
       adminNewIntake: 'New Intake',
       adminDate: 'Date',
+      adminApprovalDate: 'Approval Date',
       selectStudent: 'Select Student',
       selectProgramme: 'Select Programme',
       selectIntake: 'Select Intake',
     },
     declaration: {
-      item1: 'I hereby undertake that I am fully aware of and will be bound by the Xiamen University Malaysia rules and regulations for this application.',
-      item2: 'I declare that all the information provided in support of my application is correct and complete.',
+      rulesUndertake:
+        'I hereby undertake that I am fully aware of and will be bound by the Xiamen University Malaysia rules and regulations for this application.',
+      visaCancellation:
+        'I hereby acknowledge and agree that my current programme visa shall be cancelled upon approval of the programme transfer, and I undertake to comply with all applicable immigration requirements and guidelines in relation to my new programme visa application.',
+      item1:
+        'I hereby undertake that I am fully aware of and will be bound by the Xiamen University Malaysia rules and regulations for this application.',
+      item2:
+        'I declare that all the information provided in support of my application is correct and complete.',
     },
     form: {
       createTitle: 'PROGRAMME TRANSFER APPLICATION',
@@ -414,11 +455,27 @@ export default {
       cancelApplication: 'Cancel',
       close: 'Close',
     },
+    notes: {
+      title: 'Notes',
+      item1: 'Discuss your deferment with the Dean/Head of Department/Head of Programme before submitting.',
+      item2: 'Understand policies on tuition, accommodation, and credit study during the deferment period.',
+      item3: 'After approval, follow university procedures for leaving campus and future resumption.',
+    },
+    internationalRemarks: {
+      title: 'Remarks for international students:',
+      intro:
+        'The International Office (IO) may need to assist with visa-related matters before you leave campus for deferment.',
+      bullet1: 'Apply to IO at least 14 working days in advance regarding visa requirements.',
+      bullet2: 'Walk in to the B1#104 office with your passport if you need assistance.',
+      attentionTitle: 'Attention!',
+      attention: 'Keep in touch with IO and your programme AC by email during deferment.',
+    },
     sections: {
       studentInfo: 'SECTION I : STUDENT INFORMATION',
       studentApplication: 'SECTION II : STUDENT APPLICATION',
       parentConsent: 'SECTION III : ACKNOWLEDGEMENT AND CONSENT BY THE PARENT/GUARDIAN',
-      documents: 'SUPPORTING DOCUMENTS',
+      documents: 'SECTION IV : SUPPORTING DOCUMENTS',
+      declaration: 'SECTION V : DECLARATION BY THE STUDENT',
     },
     fields: {
       selectStudent: 'Select Student',
@@ -432,7 +489,11 @@ export default {
       personalEmail: 'Personal Email',
       phoneNumber: 'Phone Number',
       accommodationRoomNo: 'Accommodation Room No.',
-      defermentPeriod: 'Deferment Period (YYYY/MM)',
+      defermentPeriod: 'Deferment Period (Academic Session)',
+      defermentPeriodHint:
+        'The dropdown may include deferment semesters before the application date (retroactive deferment) and after it.',
+      defermentStartDate: 'Deferment Start Date',
+      defermentEndDate: 'Deferment End Date',
       mainReason: 'Main Reason for Deferment',
       detailedReason: 'Detailed Reason',
       parentGuardianName: 'Parent/Guardian Name',
@@ -445,6 +506,7 @@ export default {
       noFileSelected: 'No file selected',
       attachmentHint: 'Supported formats: PDF, JPG, PNG, DOCX. Max size: 5MB.',
       downloadConsent: 'Download Consent Letter',
+      consentLetter: 'Letter of Consent for Deferment',
     },
     mainReasons: {
       personalReason: 'Personal Reason',
@@ -502,10 +564,27 @@ export default {
       cancelApplication: 'Cancel',
       close: 'Close',
     },
+    notes: {
+      title: 'Notes',
+      item1: 'Only students in Deferment (Deferred) status may submit a resumption application.',
+      item2: 'Resumption is subject to programme availability and clearance of all outstanding dues.',
+      item3: 'Prepare supporting documents (e.g. medical clearance, payment receipt) before submitting.',
+    },
+    internationalRemarks: {
+      title: 'Remarks for international students:',
+      intro:
+        'The International Office (IO) may need to confirm visa and entry arrangements after resumption.',
+      bullet1: 'Consult IO at least 14 working days in advance regarding visa requirements for resumption.',
+      bullet2: 'Walk in to the B1#104 office with your passport if you need assistance.',
+      attentionTitle: 'Attention!',
+      attention: 'After approval, confirm visa and entry arrangements with IO promptly.',
+    },
     sections: {
       studentInfo: 'SECTION I : STUDENT INFORMATION',
-      resumptionDetails: 'SECTION II : RESUMPTION DETAILS',
-      documents: 'SUPPORTING DOCUMENTS',
+      studentApplication: 'SECTION II : STUDENT APPLICATION',
+      resumptionDetails: 'SECTION II : STUDENT APPLICATION',
+      documents: 'SECTION IV : SUPPORTING DOCUMENTS',
+      declaration: 'SECTION V : DECLARATION BY THE STUDENT',
     },
     fields: {
       selectStudent: 'Select Student',
@@ -518,13 +597,14 @@ export default {
       programmeLevel: 'Programme Level',
       personalEmail: 'Personal Email',
       phoneNumber: 'Phone Number',
-      defermentSemester: 'Deferment Semester',
-      resumptionSemester: 'Resumption Semester',
+      defermentSemester: 'Deferment Period (Academic Session)',
+      resumptionSemester: 'Resumption of Study (Academic Session)',
       uploadAttachment: 'Upload Attachment (e.g., Medical Clearance, Payment Receipt)',
       selectFile: 'Select File',
       noFileSelected: 'No file selected',
       attachmentHint: 'Supported formats: PDF, JPG, PNG, DOCX. Max size: 5MB.',
       downloadConsent: 'Download Consent Letter',
+      consentLetter: 'Letter of Consent for Resumption',
     },
     declaration: {
       correct:
@@ -587,11 +667,37 @@ export default {
       cancelApplication: 'Cancel',
       close: 'Close',
     },
+    notes: {
+      title: 'Instructional Note for applicants:',
+      item1:
+        'The official withdrawal from Xiamen University Malaysia will only be processed once all departments have completed and approved the application procedure of this form.',
+      item2:
+        'Please visit the Letter of Consent for Withdrawal link in the section below to review and download the letter, complete it, and submit it as an attachment with this application form.',
+      item3:
+        'IT and Library: The student must return their student card, library books and any property belonging to the University. The student is responsible for the replacement cost of any University property lost or damaged by them.',
+      item4:
+        'Finance Office: All outstanding fees for official charges must be settled in full before the application for withdrawal can be approved. If the fees are not paid within the first two teaching weeks of the new semester, 50% of the tuition fee will be charged. After that, 100% of the fee will be charged. For more details, please refer to the Student Handbook.',
+      item5:
+        'Accommodation Office: The student must check out of accommodation in accordance with the University\'s regulations, settle any damage penalties (if applicable), and/or terminate the work-study program (if applicable), etc.',
+      item6:
+        'Various departments may contact students via email if there are issues. Students are advised to check their emails daily to ensure the withdrawal application process goes smoothly.',
+    },
+    internationalRemarks: {
+      title: 'Remarks for international students:',
+      intro:
+        'International Office (IO) will need to collect international students\' passports to cancel visas and obtain the Check-Out Memo required for students to leave Malaysia in accordance with immigration regulations.',
+      bullet1: 'Students must apply in advance (at least 14 working days before withdrawal date).',
+      bullet2: 'Students must submit passport together with flight ticket for visa cancellation.',
+      attentionTitle: 'Attention!',
+      attention:
+        'Please book and submit the return flight ticket to your home country based on the date provided by the International Office (IO) staff. For more information, please walk in to the B1#104 office for assistance.',
+    },
     sections: {
       studentInfo: 'SECTION I : STUDENT INFORMATION',
       studentApplication: 'SECTION II : STUDENT APPLICATION',
       parentConsent: 'SECTION III : ACKNOWLEDGEMENT AND CONSENT BY THE PARENT/GUARDIAN',
-      documents: 'SUPPORTING DOCUMENTS',
+      documents: 'SECTION IV : SUPPORTING DOCUMENTS',
+      declaration: 'SECTION V : DECLARATION BY THE STUDENT',
     },
     fields: {
       selectStudent: 'Select Student',
@@ -608,6 +714,7 @@ export default {
       destinationAfterLeaving: 'Destination after Leaving',
       mainReason: 'Main Reason for Withdrawal',
       currentWhereabout: 'Current Whereabout',
+      selectCurrentWhereabout: 'Select Current Whereabout',
       detailedReason: 'Detailed Reason',
       parentGuardianName: 'Parent/Guardian Name',
       parentContactNo: 'Contact No.',
@@ -619,6 +726,7 @@ export default {
       noFileSelected: 'No file selected',
       attachmentHint: 'Supported formats: PDF, JPG, PNG, DOCX. Max size: 5MB.',
       downloadConsent: 'Download Consent Letter',
+      consentLetter: 'Letter of Consent for Withdrawal',
     },
     mainReasons: {
       financialProblem: 'Financial Problem',
@@ -650,6 +758,32 @@ export default {
     deleteOne: 'Are you sure you want to delete this draft application? This cannot be undone.',
     cancelOne: 'Are you sure you want to cancel this application? It will be archived and cannot be edited.',
     consentLetterHint: 'Consent letter template download is not yet connected to a backend file.',
+  },
+  movementRules: {
+    columns: {
+      ruleName: 'Rule Name',
+      ruleValue: 'Rule Value',
+      enabled: 'Enabled',
+    },
+    validation: {
+      invalidValue: 'Rule value must be a non-negative integer.',
+      booleanValue: 'This rule value must be 0 or 1 only.',
+      notFound: 'Rule not found.',
+    },
+    items: {
+      MR001: {
+        name: 'Local students applying for programme transfer within the current semester (long semester): must apply within Week {value}. After this period, only transfer to the next semester is available.',
+      },
+      MR002: {
+        name: 'Local students applying for programme transfer within the current semester (short semester): must apply within Week {value}. After this period, only transfer to the next semester is available.',
+      },
+      MR003: {
+        name: 'International students (visa processing takes about 2–3 months): if less than {value} months remain before the next semester starts, only the semester after next may be selected.',
+      },
+      MR004: {
+        name: 'Chinese students must apply within the fixed application window; overdue applications show a notice and will not be accepted. Rule value {value} controls whether overdue submission is still allowed (1=yes, 0=no).',
+      },
+    },
   },
   movementCategory: {
     setReason: 'Set Reasons',
@@ -693,8 +827,16 @@ export default {
       editTitle: 'Edit Reason',
       nameLabel: 'Reason Name',
       nameColumn: 'Reason Name',
+      allowStudentApply: 'Allow Student Application',
+      applicablePersonnelCategory: 'Applicable Personnel Category',
       nameRequired: 'Reason name is required.',
+      personnelRequired: 'Applicable personnel category is required.',
       deleteConfirm: 'Are you sure you want to delete {count} selected reason(s)?',
+      personnel: {
+        All: 'All',
+        Teacher: 'Teacher',
+        Student: 'Student',
+      },
     },
     studentType: {
       Local: 'Local',
@@ -748,6 +890,7 @@ export default {
       movementType: 'Applicable Movement Type',
       studentType: 'Student Type',
       programmeLevel: 'Programme Level',
+      applicableStudentScope: 'Applicable Student Scope',
       studyDuration: 'Study Duration',
       remark: 'Remark',
     },
@@ -756,6 +899,7 @@ export default {
       movementType: 'Applicable Movement Type',
       studentType: 'Student Type',
       programmeLevel: 'Programme Level',
+      applicableStudentScope: 'Applicable Student Scope',
       studyDurationRule: 'Study Duration',
       remark: 'Remark',
       effectiveAcademicSession: 'Effective Academic Session',
@@ -787,6 +931,10 @@ export default {
       Undergraduate: 'Undergraduate',
       Postgraduate: 'Postgraduate',
     },
+    applicableStudentScope: {
+      firstYear: 'First Year',
+      secondYearAndAbove: 'Second Year and Above',
+    },
     versionHistory: {
       action: 'Version History',
       title: 'Consent Form Version History',
@@ -800,8 +948,8 @@ export default {
       notApplied: 'Not Applied',
     },
     versionSnapshot: {
-      action: 'Version Snapshot',
-      title: 'Consent Form Version Snapshot',
+      action: 'Version Record',
+      title: 'Consent Form Version Record',
       addVersion: 'Add Version',
       createVersionTitle: 'Add Version',
       academicSession: 'Effective Academic Session',
@@ -812,7 +960,7 @@ export default {
       applied: 'Applied',
       notApplied: 'Not Applied',
       applyImmediately: 'Apply Immediately',
-      deleteOne: 'Are you sure you want to delete this version snapshot? This cannot be undone.',
+      deleteOne: 'Are you sure you want to delete this version record? This cannot be undone.',
     },
     studyDurationRule: {
       none: 'No restriction',
@@ -860,6 +1008,22 @@ export default {
       iep: 'IEP',
     },
   },
+  movementList: {
+    search: {
+      studentId: 'Student ID',
+      studentName: 'Student Name',
+      movementCategory: 'Movement Category',
+      effectiveSession: 'Effective Session',
+      effectiveDate: 'Effective Date',
+      approvalStatus: 'Approval Status',
+      nationality: 'Nationality',
+      studentCategory: 'Student Category',
+    },
+    columns: {
+      nationality: 'Nationality',
+      studentCategory: 'Student Category',
+    },
+  },
   movementMaintenance: {
     implement: 'Implement',
     modifyMovementNumber: 'Modify Movement Number',
@@ -874,12 +1038,17 @@ export default {
     implementNoneEligible: 'No pending implementation records in the selection.',
     editTitle: 'Edit Movement Maintenance',
     numberModalTitle: 'Modify Movement Number',
+    editArchiveNumber: 'Edit Archive No.',
+    archiveNumberPlaceholder: 'Enter archive number',
+    archiveNumberHint: '1–100 characters; letters and digits only.',
+    archiveNumberInvalid: 'Archive number must be 1–100 letters or digits.',
     search: {
       academicSession: 'Academic Session',
       programmeCode: 'Programme Code',
     },
     columns: {
       movementDate: 'Movement Date',
+      effectiveDate: 'Effective Date',
       passportIc: 'Passport Number / IC',
       studentType: 'Student Type',
       intake: 'Intake',
@@ -892,6 +1061,7 @@ export default {
       cgpa: 'CGPA',
       expectedGraduationTime: 'Expected Graduation Time',
       movementNumber: 'Movement Number',
+      archiveNumber: 'Archive No.',
       remark: 'Remark',
     },
     fields: {
@@ -916,7 +1086,66 @@ export default {
   movementCommon: {
     fields: {
       applicationAcademicSession: 'Application Academic Session',
+      currentAcademicSession: 'Current Academic Session',
+      visaExpiry: 'Student Visa Expiry Date',
+      personalEmail: 'Personal Email',
+      phoneNumber: 'Phone Number',
+      accommodationRoomNo: 'Accommodation Room Number',
     },
+    declaration: {
+      correct:
+        'I declare that all the information provided in support of my application is correct and complete.',
+      maxStudyDuration:
+        'I acknowledge that students must complete the required credits for graduation at XMUM within the maximum study duration. The maximum length of study at XMUM must not exceed 6 years (7 years for five-year programme), including any periods of deferment.',
+    },
+  },
+  movementDocuments: {
+    selectFile: 'Select File',
+    noFileSelected: 'No file selected',
+    fields: {
+      flightTickets: 'Flight Tickets (International Students)',
+      medicalRecovery: 'Medical Recovery Supporting Documents (Optional)',
+    },
+  },
+  movementExport: {
+    exportPdf: 'Export PDF',
+    previewPdf: 'Preview PDF',
+    previewPdfTitle: 'PDF Preview',
+    downloadPdf: 'Download PDF',
+    generatingPdf: 'Generating PDF…',
+    previewPdfError: 'Failed to generate PDF. Please try again.',
+    exportAttachment: 'Export',
+    approvalLogTitle: 'Approval Log',
+    approvalLog: {
+      description: 'Description',
+      actionBy: 'Action By',
+      actionByRole: 'Action By Role',
+      createdAt: 'Created At',
+    },
+  },
+  movementAdminCancel: {
+    action: 'Cancel',
+    tooltipTitle: 'About Revocation',
+    tooltipApprovalHistoryItem1:
+      'AC may revoke an In Progress application (In Progress / pending approval) from the History tab list on Movement Approval.',
+    tooltipItem2:
+      'After confirmation, the application workflow is terminated and departments involved in the process are notified that it has ended.',
+    confirmTitle: 'Confirm Revocation',
+    confirmMessage:
+      'Are you sure you want to revoke this application? It will be archived and cannot be edited or resubmitted.',
+  },
+  movementStudentCancel: {
+    action: 'Withdraw',
+    tooltipTitle: '取消说明',
+    tooltipItem1:
+      'Before review starts, students may cancel an application that has not yet entered the approval workflow.',
+    tooltipItem2:
+      'This is a student "Cancel", not the same as "Revoke" on the Movement Approval History tab.',
+    tooltipItem3:
+      'If the application is already under review or must be terminated by AC, contact AC for revocation on the Movement Approval History tab.',
+    confirmTitle: 'Confirm Withdrawal',
+    confirmMessage:
+      'Are you sure you want to withdraw this application? It will be archived and cannot be edited or resubmitted.',
   },
   movementApproval: {
     currentRole: 'Current approver role',
@@ -941,7 +1170,15 @@ export default {
       effectiveSession: 'Effective Session',
       movementCategory: 'Movement Category',
       movementReason: 'Movement Reason',
+      applicationSequence: 'Application Sequence',
+      lastActionTime: 'Last Action Time',
       applicationDate: 'Application Date',
+    },
+    columnHints: {
+      applicationSequence:
+        'Shows which application this is for the student under the same movement type, counted from 1 in order of submission time. Draft applications are excluded.',
+      lastActionTime:
+        'Shows the timestamp of the latest approval action (Approved, Rejected, or Update Required), formatted the same as Created At in the approval log. Displays — when no approval action has been recorded yet.',
     },
     search: {
       academicSession: 'Academic Session',

@@ -28,6 +28,8 @@ export function formatApprovalExportRow(row, index, { t, tr } = {}) {
     applicationSession: row.applicationSession || '',
     effectiveSession: effectiveSession === '—' ? '' : effectiveSession,
     movementCategory: t(row.movementCategoryKey),
+    historicalApplicationSequence:
+      row.historicalApplicationSequence != null ? String(row.historicalApplicationSequence) : '1',
     applicationDate: formatMovementDate(row.applicationDateDisplay || row.submittedAt || row.dateOfApplication),
     implemented: formatImplementedYn(row.implemented),
   }

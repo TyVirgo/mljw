@@ -19,8 +19,9 @@ import {
 } from './movementMaintenanceFields.js'
 import {
   normalizeQueueItem,
-  matchesImplementedYnFilter,
 } from './movementApprovalQueue.js'
+import { filterMovementListBySearch } from './movementListSearchFilters.js'
+import { displayMovementArchiveNumber } from '../utils/movementArchiveNumber.js'
 
 export const movementMaintenanceStatusOptions = ['Approved']
 
@@ -32,6 +33,7 @@ export function normalizeMaintenanceItem(sourceKey, item, t) {
     passportIc: extractPassportIc(item),
     studentType: normalizeStudentTypeForMaintenance(studentCategory),
     studentCategory,
+    nationality: item.nationality || MAINTENANCE_EMPTY,
     intake: extractIntake(sourceKey, item),
     currentSchool: extractCurrentSchool(sourceKey, item),
     currentProgrammeCode: extractCurrentProgrammeCode(sourceKey, item),
@@ -41,6 +43,7 @@ export function normalizeMaintenanceItem(sourceKey, item, t) {
     englishName: item.fullName || item.name || MAINTENANCE_EMPTY,
     cgpa: item.cgpa || MAINTENANCE_EMPTY,
     movementNumber: item.movementNumber || MAINTENANCE_EMPTY,
+    exportArchiveNumber: displayMovementArchiveNumber(item.exportArchiveNumber),
     remark: item.maintenanceRemark || MAINTENANCE_EMPTY,
     movementDate: formatMovementDateDisplay(item),
     implemented: item.implemented || 'Pending',
@@ -69,21 +72,5 @@ export function mergeMovementMaintenanceQueue(t) {
 }
 
 export function filterMaintenanceBySearch(items, search) {
-  const s = search || {}
-  return items.filter((row) => {
-    if (s.academicSession && row.applicationSession !== String(s.academicSession).trim()) return false
-    if (s.programmeCode && !matchText(row.programmeCode, s.programmeCode)) return false
-    if (s.status && row.status !== s.status) return false
-    if (s.studentId && !matchText(row.studentId, s.studentId)) return false
-    if (s.studentName && !matchText(row.fullName, s.studentName)) return false
-    if (!matchesImplementedYnFilter(row.implemented, s.implemented)) return false
-    return true
-  })
-}
-
-function matchText(value, keyword) {
-  if (!keyword) return true
-  return String(value ?? '')
-    .toLowerCase()
-    .includes(String(keyword).trim().toLowerCase())
+  return filterMovementListBySearch(items, search)
 }

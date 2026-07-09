@@ -1,12 +1,12 @@
-## Context
+## 背景说明
 
 学籍 **Student Profile** 新建/编辑抽屉（`StudentProfileFormDrawer.vue`）当前在顶栏提供 Student Category radio（Local / China / International），Basic Info Tab 内国籍为普通文本框。各类别字段显隐已实现在 `BasicInfoTab.vue` 等 Tab 组件中，通过 `form.studentCategory` 驱动。
 
 异动模块 `movementApprovalEngine.inferStudentCategory()` 已有国籍→类别推断：`China` → China，`非 Malaysia` → International，否则 Local。学籍表单尚未复用该逻辑。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 国籍优先：用户先选国籍，系统自动带出学生类别（只读）
 - 抽屉分区：**国籍信息** + **信息填写**（七 Tab）
@@ -15,13 +15,13 @@
 - 编辑改国籍导致类别变化时，确认并清理互斥字段
 - 详情 Drawer 布局与表单一致
 
-**Non-Goals:**
+**非目标：**
 
 - Excel 导入列与 nationality/category 一致性校验（后续迭代）
 - 后端 codeSet API
 - 异动申请表单 UI 改造
 
-## Decisions
+## 设计决策
 
 ### 1. 国籍 → 类别映射（单一来源）
 
@@ -115,16 +115,16 @@ StudentProfileFormDrawer
 - `selectNationalityFirst`：请先选择国籍
 - `nationalityChangeConfirm`：修改国籍将变更学生类别并清空不兼容字段，是否继续？
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
 | 全球国籍列表过长，下拉性能 | 客户端 filter，首屏只渲染过滤结果（上限如 50 条） |
 | 编辑改国籍误清数据 | confirm 对话框 + 仅清互斥字段 |
-| 导入 Excel 仍含 Student Category 列，可能与 nationality 不一致 | Non-goal 本期；文档注明后续可加校验 |
+| 导入 Excel 仍含 Student Category 列，可能与 nationality 不一致 | 非目标本期；文档注明后续可加校验 |
 | SearchableSelect 无障碍 | 首版保证 click/keyboard 基本可用；aria 可后续补 |
 
-## Migration Plan
+## 迁移说明
 
 1. 实现数据函数与 SearchableSelect、nationalityOptions
 2. 改 FormDrawer / DetailDrawer 布局
@@ -134,6 +134,6 @@ StudentProfileFormDrawer
 
 无数据库迁移；localStorage 既有记录 nationality + studentCategory 已存，打开编辑正常显示。
 
-## Open Questions
+## 待决问题
 
 （无 — explore 阶段已确认映射规则与空态行为）

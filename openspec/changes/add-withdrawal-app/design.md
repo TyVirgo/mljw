@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 `add-withdrawal-app` Phase 1 已交付退学列表 + 简化 Pending 审批 + 中英文 i18n + 条件 ISAO Note。产品要求对齐 `add-deferment-app` / `add-resumption-app` **6 态流转语义** 与 **流程日志外置**。
 
@@ -10,9 +10,9 @@
 
 退学特有：Section I–III、单声明 checkbox、**International 紫底 ISAO Note**、Reason 列（`getMainReasonLabel`，无 UG/PG 后缀）。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 6 态状态机 + 每状态 ≥2 条 Mock（≥12 条）
 - 列表状态驱动 Actions + **各状态流转日志**
@@ -21,14 +21,14 @@
 - 保留 ISAO Note 条件显示与 Reason 无后缀规则
 - 对齐 Deferment / Resumption 交互
 
-**Non-Goals:**
+**非目标：**
 
 - Expired 双 mock
 - 原因选项 UG/PG 后缀
 - China 类别 ISAO Note
 - 后端 API、独立审批菜单页
 
-## Decisions
+## 设计决策
 
 ### 1. 数据模型 — `src/data/withdrawals.js`
 
@@ -149,7 +149,7 @@ WithdrawalView.vue
   src/components/studentRecords/ApprovalLogModal.vue
 ```
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -157,7 +157,7 @@ WithdrawalView.vue
 | ISAO 与 Draft 模式交互 | draft 不强制 Section III；submit/resubmit 严格校验 |
 | Reason 无 UG/PG 与部分原型不一致 | 产品已确认；Mock 保持纯原因文案 |
 
-## Migration Plan
+## 迁移说明
 
 1. 扩展 `withdrawals.js` 6 态与 helper
 2. 升级 `withdrawalApproval.js`
@@ -166,7 +166,7 @@ WithdrawalView.vue
 5. 确认流转日志外置（Phase 3）
 6. 冒烟 + `npm run build`
 
-## Open Questions
+## 待定问题
 
 1. Mock 学生 EGE2409058 是否保留用于 International + ISAO 演示
 2. Consent Letter 静态文件路径（首版占位）

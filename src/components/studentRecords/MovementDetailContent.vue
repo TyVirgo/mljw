@@ -1,7 +1,23 @@
 <script setup>
 import { computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import MovementAttachmentReadonly from './MovementAttachmentReadonly.vue'
+import MovementAttachmentsReadonly from './MovementAttachmentsReadonly.vue'
+import MovementParentConsentReadonly from './MovementParentConsentReadonly.vue'
+import MovementInternationalStudentRemarks from './MovementInternationalStudentRemarks.vue'
+import MovementDeclarationSection from './MovementDeclarationSection.vue'
+import MovementApplicantNotes from './MovementApplicantNotes.vue'
+import {
+  defermentDeclarationItems,
+  programmeTransferDeclarationItems,
+  resumptionDeclarationItems,
+  withdrawalDeclarationItems,
+} from '../../data/movementDeclarationItems.js'
+import {
+  defermentApplicantNoteKeys,
+  programmeTransferApplicantNoteKeys,
+  resumptionApplicantNoteKeys,
+  withdrawalApplicantNoteKeys,
+} from '../../data/movementApplicantNotes.js'
 import {
   formatApplicationDateDisplay,
   statusBadgeClass as defermentStatusBadge,
@@ -15,18 +31,24 @@ import { statusBadgeClass as resumptionStatusBadge } from '../../data/resumption
 import {
   statusBadgeClass as withdrawalStatusBadge,
   getWithdrawalReasonDisplay,
-  shouldShowIsaoNote,
 } from '../../data/withdrawals.js'
-import { resolveApplicationSessionForDisplay } from '../../data/movementApplicationSession.js'
+import { resolveApplicationSessionForDisplay, resolveCurrentAcademicSessionForDisplay } from '../../data/movementApplicationSession.js'
 import { maskPassportIc } from '../../utils/maskPassportIc.js'
 import { formatMovementDate } from '../../utils/formatMovementDate.js'
+import {
+  displayMovementVisaExpiry,
+  resolveMovementStudentCategory,
+} from '../../utils/movementVisaExpiry.js'
 import '../../styles/movement-detail-body.css'
 import '../../styles/movement-status-badge.css'
+import '../../styles/movement-form.css'
 
 const props = defineProps({
   sourceKey: { type: String, required: true },
   item: { type: Object, required: true },
   maskSensitiveFields: { type: Boolean, default: false },
+  useDemoAttachments: { type: Boolean, default: false },
+  showAttachmentExport: { type: Boolean, default: false },
 })
 
 const { t, tr } = useAppI18n()
@@ -34,6 +56,10 @@ const { t, tr } = useAppI18n()
 function displayPassport(value) {
   if (!value) return '—'
   return props.maskSensitiveFields ? maskPassportIc(value) : value
+}
+
+function visaExpiryDisplay(item) {
+  return displayMovementVisaExpiry(item?.visaExpiryDate, resolveMovementStudentCategory(item))
 }
 
 const statusLabel = computed(() => {
@@ -85,10 +111,6 @@ const statusClass = computed(() => {
   }[props.sourceKey]
   return fn ? fn(props.item?.status) : ''
 })
-
-const showIsaoNote = computed(
-  () => props.sourceKey === 'withdrawal' && shouldShowIsaoNote(props.item?.studentCategory),
-)
 </script>
 
 <template>
@@ -100,167 +122,214 @@ const showIsaoNote = computed(
 
     <!-- Deferment -->
     <template v-if="sourceKey === 'deferment'">
+      <MovementApplicantNotes
+        title-key="deferment.notes.title"
+        :item-keys="defermentApplicantNoteKeys"
+      />
+      <MovementInternationalStudentRemarks
+        source-key="deferment"
+        :student-category="resolveMovementStudentCategory(item)"
+      />
       <div class="section-bar">{{ t('deferment.sections.studentInfo') }}</div>
       <dl class="detail-grid">
         <div><dt>{{ tr('Student ID') }}</dt><dd>{{ item.studentId }}</dd></div>
         <div><dt>{{ t('deferment.fields.dateOfApplication') }}</dt><dd>{{ formatApplicationDateDisplay(item.dateOfApplication) }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.currentAcademicSession') }}</dt><dd>{{ resolveCurrentAcademicSessionForDisplay(item) }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
         <div><dt>{{ t('deferment.fields.name') }}</dt><dd>{{ item.fullName || '—' }}</dd></div>
         <div><dt>{{ t('deferment.fields.intake') }}</dt><dd>{{ item.intake || '—' }}</dd></div>
         <div><dt>{{ t('deferment.fields.nricPassport') }}</dt><dd>{{ displayPassport(item.nricPassport) }}</dd></div>
         <div><dt>{{ t('deferment.fields.nationality') }}</dt><dd>{{ item.nationality || '—' }}</dd></div>
         <div><dt>{{ t('deferment.fields.programme') }}</dt><dd>{{ item.programme || '—' }}</dd></div>
         <div><dt>{{ t('deferment.fields.programmeLevel') }}</dt><dd>{{ item.programmeLevel || '—' }}</dd></div>
-        <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.visaExpiry') }}</dt><dd>{{ visaExpiryDisplay(item) }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.personalEmail') }}</dt><dd>{{ item.personalEmail || '—' }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || '—' }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.accommodationRoomNo') }}</dt><dd>{{ item.accommodationRoomNo || '—' }}</dd></div>
       </dl>
       <div class="section-bar">{{ t('deferment.sections.studentApplication') }}</div>
       <dl class="detail-grid">
-        <div><dt>{{ t('deferment.fields.personalEmail') }}</dt><dd>{{ item.personalEmail || '—' }}</dd></div>
-        <div><dt>{{ t('deferment.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || '—' }}</dd></div>
-        <div><dt>{{ t('deferment.fields.accommodationRoomNo') }}</dt><dd>{{ item.accommodationRoomNo || '—' }}</dd></div>
         <div><dt>{{ t('deferment.fields.defermentPeriod') }}</dt><dd>{{ item.defermentPeriod || '—' }}</dd></div>
-        <div class="span-2"><dt>{{ t('deferment.fields.mainReason') }}</dt><dd>{{ getDefermentReasonDisplay(item, t) || '—' }}</dd></div>
+        <div><dt>{{ t('deferment.fields.mainReason') }}</dt><dd>{{ getDefermentReasonDisplay(item, t) || '—' }}</dd></div>
+        <div><dt>{{ t('deferment.fields.defermentStartDate') }}</dt><dd>{{ item.defermentStartDate || '—' }}</dd></div>
+        <div><dt>{{ t('deferment.fields.defermentEndDate') }}</dt><dd>{{ item.defermentEndDate || '—' }}</dd></div>
         <div class="span-2"><dt>{{ t('deferment.fields.detailedReason') }}</dt><dd class="multiline">{{ item.detailedReason || '—' }}</dd></div>
       </dl>
       <div class="section-bar">{{ t('deferment.sections.parentConsent') }}</div>
-      <dl class="detail-grid">
-        <div><dt>{{ t('deferment.fields.parentGuardianName') }}</dt><dd>{{ item.parentGuardianName || '—' }}</dd></div>
-        <div><dt>{{ t('deferment.fields.parentContactNo') }}</dt><dd>{{ item.parentContactNo || '—' }}</dd></div>
-        <div><dt>{{ t('deferment.fields.parentNricPassport') }}</dt><dd>{{ displayPassport(item.parentNricPassport) }}</dd></div>
-        <div><dt>{{ t('deferment.fields.parentRelationship') }}</dt><dd>{{ item.parentRelationship || '—' }}</dd></div>
-        <div class="span-2"><dt>{{ t('deferment.fields.parentEmail') }}</dt><dd>{{ item.parentEmail || '—' }}</dd></div>
-      </dl>
+      <MovementParentConsentReadonly
+        source-key="deferment"
+        :item="item"
+        :display-passport="displayPassport"
+      />
       <div class="section-bar">{{ t('deferment.sections.documents') }}</div>
-      <MovementAttachmentReadonly
-        :file-name="item.attachment?.fileName || ''"
-        movement-type="deferment"
-        :student-id="item.studentId"
-        :programme-level="item.programmeLevel"
-        :application-session="item.applicationSession"
-        label-key="deferment.fields.uploadAttachment"
-        download-label-key="deferment.fields.downloadConsent"
+      <MovementAttachmentsReadonly
+        source-key="deferment"
+        :item="item"
+        :use-demo-attachments="useDemoAttachments"
+        :show-attachment-export="showAttachmentExport"
+      />
+      <MovementDeclarationSection
+        read-only
+        :section-title="t('deferment.sections.declaration')"
+        :items="defermentDeclarationItems"
+        :checkboxes="[{ field: 'declarationAgreed' }]"
+        :form="item"
       />
     </template>
 
     <!-- Programme transfer -->
     <template v-else-if="sourceKey === 'programme-transfer'">
+      <MovementApplicantNotes
+        title-key="programmeTransfer.notes.title"
+        :item-keys="programmeTransferApplicantNoteKeys"
+      />
+      <MovementInternationalStudentRemarks
+        source-key="programme-transfer"
+        :student-category="resolveMovementStudentCategory(item)"
+      />
       <div class="section-bar">{{ t('programmeTransfer.sections.studentDetails') }}</div>
       <dl class="detail-grid">
         <div><dt>{{ tr('Student ID') }}</dt><dd>{{ item.studentId }}</dd></div>
         <div><dt>{{ tr('Full Name') }}</dt><dd>{{ item.fullName }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.currentAcademicSession') }}</dt><dd>{{ resolveCurrentAcademicSessionForDisplay(item) }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
+        <div><dt>{{ t('programmeTransfer.fields.dateOfApplication') }}</dt><dd>{{ formatApplicationDateDisplay(item.dateOfApplication) }}</dd></div>
         <div><dt>{{ tr('NRIC/Passport No.') }}</dt><dd>{{ displayPassport(item.nricPassport) }}</dd></div>
         <div><dt>{{ tr('Nationality') }}</dt><dd>{{ item.nationality || '—' }}</dd></div>
-        <div><dt>{{ tr('Email') }}</dt><dd>{{ item.email || '—' }}</dd></div>
-        <div><dt>{{ tr('Contact No.') }}</dt><dd>{{ item.contactNo || '—' }}</dd></div>
-        <div><dt>{{ t('programmeTransfer.fields.visaExpiry') }}</dt><dd>{{ formatMovementDate(item.visaExpiryDate) }}</dd></div>
-        <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
-      </dl>
-      <div class="section-bar">{{ t('programmeTransfer.sections.transferInfo') }}</div>
-      <dl class="detail-grid">
+        <div><dt>{{ t('movementCommon.fields.personalEmail') }}</dt><dd>{{ item.personalEmail || item.email || '—' }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || item.contactNo || '—' }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.visaExpiry') }}</dt><dd>{{ visaExpiryDisplay(item) }}</dd></div>
         <div><dt>{{ t('programmeTransfer.fields.currentProgramme') }}</dt><dd>{{ item.currentProgramme || '—' }}</dd></div>
         <div><dt>{{ t('programmeTransfer.fields.currentIntake') }}</dt><dd>{{ item.currentIntake || '—' }}</dd></div>
         <div class="span-2"><dt>{{ t('programmeTransfer.fields.currentSchool') }}</dt><dd>{{ item.currentSchool || '—' }}</dd></div>
+      </dl>
+      <div class="section-bar">{{ t('programmeTransfer.sections.studentApplication') }}</div>
+      <dl class="detail-grid">
+        <div class="span-2"><dt>{{ t('programmeTransfer.fields.startSemester') }}</dt><dd>{{ item.startSemester || '—' }}</dd></div>
         <div><dt>{{ t('programmeTransfer.fields.newProgrammeFirst') }}</dt><dd>{{ item.newProgrammeFirstChoice || '—' }}</dd></div>
         <div><dt>{{ t('programmeTransfer.fields.newProgrammeSecond') }}</dt><dd>{{ item.newProgrammeSecondChoice || '—' }}</dd></div>
-        <div><dt>{{ t('programmeTransfer.fields.startSemester') }}</dt><dd>{{ item.startSemester || '—' }}</dd></div>
-        <div class="span-2"><dt>{{ t('programmeTransfer.fields.transferReason') }}</dt><dd>{{ getTransferReasonDisplay(item) || '—' }}</dd></div>
+        <div class="span-2"><dt>{{ t('programmeTransfer.fields.transferReason') }}</dt><dd class="multiline">{{ getTransferReasonDisplay(item) || '—' }}</dd></div>
       </dl>
-      <div class="section-bar">{{ t('programmeTransfer.sections.declaration') }}</div>
-      <p class="readonly-text">{{ item.declarationAgreed ? tr('Yes') : tr('No') }}</p>
       <div class="section-bar">{{ t('programmeTransfer.sections.documents') }}</div>
-      <MovementAttachmentReadonly
-        :file-name="item.attachment?.fileName || ''"
-        movement-type="programme-transfer"
-        :student-id="item.studentId"
-        :programme-level="item.programmeLevel"
-        :application-session="item.applicationSession"
-        label-key="programmeTransfer.fields.uploadAttachment"
-        download-label-key="programmeTransfer.fields.downloadConsent"
+      <MovementAttachmentsReadonly
+        source-key="programme-transfer"
+        :item="item"
+        :use-demo-attachments="useDemoAttachments"
+        :show-attachment-export="showAttachmentExport"
+      />
+      <MovementDeclarationSection
+        read-only
+        :section-title="t('programmeTransfer.sections.declaration')"
+        :items="programmeTransferDeclarationItems"
+        :checkboxes="[{ field: 'declarationAgreed' }]"
+        :form="item"
       />
     </template>
 
     <!-- Resumption -->
     <template v-else-if="sourceKey === 'resumption'">
+      <MovementApplicantNotes
+        title-key="resumption.notes.title"
+        :item-keys="resumptionApplicantNoteKeys"
+      />
+      <MovementInternationalStudentRemarks
+        source-key="resumption"
+        :student-category="resolveMovementStudentCategory(item)"
+      />
       <div class="section-bar">{{ t('resumption.sections.studentInfo') }}</div>
       <dl class="detail-grid">
         <div><dt>{{ tr('Student ID') }}</dt><dd>{{ item.studentId }}</dd></div>
         <div><dt>{{ t('resumption.fields.dateOfApplication') }}</dt><dd>{{ formatApplicationDateDisplay(item.dateOfApplication) }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.currentAcademicSession') }}</dt><dd>{{ resolveCurrentAcademicSessionForDisplay(item) }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
         <div><dt>{{ t('resumption.fields.name') }}</dt><dd>{{ item.fullName || '—' }}</dd></div>
         <div><dt>{{ t('resumption.fields.originalIntake') }}</dt><dd>{{ item.originalIntake || '—' }}</dd></div>
         <div><dt>{{ t('resumption.fields.programme') }}</dt><dd>{{ item.programme || '—' }}</dd></div>
         <div><dt>{{ t('resumption.fields.programmeLevel') }}</dt><dd>{{ item.programmeLevel || '—' }}</dd></div>
         <div><dt>{{ t('resumption.fields.nricPassport') }}</dt><dd>{{ displayPassport(item.nricPassport) }}</dd></div>
         <div><dt>{{ t('resumption.fields.nationality') }}</dt><dd>{{ item.nationality || '—' }}</dd></div>
-        <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.visaExpiry') }}</dt><dd>{{ visaExpiryDisplay(item) }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.personalEmail') }}</dt><dd>{{ item.personalEmail || '—' }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || '—' }}</dd></div>
       </dl>
-      <div class="section-bar">{{ t('resumption.sections.resumptionDetails') }}</div>
+      <div class="section-bar">{{ t('resumption.sections.studentApplication') }}</div>
       <dl class="detail-grid">
-        <div><dt>{{ t('resumption.fields.personalEmail') }}</dt><dd>{{ item.personalEmail || '—' }}</dd></div>
-        <div><dt>{{ t('resumption.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || '—' }}</dd></div>
         <div><dt>{{ t('resumption.fields.defermentSemester') }}</dt><dd>{{ item.defermentSemester || '—' }}</dd></div>
         <div><dt>{{ t('resumption.fields.resumptionSemester') }}</dt><dd>{{ item.resumptionSemester || '—' }}</dd></div>
+        <div><dt>{{ t('deferment.fields.defermentStartDate') }}</dt><dd>{{ item.defermentStartDate || '—' }}</dd></div>
+        <div><dt>{{ t('deferment.fields.defermentEndDate') }}</dt><dd>{{ item.defermentEndDate || '—' }}</dd></div>
       </dl>
       <div class="section-bar">{{ t('resumption.sections.documents') }}</div>
-      <MovementAttachmentReadonly
-        :file-name="item.attachment?.fileName || ''"
-        movement-type="resumption"
-        :student-id="item.studentId"
-        :programme-level="item.programmeLevel"
-        :application-session="item.applicationSession"
-        label-key="resumption.fields.uploadAttachment"
-        download-label-key="resumption.fields.downloadConsent"
+      <MovementAttachmentsReadonly
+        source-key="resumption"
+        :item="item"
+        :use-demo-attachments="useDemoAttachments"
+        :show-attachment-export="showAttachmentExport"
       />
-      <div class="section-bar">{{ tr('Declaration') }}</div>
-      <p class="readonly-text">{{ item.declarationCorrect ? tr('Yes') : tr('No') }} — {{ t('resumption.declaration.correct') }}</p>
-      <p class="readonly-text">{{ item.declarationMaxDuration ? tr('Yes') : tr('No') }} — {{ t('resumption.declaration.maxDuration') }}</p>
+      <MovementDeclarationSection
+        read-only
+        :section-title="t('resumption.sections.declaration')"
+        :items="resumptionDeclarationItems"
+        :checkboxes="[{ field: 'declarationAgreed' }]"
+        :form="item"
+      />
     </template>
 
     <!-- Withdrawal -->
     <template v-else-if="sourceKey === 'withdrawal'">
+      <MovementApplicantNotes
+        title-key="withdrawal.notes.title"
+        :item-keys="withdrawalApplicantNoteKeys"
+        variant="instructional"
+      />
+      <MovementInternationalStudentRemarks
+        source-key="withdrawal"
+        :student-category="resolveMovementStudentCategory(item)"
+      />
       <div class="section-bar">{{ t('withdrawal.sections.studentInfo') }}</div>
       <dl class="detail-grid">
         <div><dt>{{ tr('Student ID') }}</dt><dd>{{ item.studentId }}</dd></div>
         <div><dt>{{ t('withdrawal.fields.dateOfApplication') }}</dt><dd>{{ formatApplicationDateDisplay(item.dateOfApplication) }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.currentAcademicSession') }}</dt><dd>{{ resolveCurrentAcademicSessionForDisplay(item) }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
         <div><dt>{{ t('withdrawal.fields.name') }}</dt><dd>{{ item.fullName || '—' }}</dd></div>
         <div><dt>{{ t('withdrawal.fields.intake') }}</dt><dd>{{ item.intake || '—' }}</dd></div>
         <div><dt>{{ t('withdrawal.fields.nricPassport') }}</dt><dd>{{ displayPassport(item.nricPassport) }}</dd></div>
         <div><dt>{{ t('withdrawal.fields.nationality') }}</dt><dd>{{ item.nationality || '—' }}</dd></div>
         <div><dt>{{ t('withdrawal.fields.programme') }}</dt><dd>{{ item.programme || '—' }}</dd></div>
         <div><dt>{{ t('withdrawal.fields.programmeLevel') }}</dt><dd>{{ item.programmeLevel || '—' }}</dd></div>
-        <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.visaExpiry') }}</dt><dd>{{ visaExpiryDisplay(item) }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.personalEmail') }}</dt><dd>{{ item.personalEmail || '—' }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || '—' }}</dd></div>
+        <div><dt>{{ t('movementCommon.fields.accommodationRoomNo') }}</dt><dd>{{ item.accommodationRoomNo || '—' }}</dd></div>
       </dl>
       <div class="section-bar">{{ t('withdrawal.sections.studentApplication') }}</div>
       <dl class="detail-grid">
-        <div><dt>{{ t('withdrawal.fields.personalEmail') }}</dt><dd>{{ item.personalEmail || '—' }}</dd></div>
-        <div><dt>{{ t('withdrawal.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || '—' }}</dd></div>
-        <div><dt>{{ t('withdrawal.fields.lastDateOfAttendance') }}</dt><dd>{{ formatMovementDate(item.lastDateOfAttendance) }}</dd></div>
-        <div><dt>{{ t('withdrawal.fields.destinationAfterLeaving') }}</dt><dd>{{ item.destinationAfterLeaving || '—' }}</dd></div>
-        <div><dt>{{ t('withdrawal.fields.mainReason') }}</dt><dd>{{ getWithdrawalReasonDisplay(item, t) || '—' }}</dd></div>
         <div><dt>{{ t('withdrawal.fields.currentWhereabout') }}</dt><dd>{{ item.currentWhereabout || '—' }}</dd></div>
+        <div><dt>{{ t('withdrawal.fields.destinationAfterLeaving') }}</dt><dd>{{ item.destinationAfterLeaving || '—' }}</dd></div>
+        <div><dt>{{ t('withdrawal.fields.lastDateOfAttendance') }}</dt><dd>{{ formatMovementDate(item.lastDateOfAttendance) }}</dd></div>
+        <div><dt>{{ t('withdrawal.fields.mainReason') }}</dt><dd>{{ getWithdrawalReasonDisplay(item, t) || '—' }}</dd></div>
         <div class="span-2"><dt>{{ t('withdrawal.fields.detailedReason') }}</dt><dd class="multiline">{{ item.detailedReason || '—' }}</dd></div>
       </dl>
-      <div class="declaration-readonly">
-        <span>{{ t('withdrawal.declaration.correct') }}</span>
-        <strong>{{ item.declarationAccepted ? tr('Yes') : tr('No') }}</strong>
-      </div>
       <div class="section-bar">{{ t('withdrawal.sections.parentConsent') }}</div>
-      <dl class="detail-grid">
-        <div><dt>{{ t('withdrawal.fields.parentGuardianName') }}</dt><dd>{{ item.parentGuardianName || '—' }}</dd></div>
-        <div><dt>{{ t('withdrawal.fields.parentContactNo') }}</dt><dd>{{ item.parentContactNo || '—' }}</dd></div>
-        <div><dt>{{ t('withdrawal.fields.parentNricPassport') }}</dt><dd>{{ displayPassport(item.parentNricPassport) }}</dd></div>
-        <div><dt>{{ t('withdrawal.fields.parentRelationship') }}</dt><dd>{{ item.parentRelationship || '—' }}</dd></div>
-        <div class="span-2"><dt>{{ t('withdrawal.fields.parentEmail') }}</dt><dd>{{ item.parentEmail || '—' }}</dd></div>
-      </dl>
-      <div v-if="showIsaoNote" class="isao-note-alert">{{ t('withdrawal.isaoNoteAlert') }}</div>
+      <MovementParentConsentReadonly
+        source-key="withdrawal"
+        :item="item"
+        :display-passport="displayPassport"
+      />
       <div class="section-bar">{{ t('withdrawal.sections.documents') }}</div>
-      <MovementAttachmentReadonly
-        :file-name="item.attachment?.fileName || ''"
-        movement-type="withdrawal"
-        :student-category="item.studentCategory"
-        :student-id="item.studentId"
-        :programme-level="item.programmeLevel"
-        :application-session="item.applicationSession"
-        label-key="withdrawal.fields.uploadAttachment"
-        download-label-key="withdrawal.fields.downloadConsent"
+      <MovementAttachmentsReadonly
+        source-key="withdrawal"
+        :item="item"
+        :use-demo-attachments="useDemoAttachments"
+        :show-attachment-export="showAttachmentExport"
+      />
+      <MovementDeclarationSection
+        read-only
+        :section-title="t('withdrawal.sections.declaration')"
+        :items="withdrawalDeclarationItems"
+        :checkboxes="[{ field: 'declarationAccepted' }]"
+        :form="item"
       />
     </template>
   </div>

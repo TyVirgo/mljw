@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 Course Information / Course Application 向导中 **Pre-requisite / co-requisite** 的 **Choose** 按钮当前打开简化的 `CoursePrerequisiteModal`（仅 Course Code / Course Name 两行检索 + 三列表格），与产品原型差距较大。原型要求 **Add** 弹窗具备完整检索区、宽表格（含 Offering、Credit Value、课程性质）、分页与 Discard / Confirm 底栏，便于用户在大量课程中精确挑选先修课。
 
-## What Changes
+## 变更内容
 
 - **重构** `CoursePrerequisiteModal.vue`，严格对齐原型 **Add** 弹窗布局与交互
 - **检索区**（第一行三列 + 右侧按钮）：
@@ -17,17 +17,17 @@ Course Information / Course Application 向导中 **Pre-requisite / co-requisite
 - 继续由 `CourseCreateWizard` 与 `CourseApplicationWizard` 传入 `courses` 列表；Offering 列用 `getOfferingLabel` 展示
 - 补充 i18n：`Discard`、弹窗标题 `Add`（若缺失）
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `prerequisite-course-modal`: 先修/同修课程选择弹窗——检索、分页表格、多选、确认回写
 
-### Modified Capabilities
+### 修改的能力
 
 （无现有 spec，留空）
 
-## Impact
+## 影响范围
 
 - **修改文件**
   - `src/components/course/CoursePrerequisiteModal.vue` — 全面重写 UI/交互
@@ -38,7 +38,7 @@ Course Information / Course Application 向导中 **Pre-requisite / co-requisite
 - **无 API 变更**：仍为前端 mock 课程列表过滤与分页
 - **调用方**：`CourseCreateWizard.vue`、`CourseApplicationWizard.vue` props/emit 保持不变（`courses`, `selectedCodes`, `excludeCode`, `@confirm`）
 
-## Out of Scope
+## 范围外
 
 - 先修课关系校验（环检测、学分限制）
 - 与后端课程目录 API 对接

@@ -1,30 +1,30 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Student Records sidebar movement application entry
-The system SHALL register two developed sidebar entries for movement application instead of a single undifferentiated entry.
+### 需求：学生档案侧边栏异动申请入口
+系统应注册两个已开发的侧边栏异动申请入口，取代原先未区分的单一入口。
 
-#### Scenario: Teacher entry developed
-- **WHEN** user clicks the staff status change application menu item
-- **THEN** the system navigates to `sr-movement-application-teacher` and renders the movement application shell in teacher mode
+#### 场景：管理端入口已开发
+- **当** 用户点击管理端学籍异动申请菜单项
+- **则** 系统导航至 `sr-movement-application-teacher`，并以管理端模式渲染异动申请壳层
 
-#### Scenario: Student entry developed
-- **WHEN** user clicks the student status change application menu item
-- **THEN** the system navigates to `sr-movement-application-student` and renders the movement application shell in student mode
+#### 场景：学生端入口已开发
+- **当** 用户点击学生端学籍异动申请菜单项
+- **则** 系统导航至 `sr-movement-application-student`，并以学生端模式渲染异动申请壳层
 
-#### Scenario: Breadcrumb for teacher entry
-- **WHEN** user is on the staff movement application page
-- **THEN** breadcrumb shows Student Status Change group followed by the management-side menu label (学籍异动申请（管理端） in Chinese UI)
+#### 场景：管理端入口面包屑
+- **当** 用户位于管理端异动申请页面
+- **则** 面包屑展示学籍异动分组，后跟管理端菜单标签（中文界面：学籍异动申请（管理端））
 
-#### Scenario: Breadcrumb for student entry
-- **WHEN** user is on the student movement application page
-- **THEN** breadcrumb shows Student Status Change group followed by the student menu label
+#### 场景：学生端入口面包屑
+- **当** 用户位于学生端异动申请页面
+- **则** 面包屑展示学籍异动分组，后跟学生端菜单标签
 
-## REMOVED Requirements
+## 移除需求
 
-### Requirement: Single movement application sidebar page id
-**Reason**: Split into teacher and student portals with distinct page identifiers and labels.
-**Migration**: Replace `sr-movement-application` in menu config, App.vue routing, and developed pages with `sr-movement-application-teacher` and add `sr-movement-application-student`.
+### 需求：单一异动申请侧边栏页面 ID
+**原因**：拆分为管理端与学生端门户，使用 distinct 页面标识与标签。
+**迁移说明**：在菜单配置、`App.vue` 路由与已开发页面中，将 `sr-movement-application` 替换为 `sr-movement-application-teacher`，并新增 `sr-movement-application-student`。
 
-#### Scenario: Legacy page id not used in sidebar
-- **WHEN** user views the Student Records sidebar
-- **THEN** there is no undifferentiated single menu item labeled only "Status Change Application" without staff/student qualifier
+#### 场景：侧边栏不再使用旧页面 ID
+- **当** 用户查看学生档案侧边栏
+- **则** 不存在未标注管理端/学生端、仅标为「学籍异动申请」的未区分单一菜单项

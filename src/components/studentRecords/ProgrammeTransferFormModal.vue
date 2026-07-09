@@ -7,17 +7,21 @@ import {
   buildStudentSnapshotFromProfile,
   validateTransferForm,
   programmeOptions,
-  intakeOptions,
   semesterOptions,
+  formatApplicationDateDisplay,
 } from '../../data/programmeTransfers.js'
-import { getReasonOptionsBySourceKey } from '../../data/movementCategories.js'
 import { initialStudents } from '../../data/students.js'
 import { downloadStudentConsentTemplate } from '../../utils/consentFormDownload.js'
 import StudentSelectModal from './StudentSelectModal.vue'
 import { getCurrentStudent } from '../../data/mockCurrentStudent.js'
-import { formatMovementDate } from '../../utils/formatMovementDate.js'
 import { formatApplicationSessionField } from '../../data/movementApplicationSession.js'
-import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
+import MovementApplicantNotes from './MovementApplicantNotes.vue'
+import MovementInternationalStudentRemarks from './MovementInternationalStudentRemarks.vue'
+import MovementDocumentsUploadSection from './MovementDocumentsUploadSection.vue'
+import MovementDeclarationSection from './MovementDeclarationSection.vue'
+import { programmeTransferDeclarationItems } from '../../data/movementDeclarationItems.js'
+import { programmeTransferApplicantNoteKeys } from '../../data/movementApplicantNotes.js'
+import { withMovementAttachments } from '../../data/movementAttachments.js'
 import '../../styles/movement-form.css'
 
 const props = defineProps({
@@ -39,8 +43,6 @@ const { t, tr } = useAppI18n()
 const form = ref(createEmptyTransfer())
 const errors = ref({})
 const studentSelectVisible = ref(false)
-const fileInputRef = ref(null)
-const pendingLocalFile = ref(null)
 
 const isEditMode = computed(() => props.mode === 'edit')
 const isResubmitMode = computed(() => props.initialData?.status === 'Update Required')
@@ -49,7 +51,13 @@ const modalTitle = computed(() =>
   isEditMode.value ? t('programmeTransfer.form.editTitle') : t('programmeTransfer.form.createTitle'),
 )
 
-const reasonOptions = computed(() => getReasonOptionsBySourceKey('programme-transfer'))
+const dateOfApplicationDisplay = computed(() =>
+  formatApplicationDateDisplay(form.value.dateOfApplication),
+)
+
+const applicantCategory = computed(
+  () => form.value.studentCategory || getSelectedStudentCategory(),
+)
 
 function applyStudentProfile(student) {
   if (!student) return
@@ -67,7 +75,6 @@ watch(
   () => {
     if (!props.visible) return
     errors.value = {}
-    pendingLocalFile.value = null
     form.value =
       isEditMode.value && props.initialData
         ? getTransferFormData(props.initialData)
@@ -80,31 +87,6 @@ watch(
 
 function fieldError(key) {
   return errors.value[key] ? 'error' : ''
-}
-
-function onFileChange(event) {
-  const file = event.target.files?.[0]
-  if (!file) {
-    form.value.attachment = null
-    pendingLocalFile.value = null
-    return
-  }
-  const allowed = /\.(pdf|jpg|jpeg|png|docx)$/i
-  if (!allowed.test(file.name)) {
-    errors.value.attachment = 'Supported formats: PDF, JPG, PNG, DOCX.'
-    form.value.attachment = null
-    pendingLocalFile.value = null
-    return
-  }
-  if (file.size > 5 * 1024 * 1024) {
-    errors.value.attachment = 'Max file size is 5MB.'
-    form.value.attachment = null
-    pendingLocalFile.value = null
-    return
-  }
-  delete errors.value.attachment
-  pendingLocalFile.value = file
-  form.value.attachment = { fileName: file.name, size: file.size }
 }
 
 function getSelectedStudent() {
@@ -157,7 +139,7 @@ function validateAndEmit(mode, emitter) {
   )
   errors.value = result.errors
   if (!result.valid) return
-  emitter(payload)
+  emitter(withMovementAttachments(payload))
 }
 
 function handleSaveDraft() {
@@ -189,14 +171,15 @@ function handleClose() {
       </header>
 
       <div class="modal-body">
-        <div class="notes-box">
-          <p class="notes-title">{{ t('programmeTransfer.notes.title') }}</p>
-          <ol>
-            <li>{{ t('programmeTransfer.notes.item1') }}</li>
-            <li>{{ t('programmeTransfer.notes.item2') }}</li>
-            <li>{{ t('programmeTransfer.notes.item3') }}</li>
-          </ol>
-        </div>
+        <MovementApplicantNotes
+          title-key="programmeTransfer.notes.title"
+          :item-keys="programmeTransferApplicantNoteKeys"
+        />
+
+        <MovementInternationalStudentRemarks
+          source-key="programme-transfer"
+          :student-category="applicantCategory"
+        />
 
         <div class="section-bar">{{ t('programmeTransfer.sections.studentDetails') }}</div>
         <div class="form-grid">
@@ -232,6 +215,18 @@ function handleClose() {
             </div>
           </div>
           <div class="form-field">
+            <label>{{ t('movementCommon.fields.currentAcademicSession') }}</label>
+            <input :value="formatApplicationSessionField(form.currentAcademicSession)" type="text" class="form-control" readonly />
+          </div>
+          <div class="form-field">
+            <label>{{ t('movementCommon.fields.applicationAcademicSession') }}</label>
+            <input :value="formatApplicationSessionField(form.applicationSession)" type="text" class="form-control" readonly />
+          </div>
+          <div class="form-field">
+            <label>{{ t('programmeTransfer.fields.dateOfApplication') }}</label>
+            <input :value="dateOfApplicationDisplay" type="text" class="form-control" readonly />
+          </div>
+          <div class="form-field">
             <label>{{ tr('NRIC/Passport No.') }}</label>
             <input v-model="form.nricPassport" type="text" class="form-control" readonly />
           </div>
@@ -240,25 +235,17 @@ function handleClose() {
             <input v-model="form.nationality" type="text" class="form-control" readonly />
           </div>
           <div class="form-field">
-            <label>{{ tr('Email') }}</label>
-            <input v-model="form.email" type="text" class="form-control" readonly />
+            <label>{{ t('movementCommon.fields.personalEmail') }}</label>
+            <input v-model="form.personalEmail" type="text" class="form-control" readonly />
           </div>
           <div class="form-field">
-            <label>{{ tr('Contact No.') }}</label>
-            <input v-model="form.contactNo" type="text" class="form-control" readonly />
+            <label>{{ t('movementCommon.fields.phoneNumber') }}</label>
+            <input v-model="form.phoneNumber" type="text" class="form-control" readonly />
           </div>
           <div class="form-field">
-            <label>{{ t('programmeTransfer.fields.visaExpiry') }}</label>
+            <label>{{ t('movementCommon.fields.visaExpiry') }}</label>
             <input v-model="form.visaExpiryDate" type="text" class="form-control" readonly />
           </div>
-          <div class="form-field">
-            <label>{{ t('movementCommon.fields.applicationAcademicSession') }}</label>
-            <input :value="formatApplicationSessionField(form.applicationSession)" type="text" class="form-control" readonly />
-          </div>
-        </div>
-
-        <div class="section-bar">{{ t('programmeTransfer.sections.transferInfo') }}</div>
-        <div class="form-grid">
           <div class="form-field">
             <label>{{ t('programmeTransfer.fields.currentProgramme') }}</label>
             <input v-model="form.currentProgramme" type="text" class="form-control" readonly />
@@ -270,6 +257,18 @@ function handleClose() {
           <div class="form-field span-2">
             <label>{{ t('programmeTransfer.fields.currentSchool') }}</label>
             <input v-model="form.currentSchool" type="text" class="form-control" readonly />
+          </div>
+        </div>
+
+        <div class="section-bar">{{ t('programmeTransfer.sections.studentApplication') }}</div>
+        <div class="form-grid">
+          <div class="form-field span-2">
+            <label>{{ t('programmeTransfer.fields.startSemester') }} <span class="required">*</span></label>
+            <select v-model="form.startSemester" :class="['form-control', fieldError('startSemester')]">
+              <option value="">{{ tr('please select') }}</option>
+              <option v-for="opt in semesterOptions" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+            <p v-if="errors.startSemester" class="field-error">{{ tr(errors.startSemester) }}</p>
           </div>
           <div class="form-field">
             <label>{{ t('programmeTransfer.fields.newProgrammeFirst') }} <span class="required">*</span></label>
@@ -286,103 +285,36 @@ function handleClose() {
               <option v-for="opt in programmeOptions" :key="`2-${opt}`" :value="opt">{{ opt }}</option>
             </select>
           </div>
-          <div class="form-field">
-            <label>{{ t('programmeTransfer.fields.startSemester') }} <span class="required">*</span></label>
-            <select v-model="form.startSemester" :class="['form-control', fieldError('startSemester')]">
-              <option value="">{{ tr('please select') }}</option>
-              <option v-for="opt in semesterOptions" :key="opt" :value="opt">{{ opt }}</option>
-            </select>
-            <p v-if="errors.startSemester" class="field-error">{{ tr(errors.startSemester) }}</p>
-          </div>
           <div class="form-field span-2">
             <label>{{ t('programmeTransfer.fields.transferReason') }} <span class="required">*</span></label>
-            <select v-model="form.reasonId" :class="['form-control', fieldError('reasonId')]">
-              <option :value="null">{{ tr('please select') }}</option>
-              <option v-for="opt in reasonOptions" :key="opt.id" :value="opt.id">
-                {{ opt.reasonName }}
-              </option>
-            </select>
-            <p v-if="errors.reasonId" class="field-error">{{ tr(errors.reasonId) }}</p>
+            <textarea
+              v-model="form.transferReason"
+              rows="4"
+              :class="['form-control', fieldError('transferReason')]"
+              :placeholder="t('programmeTransfer.fields.transferReasonPlaceholder')"
+            />
+            <p v-if="errors.transferReason" class="field-error">{{ tr(errors.transferReason) }}</p>
           </div>
-        </div>
-
-        <div class="section-bar">{{ t('programmeTransfer.sections.declaration') }}</div>
-        <div class="declaration-box">
-          <ul>
-            <li>{{ t('programmeTransfer.declaration.item1') }}</li>
-            <li>{{ t('programmeTransfer.declaration.item2') }}</li>
-          </ul>
-          <label class="checkbox-row">
-            <input v-model="form.declarationAgreed" type="checkbox" />
-            <span>{{ t('programmeTransfer.fields.declarationAgree') }} <span class="required">*</span></span>
-          </label>
-          <p v-if="errors.declarationAgreed" class="field-error">{{ tr(errors.declarationAgreed) }}</p>
         </div>
 
         <div class="section-bar">{{ t('programmeTransfer.sections.documents') }}</div>
-        <div class="documents-panel">
-          <div class="attachment-header">
-            <label class="attachment-label">
-              {{ t('programmeTransfer.fields.uploadAttachment') }}
-              <span class="required">*</span>
-              :
-            </label>
-            <button type="button" class="btn btn-outline consent-btn" @click="downloadConsentLetter">
-              {{ t('programmeTransfer.fields.downloadConsent') }}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-            </button>
-          </div>
-          <div class="file-row">
-            <button type="button" class="btn btn-default" @click="fileInputRef?.click()">
-              {{ t('programmeTransfer.fields.selectFile') }}
-            </button>
-            <AttachmentPreviewTrigger
-              v-if="form.attachment?.fileName"
-              :file-name="form.attachment.fileName"
-              :file-meta="form.attachment"
-              :local-file="pendingLocalFile"
-              :show-file-icon="false"
-            />
-            <span v-else class="file-name">
-              {{ t('programmeTransfer.fields.noFileSelected') }}
-            </span>
-            <input ref="fileInputRef" type="file" class="hidden-file" accept=".pdf,.jpg,.jpeg,.png,.docx" @change="onFileChange" />
-          </div>
-          <p class="hint-text">{{ t('programmeTransfer.fields.attachmentHint') }}</p>
-          <p v-if="errors.attachment" class="field-error">{{ tr(errors.attachment) }}</p>
-        </div>
+        <MovementDocumentsUploadSection
+          source-key="programme-transfer"
+          :student-category="applicantCategory"
+          :attachments="form.attachments"
+          :errors="errors"
+          @update:attachments="form.attachments = $event"
+          @download-consent="downloadConsentLetter"
+        />
 
-        <div class="section-bar">{{ t('programmeTransfer.sections.officeUse') }}</div>
-        <div class="form-grid section-seven-grid section-seven-readonly">
-          <div class="form-field">
-            <label>{{ t('programmeTransfer.fields.adminNewProgramme') }}</label>
-            <select v-model="form.adminNewProgramme" class="form-control" disabled>
-              <option value="">{{ t('programmeTransfer.fields.selectProgramme') }}</option>
-              <option v-for="opt in programmeOptions" :key="`a-${opt}`" :value="opt">{{ opt }}</option>
-            </select>
-          </div>
-          <div class="form-field">
-            <label>{{ t('programmeTransfer.fields.adminNewIntake') }}</label>
-            <select v-model="form.adminNewIntake" class="form-control" disabled>
-              <option value="">{{ t('programmeTransfer.fields.selectIntake') }}</option>
-              <option v-for="opt in intakeOptions" :key="opt" :value="opt">{{ opt }}</option>
-            </select>
-          </div>
-          <div class="form-field section-seven-date">
-            <label>{{ t('programmeTransfer.fields.adminDate') }}</label>
-            <input
-              :value="form.adminDate ? formatMovementDate(form.adminDate) : ''"
-              type="text"
-              class="form-control"
-              readonly
-              :placeholder="tr('pleaseSelect')"
-            />
-          </div>
-        </div>
+        <MovementDeclarationSection
+          :section-title="t('programmeTransfer.sections.declaration')"
+          :items="programmeTransferDeclarationItems"
+          :checkboxes="[{ field: 'declarationAgreed' }]"
+          :form="form"
+          :errors="errors"
+        />
+
       </div>
 
       <footer class="modal-footer">
@@ -539,19 +471,6 @@ function handleClose() {
   grid-column: span 2;
 }
 
-.section-seven-grid .section-seven-date {
-  grid-column: 1 / 2;
-}
-
-.section-seven-readonly .form-control:disabled,
-.section-seven-readonly select.form-control:disabled {
-  background: #f3f4f6;
-  color: #6b7280;
-  border-color: #e5e7eb;
-  cursor: not-allowed;
-  opacity: 1;
-}
-
 .form-field label {
   font-size: 13px;
   color: #374151;
@@ -565,26 +484,6 @@ function handleClose() {
   margin: 0;
   font-size: 12px;
   color: #ef4444;
-}
-
-.declaration-box {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 8px;
-  padding: 12px 16px;
-}
-
-.declaration-box ul {
-  margin: 0 0 12px;
-  padding-left: 20px;
-  font-size: 13px;
-}
-
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
 }
 
 .documents-panel {

@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 `add-deferment-app` Phase 1–2 已交付休学列表 + 简化 Pending 审批 + 中英文 i18n。产品要求对齐 `add-programme-transfer-app` **6 态流转语义** 与 **流程日志外置**。
 
@@ -8,9 +8,9 @@
 - **审批**：`programmeTransferApproval.js`（Approved / Update Required / Rejected）
 - **流转日志**：`ApprovalLogModal.vue`（Phase 4 四模块统一）
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 6 态状态机（Draft / In Progress / Cancelled / Update Required / Rejected / Approved）
 - 每状态 ≥2 条 Mock（≥12 条）
@@ -19,14 +19,14 @@
 - Details 只读 + In Progress 内嵌审批；**不含内嵌 log**
 - 对齐 Programme Transfer 交互模式
 
-**Non-Goals:**
+**非目标：**
 
 - Expired 双 mock（可选保留单条演示）
 - 真实后端、角色权限
 - 独立审批菜单页
 - 审批通过后回写 Student Profile
 
-## Decisions
+## 设计决策
 
 ### 1. 数据模型 — `src/data/deferments.js`
 
@@ -161,7 +161,7 @@ DefermentView.vue
   src/components/studentRecords/ApprovalLogModal.vue
 ```
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -169,7 +169,7 @@ DefermentView.vue
 | 与转专业代码重复 | 克隆 helper / Actions 模式；字段层独立 `deferments.js` |
 | Cancel 与审批并发 | 仅 Pending Review 且无审批决策时可 Cancel |
 
-## Migration Plan
+## 迁移说明
 
 1. 扩展 `deferments.js` 状态枚举与 helper
 2. 升级 `defermentApproval.js` 多段流
@@ -178,7 +178,7 @@ DefermentView.vue
 5. 确认流转日志外置（Phase 4，可与转专业共用组件）
 6. 冒烟 + `npm run build`
 
-## Open Questions
+## 待定问题
 
 1. 休学审批是否必须两阶段（Pending Review → Academic Affairs），或首版可单段 Pending Review + Update Required（当前 design 采用两阶段以对齐转专业 Cancel/不可 Cancel 演示）
 2. Expired 是否在休学场景保留（建议可选单条 mock）

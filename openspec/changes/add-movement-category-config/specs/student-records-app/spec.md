@@ -1,30 +1,30 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Undeveloped movement and study plan pages
-The system SHALL show the in-app under-construction page for menu items that are not yet developed.
+### 需求：未开发的异动与学习计划页面
+系统应对尚未开发的菜单项展示应用内「建设中」页面。
 
-#### Scenario: Undeveloped movement submenu
-- **WHEN** user selects Informed Consent Form, Status Change Maintenance, Status Change Inquiry, or Status Change Statistics
-- **THEN** the system shows the under-construction page with a back action to Student Basic Information
+#### 场景：未开发的异动子菜单
+- **当** 用户选择知情同意书、学籍异动维护、学籍异动查询或学籍异动统计
+- **则** 系统展示「建设中」页面，并提供返回学生基本信息的操作
 
-#### Scenario: Change category is developed
-- **WHEN** user selects Change Category in the sidebar
-- **THEN** the system displays the movement category configuration list page instead of the under-construction page
+#### 场景：异动类别已开发
+- **当** 用户在侧边栏选择异动类别
+- **则** 系统展示异动类别配置列表页，而非「建设中」页面
 
-#### Scenario: Undeveloped study plan submenu
-- **WHEN** user selects Personal Curriculum Plan
-- **THEN** the system shows the under-construction page with a back action to Student Basic Information
+#### 场景：未开发的个人学习计划子菜单
+- **当** 用户选择个人培养方案
+- **则** 系统展示「建设中」页面，并提供返回学生基本信息的操作
 
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Change category registered as developed page
-The system SHALL register `sr-movement-category` as a developed student-records page alongside Student Basic Information, Status Change Application, and Status Change Approval.
+### 需求：异动类别注册为已开发页面
+系统应将 `sr-movement-category` 与学生基本信息、学籍异动申请、学籍异动审批一并注册为已开发的学生档案页面。
 
-#### Scenario: Sidebar navigation
-- **WHEN** user selects Change Category under Student Status Change
-- **THEN** the sidebar highlights Change Category
-- **AND** the main content renders MovementCategoryView
+#### 场景：侧边栏导航
+- **当** 用户在学籍异动下选择异动类别
+- **则** 侧边栏高亮异动类别
+- **且** 主内容区渲染 `MovementCategoryView`
 
-#### Scenario: Breadcrumb
-- **WHEN** user is on the Change Category page
-- **THEN** the breadcrumb displays the Student Status Change group label and the Change Category page label
+#### 场景：面包屑
+- **当** 用户位于异动类别页面
+- **则** 面包屑展示学籍异动分组标签与异动类别页面标签

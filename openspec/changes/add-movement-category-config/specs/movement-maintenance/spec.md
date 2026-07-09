@@ -1,34 +1,34 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Implement approved movement records
-The system SHALL allow batch marking of selected pending-implement rows as implemented. Rows that were auto-implemented on approval SHALL remain visible in the maintenance list with implemented status Implemented and SHALL NOT be eligible for the Implement action.
+### 需求：实施已审批的异动记录
+系统应允许批量将所选待实施行标记为已实施。审批时自动实施的行应仍在维护列表可见，且 `implemented` 为 `Implemented`，不得参与实施操作。
 
-#### Scenario: Implement pending rows
-- **WHEN** user selects one or more rows with implemented status Pending and clicks Implement
-- **THEN** the system shows a confirmation dialog
-- **AND** on confirm sets implemented to Implemented on the selected store records
+#### 场景：实施待实施行
+- **当** 用户选择一条或多条 `implemented` 为 `Pending` 的行并点击实施
+- **则** 系统展示确认对话框
+- **且** 确认后将所选存储记录的 `implemented` 设为 `Implemented`
 
-#### Scenario: Implement disabled for already implemented
-- **WHEN** all selected rows are already Implemented
-- **THEN** the Implement action is disabled or shows no eligible rows message
+#### 场景：已实施行不可再次实施
+- **当** 所选行均已为 `Implemented`
+- **则** 实施操作禁用，或提示无可实施行
 
-#### Scenario: Auto-implemented rows visible in maintenance list
-- **WHEN** a movement application was approved with auto implement enabled on its category configuration
-- **THEN** the record appears in the maintenance list with implemented status Implemented
-- **AND** the Implement toolbar action does not apply to that row
+#### 场景：自动实施行在维护列表可见
+- **当** 某异动申请在类别配置启用自动实施的情况下获批
+- **则** 该记录出现在维护列表，`implemented` 为 `Implemented`
+- **且** 实施工具栏操作不适用于该行
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Apply student profile updates on implementation
-The system SHALL apply mock student profile updates when a movement record is implemented, according to the category modifyStudentStatus and modifyStudentType flags resolved by source key.
+### 需求：实施时应用学生档案更新
+系统应在异动记录实施时，按按来源键解析的类别 `modifyStudentStatus` 与 `modifyStudentType` 标志应用 mock 学生档案更新。
 
-#### Scenario: Modify track category on implement
-- **WHEN** implementation runs and modifyStudentType is true for the resolved category
-- **THEN** the system updates the linked student profile track category using the configuration row Category value (not a removed Student Type field)
+#### 场景：实施时修改轨道类别
+- **当** 实施运行且解析后类别的 `modifyStudentType` 为 true
+- **则** 系统使用配置行 `Category` 值（不再读取已删除的 Student Type 字段）更新关联学生档案的轨道类别
 
-### Requirement: Movement reason column uses category reasons
-The system SHALL display movement reason in the maintenance list using the category configuration reason label resolved from the application reasonId for deferment, withdrawal, and programme transfer records.
+### 需求：维护列表异动原因列使用类别原因
+系统应在维护列表使用类别配置原因标签展示异动原因，从申请的 `reasonId` 解析休学、退学、转专业记录。
 
-#### Scenario: Maintenance reason matches application selection
-- **WHEN** a maintenance row represents a deferment, withdrawal, or programme transfer with a valid reasonId
-- **THEN** the movement reason column shows the matching reasonName from the category configuration
+#### 场景：维护原因与申请选择一致
+- **当** 维护行代表含有效 `reasonId` 的休学、退学或转专业
+- **则** 异动原因列展示类别配置中匹配的 `reasonName`

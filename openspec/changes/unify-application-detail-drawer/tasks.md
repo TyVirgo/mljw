@@ -52,6 +52,6 @@
 
 - [x] 8.1 评估 `MovementApprovalReviewView.vue`：删除或保留为 drawer 适配层 — 列表侧已无引用，文件保留
 - [x] 8.2 `ApprovalLogModal.vue`（studentRecords / courseApplication）：列表侧零引用；组件可保留
-- [ ] 8.3 回归 11 个页面：抽屉开关、timeline 节点、footer 按钮、附件预览、同意书下载
+- [ ] 8.3 回归 11 个页面：抽屉开关、审批日志表格、footer 按钮、附件预览
 - [ ] 8.4 回归：Edit/Delete/Cancel 等列表按钮未受影响
-- [ ] 8.5 Node 18+ 环境 `npm run build`
+- [x] 8.5 Node 18+ 环境 `npm run build`（2026-06-30 验证通过）

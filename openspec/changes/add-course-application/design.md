@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 项目为 Vue 3 + Vite 单页应用。Course Info 下 **Course Information** 已实现简单 CRUD（单页 Modal + General tab），而 **Course Application** 是独立的申请/审批流程，复杂度接近 Lecturer Information 四步向导 + Programme Version 嵌套表格。
 
@@ -10,21 +10,21 @@
 - SLT Step 3：含「课程内容大纲及子主题」「Continuous Assessment」「Final Assessment」三类子实体，各有 Learning Time（F2F Physical/Online、NF2F、Total SLT 汇总）
 - 字段选项（产品说明）：Bloom A1–A5 / C1–C6 / P1–P7；Teaching Methods 多选 Lecture / Practical / Others；Assessment Methods 多选 8 项
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 - 实现与原型截图一致的 UI 结构与交互
 - 复用 Course Information 已有枚举与 Offering 数据源
 - 提供完整 mock 数据（6 条列表 + CLO 样本 6 条 + SLT 子项样本）
 - 支持 Temporary saved 草稿、Submit 进入 In Progress、Details 只读、Approval Log 时间线
 
-**Non-Goals:**
+**非目标：**
 - 真实工作流引擎、邮件通知、与 Course Information 自动同步入库
 - Senate / HoD 端独立审批页（本页仅展示 Approval Stage 与 Log）
 - Step 1 以外部系统预填（首版手工录入）
 - 附件上传（原型未体现）
 
-## Decisions
+## 设计决策
 
 ### 1. 视图模式 — 列表 / 向导 / 详情 三态
 
@@ -185,7 +185,7 @@ src/
 - 菜单已有 `menu.courseApplication`
 - 新增 Status、Approval Stage、Apply New Course、三步标题、SLT 区块标题等至 `zh-flat.js`
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -194,15 +194,15 @@ src/
 | Teaching Methods 原型表格写 Tutorial，说明文档写 Practical | 以产品说明为准，mock 可保留 Tutorial 作 Others 别名展示 |
 | 无后端时 Submit/Approve 为假流转 | approvalLog mock 写入；Status 手动枚举切换演示 |
 
-## Migration Plan
+## 迁移说明
 
 纯前端新增。合并后验证 `course-application` 菜单可访问即可。
 
-## Open Questions
+## 待定问题
 
 （已全部确认，见 Resolved）
 
-## Resolved
+## 已确认
 
 - **Step 1 General Information**（2026-06-02）：字段与 **Course Information 完全一致**（Course Code、Course Name、Offering、Course Owner、Course Classification、Credit、Medium of Instruction、Semester Type）；复用相同校验规则。
 - **CLO 必填**（2026-06-02）：至少 **1 条 CLO** 才能从 Step 2 进入 Step 3，且保存/提交时须满足。

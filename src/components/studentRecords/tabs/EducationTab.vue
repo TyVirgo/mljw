@@ -7,6 +7,7 @@ import {
   qualificationOptions,
   showsChineseLanguageTests,
   usesQualificationDropdown,
+  isLocalCategory,
 } from '../../../data/students.js'
 
 const props = defineProps({
@@ -19,8 +20,13 @@ const props = defineProps({
 const { tr } = useAppI18n()
 
 const category = computed(() => props.form.studentCategory || '')
+const isLocal = computed(() => isLocalCategory(category.value))
 const showChineseTests = computed(() => showsChineseLanguageTests(category.value))
 const qualificationAsSelect = computed(() => usesQualificationDropdown())
+
+function err(field) {
+  return props.errors[`education.${field}`] || ''
+}
 </script>
 
 <template>
@@ -50,6 +56,16 @@ const qualificationAsSelect = computed(() => usesQualificationDropdown())
       </StudentFormField>
       <StudentFormField label="Subject" :read-only="readOnly" :display-value="form.education.subject">
         <input v-model="form.education.subject" type="text" />
+      </StudentFormField>
+      <StudentFormField
+        v-if="isLocal"
+        label="SPM Malay Score"
+        required
+        :read-only="readOnly"
+        :error="err('spmMalayScore')"
+        :display-value="form.education.spmMalayScore"
+      >
+        <input v-model="form.education.spmMalayScore" type="text" />
       </StudentFormField>
     </div>
     <h4 class="section-title">{{ tr('LANGUAGE PROFICIENCY') }}</h4>

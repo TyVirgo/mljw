@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 ```
 当前（refine-movement-approval-search-ui）     目标（本 change）
@@ -11,20 +11,20 @@ Academic Session                              Academic Session  [________]
 
 全局样式 `list-page-search.css` 已定义 inline 布局；`MovementApprovalView` scoped 样式覆盖了该行为。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 每个搜索项：标签 + 输入/下拉 **同一行**，标签 `white-space: nowrap`
 - 搜索区整体与课程审批等模块视觉一致
 - 删除冗余 scoped 搜索样式，避免再次覆盖全局规范
 
-**Non-goals:**
+**非目标：**
 
 - 强制 5 个字段永不折行（窄屏时字段组可 wrap，但组内不换行）
 - 搜索逻辑变更
 
-## Decisions
+## 设计决策
 
 ### 1. 采用全局 `list-page-search.css`，删除 scoped 覆盖
 
@@ -71,19 +71,19 @@ Academic Session                              Academic Session  [________]
 | 字段之间 | `search-fields` flex-wrap，空间不足时整组换行 |
 | 操作按钮 | `search-actions` 保持右侧，`margin-left: auto` |
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
 | 长中文标签挤压输入框 | `label` nowrap + 输入固定宽度 180px；必要时缩短 i18n |
 | scoped 删除后与其他页面样式耦合 | 有意复用全局规范，降低维护成本 |
 
-## Migration Plan
+## 迁移说明
 
 1. 删除 `MovementApprovalView.vue` scoped 搜索相关 CSS
 2. 目视对比 `CourseApprovalView` 搜索区
 3. `npm run build` + 浏览器缩放冒烟
 
-## Open Questions
+## 待决问题
 
 （无阻塞项。）

@@ -7,6 +7,7 @@ import {
   commonApprovalComments,
   validateApprovalForm,
 } from '../../data/movementApprovalEngine.js'
+import { getApprovalActionLabel } from '../../utils/approvalActionLabels.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -123,7 +124,7 @@ function cancelSubmit() {
                 <div class="radio-group">
                   <label v-for="opt in approvalActionOptions" :key="opt" class="radio-item">
                     <input v-model="selectedAction" type="radio" :value="opt" />
-                    <span>{{ tr(opt) }}</span>
+                    <span>{{ getApprovalActionLabel(opt, t) }}</span>
                   </label>
                 </div>
               </div>

@@ -22,6 +22,7 @@ export const studentRecordsMenuItems = [
     children: [
       { id: 'sr-movement-category', labelKey: 'menu.srMovementCategory' },
       { id: 'sr-consent-form', labelKey: 'menu.srConsentForm' },
+      { id: 'sr-movement-rules', labelKey: 'menu.srMovementRules' },
       { id: 'sr-movement-application-teacher', labelKey: 'menu.srMovementApplicationTeacher' },
       { id: 'sr-movement-application-student', labelKey: 'menu.srMovementApplicationStudent' },
       { id: 'sr-movement-approval', labelKey: 'menu.srMovementApproval' },
@@ -35,6 +36,7 @@ export const studentRecordsDevelopedPages = new Set([
   'sr-student-profile',
   'sr-movement-category',
   'sr-consent-form',
+  'sr-movement-rules',
   'sr-movement-application-teacher',
   'sr-movement-application-student',
   'sr-movement-approval',

@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 学籍应用壳层（`add-student-records-app`）与 Student Profile 完整 CRUD（`add-student-profile-crud`）已落地，但侧边栏 **Programme Transfer（转专业）** 仍为建设中占位页。转专业是学籍异动核心场景之一，需按 StudentSys 原型提供 **申请历史列表**、**多 Section 申请表单** 及 **带审批流的状态管理**（Draft → 审批 → 终态），以支撑业务演示并与现有 Course Application 审批模式保持一致。
 
-## What Changes
+## 变更内容
 
 - 新增 **Programme Transfer Application** 列表页（Application History）：
   - 搜索：Student ID or Name
@@ -72,7 +72,7 @@
 - **同步落地**：Deferment、Resumption、Withdrawal 列表与详情（与转专业同一交互）
 - i18n：`common.workflowLog`（EN Workflow Log / ZH 流转日志）
 
-### Non-goals（本变更不包含）
+### 非目标（本变更不做）
 
 - Family Info、Deferment、Resumption、Withdrawal 等其他学籍异动菜单
 - 真实后端 API、文件存储、权限/角色体系（首版 Admin 演示身份可审批）
@@ -82,17 +82,17 @@
 - vue-router 引入
 - 真实定时任务触发 Expired（首版提供 mock/演示入口）
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `programme-transfer-app`: 转专业学籍异动——申请列表、多 Section 表单、状态机、审批流、Student Profile 联动、归档筛选
 
-### Modified Capabilities
+### 修改的能力
 
 - `student-records-app`: 将 `sr-programme-transfer` 从建设中页升级为已开发页面（`studentRecordsDevelopedPages` 扩展）
 
-## Impact
+## 影响范围
 
 - **新增文件**
   - `src/views/studentRecords/ProgrammeTransferView.vue` — 列表页

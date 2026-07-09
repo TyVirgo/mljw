@@ -2,6 +2,8 @@
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
+  onLabel: { type: String, default: 'Y' },
+  offLabel: { type: String, default: 'N' },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -16,14 +18,14 @@ function toggle() {
   <button
     type="button"
     class="yn-switch"
-    :class="{ on: modelValue, disabled }"
+    :class="{ on: modelValue, disabled, localized: onLabel.length > 1 || offLabel.length > 1 }"
     :disabled="disabled"
     @click="toggle"
   >
     <span class="yn-switch-track">
-      <span class="yn-switch-letter yn-switch-letter-y">Y</span>
+      <span class="yn-switch-letter yn-switch-letter-y">{{ onLabel }}</span>
       <span class="yn-switch-knob"></span>
-      <span class="yn-switch-letter yn-switch-letter-n">N</span>
+      <span class="yn-switch-letter yn-switch-letter-n">{{ offLabel }}</span>
     </span>
   </button>
 </template>
@@ -53,6 +55,10 @@ function toggle() {
   transition: background 0.2s;
 }
 
+.yn-switch.localized .yn-switch-track {
+  width: 56px;
+}
+
 .yn-switch.on .yn-switch-track {
   background: #2563eb;
 }
@@ -73,6 +79,10 @@ function toggle() {
   transform: translateX(28px);
 }
 
+.yn-switch.localized.on .yn-switch-knob {
+  transform: translateX(32px);
+}
+
 .yn-switch-letter {
   flex: 1;
   font-size: 11px;
@@ -80,6 +90,10 @@ function toggle() {
   color: #fff;
   z-index: 1;
   user-select: none;
+}
+
+.yn-switch.localized .yn-switch-letter {
+  font-size: 10px;
 }
 
 .yn-switch-letter-y {

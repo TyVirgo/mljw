@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 当前详情与日志分离，容器形态不统一：
 
@@ -14,7 +14,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-目标（对齐产品参考图）：
+目标（对齐后续原型 `refine-movement-admin-detail-export`）：
 
 ```
 列表（不动）
@@ -23,51 +23,52 @@
                       ┌──────────────────────────────┐
                       │ 详情                     [×] │  fixed header
                       ├──────────────────────────────┤
-                      │ ┌ Approval Log ────────────┐ │
-                      │ │ ✓ Applicant · Submitted  │ │  scroll
-                      │ │ ◷ Coordinator · Pending │ │
-                      │ │ ○ HOD · —                │ │
-                      │ └──────────────────────────┘ │
+                      │ 申请详情字段区块…             │  scroll
                       │ ──────────────────────────── │
-                      │ 申请详情字段区块…             │
+                      │ ┌ Approval Log 表格 ───────┐ │
+                      │ │ Description | Action By  │ │
+                      │ │ Action By Role | Created │ │
+                      │ └──────────────────────────┘ │
                       ├──────────────────────────────┤
-                      │      [Close]  [Review]       │  fixed footer
+                      │ [Export PDF]      [Close]    │  fixed footer（按场景）
                       └──────────────────────────────┘
 ```
 
-已有可复用：`StudentProfileDetailDrawer`（右滑壳）、四 `*DetailModal`（字段布局）、`movementApprovalWorkflows.getWorkflowStages`、`approvalLog[]`。
+已有可复用：`StudentProfileDetailDrawer`（右滑壳）、四 `*DetailModal`（字段布局）、`approvalLog[]`、`MovementApprovalLogTable`。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 11 个页面合并「详情 + 日志」为单一「详情」按钮
-- 右滑抽屉：上时间线、下详情、底固定操作
-- 时间线视觉对齐参考图（竖线 + 图标 + 状态徽章 + 时间）
+- 右滑抽屉：上详情、下审批日志四列表格、底固定操作
+- 审批日志表格列：Description、Action By、Action By Role、Created At
 - 列表其他操作按钮位置与行为不变
 - 异动审批 Pending tab 的 Review 在抽屉 footer
 
-**Non-Goals:**
+**非目标：**
 
 - 抽屉内上一条/下一条记录导航
 - 改审批引擎、workflow 定义
 - 无双按钮页面（如统计页、纯配置页）
 - 将 Edit/Delete/Cancel 移入抽屉 footer
 
-## Decisions
+## 设计决策
 
 ### D1：壳组件分层
 
 ```
 ApplicationDetailDrawer.vue          ← 通用：overlay、panel、header、scroll-body、footer slot
-    ├── ApprovalTimeline.vue         ← 通用：timeline UI
+    ├── MovementApprovalLogTable.vue ← 通用：审批日志四列表格
     └── slot #detail                 ← 领域内容
 
-MovementApplicationDetailDrawer.vue  ← 组装：queueItem → timeline + *DetailContent
-CourseApplicationDetailDrawer.vue    ← 组装：course item → timeline + wizard/detail readonly
+MovementApplicationDetailDrawer.vue  ← 组装：queueItem → 详情内容 + 审批日志表格
+CourseApplicationDetailDrawer.vue    ← 组装：course item → 详情内容 + 审批日志表格
 ```
 
-**理由**：异动与课程详情结构差异大，共用壳 + timeline，内容分领域 wrapper。
+**理由**：异动与课程详情结构差异大，共用壳 + 审批日志表格，内容分领域 wrapper。
+
+> **演进说明**：首版曾实现 `ApprovalTimeline.vue` 竖向时间线；后续由 `refine-movement-admin-detail-export` 统一为详情在上、审批日志表格在下。
 
 ### D2：DetailModal 拆分
 
@@ -85,42 +86,27 @@ CourseApplicationDetailDrawer.vue    ← 组装：course item → timeline + wiz
 
 **理由**：避免 drawer 嵌套 modal overlay；减少 `:deep` hack（`MovementApprovalReviewView` 当前做法）。
 
-### D3：时间线节点构建
+### D3：审批日志表格展示
 
 ```js
-buildApprovalTimelineNodes({
-  workflowStages,   // string[] — 完整链
-  approvalLog,      // { stage, actor, action, dateTime, comment }[]
-  currentStage,     // item.approvalStage
-  status,           // Draft | In Progress | Approved | ...
-  applicantLabel,   // fullName
+// movementApprovalLogDisplay.js — 将 approvalLog[] 映射为表格行
+formatApprovalLogRows({
+  approvalLog,      // { stage, actor, action, dateTime, comment, role }[]
 })
 ```
 
-**节点状态映射：**
+**列定义：**
 
-| 条件 | 图标 | 徽章 | 说明 |
-|------|------|------|------|
-| log 含 Submitted | ✓ | Submitted（绿） | 首节点 Applicant |
-| log 含 Approved 且 stage 匹配 | ✓ | Approved（绿） | 已完成 |
-| log 含 Rejected | ✗ | Rejected（红） | 终态 |
-| log 含 Update Required | ⚠ | Update Required（橙） | |
-| stage === currentStage 且 In Progress | ◷ | Pending（黄） | 当前待审 |
-| workflow 中未到达 | ○ | Pending（灰）或无徽章 | 未来节点 |
+| 列 | 说明 |
+|------|------|
+| Description | Submitted 显示 Application Submitted；其余显示 action/stage 文案 |
+| Action By | 处理人 |
+| Action By Role | 处理人角色 |
+| Created At | `YYYY-MM-DD HH:mm:ss` |
 
-**异动 workflow 来源：**
+**异动日志来源：** `item.approvalLog[]` 按时间顺序渲染。
 
-```js
-import { getWorkflowStages } from './movementApprovalWorkflows.js'
-const stages = getWorkflowStages(sourceKey, inferStudentCategory(item))
-// 首节点前置 Applicant/Submission（不在 workflow 数组中）
-```
-
-**课程 workflow 来源：**
-
-- 新课：`approvalStageOptions` 或从 mock 推导有序 stage 列表
-- 变更：复用 `courseChangeApplications` 侧 stage 序列
-- Temporary saved / Draft：仅展示 Submitted（若有）或空态
+**课程日志来源：** 课程/变更申请 mock 中 `approvalLog` 或等价字段。
 
 ### D4：抽屉布局 CSS
 
@@ -130,7 +116,7 @@ const stages = getWorkflowStages(sourceKey, inferStudentCategory(item))
 .drawer-panel { display: flex; flex-direction: column; height: 100%; width: min(1080px, 92vw); }
 .drawer-header, .drawer-footer { flex-shrink: 0; }
 .drawer-scroll { flex: 1; overflow-y: auto; }
-.timeline-section { padding-bottom: 20px; border-bottom: 1px solid #e5e7eb; margin-bottom: 20px; }
+.approval-log-section { padding-top: 20px; border-top: 1px solid #e5e7eb; margin-top: 20px; }
 ```
 
 **z-index**：抽屉 `1000`；抽屉内触发的 `MovementApprovalModal` / `ConfirmDialog` ≥ `1100`（与现 ApprovalLogModal 一致）。
@@ -158,28 +144,28 @@ const stages = getWorkflowStages(sourceKey, inferStudentCategory(item))
 ### D7：i18n
 
 - 统一按钮：`common.details` / `tr('Details')` / 学生端现有 `*.actions.details`
-- 时间线区标题：`common.approvalLog` 或新增 `common.approvalTimeline`
-- 状态徽章：`approvalTimeline.status.submitted` / `.pending` / `.approved` 等
+- 审批日志区标题：`common.approvalLog`
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
 | 4 DetailModal + 课程详情拆分量较大 | 先 Query 页试点，再批量迁移 |
-| 课程侧无统一 workflow 函数 | `buildApprovalTimelineNodes` 接受显式 stages 参数 |
-| mock log stage 名与 workflow 不一致 | normalizeStageName 映射（Submission → Applicant） |
-| 抽屉内容过高 | 单 scroll 区域；timeline 默认可折叠（非首版） |
+| 课程侧日志字段不统一 | `formatApprovalLogRows` 接受显式字段映射 |
+| mock log 字段缺失 | 空单元格或占位符 |
+| 抽屉内容过高 | 单 scroll 区域；详情与日志同区滚动 |
 
-## Migration Plan
+## 迁移说明
 
-1. 新增 `ApprovalTimeline` + `ApplicationDetailDrawer` + timeline builder
+1. 新增 `ApplicationDetailDrawer` + `MovementApprovalLogTable` + 日志展示辅助
 2. 新增 `MovementApplicationDetailDrawer`；Query 页接入
 3. Approval / Maintenance / 学生 4 View
 4. 课程 4 View + `CourseApplicationDetailDrawer`
 5. 移除各 View 的 `ApprovalLogModal` 与整页 ReviewView
-6. 更新 OpenSpec delta specs；手动回归 11 页
+6. 由 `refine-movement-admin-detail-export` 将时间线演进为审批日志表格布局
+7. 更新 OpenSpec delta specs；手动回归 11 页
 
-## Open Questions
+## 待决问题
 
 - 课程 Temporary saved 是否展示完整 pending chain — **首版仅展示已有 log + 当前 stage**
 - `ApprovalLogModal` 是否删除 — **保留文件，列表不再引用**

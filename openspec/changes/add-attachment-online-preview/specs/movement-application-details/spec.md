@@ -1,42 +1,31 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Movement attachment readonly display matches prototype
-The system SHALL render uploaded attachments in detail modals using a bordered panel aligned to the prototype: label row with required marker, Download Consent Letter action on the right, and file link with document icon and eye preview icon below.
+### 需求：异动附件只读展示对齐原型
+系统应在详情弹框中使用对齐原型的边框面板渲染已上传附件：带必填标记的标签行、右侧 Download Consent Letter 操作，以及下方带文档图标与预览眼图标的文件链接。
 
-#### Scenario: Attachment panel layout
-- **WHEN** user views the Documents section in any movement detail modal
-- **THEN** the system shows an Upload Attachment label with required indicator, a Download Consent Letter button on the same row, and the uploaded file name as a blue link with document icon and eye preview icon below
+#### 场景：附件面板布局
+- 当用户在任意异动详情弹框的 Documents 区查看时，则系统在同一行展示 Upload Attachment 标签（含必填指示）、Download Consent Letter 按钮，下方以蓝色链接、文档图标与预览眼图标展示已上传文件名。
 
-#### Scenario: No attachment placeholder
-- **WHEN** an application has no attachment file name
-- **THEN** the attachment panel shows a placeholder instead of a file link
-- **AND** does not show an eye preview icon
+#### 场景：无附件占位
+- 当申请无附件文件名时，则附件面板显示占位而非文件链接，且不显示预览眼图标。
 
-#### Scenario: Preview uploaded attachment in detail
-- **WHEN** user clicks the eye icon next to the uploaded file name in a movement detail attachment panel
-- **THEN** the system opens the attachment preview modal for that application attachment
+#### 场景：在详情中预览已上传附件
+- 当用户点击异动详情附件面板中文件名旁的预览眼图标时，则系统为该申请附件打开附件预览弹框。
 
-#### Scenario: Download consent letter from configured template
-- **WHEN** user clicks Download Consent Letter in the detail attachment panel
-- **AND** a consent form template exists for the application's movement type and the application's student category
-- **THEN** the system downloads the configured student consent template file (mock)
+#### 场景：从已配置模板下载同意书
+- 当用户在详情附件面板点击 Download Consent Letter，且存在与该申请异动类型及学生类别匹配的同意书模板时，则系统下载已配置的学生同意书模板文件（mock）。
 
-#### Scenario: Download consent letter when not configured
-- **WHEN** user clicks Download Consent Letter in the detail attachment panel
-- **AND** no matching globally applied consent version exists for the movement type, student category, and programme level
-- **THEN** the system shows a message that no matching consent form was found and the user should contact an administrator
+#### 场景：未配置时下载同意书
+- 当用户在详情附件面板点击 Download Consent Letter，且不存在与异动类型、学生类别及 programme level 匹配的全局已应用同意书版本时，则系统提示未找到匹配的同意书，请联系管理员。
 
-### Requirement: Movement application form attachment preview
-The system SHALL show an eye preview icon next to the uploaded attachment file name in movement application create and edit forms after a file is selected or when editing an existing attachment file name.
+### 需求：异动申请表单附件预览
+系统应在异动申请新建与编辑表单中，于用户选择文件后或编辑已有附件文件名时，在已上传附件文件名旁显示预览眼图标。
 
-#### Scenario: Preview after file selection in deferment form
-- **WHEN** user selects an attachment file in the deferment application form Documents section
-- **THEN** the system displays the file name with an eye icon for online preview
+#### 场景：休学表单选文件后预览
+- 当用户在休学申请表单 Documents 区选择附件文件时，则系统展示文件名及用于在线预览的眼图标。
 
-#### Scenario: Preview in programme transfer resumption withdrawal forms
-- **WHEN** user selects or views an attachment file name in programme transfer, resumption, or withdrawal application forms
-- **THEN** the system displays the eye icon next to the file name using the same preview behavior as other movement forms
+#### 场景：转专业、复学、退学表单预览
+- 当用户在转专业、复学或退学申请表单中选择或查看附件文件名时，则系统以与其他异动表单相同的预览行为在文件名旁显示眼图标。
 
-#### Scenario: Preview applies in approval maintenance and query detail views
-- **WHEN** user opens a movement application in approval, maintenance, or query review detail
-- **THEN** the attachment panel includes the eye preview icon consistent with the readonly attachment component
+#### 场景：审批、维护、查询详情视图中的预览
+- 当用户在审批、维护或查询审阅详情中打开异动申请时，则附件面板含与只读附件组件一致的预览眼图标。

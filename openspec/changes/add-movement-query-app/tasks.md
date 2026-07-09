@@ -73,3 +73,9 @@
 - [x] 11.2 与维护 §10 共用：`movementMaintenanceExportFields.js`、`exportMovementQueryExcel.js`、`movementMaintenanceQueue.js`
 - [x] 11.3 `movement-query-app/spec.md` §9 同步：精简列不含 expected graduation time
 - [x] 11.4 冒烟 + `npm run build` 通过
+
+## 12. §12 是否实施 Y/N 公共 UI 组件
+
+- [x] 12.1 `MovementQueryView.vue`：搜索区 `ImplementedYnSearchSelect`；列表列 `ImplementedYnBadge`
+- [x] 12.2 与 `add-movement-maintenance` §12 共用组件；Export 仍走 `formatImplementedYn`
+- [x] 12.3 冒烟 + `npm run build` 通过

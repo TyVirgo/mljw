@@ -1,10 +1,10 @@
-## Why
+## 背景与动机
 
 知情同意书模块在 Phase 2.1（§11）将版本历史改为 Save 驱动的只读审计日志，附件与学期均在新增/编辑弹窗维护，与产品期望的「组合维度 + 版本快照」模型不符。产品需要按 **异动类别 × Student Type × 学历层次** 维护配置行，在 **版本快照** 中按 **生效学年学期** 管理学生/家长同意书附件，且列表 Edit 仅改名称与批注。
 
 **2026-06 补充（Phase 2.2）**：生效学年学期与是否应用均归属版本快照维护；Create 仅建配置行，不在新增时选学期；新增版本时可选择是否立即应用（默认否）。
 
-## What Changes
+## 变更内容
 
 ### 新增弹窗（Create）
 
@@ -44,13 +44,13 @@
 - `versionSnapshot.applyImmediately`：是否立即应用
 - 保留 `versionSnapshot.*` 其余文案
 
-## Capabilities
+## 能力范围
 
-### Modified Capabilities
+### 修改的能力
 
 - `consent-form-config`：Create 五字段无学期、版本仅在快照创建、新增版本可选立即应用、列表无 View、快照 UX 细化
 
-## Impact
+## 影响范围
 
 - **修改**
   - `ConsentFormFormModal.vue` — Create 去掉学年学期，5 字段布局
@@ -62,7 +62,7 @@
 - **不再使用（可保留文件）**
   - `ConsentFormViewModal.vue` — 列表无 View 入口
 
-## Non-goals
+## 非目标（本变更不做）
 
 - 恢复按申请 `applicationSession` 四维 lookup
 - 版本快照内 Edit/Delete 已有版本

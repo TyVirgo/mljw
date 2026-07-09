@@ -75,3 +75,10 @@
 - [x] 11.7 `App.vue`（或入口）调用 `processDueImplementations`；Confirm i18n
 - [x] 11.8 seed：至少 1 条 effectiveSession 晚于 current 的 Pending 便于 demo
 - [x] 11.9 冒烟：Y/Scheduled 不可勾；下拉过滤；未到生效学期 Scheduled→processor→Y；`npm run build` 通过
+
+## 12. §12 是否实施 Y/N 公共 UI 组件
+
+- [x] 12.1 新增 `ImplementedYnBadge.vue`、`ImplementedYnSearchSelect.vue`
+- [x] 12.2 `MovementMaintenanceView.vue`：列表列 + 搜索区接入组件
+- [x] 12.3 `MovementQueryView.vue`、`MovementApprovalView.vue`：列表列接入 Badge
+- [x] 12.4 确认 Export 仍使用 `formatImplementedYn`（组件仅 UI 层）

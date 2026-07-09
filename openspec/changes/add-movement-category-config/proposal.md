@@ -1,10 +1,10 @@
-## Why
+## 背景与动机
 
 学籍异动「异动类别」配置页（`sr-movement-category`）首版已交付列表/表单/原因 CRUD。产品图示1 **新增异动类别** 弹框需扩展三个**实施行为开关**，并将类别配置接入 **审批 → 维护实施** 流水线：控制异动是否修改学籍状态/类型，以及审批通过后是**自动实施**还是进入维护页**手动实施**。
 
 本期在既有配置页基础上增量交付；四 Tab 申请页仍不改为从配置动态生成，但通过 lookup 让审批/维护能读取类别策略。
 
-## What Changes
+## 变更内容
 
 ### 表单弹窗扩展（图示1 增量）
 
@@ -47,20 +47,20 @@ resumption         → RES001
 studentCategory China → config studentType Chinese
 ```
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 （首版已建 `movement-category-config`，本期为**扩展**）
 
-### Modified Capabilities
+### 修改的能力
 
 - `movement-category-config`: 三个实施行为开关、12 条 mock、`resolveMovementCategoryConfig` lookup
 - `movement-approval-app`: 审批通过时读取 `autoImplement` 决定初始 `implemented`
 - `movement-maintenance-app`: 自动实施行仍展示于 Approved 维护列表；仅 Pending 可批量「实施」
 - `student-records-app`: （无菜单变更）
 
-## Impact
+## 影响范围
 
 - **修改**
   - `src/data/movementCategories.js` — 三字段、lookup、WDR/RES 种子
@@ -68,13 +68,13 @@ studentCategory China → config studentType Chinese
   - `src/data/movementApprovalEngine.js` — Approved 时读 `autoImplement`
   - `src/data/movementMaintenanceFields.js` — 实施时读 modify 开关（可选回写 students）
   - `src/i18n/locales/en.js`、`zh.js`
-- **Non-goals**
+- **非目标**
   - 申请 Tab 动态化、原因下拉改读配置
   - 取消实施 / 反实施
   - 后端 API
   - 维护列表新增三开关列（仅弹框配置）
 
-## Decisions（探索阶段已确认）
+## 设计决策（探索阶段已确认）
 
 - 开关粒度：**每 Student Type 一行**独立配置
 - 自动实施后：**仍展示**于维护列表，状态=已实施
@@ -118,26 +118,26 @@ studentCategory China → config studentType Chinese
 
 - 删除 **学生类型** 列；原因弹窗副标题不再展示 Student Type
 
-## Capabilities（增量）
+## 能力范围（增量）
 
-### Modified Capabilities
+### 修改的能力
 
 - `movement-category-config`: 表单 IA 修订、移除 Student Type、4 行 seed、lookup 简化、类别全量下拉
 - `movement-approval-integration`: lookup 不再依赖 studentCategory 维度（签名可保留、逻辑忽略）
 - `movement-maintenance`: modifyStudentType 回写改用 `category` 字段
 
-## Impact（增量）
+## 影响范围（增量）
 
 - **修改**
   - `movementCategories.js` — 去 studentType；`trackCategoryOptions`；4 行 seed；lookup/validate
   - `MovementCategoryFormModal.vue` — 布局重构
   - `MovementCategoryView.vue`、`MovementCategoryReasonModal.vue` — 去 Student Type 展示
   - `students.js` — `applyStudentProfileFromMovement` modifyStudentType 语义
-- **Non-goals**
+- **非目标**
   - 不动 ConsentForm、StudentProfile、MovementQuery 等其它模块的 studentType
   - 申请 Tab 动态化、取消实施、后端 API
 
-## Decisions（增量已确认）
+## 设计决策（增量已确认）
 
 | 项 | 决策 |
 |----|------|
@@ -189,7 +189,7 @@ studentCategory China → config studentType Chinese
 | `MovementCategoryFormModal.vue` 模板 + scoped CSS | 数据模型、lookup、列表列 |
 | OpenSpec spec delta（标签列 Scenario） | i18n 文案变更 |
 
-### Decisions（§15 已确认）
+### 设计决策（
 
 | 项 | 决策 |
 |----|------|
@@ -198,17 +198,17 @@ studentCategory China → config studentType Chinese
 | modify 开关 | 下移至 select **下方**、控件区内右对齐（保留图示2 语义） |
 | 是否自动实施 | 左列与类别编码对齐；开关在值区紧挨标签后、左对齐 |
 
-## Capabilities（§15 增量）
+## 能力范围（§15 增量）
 
-### Modified Capabilities
+### 修改的能力
 
 - `movement-category-config`: 表单标签列与 Row1 对齐；学籍状态/类别 label+select 同行；modify 开关下移；删除 spacer/inline-label
 
-## Impact（§15 增量）
+## 影响范围（§15 增量）
 
 - **修改**
   - `MovementCategoryFormModal.vue` — 模板与 scoped CSS
-- **Non-goals**
+- **非目标**
   - 数据模型、lookup、列表、i18n 文案
 
 ---
@@ -252,7 +252,7 @@ Row2  * 学籍状态: [select]         Row2  * 学籍状态: [select]    | * 类
 |--------|----------|
 | `MovementCategoryFormModal.vue` 模板 + scoped CSS | 数据层、原因同步 |
 
-### Decisions（§16 已确认）
+### 设计决策（
 
 | 项 | 决策 |
 |----|------|
@@ -261,16 +261,16 @@ Row2  * 学籍状态: [select]         Row2  * 学籍状态: [select]    | * 类
 | 开关对齐 | `switch-value-row` 左对齐，与 autoImplement 一致 |
 | hint | 不变，仍在开关下方 |
 
-## Capabilities（§16 增量）
+## 能力范围（§16 增量）
 
-### Modified Capabilities
+### 修改的能力
 
 - `movement-category-config`: modify 开关独立行、标准标签列排版
 
-## Impact（§16 增量）
+## 影响范围（§16 增量）
 
 - **修改** — `MovementCategoryFormModal.vue`
-- **Non-goals** — §17 原因同步、其它模块
+- **非目标** — §17 原因同步、其它模块
 
 ---
 
@@ -340,7 +340,7 @@ export function resolveReasonIdByName(categoryCode, reasonName) { ... }
 
 - 申请表单原因 select **无选项**；提交校验拦截并提示需管理员配置原因
 
-### Decisions（§17 已确认）
+### 设计决策（
 
 | 项 | 决策 |
 |----|------|
@@ -352,16 +352,16 @@ export function resolveReasonIdByName(categoryCode, reasonName) { ... }
 | 空配置 | select 为空 + 校验拦截 |
 | Seed | DEF/WDR 对齐现硬编码；PT 新建 seed；存量映射 reasonName→reasonId |
 
-## Capabilities（§17 增量）
+## 能力范围（§17 增量）
 
-### Modified Capabilities
+### 修改的能力
 
 - `movement-category-config`: reason helpers、seed reasons、CRUD 后申请端可见
 - `movement-approval-integration`: `extractMovementReason` 走 resolveReasonLabel
 - `movement-maintenance`: movementReason 展示同步
 - `deferment-app` / `withdrawal-app` / `programme-transfer-app`: 原因 select 来自类别配置
 
-## Impact（§17 增量）
+## 影响范围（§17 增量）
 
 - **修改**
   - `movementCategories.js` — seed reasons、helpers、nextReasonId
@@ -369,7 +369,7 @@ export function resolveReasonIdByName(categoryCode, reasonName) { ... }
   - `DefermentFormModal.vue` / `WithdrawalFormModal.vue` / `ProgrammeTransferFormModal.vue`
   - `DefermentDetailModal.vue` / `WithdrawalDetailModal.vue` / `ProgrammeTransferDetailModal.vue`
   - `movementApprovalQueue.js` — extractMovementReason
-- **Non-goals**
+- **非目标**
   - RES001 申请原因字段
   - 后端 API
   - 原因多语言 key 表
@@ -396,15 +396,15 @@ export function resolveReasonIdByName(categoryCode, reasonName) { ... }
 
 - **不变**：原因列表仍支持新增 / 编辑 / 删除（申请端原因下拉依赖此配置）
 
-### Capabilities（§19 增量）
+### 能力范围（§19 增量）
 
 - `movement-category-config`: 本阶段只读类别集合；屏蔽 Create/Delete UI
 
-### Impact（§19 增量）
+### 影响范围（§19 增量）
 
 - **修改** `MovementCategoryView.vue` — 去 toolbar、勾选列、删除确认；仅 Edit + Set Reason
 - **修改** `MovementCategoryFormModal.vue` — Edit 时 categoryCode 只读
-- **Non-goals** — 不删 data 层 CRUD 函数；不限制原因弹窗 CRUD
+- **非目标** — 不删 data 层 CRUD 函数；不限制原因弹窗 CRUD
 
 ---
 
@@ -439,16 +439,16 @@ export function resolveReasonIdByName(categoryCode, reasonName) { ... }
 | `presetNewProgrammeBatchList` | 预置新专业批次名单 | false，非必选 |
 | `excludeGradedFromPreset` | 已获得成绩课程不预置… | false，非必选；**§21 起与 #1/#2 无联动** |
 
-### Capabilities（§20 增量）
+### 能力范围（§20 增量）
 
 - `movement-category-config`: Edit 表单布局、开关联动、PT001 选课 mock 字段
 
-### Impact（§20 增量）
+### 影响范围（§20 增量）
 
 - **修改** `MovementCategoryFormModal.vue` — 布局对调、`:disabled` 联动、PT001 checkbox 区
 - **修改** `movementCategories.js` — `normalizeRow` / seed / empty form
 - **修改** `en.js` / `zh.js` — 选课相关 i18n
-- **Non-goals** — 不接真实选课 API；~~非 PT001 不展示选课区~~（§22 起四类均展示）
+- **非目标** — 不接真实选课 API；~~非 PT001 不展示选课区~~（§22 起四类均展示）
 
 ---
 
@@ -474,15 +474,15 @@ export function resolveReasonIdByName(categoryCode, reasonName) { ... }
 - 第 2、3 项 checkbox 与第 1 项 checkbox **左对齐**（缩进 = 标签列宽 + gap）
 - 标签与选项文案字号 **13px**，与弹框其他字段（`.field-label`、radio、select）一致
 
-### Capabilities（§21 增量）
+### 能力范围（§21 增量）
 
 - `movement-category-config`: 处理选课区独立 checkbox + 首行对齐 + 统一字号
 
-### Impact（§21 增量）
+### 影响范围（§21 增量）
 
 - **修改** `MovementCategoryFormModal.vue` — 移除 preset→exclude watch/disabled；选课区 markup/CSS 重排
 - **修改** `movement-category-config/spec.md` — 替换 §20 联动场景
-- **Non-goals** — 不改 `movementCategories.js` 字段结构；不接选课 API
+- **非目标** — 不改 `movementCategories.js` 字段结构；不接选课 API
 
 ---
 
@@ -507,13 +507,13 @@ export function resolveReasonIdByName(categoryCode, reasonName) { ... }
 - **四类共用** §20/§21 已有三项 i18n 文案（含「新专业批次」表述；实施语义由后端统一抽象，本阶段 mock 不区分）
 - **默认**：DEF001 / WDR001 / RES001 seed 三项均为 `false`；PT001 可保留 demo 勾选
 
-### Capabilities（§22 增量）
+### 能力范围（§22 增量）
 
 - `movement-category-config`: 四类 Edit 均含处理选课 mock 字段
 
-### Impact（§22 增量）
+### 影响范围（§22 增量）
 
 - **修改** `MovementCategoryFormModal.vue` — 去掉 `isProgrammeTransfer` / `v-if` 限制
 - **修改** `movementCategories.js` — DEF/WDR/RES seed 显式三字段 `false`（可选，normalize 已默认 false）
 - **修改** spec — MODIFIED 选课 Requirement；REMOVED「仅 PT001 可见」场景
-- **Non-goals** — 不改 i18n key；申请表单/审批/实施仍不读这三项
+- **非目标** — 不改 i18n key；申请表单/审批/实施仍不读这三项

@@ -1,91 +1,62 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Movement attachment readonly display matches prototype
-The system SHALL render uploaded attachments in detail modals using a bordered panel aligned to the prototype: label row with required marker, Download Consent Letter action on the right, and file link with document icon below.
+### 需求：异动附件只读展示对齐原型
+系统应在详情弹框中使用对齐原型的边框面板渲染已上传附件：带必填标记的标签行、右侧 Download Consent Letter 操作，以及下方带文档图标的文件链接。
 
-#### Scenario: Attachment panel layout
-- **WHEN** user views the Documents section in any movement detail modal
-- **THEN** the system shows an Upload Attachment label with required indicator, a Download Consent Letter button on the same row, and the uploaded file name as a blue link with document icon below
+#### 场景：附件面板布局
+- 当用户在任意异动详情弹框的 Documents 区查看时，则系统在同一行展示 Upload Attachment 标签（含必填指示）、Download Consent Letter 按钮，下方以蓝色链接与文档图标展示已上传文件名。
 
-#### Scenario: No attachment placeholder
-- **WHEN** an application has no attachment file name
-- **THEN** the attachment panel shows a placeholder instead of a file link
+#### 场景：无附件占位
+- 当申请无附件文件名时，则附件面板显示占位而非文件链接。
 
-#### Scenario: Download consent letter from configured template
-- **WHEN** user clicks Download Consent Letter in the detail attachment panel
-- **AND** a consent form template exists for the application's movement type and the application's student category
-- **THEN** the system downloads the configured student consent template file (mock)
+#### 场景：从已配置模板下载同意书
+- 当用户在详情附件面板点击 Download Consent Letter，且存在与该申请异动类型及学生类别匹配的同意书模板时，则系统下载已配置的学生同意书模板文件（mock）。
 
-#### Scenario: Download consent letter when not configured
-- **WHEN** user clicks Download Consent Letter in the detail attachment panel
-- **AND** no matching applied consent version exists for the movement type, student category, programme level, and academic session
-- **THEN** the system shows a message that no matching consent form was found and the user should contact an administrator
+#### 场景：未配置时下载同意书
+- 当用户在详情附件面板点击 Download Consent Letter，且不存在与异动类型、学生类别、programme level 及 academic session 匹配的已应用同意书版本时，则系统提示未找到匹配的同意书，请联系管理员。
 
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Movement application form downloads matched consent templates
-The system SHALL resolve and download consent form templates from the consent form configuration store when users click Download Consent Letter in movement application create/edit forms.
+### 需求：异动申请表单下载匹配的同意书模板
+系统应在用户点击异动申请新建/编辑表单中的 Download Consent Letter 时，从同意书配置库解析并下载模板。
 
-#### Scenario: Download student template in programme transfer form
-- **WHEN** user clicks Download Consent Letter in the programme transfer application form Documents section
-- **AND** a student is selected with a resolvable programme level and application academic session
-- **AND** an applied consent version exists for programme-transfer, the student's category, education level, and academic session
-- **THEN** the system downloads that version's student consent template file (mock)
+#### 场景：在转专业表单下载学生模板
+- 当用户在转专业申请表单 Documents 区点击 Download Consent Letter，且已选学生具有可解析的 programme level 与 application academic session，且存在 programme-transfer、该生类别、education level 与 academic session 的已应用同意书版本时，则系统下载该版本的学生同意书模板文件（mock）。
 
-#### Scenario: Download student template in deferment resumption withdrawal forms
-- **WHEN** user clicks Download Consent Letter in deferment, resumption, or withdrawal application form Documents section
-- **AND** a student is selected with a resolvable programme level and application academic session
-- **AND** a matching applied version exists
-- **THEN** the system downloads the student consent template file (mock)
+#### 场景：在休学、复学、退学表单下载学生模板
+- 当用户在休学、复学或退学申请表单 Documents 区点击 Download Consent Letter，且已选学生具有可解析的 programme level 与 application academic session，且存在匹配的已应用版本时，则系统下载学生同意书模板文件（mock）。
 
-#### Scenario: Download not configured in application form
-- **WHEN** user clicks Download Consent Letter in any movement application form
-- **AND** no matching applied consent version exists for the current tab, selected student, and application academic session
-- **THEN** the system shows a message that no matching consent form was found and the user should contact an administrator
+#### 场景：申请表单中未配置下载
+- 当用户在任意异动申请表单点击 Download Consent Letter，且当前 Tab、所选学生与 application academic session 无匹配的已应用同意书版本时，则系统提示未找到匹配的同意书，请联系管理员。
 
-### Requirement: Parent consent template download in deferment and withdrawal forms
-The system SHALL provide a Download Parent Consent Letter action in deferment and withdrawal application forms when the matched template includes a parent consent file.
+### 需求：休学与退学表单的家长同意书模板下载
+当匹配模板含家长同意书文件时，系统应在休学与退学申请表单提供 Download Parent Consent Letter 操作。
 
-#### Scenario: Show parent download when configured
-- **WHEN** user is in deferment or withdrawal create/edit form Section III (parent/guardian consent)
-- **AND** the matched template has a parent consent file
-- **THEN** the system shows a Download Parent Consent Letter action
+#### 场景：已配置时显示家长下载
+- 当用户在休学或退学新建/编辑表单 Section III（家长/监护人同意）中，且匹配模板含家长同意书文件时，则系统显示 Download Parent Consent Letter 操作。
 
-#### Scenario: Hide parent download when not configured
-- **WHEN** the matched template has no parent consent file
-- **THEN** the system does not show Download Parent Consent Letter in Section III
+#### 场景：未配置时隐藏家长下载
+- 当匹配模板无家长同意书文件时，则系统在 Section III 不显示 Download Parent Consent Letter。
 
-#### Scenario: Download parent template
-- **WHEN** user clicks Download Parent Consent Letter
-- **AND** the matched template has a parent consent file
-- **THEN** the system downloads the parent consent template file (mock)
+#### 场景：下载家长模板
+- 当用户点击 Download Parent Consent Letter，且匹配模板含家长同意书文件时，则系统下载家长同意书模板文件（mock）。
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Movement application form downloads matched consent templates
-The system SHALL resolve consent templates using movement type, student category, and programme level mapped to education level only, returning the globally applied version on the matching configuration row. Application academic session SHALL NOT be used for consent matching in this phase.
+### 需求：异动申请表单下载匹配的同意书模板（§11 三维 lookup）
+系统应仅使用异动类型、学生类别及 programme level 映射的 education level 解析同意书模板，返回匹配配置行上的全局已应用版本。本阶段 application academic session 不参与同意书匹配。
 
-#### Scenario: Download student template in programme transfer form
-- **WHEN** user clicks Download Consent Letter in the programme transfer application form Documents section
-- **AND** a student is selected with a resolvable programme level
-- **AND** a globally applied consent version exists for programme-transfer, the student's category, and education level
-- **THEN** the system downloads that version's student consent template file (mock)
+#### 场景：在转专业表单下载学生模板
+- 当用户在转专业申请表单 Documents 区点击 Download Consent Letter，且已选学生具有可解析的 programme level，且存在 programme-transfer、该生类别与 education level 的全局已应用同意书版本时，则系统下载该版本的学生同意书模板文件（mock）。
 
-#### Scenario: Download student template in deferment resumption withdrawal forms
-- **WHEN** user clicks Download Consent Letter in deferment, resumption, or withdrawal application form Documents section
-- **AND** a student is selected with a resolvable programme level
-- **AND** a matching globally applied version exists
-- **THEN** the system downloads the student consent template file (mock)
+#### 场景：在休学、复学、退学表单下载学生模板
+- 当用户在休学、复学或退学申请表单 Documents 区点击 Download Consent Letter，且已选学生具有可解析的 programme level，且存在匹配的全局已应用版本时，则系统下载学生同意书模板文件（mock）。
 
-#### Scenario: Download not configured in application form
-- **WHEN** user clicks Download Consent Letter in any movement application form
-- **AND** no matching globally applied consent version exists for the current tab and selected student
-- **THEN** the system shows a message that no matching consent form was found and the user should contact an administrator
+#### 场景：申请表单中未配置下载
+- 当用户在任意异动申请表单点击 Download Consent Letter，且当前 Tab 与所选学生无匹配的全局已应用同意书版本时，则系统提示未找到匹配的同意书，请联系管理员。
 
-### Requirement: Download consent letter when not configured
-The system SHALL show the contact administrator message when no globally applied consent version matches movement type, student category, and programme level.
+### 需求：未配置时下载同意书
+当无全局已应用同意书版本匹配异动类型、学生类别与 programme level 时，系统应展示联系管理员消息。
 
-#### Scenario: Download consent letter when not configured
-- **WHEN** user clicks Download Consent Letter in the detail attachment panel
-- **AND** no matching globally applied consent version exists for the movement type, student category, and programme level
-- **THEN** the system shows a message that no matching consent form was found and the user should contact an administrator
+#### 场景：未配置时下载同意书
+- 当用户在详情附件面板点击 Download Consent Letter，且不存在与异动类型、学生类别及 programme level 匹配的全局已应用同意书版本时，则系统提示未找到匹配的同意书，请联系管理员。

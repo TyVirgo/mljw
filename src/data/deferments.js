@@ -1,12 +1,51 @@
-import { isLocalCategory } from './students.js'
+import {
+  createEmptyMovementAttachments,
+  validateMovementAttachments,
+  withMovementAttachments,
+} from './movementAttachments.js'
 import { validateAcademicSessionOrder } from '../utils/normalizeAcademicSession.js'
 import {
   resolveReasonIdByName,
   resolveReasonLabel,
   isValidReasonIdForCategory,
 } from './movementCategories.js'
+import { findSemesterRecordByKey } from './calendarInfo.js'
+import { initialSemesterRecords } from './semesterInfo.js'
 
 const DEF_CATEGORY_CODE = 'DEF001'
+
+const SEMESTER_MONTH_ORDER = { '02': 1, '04': 2, '09': 3 }
+
+export function getDefermentPeriodOptions(records = initialSemesterRecords) {
+  return [...records]
+    .sort((a, b) => {
+      const yearDiff = parseInt(a.academicYear, 10) - parseInt(b.academicYear, 10)
+      if (yearDiff !== 0) return yearDiff
+      return (SEMESTER_MONTH_ORDER[a.semester] || 0) - (SEMESTER_MONTH_ORDER[b.semester] || 0)
+    })
+    .map((record) => `${record.academicYear}/${record.semester}`)
+}
+
+export function resolveDefermentPeriodDates(defermentPeriod, records = initialSemesterRecords) {
+  const record = findSemesterRecordByKey(defermentPeriod, records)
+  if (!record) {
+    return { defermentStartDate: '', defermentEndDate: '' }
+  }
+  return {
+    defermentStartDate: record.startDate || '',
+    defermentEndDate: record.endDate || '',
+  }
+}
+
+export function syncDefermentPeriodDates(deferment) {
+  if (!deferment) return deferment
+  const dates = resolveDefermentPeriodDates(deferment.defermentPeriod)
+  deferment.defermentStartDate = dates.defermentStartDate
+  deferment.defermentEndDate = dates.defermentEndDate
+  return deferment
+}
+
+export const defermentPeriodOptions = getDefermentPeriodOptions()
 
 export const defermentStatusOptions = [
   'Draft',
@@ -16,8 +55,6 @@ export const defermentStatusOptions = [
   'Rejected',
   'Cancelled',
 ]
-
-export const defermentPeriodOptions = ['2024/02', '2024/09', '2025/02', '2025/09', '2026/02']
 
 export const mainReasonOptions = [
   'Personal Reason',
@@ -86,7 +123,16 @@ export function formatApplicationDateDisplay(value) {
   return formatMovementDate(value)
 }
 
-import { resolveApplicationSessionFromStudent } from './movementApplicationSession.js'
+import { isLocalCategory } from './students.js'
+import {
+  buildParentContactsFromStudentFamily,
+  createEmptyParentContact,
+  normalizeParentContacts,
+  validateParentContacts,
+  withSyncedLegacyParentFields,
+} from './movementParentContacts.js'
+import { resolveApplicationSessionFromStudent, resolveCurrentAcademicSessionFromStudent } from './movementApplicationSession.js'
+import { resolveMovementVisaExpiryFromStudent } from '../utils/movementVisaExpiry.js'
 
 export function createEmptyDeferment() {
   const today = new Date().toISOString().slice(0, 10)
@@ -101,43 +147,55 @@ export function createEmptyDeferment() {
     dateOfApplication: today,
     applicationDeadline: '2026-12-31',
     applicationSession: '',
+    currentAcademicSession: '',
     fullName: '',
     intake: '',
     nricPassport: '',
     nationality: '',
     programme: '',
     programmeLevel: '',
+    studentCategory: '',
+    visaExpiryDate: '—',
     personalEmail: '',
     phoneNumber: '',
     accommodationRoomNo: '',
     defermentPeriod: '',
+    defermentStartDate: '',
+    defermentEndDate: '',
     reasonId: null,
     mainReason: '',
     detailedReason: '',
+    parentContacts: [createEmptyParentContact()],
     parentGuardianName: '',
     parentContactNo: '',
     parentNricPassport: '',
     parentRelationship: '',
     parentEmail: '',
+    declarationAgreed: false,
     attachment: null,
+    attachments: createEmptyMovementAttachments(),
     approvalLog: [],
   }
 }
 
 export function getDefermentFormData(record) {
   if (!record) return createEmptyDeferment()
-  return {
-    ...createEmptyDeferment(),
-    ...record,
-    attachment: record.attachment ? { ...record.attachment } : null,
-    approvalLog: (record.approvalLog || []).map((entry) => ({ ...entry })),
-  }
+  return syncDefermentPeriodDates(
+    withMovementAttachments(
+      withSyncedLegacyParentFields({
+        ...createEmptyDeferment(),
+        ...record,
+        parentContacts: normalizeParentContacts(record),
+        approvalLog: (record.approvalLog || []).map((entry) => ({ ...entry })),
+      }),
+    ),
+  )
 }
 
 export function normalizeDeferment(raw) {
   const base = { ...createEmptyDeferment(), ...raw }
   const { reasonId, mainReason } = syncDefermentReasonFields(base)
-  return {
+  const normalized = {
     ...base,
     id: base.id ?? createDefermentId(),
     applicationId: base.applicationId || createApplicationId(),
@@ -150,7 +208,17 @@ export function normalizeDeferment(raw) {
       base.archived === true ||
       ['Approved', 'Rejected', 'Cancelled'].includes(base.status),
   }
+  return withMovementAttachments(
+    syncDefermentPeriodDates(
+      withSyncedLegacyParentFields({
+        ...normalized,
+        parentContacts: normalizeParentContacts(normalized),
+      }),
+    ),
+  )
 }
+
+export { buildDefermentStatusLogRemarkLines, formatDefermentOrdinal } from './defermentStatusLog.js'
 
 export function buildStudentSnapshotForDeferment(student) {
   if (!student) return {}
@@ -158,7 +226,7 @@ export function buildStudentSnapshotForDeferment(student) {
   const enrollment = student.enrollment || {}
   const contact = student.contact || {}
   const accommodation = student.accommodation || {}
-  const family = student.family || {}
+  const parentContacts = buildParentContactsFromStudentFamily(student)
   const category = student.studentCategory || student.studentType || 'Local'
 
   const nricPassport = isLocalCategory(category)
@@ -179,15 +247,14 @@ export function buildStudentSnapshotForDeferment(student) {
     nationality: basic.nationality || '',
     programme: enrollment.programme || '',
     programmeLevel: enrollment.programmeLevel || '',
+    studentCategory: category,
+    visaExpiryDate: resolveMovementVisaExpiryFromStudent(student),
     personalEmail: contact.email || '',
     phoneNumber: contact.mobilePhone || '',
     accommodationRoomNo,
-    parentGuardianName: family.name || '',
-    parentContactNo: family.mobilePhone || '',
-    parentNricPassport: family.icPassport || '',
-    parentRelationship: family.relationship || '',
-    parentEmail: family.email || '',
     applicationSession: resolveApplicationSessionFromStudent(student),
+    currentAcademicSession: resolveCurrentAcademicSessionFromStudent(student),
+    ...withSyncedLegacyParentFields({ parentContacts }),
   }
 }
 
@@ -285,14 +352,10 @@ export function validateDefermentForm(data, mode = 'submit', existingList = [], 
   if (!isValidReasonIdForCategory(DEF_CATEGORY_CODE, data.reasonId)) {
     requireField('reasonId', 'Main Reason for Deferment is required.')
   }
-  if (!String(data.parentGuardianName || '').trim()) {
-    requireField('parentGuardianName', 'Parent/Guardian Name is required.')
-  }
-  if (!String(data.parentContactNo || '').trim()) {
-    requireField('parentContactNo', 'Contact No. is required.')
-  }
-  if (!data.attachment?.fileName) {
-    requireField('attachment', 'Supporting document is required.')
+  validateParentContacts(data.parentContacts, requireField, { mode: 'deferment' })
+  validateMovementAttachments('deferment', data, requireField, mode)
+  if (!data.declarationAgreed) {
+    requireField('declarationAgreed', 'You must agree to the declaration.')
   }
 
   if (
@@ -367,7 +430,10 @@ export function cancelApplication(item, actor = 'Student') {
     actor,
     action: 'Cancelled',
     dateTime: now,
-    comment: 'Application cancelled by student.',
+    comment:
+      actor === 'Student'
+        ? 'Application cancelled by student.'
+        : 'Application cancelled by AC.',
   })
   return normalizeDeferment({
     ...updated,
@@ -402,7 +468,9 @@ export function submitDefermentApplication(form, actor = 'Student') {
 }
 
 function buildRecord(partial) {
-  return normalizeDeferment(partial)
+  const declarationAgreed =
+    partial.declarationAgreed ?? (partial.status && partial.status !== 'Draft' ? true : false)
+  return normalizeDeferment({ ...partial, declarationAgreed })
 }
 
 export const initialDeferments = [
@@ -431,14 +499,15 @@ export const initialDeferments = [
     attachment: { fileName: 'deferment-support.pdf', size: 198000 },
     status: 'Approved',
     approvalStage: 'Approved',
+    exportArchiveNumber: '1482',
     implemented: 'Implemented',
     archived: true,
     submittedAt: '2025-09-29T08:00:00.000Z',
     dateOfApplication: '2025-09-15',
     approvalLog: [
-      { id: 1, stage: 'Submission', actor: 'Elson Lai', action: 'Submitted', dateTime: '15.09.2025 10:00', comment: '' },
-      { id: 2, stage: 'Pending Review', actor: 'System Admin', action: 'Approved', dateTime: '20.09.2025 10:00', comment: 'Initial review passed.' },
-      { id: 3, stage: 'Academic Affairs', actor: 'System Admin', action: 'Approved', dateTime: '29.09.2025 14:30', comment: 'Approved.' },
+      { id: 1, stage: 'Submission', actor: 'Elson Lai', actorRole: 'Student', action: 'Submitted', dateTime: '15.09.2025 10:00', comment: '' },
+      { id: 2, stage: 'Pending Review', actor: 'System Admin', actorRole: 'Degree Academic Coordinator', action: 'Approved', dateTime: '20.09.2025 10:00', comment: 'Initial review passed.' },
+      { id: 3, stage: 'Academic Affairs', actor: 'System Admin', actorRole: 'UG Academic Coordinator', action: 'Approved', dateTime: '29.09.2025 14:30', comment: 'Approved.' },
     ],
   }),
   buildRecord({

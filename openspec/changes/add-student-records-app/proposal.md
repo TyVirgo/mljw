@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 教学门户中「学籍管理 / Student Status Management」卡片当前标记为待开发，点击后仅展示建设中占位页。学籍管理是教务核心模块，需与「基础数据」并列作为门户二级应用；首版应提供与原型一致的**侧边栏菜单骨架**、**Basic Data 同款 Admin Shell**，并实现 **Student Profile（学生档案）** 列表页作为首个可演示业务页面，其余菜单项暂为应用内建设中页。
 
-## What Changes
+## 变更内容
 
 - 门户卡片：`student-records` 标记为已开发，点击后进入学籍管理应用壳层（不再跳转门户内建设中页）
 - 新增 **学籍管理应用** 独立 Admin Shell：顶栏模块标题、侧边栏、面包屑、返回门户；布局与样式对齐现有「基础数据」应用（复用 `HeaderBar` / `Sidebar` / `PageBreadcrumb` / 列表页 card 样式）
@@ -18,7 +18,7 @@
 - 扩展 `App.vue`：`appView` 增加 `student-records` 模式；默认 landing 为 `sr-student-profile`
 - 补充 i18n：门户文案、模块标题、菜单项、Student Profile 页面文案
 
-### Non-goals（本变更不包含）
+### 非目标（本变更不做）
 
 - Family Info、Programme Transfer、Deferment、Resumption、Withdrawal 的业务 CRUD（仅菜单 + 建设中页）
 - Student Profile 的 Create/Edit 多步向导或完整表单（首版列表 + Details/Edit 入口可先以弹窗占位或只读详情，见 design.md）
@@ -26,18 +26,18 @@
 - 与基础数据菜单合并（学籍应用保持独立 `studentRecordsMenu.js`）
 - Dashboard 首页（原型侧边栏无 Dashboard，默认直接进入 Student Profile）
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `student-records-app`: 学籍管理应用壳层——门户入口、独立 Admin Shell、扁平菜单骨架、应用内建设中页路由
 - `student-profile`: 学生档案列表页——检索、分页、批量选择、Create/Export、Details/Edit 入口、mock 数据
 
-### Modified Capabilities
+### 修改的能力
 
 （无现有 main spec，留空）
 
-## Impact
+## 影响范围
 
 - **新增文件**
   - `src/config/studentRecordsMenu.js` — 学籍应用菜单与 `developedPages`

@@ -1,19 +1,19 @@
-## Context
+## 背景说明
 
 当前 `App.vue` 通过 `appView`（`portal` | `admin`）切换门户与「基础数据」管理壳层。门户中 `student-records` 卡片 `developed: false`，点击后停留在 `AcademicPortalView` 内部的建设中页。
 
 Basic Data 列表页（如 `LecturerInformationView.vue`）已形成稳定模式：`page-card` 容器、搜索栏 + Search/Reset、工具栏（Create / Delete / Export）、`data-table` + `TablePagination`、Modal 弹窗 CRUD。学籍管理需成为第二个门户应用，**视觉与交互与 Basic Data 保持一致**，菜单结构对齐用户提供的 StudentSys 原型（扁平 6 项侧边栏）。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 门户卡片可点击，进入独立 Admin Shell（Header + Sidebar + Breadcrumb + Main）
 - 侧边栏 6 项扁平菜单（Student Profile 为首项且默认 landing）
 - Student Profile 列表页完整可演示（搜索、表格、分页、Export；Create/Import 至少 UI 可达）
 - 复用 Basic Data 布局组件与列表页 CSS 约定
 
-**Non-Goals:**
+**非目标：**
 
 - 其余 5 个菜单项的业务实现
 - Student Profile 完整多步 Create/Edit 向导（首版可 Details 只读 + Edit 占位提示）
@@ -21,7 +21,7 @@ Basic Data 列表页（如 `LecturerInformationView.vue`）已形成稳定模式
 - vue-router 引入
 - Dashboard 首页
 
-## Decisions
+## 设计决策
 
 ### 1. 应用视图模式 — 扩展 `appView` 枚举
 
@@ -146,7 +146,7 @@ function openStudentRecordsApp() {
 | `menu.srStudentProfile` 等 | 6 个菜单项 |
 | `studentProfile.*` | 列表页搜索、列头、按钮、占位提示 |
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -155,7 +155,7 @@ function openStudentRecordsApp() {
 | `App.vue` 分支膨胀 | 学籍分支仅 StudentProfile + UnderConstruction |
 | Programme/Intake 与基础数据 mock 不一致 | students.js 引用 programme 名称字符串，不强制 FK |
 
-## Migration Plan
+## 迁移说明
 
 纯前端增量：
 
@@ -163,12 +163,12 @@ function openStudentRecordsApp() {
 2. 切换其余 5 项菜单 → 应用内建设中页 → Back 回 Student Profile
 3. 返回门户与基础数据互不影响
 
-## Open Questions
+## 待定问题
 
 1. Student Profile **Create/Edit 完整表单**是否紧接本变更做第二个 OpenSpec？（建议 yes，本变更仅列表 + 只读 Details）
 2. **Delete** 是否纳入首版？（原型未展示 Delete；建议首版不含 Delete，与图示一致）
 
-## Resolved
+## 已确认
 
 - 菜单采用原型**扁平 6 项**，移除 Dashboard（2026-06-12，用户图示确认）
 - 样式与 **Basic Data 列表页**保持一致，不单独做 StudentSys 主题（2026-06-12）

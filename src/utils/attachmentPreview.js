@@ -74,14 +74,15 @@ export function buildMockPreviewHtml(fileName, fileMeta = null) {
 </html>`
 }
 
-export function downloadAttachmentMock(fileName, label = 'Attachment') {
+export function downloadAttachmentMock(fileName, downloadAs = fileName) {
   if (!fileName) return
+  const label = downloadAs || fileName
   const content = `Mock attachment: ${label}\nFile: ${fileName}\n`
   const blob = new Blob([content], { type: 'application/octet-stream' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
-  anchor.download = fileName
+  anchor.download = label
   anchor.click()
   URL.revokeObjectURL(url)
 }

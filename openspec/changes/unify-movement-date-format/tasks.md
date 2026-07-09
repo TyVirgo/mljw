@@ -1,5 +1,4 @@
-## 1. Helper
-
+## 1. 工具函数
 - [x] 1.1 创建 `src/utils/formatMovementDate.js`（`formatMovementDate`、`formatMovementDateOrEmpty`）
 
 ## 2. 四 Tab 申请 data 层

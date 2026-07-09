@@ -1,4 +1,4 @@
-## Why
+## 背景与动机
 
 `add-movement-approval-app` 在审批页顶部放置了 **Current approver role** 下拉，用于 demo 切换 mock 审批角色。产品图示与最新反馈表明该控件不应出现在页面上——审批视角由登录身份（v1 固定默认角色）决定，而非用户在列表页手动切换。
 
@@ -6,7 +6,7 @@
 
 首版搜索 UI 交付后，产品进一步要求 **Tab 顺序/角标**、**表格列**（去异动原因、加申请日期）、**是否实施仅历史 Tab 显示 Y/N**、**状态列可见性修复** 与 **搜索字段精简**（去掉异动原因）。
 
-## What Changes
+## 变更内容
 
 ### 移除 Role 选择器 UI
 
@@ -45,13 +45,13 @@
 
 - 移除或保留 `movementApproval.currentRole` key（UI 不再引用即可）
 
-## Capabilities
+## 能力范围
 
-### Modified Capabilities
+### 修改的能力
 
-- `movement-approval-app`: 列表页布局——无 Role 下拉；搜索区响应式栅格；**Tab/表格列/搜索字段 delta**
+- `movement-approval-app`：列表页布局——无 Role 下拉；搜索区响应式栅格；**Tab/表格列/搜索字段 delta**
 
-## Impact
+## 影响范围
 
 - **修改** `src/views/studentRecords/MovementApprovalView.vue` — 模板与样式
 - **修改** `src/data/movementApprovalQueue.js` — 申请日期格式化、implemented Y/N、搜索过滤去掉 reason
@@ -61,7 +61,7 @@
 - **§12 修改** `MovementApprovalReviewView.vue`、四 `*DetailModal.vue` — footer 审批 + Modal
 - **不变** Tab 分桶语义、审批引擎、列表 `MovementApprovalModal`、store 写回
 
-## Decisions（探索阶段已确认）
+## 设计决策（探索阶段已确认）
 
 | 项 | 决策 |
 |----|------|
@@ -90,7 +90,7 @@
 - `normalizeQueueItem` 增加 `programmeCode`（`resolveStatDimensions`）
 - `filterBySearch` 支持 `programmeCode` 模糊匹配
 
-### Decisions（§11 已确认）
+### 设计决策（§11 已确认）
 
 | 项 | 决策 |
 |----|------|
@@ -131,7 +131,7 @@ Pending → View
 - **ReviewView**：挂载 `MovementApprovalModal`（`target-count=1`）；确认时 `applyMovementDecision` → `emit('decided')`
 - **复用** 列表已有 `MovementApprovalModal`，不新建第二套审批 UI
 
-### Decisions（§12 已确认）
+### 设计决策（§12 已确认）
 
 | 项 | 决策 |
 |----|------|
@@ -140,14 +140,14 @@ Pending → View
 | Section VII | **A**：Modal 不扩展教务字段；与列表批量审批对齐，依赖申请预填 `newProgrammeFirstChoice` 等 |
 | Recall | 保持 ReviewView 底部 inline（本 § 不改动） |
 
-### Impact（§12）
+### 影响范围（§12）
 
 - **修改** `MovementApprovalReviewView.vue` — 删内联审批；接 Modal + footer 审批入口
 - **修改** 四 `*DetailModal.vue` — `showApprovalAction` + footer 按钮
 - **可选** `movementApproval.approve` i18n（或复用 `tr('Review')`）
 - **不变** 列表批量 Review、`applyMovementDecision` 引擎语义
 
-## Non-goals
+## 非目标（本变更不做）
 
 - 实现真实登录用户 → 审批角色映射
 - 恢复页内多角色 demo 切换（若需 demo 可改 mock 常量或 dev 配置，不在 UI 暴露）

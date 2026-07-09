@@ -1,20 +1,20 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Student Records sidebar flat menu
-The system SHALL provide a flat sidebar menu matching the prototype with six top-level items.
+### 需求：Student Records 侧边栏扁平菜单
+系统应提供与原型一致的扁平侧边栏菜单，包含六个顶级菜单项。
 
-#### Scenario: Menu items listed
-- **WHEN** user opens the Student Records Application
-- **THEN** the sidebar lists Student Profile, Family Info, Programme Transfer, Deferment, Resumption, and Withdrawal in that order
+#### 场景：菜单项列表
+- **当** 用户打开 Student Records Application
+- **则** 侧边栏按顺序列出 Student Profile、Family Info、Programme Transfer、Deferment、Resumption、Withdrawal
 
-#### Scenario: Student Profile navigation
-- **WHEN** user selects Student Profile in the sidebar
-- **THEN** the system displays the Student Profile list page
+#### 场景：Student Profile 导航
+- **当** 用户在侧边栏选择 Student Profile
+- **则** 系统展示 Student Profile 列表页
 
-#### Scenario: Programme Transfer navigation
-- **WHEN** user selects Programme Transfer in the sidebar
-- **THEN** the system displays the Programme Transfer Application list page
+#### 场景：Programme Transfer 导航
+- **当** 用户在侧边栏选择 Programme Transfer
+- **则** 系统展示 Programme Transfer Application 列表页
 
-#### Scenario: Undeveloped menu page
-- **WHEN** user selects Family Info, Deferment, Resumption, or Withdrawal
-- **THEN** the system shows the in-app under-construction page with a back action to Student Profile
+#### 场景：未开发菜单页
+- **当** 用户选择 Family Info、Deferment、Resumption 或 Withdrawal
+- **则** 系统展示应用内建设中页，并提供返回 Student Profile 的操作

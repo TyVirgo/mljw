@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 Lecturer Info → **Evaluation Settings**（评估设置）菜单目前为占位页，无法配置教师教学评估的触发规则。该页面是标记「需评估教师」（Requires Evaluation）的业务来源之一，需尽快提供与静态原型一致的全局规则与类型变更规则配置能力，以支撑 Lecturer Information 列表中的评估筛选与标签展示。
 
-## What Changes
+## 变更内容
 
 - 新增 **Evaluation Settings** 配置页：无搜索区，单页表单式布局（参考中英文静态设计图）
 - **全局提示横幅**：说明新入职教师或教师类型变更会触发评估需求
@@ -18,17 +18,17 @@ Lecturer Info → **Evaluation Settings**（评估设置）菜单目前为占位
 - 保存成功后可选轻量更新 mock `requiresEvaluation`（新入职 = 有入职时间 + 无授课记录；类型变更 = previousCategory 匹配），**不过度实现规则引擎**
 - **本页无查询检索功能**（系统配置页，非列表页）
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `evaluation-settings`: 教师评估规则配置——全局新入职评估开关、类型变更规则 CRUD、规则行启用/禁用、保存与 mock 持久化、保存后刷新评估标记
 
-### Modified Capabilities
+### 修改的能力
 
 - `lecturer-information`: `requiresEvaluation` 字段由 Evaluation Settings 保存后的规则计算结果驱动（mock 阶段客户端重算，非手工编辑）
 
-## Impact
+## 影响范围
 
 - **新增文件**
   - `src/views/EvaluationSettingsView.vue`

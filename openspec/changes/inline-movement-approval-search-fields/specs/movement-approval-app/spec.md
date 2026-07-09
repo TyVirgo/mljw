@@ -1,24 +1,24 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Approval search area uses responsive field layout
-The system SHALL display all five search fields—Academic Session, Movement Reason, Status, Student ID, and Student Name—in a single responsive search area without a More/Collapse expand control. Each search field SHALL render its label and input control on the same horizontal line without wrapping the label above the control.
+### 需求：审批搜索区采用响应式字段布局
+系统应展示五个搜索字段——Academic Session、异动原因、Status、Student ID、Student Name——于单一响应式搜索区，无「更多/收起」展开控件。每个搜索字段的标签与输入控件应在同一水平行展示，标签不得堆叠在控件上方。
 
-#### Scenario: All search fields visible
-- **WHEN** user opens the movement approval list page
-- **THEN** all five search fields are visible without requiring the user to expand additional filters
+#### 场景：全部搜索字段可见
+- **当**用户打开学籍异动审批列表页
+- **则**五个搜索字段均可见，无需用户展开额外筛选项
 
-#### Scenario: Inline label and control per field
-- **WHEN** user views any search field on the movement approval page
-- **THEN** the field label and its input or select control appear on one row with the label not stacked above the control
+#### 场景：单字段内联标签与控件
+- **当**用户查看审批页任意搜索字段
+- **则**字段标签与其 input 或 select 控件在同一行，标签不在控件上方堆叠
 
-#### Scenario: Adaptive field wrapping
-- **WHEN** the viewport width changes
-- **THEN** complete search field groups may wrap to additional rows, but each group keeps its label and control on the same line
+#### 场景：字段组自适应换行
+- **当**视口宽度变化
+- **则**完整搜索字段组可换至新行，但每组内标签与控件始终同行
 
-#### Scenario: Search actions alignment
-- **WHEN** search fields are displayed
-- **THEN** Search and Reset actions appear aligned to the right of the search field area on wide viewports and remain accessible when field groups wrap on narrow viewports
+#### 场景：搜索操作对齐
+- **当**搜索字段展示时
+- **则**Search 与 Reset 在宽视口下位于搜索字段区右侧；窄视口字段组换行时仍可访问
 
-#### Scenario: Consistent list-page search styling
-- **WHEN** the movement approval search bar is rendered
-- **THEN** it uses the shared list-page search layout conventions (inline label+control, shared spacing and control widths) consistent with other approval/list pages in the application
+#### 场景：与列表页搜索样式一致
+- **当**渲染异动审批搜索栏
+- **则**使用共享 `list-page-search.css` 布局约定（内联 label+control、统一间距与控件宽度），与本应用其他审批/列表页一致

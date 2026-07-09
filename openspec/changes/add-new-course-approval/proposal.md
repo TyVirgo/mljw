@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 Course Info → **New Course Approval**（新课程审批）菜单目前无实现，仍为占位路由。该模块是**审批角色专用**入口：数据来自 **Course Application** 已 Submit 的单据，需在列表中按审批节点完成立项审批、查阅申报详情与全流程履历；终审通过后归档至 **Course Information**，驳回/需修改则退回申请端草稿。缺少该页则申请—审批—入库链路无法闭环演示。
 
-## What Changes
+## 变更内容
 
 - 新增 **New Course Approval** 列表页：仅展示已送审（`In Progress` / 审批中）及历史审批态（含 `Approved`、`Rejected` 等）的申请单；**不展示** `Temporary saved` 草稿
 - 列表列：No.、Status、Approval Stage、**Course Code**、Course Name、Offering、Course Classification、Credit、Applicant、Application Date and Time、Actions（**Details**、**Approval Log**；审批人侧无 Edit/Delete）
@@ -11,7 +11,7 @@ Course Info → **New Course Approval**（新课程审批）菜单目前无实�
 - 新增 **Approval 审批弹窗**（见原型）：
   - 标题 Approval / 审核
   - 提示语含当前审批环节（如 Current QA / 当前：QA）
-  - **Action** 单选：Approved、Rejected、Update Required（中文：通过 / 拒绝 / 驳回）
+  - **Action** 单选：Approved、Rejected、Update Required（弹框展示文案见 **`refine-approval-modal-action-labels`**：通过 / 不通过 / 驳回）
   - **Comments** 多行文本 0/100，含 **Common Comments / 常用意见**（**首版 3–5 条静态模板**）
   - Cancel、Confirm
 - 审批结果流转（mock）：
@@ -22,17 +22,17 @@ Course Info → **New Course Approval**（新课程审批）菜单目前无实�
 - 注册 `course-approval-process` 至 `developedPages` 与 `App.vue`
 - 首版无真实 RBAC/工作流引擎；当前审批角色与节点以 mock 常量模拟
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `new-course-approval`: 新课程审批列表、检索、Approval 弹窗、审批动作与状态流转、详情/履历、导出，及与 Course Application / Course Information 的数据联动
 
-### Modified Capabilities
+### 修改的能力
 
 - `course-application`: 审批驳回（Update Required）后申请单回到 Temporary saved 可重新编辑提交；终审 Approved 后从申请端只读展示
 
-## Impact
+## 影响范围
 
 - **新增文件**
   - `src/views/CourseApprovalView.vue`
@@ -47,3 +47,12 @@ Course Info → **New Course Approval**（新课程审批）菜单目前无实�
 - **复用**
   - `CourseApplicationWizard`（detail 模式）、`ApprovalLogModal`、`ExportModal`、`TablePagination`、`ConfirmDialog`、`useListPageI18n`
 - **无后端依赖**：与 Course Application 共享 mock 数据源（内存 ref，可选 localStorage 同步）
+
+---
+
+## 关联变更（2026-06-30 原型补档）
+
+| 变更 | 关系 |
+|------|------|
+| `refine-approval-modal-action-labels` | `CourseApprovalModal` Action 单选文案：通过 / 不通过 / 驳回 |
+| `unify-application-detail-drawer` | Details + Approval Log 合并为详情抽屉；列表 Approve 仍打开同一 `CourseApprovalModal` |

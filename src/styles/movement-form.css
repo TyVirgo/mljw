@@ -67,3 +67,210 @@ textarea.form-control {
 .btn-select-student:hover {
   background: #eff6ff;
 }
+
+.movement-declaration-section .section-bar {
+  background: #f3f4f6;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #374151;
+  margin: 16px 0 12px;
+  border-radius: 4px;
+}
+
+.movement-declaration-section .declaration-box {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.movement-declaration-section .declaration-box ol.declaration-items,
+.movement-declaration-section .declaration-box ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #111827;
+  line-height: 1.5;
+}
+
+.movement-declaration-section .declaration-box ol.declaration-items li + li,
+.movement-declaration-section .declaration-box ul li + li {
+  margin-top: 8px;
+}
+
+.movement-declaration-section .checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #111827;
+  cursor: pointer;
+}
+
+.movement-declaration-section .checkbox-row--readonly {
+  cursor: default;
+}
+
+.movement-declaration-section .declaration-checkbox--locked {
+  pointer-events: none;
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  cursor: default;
+}
+
+.movement-declaration-section .checkbox-row + .checkbox-row {
+  margin-top: 8px;
+}
+
+.movement-declaration-section .checkbox-row span {
+  font-weight: 600;
+}
+
+.movement-declaration-section .required {
+  color: #ef4444;
+}
+
+.movement-declaration-section .field-error {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #ef4444;
+}
+
+.movement-applicant-notes {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #1e40af;
+}
+
+.movement-applicant-notes--instructional {
+  background: #fffbeb;
+  border: 1px dashed #fbbf24;
+  color: #92400e;
+}
+
+.movement-applicant-notes__title {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.movement-applicant-notes ol {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.55;
+}
+
+.movement-applicant-notes li + li {
+  margin-top: 6px;
+}
+
+.movement-international-remarks {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #5b21b6;
+}
+
+.movement-international-remarks__icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ede9fe;
+  border: 1px solid #c4b5fd;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.movement-international-remarks__title,
+.movement-international-remarks__attention-title {
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: #4c1d95;
+}
+
+.movement-international-remarks__intro,
+.movement-international-remarks__attention {
+  margin: 0 0 8px;
+  line-height: 1.55;
+}
+
+.movement-international-remarks ul {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  line-height: 1.55;
+}
+
+.movement-international-remarks li + li {
+  margin-top: 4px;
+}
+
+.field-hint-tip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  outline: none;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.field-hint-icon {
+  width: 14px;
+  height: 14px;
+  border: 1px solid #9ca3af;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  cursor: help;
+}
+
+.field-hint-tooltip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  width: 288px;
+  max-width: min(288px, calc(100vw - 48px));
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #374151;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 10;
+}
+
+.field-hint-tip-wrap:hover .field-hint-tooltip,
+.field-hint-tip-wrap:focus-within .field-hint-tooltip {
+  opacity: 1;
+  visibility: visible;
+}

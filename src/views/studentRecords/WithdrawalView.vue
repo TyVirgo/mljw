@@ -11,6 +11,7 @@ import WithdrawalFormModal from '../../components/studentRecords/WithdrawalFormM
 import MovementApplicationDetailDrawer from '../../components/studentRecords/MovementApplicationDetailDrawer.vue'
 
 import MovementApplicationSearchBar from '../../components/studentRecords/MovementApplicationSearchBar.vue'
+import MovementStudentCancelAction from '../../components/studentRecords/MovementStudentCancelAction.vue'
 
 import {
 
@@ -340,7 +341,7 @@ function requestDelete(item) {
 
 function requestCancel(item) {
 
-  confirmMessage.value = t('withdrawal.cancelOne')
+  confirmMessage.value = t('movementStudentCancel.confirmMessage')
 
   confirmAction.value = () => {
 
@@ -498,11 +499,10 @@ function displayDate(item) {
 
                   </button>
 
-                  <button v-if="canCancelWithdrawal(item)" type="button" class="link-btn" @click="requestCancel(item)">
-
-                    {{ t('withdrawal.actions.cancelApplication') }}
-
-                  </button>
+                  <MovementStudentCancelAction
+                    v-if="applicantMode === 'student' && canCancelWithdrawal(item)"
+                    @cancel="requestCancel(item)"
+                  />
 
                 </td>
 
@@ -559,6 +559,7 @@ function displayDate(item) {
       source-key="withdrawal"
       :item="detailItem"
       mode="student"
+      :enable-export-pdf="applicantMode === 'teacher'"
       @close="closeDrawer"
     />
 

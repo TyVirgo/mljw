@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 `add-student-records-app` 已交付 Student Profile **列表壳层**：搜索、分页、Export、Details/Edit/Create/Import 占位。当前 `students.js` 为扁平 9 字段模型，`Student Type` 使用 Local UG 等枚举，与原型（Local / China / International、XMUM2309001、七 Tab 注册表单）不一致。
 
@@ -7,9 +7,9 @@
 - **Excel 导入**：`courseImportExcel.js` + `CourseApplicationImportModal.vue`
 - **日期字段**：`DatePickerEn.vue`
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 完整 CRUD：Create / Read（Details）/ Update / Delete（行内 + 批量）
 - 七 Tab 注册表单 Drawer，对齐原型 New Student Registration
@@ -17,7 +17,7 @@
 - Export：列表列 + 可选完整档案字段组
 - 数据模型嵌套化，列表字段派生；Mock 对齐原型样例
 
-**Non-Goals:**
+**非目标：**
 
 - 侧边栏 Family Info 等独立菜单
 - 后端 API、真实文件存储
@@ -27,7 +27,7 @@
 - 切换 Category 清空隐藏字段
 - Contact / Family / Accommodation 类别差异
 
-## Decisions
+## 设计决策
 
 ### 1. 数据模型 — 嵌套 + 列表投影
 
@@ -62,7 +62,7 @@
 
 Drawer 宽度约 `min(960px, 90vw)`，Basic Info Tab 右侧 Photo Upload 区（FileReader → base64 预览）。
 
-**替代方案**：Lecturer 式纵向 Stepper — rejected，与原型 Tab 布局不符。
+**替代方案**：Lecturer 式纵向 Stepper — 已否决，与原型 Tab 布局不符。
 
 ### 3. 校验规则
 
@@ -126,7 +126,7 @@ src/components/studentRecords/
 src/i18n/                                            — 扩展
 ```
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -135,7 +135,7 @@ src/i18n/                                            — 扩展
 | Import 列与表单字段漂移 | 模板列定义与 export flat 字段共用常量 |
 | Photo base64 过大 | 限制文件类型 jpg/png、大小 ≤2MB |
 
-## Migration Plan
+## 迁移说明
 
 1. 重构 `students.js` 与 mock 数据（破坏性：旧枚举值清空 acceptable，无生产数据）
 2. 替换 DetailModal → DetailDrawer
@@ -196,11 +196,11 @@ basicInfo: {
 - Import 模板增加 passport/China 列；Local 行 icNo 必填，China/International 不要求
 - Export full 列增加 passport / China 身份字段
 
-## Open Questions
+## 待决问题
 
 （无阻塞项；已按 explore 结论默认：Delete 双模式、Import 25 列、Family Tab 仅在 Profile 内）
 
-## Resolved
+## 已确认结论
 
 - Student Type = Local / China / International（2026-06-12）
 - Import 首版覆盖列表 + Basic + Enrollment 核心列（2026-06-12）
@@ -295,7 +295,7 @@ src/utils/exportStudentProfileExcel.js     — 改（exportFields 含 no、默�
 src/views/studentRecords/StudentProfileView.vue — 改（handleExportConfirm）
 ```
 
-**Non-Goals（Phase 4）**：不修改 `ExportModal.vue` 通用组件；不改变 Import 流程；不新增导出格式。
+**非目标（Phase 4）**：不修改 `ExportModal.vue` 通用组件；不改变 Import 流程；不新增导出格式。
 
 ## Phase 5 — 学籍异动：流转状态 + 流程日志外置
 
@@ -434,7 +434,7 @@ programme / faculty 同步为所选 catalogue 项的 `programmeName` / `school`�
   src/data/students.js — initialStudents enrollment 段
 ```
 
-**Non-Goals（§14）**：Import 主数据校验；Programme Intake 级联；扩展 catalogue 补 FIN。
+**非目标（§14）**：Import 主数据校验；Programme Intake 级联；扩展 catalogue 补 FIN。
 
 ---
 
@@ -516,7 +516,7 @@ statusLogs: [
   src/i18n/locales/zh.js、en.js
 ```
 
-**Non-Goals（§15）**：Save 自动 append；Export statusLogs；Create/Edit 展示 Status Log Tab。
+**非目标（§15）**：Save 自动 append；Export statusLogs；Create/Edit 展示 Status Log Tab。
 
 ---
 
@@ -611,4 +611,4 @@ children: [
   src/i18n/locales/zh.js、en.js — programmeLevel 展示
 ```
 
-**Non-Goals（§16）**：楼栋→房间级联；Floor/Unit/Bed 代码集；Import 代码集校验。
+**非目标（§16）**：楼栋→房间级联；Floor/Unit/Bed 代码集；Import 代码集校验。

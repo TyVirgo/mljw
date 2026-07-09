@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 当前学籍新建/编辑抽屉将 **Student Category** 作为顶栏手选 radio，**Nationality（国籍）** 却放在 Basic Info Tab 内的普通文本框，两者无联动。业务上应先确定国籍，再按规则自动带出学生类别并展示对应字段；现有交互与 StudentSys 原型及异动模块已有的 `inferStudentCategory` 推断逻辑不一致，易造成类别选错、字段填错。
 
-## What Changes
+## 变更内容
 
 - 新建/编辑抽屉重构为两段式布局：
   - **国籍信息**：可搜索国籍下拉 + 只读学生类别（自动带出，不可手选）
@@ -16,17 +16,17 @@
 - 抽取统一的 `resolveCategoryFromNationality()`，与异动模块 `inferStudentCategory` 对齐
 - **BREAKING（交互）**：移除顶栏 Student Category radio；新建默认不再假定 Local
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 （无新增独立 capability；变更集中在既有 student-profile 能力内）
 
-### Modified Capabilities
+### 修改的能力
 
 - `student-profile`：新建/编辑/详情表单的国籍优先录入、类别自动推导、分区标题、未选国籍空态、编辑改国籍确认与字段清理
 
-## Impact
+## 影响范围
 
 - `src/components/studentRecords/StudentProfileFormDrawer.vue` — 布局与国籍/类别交互
 - `src/components/studentRecords/StudentProfileDetailDrawer.vue` — 详情同步布局
@@ -38,7 +38,7 @@
 - `src/data/movementApprovalEngine.js` — 复用统一推导函数
 - `src/i18n/locales/zh.js`、`en.js` — 国籍信息、信息填写、占位提示等文案
 
-## Non-goals（非目标范围）
+## 非目标（本变更不做）
 
 - Excel 导入模板列结构改造（仍保留 Student Category 列；一致性校验可后续迭代）
 - 后端 API 或真实 codeSet 接口对接

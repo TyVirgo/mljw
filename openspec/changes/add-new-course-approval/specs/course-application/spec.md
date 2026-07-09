@@ -1,27 +1,27 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Submit applications for review
-The system SHALL allow submitting selected Temporary saved applications for approval and SHALL make them visible to the New Course Approval queue.
+### 需求：Submit applications for review
+系统应允许将选中的 Temporary saved 申请提交审批，并使其在 New Course Approval 队列中可见。
 
-#### Scenario: Submit from list
-- **WHEN** user selects one or more Temporary saved applications and clicks Submit
-- **THEN** each selected application changes to status In Progress with approval stage HoD/HoP Review and an entry is appended to approval log
-- **AND** each submitted application becomes visible on the New Course Approval list page
+#### 场景：从列表 Submit
+- **当** 用户选中一条或多条 Temporary saved 申请并点击 Submit
+- **则** 每条选中申请的 status 变为 In Progress，approvalStage 为 HoD/HoP Review，并追加 approvalLog 条目
+- **且** 每条已提交申请在 New Course Approval 列表页可见
 
-#### Scenario: Rejected applications cannot be resubmitted
-- **WHEN** an application has status Rejected
-- **THEN** the system does not offer Edit or Submit actions for that application
-- **AND** Details and Approval Log remain available as read-only actions
+#### 场景：Rejected 申请不可重新提交
+- **当** 申请 status 为 Rejected
+- **则** 系统不提供 Edit 或 Submit 操作
+- **且** Details 与 Approval Log 仍可作为只读操作使用
 
-#### Scenario: Update Required return to draft
-- **WHEN** an approver selects Update Required on the New Course Approval page for an application
-- **THEN** the application status becomes Temporary saved in Course Application
-- **AND** the applicant MAY edit and Submit again
+#### 场景：Update Required 退回草稿
+- **当** 审批人在 New Course Approval 页面对申请选择 Update Required
+- **则** 申请在 Course Application 中 status 变为 Temporary saved
+- **且** 申请人可再次编辑并 Submit
 
-### Requirement: View details and approval log
-The system SHALL provide read-only Details and an Approval Log for each application.
+### 需求：View details and approval log
+系统应为每条申请提供只读 Details 与 Approval Log。
 
-#### Scenario: Approval log
-- **WHEN** user clicks Approval Log on a list row
-- **THEN** the system displays a chronological list of approval events for that application
-- **AND** events include approver actions from the New Course Approval module
+#### 场景：Approval log
+- **当** 用户点击列表行的 Approval Log
+- **则** 系统展示该申请的按时间排序审批事件列表
+- **且** 事件包含来自 New Course Approval 模块的审批人操作

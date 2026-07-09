@@ -1,475 +1,475 @@
-## ADDED Requirements
-
-### Requirement: Movement category list page
-The system SHALL display a paginated movement category configuration table under the Change Category menu with columns: selection checkbox, serial number, category code, category name, Student Status, Category, Student Type, and Actions.
+## 新增需求
+
+### 需求：异动类别列表页
+系统应在异动类别菜单下展示分页的异动类别配置表格，列含：选择复选框、序号、类别代码、类别名称、Student Status、Category、Student Type、操作。
 
-#### Scenario: Initial list with seed data
-- **WHEN** user opens Change Category for the first time
-- **THEN** the system displays twelve pre-seeded rows (four category groups × three Student Types: Local, Chinese, International)
+#### 场景：含种子数据的初始列表
+- **当** 用户首次打开异动类别
+- **则** 系统展示 12 条预置行（4 个类别组 × 3 种 Student Type：`Local`、`Chinese`、`International`）
 
-#### Scenario: Search filters list
-- **WHEN** user filters by category name, category code, or Student Status and clicks Search
-- **THEN** the list shows only matching rows and resets to page 1
+#### 场景：搜索筛选列表
+- **当** 用户按类别名称、类别代码或 Student Status 筛选并点击查询
+- **则** 列表仅展示匹配行并重置到第 1 页
 
-#### Scenario: Reset search
-- **WHEN** user clicks Reset
-- **THEN** all search fields clear and the full list is restored
+#### 场景：重置搜索
+- **当** 用户点击重置
+- **则** 清空所有搜索字段并恢复完整列表
 
-### Requirement: Create movement category as a single row
-The system SHALL create exactly one list row on Create, including the user-selected Student Type (Local, Chinese, or International).
+### 需求：新增异动类别为单行
+系统应在新建时恰好创建一条列表行，含用户选择的 Student Type（`Local`、`Chinese` 或 `International`）。
 
-#### Scenario: Open create form
-- **WHEN** user clicks Create on the list page
-- **THEN** the system opens the Create/Edit modal showing all six base form fields, three implementation switches, and Student Type
+#### 场景：打开新建表单
+- **当** 用户在列表页点击新建
+- **则** 系统打开新建/编辑弹框，展示全部 6 个基础表单字段、3 个实施开关与 Student Type
 
-#### Scenario: Submit create form
-- **WHEN** user completes all required fields including Student Type and confirms Save
-- **THEN** the system inserts one row with the submitted values
-- **AND** the new row has an empty reasons array
+#### 场景：提交新建表单
+- **当** 用户填写全部必填字段（含 Student Type）并确认保存
+- **则** 系统插入一行，值为提交内容
+- **且** 新行的 `reasons` 数组为空
 
-#### Scenario: Chinese student type display
-- **WHEN** a row has Student Type Chinese
-- **THEN** data is stored as Chinese
-- **AND** the Chinese UI displays the label as 中国
-
-### Requirement: Edit and delete movement category rows
-The system SHALL support editing a single list row and deleting one or more selected rows with confirmation.
+#### 场景：中国学生类型展示
+- **当** 某行 Student Type 为 `Chinese`
+- **则** 数据存储为 `Chinese`
+- **且** 中文界面标签显示为「中国」
+
+### 需求：编辑与删除异动类别行
+系统应支持编辑单条列表行，以及经确认后删除一条或多条所选行。
 
-#### Scenario: Edit single row
-- **WHEN** user clicks Edit on a row
-- **THEN** the system opens the form modal prefilled for that row only
-- **AND** Student Type is read-only
-- **AND** saving updates only that row
-
-#### Scenario: Bulk delete rows
-- **WHEN** user selects one or more rows and clicks Delete
-- **THEN** the system shows a confirmation dialog
-- **AND** confirmed deletion removes only the selected rows from storage
-
-#### Scenario: Delete is not blocked by downstream references
-- **WHEN** user deletes a category row
-- **THEN** the system removes the row without checking movement application references (out of scope for this change)
-
-### Requirement: Category options depend on student status
-The system SHALL filter Category dropdown options based on the selected Student Status using the product mapping table (Offered through Expel).
-
-#### Scenario: Category filtered on status change
-- **WHEN** user changes Student Status in the create or edit form
-- **THEN** the Category dropdown offers only categories allowed for that status
-
-#### Scenario: Clear invalid category on status change
-- **WHEN** user changes Student Status and the previously selected Category is not allowed for the new status
-- **THEN** the system clears the Category selection
-
-### Requirement: Movement category form fields
-The system SHALL require category code, category name, Student Status, Category, Student Type, and allow-student-apply on create; on edit Student Type SHALL be read-only.
-
-#### Scenario: Required field validation
-- **WHEN** user submits the form with missing required fields
-- **THEN** the system prevents save and shows validation feedback
-
-#### Scenario: Allow student application default
-- **WHEN** user opens the create form
-- **THEN** allow-student-apply defaults to Yes
-
-#### Scenario: Duplicate code and student type
-- **WHEN** user creates or edits a row that would duplicate the same category code and Student Type pair
-- **THEN** the system prevents save and shows a validation message
-
-#### Scenario: Form footer actions
-- **WHEN** the create or edit form modal is open
-- **THEN** the footer shows Cancel and Save buttons
+#### 场景：编辑单行
+- **当** 用户点击某行编辑
+- **则** 系统打开预填该行的表单弹框
+- **且** Student Type 为只读
+- **且** 保存仅更新该行
+
+#### 场景：批量删除行
+- **当** 用户选中一条或多条行并点击删除
+- **则** 系统展示确认对话框
+- **且** 确认后仅从存储中移除所选行
+
+#### 场景：删除不受下游引用阻塞
+- **当** 用户删除某类别行
+- **则** 系统直接移除该行，不检查异动申请引用（本变更范围外）
+
+### 需求：类别选项依赖学籍状态
+系统应根据所选 Student Status，按产品映射表（Offered 至 Expel）过滤 Category 下拉选项。
+
+#### 场景：状态变更时过滤类别
+- **当** 用户在新建或编辑表单中变更 Student Status
+- **则** Category 下拉仅提供该状态允许的类别
+
+#### 场景：状态变更时清除无效类别
+- **当** 用户变更 Student Status 且此前所选 Category 对新状态不允许
+- **则** 系统清除 Category 选择
+
+### 需求：异动类别表单字段
+系统应在新建时要求类别代码、类别名称、Student Status、Category、Student Type、是否允许学生申请；编辑时 Student Type 应为只读。
+
+#### 场景：必填字段校验
+- **当** 用户提交缺少必填字段的表单
+- **则** 系统阻止保存并展示校验反馈
+
+#### 场景：允许学生申请默认值
+- **当** 用户打开新建表单
+- **则** 是否允许学生申请默认为 Yes
+
+#### 场景：代码与学生类型重复
+- **当** 用户新建或编辑将导致相同类别代码与 Student Type 组合重复的行
+- **则** 系统阻止保存并展示校验消息
+
+#### 场景：表单底部操作
+- **当** 新建或编辑表单弹框打开
+- **则** 底部展示取消与保存按钮
 
-### Requirement: Configure reasons per category row
-The system SHALL provide a Set Reason action that opens a modal to manage reasons for the selected category row.
+### 需求：按类别行配置原因
+系统应提供「设置原因」操作，打开弹框管理所选类别行的原因列表。
 
-#### Scenario: Open set reason modal
-- **WHEN** user clicks Set Reason on a list row
-- **THEN** the system opens the reason modal scoped to that row's reasons list
+#### 场景：打开设置原因弹框
+- **当** 用户点击某列表行的设置原因
+- **则** 系统打开原因弹框，作用域为该行的 `reasons` 列表
 
-#### Scenario: Reason list columns
-- **WHEN** the reason modal is open
-- **THEN** the table shows selection checkbox, serial number, reason name, and Edit action per row
+#### 场景：原因列表列
+- **当** 原因弹框打开
+- **则** 表格展示选择复选框、序号、原因名称及每行编辑操作
 
-#### Scenario: Create reason via small edit modal
-- **WHEN** user clicks Create in the reason modal
-- **THEN** the system opens a small edit modal with a required reason name field
-- **AND** saving appends the reason to the current category row
+#### 场景：通过小编辑弹框新建原因
+- **当** 用户在原因弹框中点击新建
+- **则** 系统打开含必填原因名称字段的小编辑弹框
+- **且** 保存后将原因追加到当前类别行
 
-#### Scenario: Edit reason via small edit modal
-- **WHEN** user clicks Edit on a reason row
-- **THEN** the system opens the small edit modal prefilled with the reason name
-- **AND** saving updates that reason in the current category row
+#### 场景：通过小编辑弹框编辑原因
+- **当** 用户点击某原因行的编辑
+- **则** 系统打开预填原因名称的小编辑弹框
+- **且** 保存后更新当前类别行中的该原因
 
-#### Scenario: Delete reasons in bulk
-- **WHEN** user selects one or more reasons and clicks Delete in the reason modal
-- **THEN** the system confirms and removes the selected reasons from the current category row
+#### 场景：批量删除原因
+- **当** 用户在原因弹框中选中一条或多条原因并点击删除
+- **则** 系统确认后从当前类别行移除所选原因
 
-#### Scenario: Close reason modal
-- **WHEN** user clicks Cancel on the reason modal
-- **THEN** the modal closes and reason changes remain persisted in mock storage
+#### 场景：关闭原因弹框
+- **当** 用户点击原因弹框的取消
+- **则** 弹框关闭，原因变更仍持久化于 mock 存储
 
-### Requirement: Movement category page pagination
-The system SHALL paginate both the main category list and the reason list inside the reason modal using the same pagination pattern as other student-records list pages.
-
-#### Scenario: Main list pagination
-- **WHEN** more category rows exist than the page size
-- **THEN** the main list shows pagination controls
-
-#### Scenario: Reason modal pagination
-- **WHEN** more reasons exist than the reason modal page size
-- **THEN** the reason modal shows pagination controls
-
-### Requirement: Movement category implementation behavior switches
-The system SHALL provide three independent toggle switches on the create and edit category form, stored per list row (per Student Type).
+### 需求：异动类别页分页
+系统应对主类别列表与原因弹框内原因列表使用与其他学生档案列表页相同的分页模式。
+
+#### 场景：主列表分页
+- **当** 类别行数超过页大小
+- **则** 主列表展示分页控件
+
+#### 场景：原因弹框分页
+- **当** 原因数超过原因弹框页大小
+- **则** 原因弹框展示分页控件
+
+### 需求：异动类别实施行为开关
+系统应在新建与编辑类别表单上提供三个独立切换开关，按列表行（按 Student Type）存储。
 
-#### Scenario: Form shows three implementation switches
-- **WHEN** user opens the create or edit category modal
-- **THEN** the form displays toggles for modify student status, modify student type, and auto implement
-- **AND** the labels are distinct from the Student Status and Student Type dropdown configuration fields
-
-#### Scenario: Switches default off on create
-- **WHEN** user opens the create category form
-- **THEN** modify student status, modify student type, and auto implement default to off (false)
-
-#### Scenario: Implementation switch hints
-- **WHEN** the create or edit category modal shows the three implementation switches
-- **THEN** modify student status displays a hint that enabling means this movement updates student profile status on implementation
-- **AND** modify student type displays a hint that enabling means this movement updates student profile student type on implementation
-- **AND** auto implement displays the hint: 开启后，该异动审批通过后将自动标记为已实施 (Chinese UI)
+#### 场景：表单展示三个实施开关
+- **当** 用户打开新建或编辑类别弹框
+- **则** 表单展示修改学籍状态、修改学生类型、自动实施三个开关
+- **且** 标签与 Student Status、Student Type 下拉配置字段区分
+
+#### 场景：新建时开关默认关闭
+- **当** 用户打开新建类别表单
+- **则** 修改学籍状态、修改学生类型、自动实施默认为关闭（false）
+
+#### 场景：实施开关提示
+- **当** 新建或编辑类别弹框展示三个实施开关
+- **则** 修改学籍状态提示：启用表示该异动实施时更新学生档案状态
+- **且** 修改学生类型提示：启用表示该异动实施时更新学生档案学生类型
+- **且** 自动实施提示（中文界面）：开启后，该异动审批通过后将自动标记为已实施
 
-#### Scenario: Persist switches on save
-- **WHEN** user saves the category form with toggled switch values
-- **THEN** the system persists modifyStudentStatus, modifyStudentType, and autoImplement on that category row only
+#### 场景：保存时持久化开关
+- **当** 用户保存含切换后开关值的类别表单
+- **则** 系统仅在该类别行持久化 `modifyStudentStatus`、`modifyStudentType`、`autoImplement`
 
-#### Scenario: Edit row scoped switches
-- **WHEN** user edits one category row
-- **THEN** only that row's three switch values are updated
-- **AND** other Student Type rows for the same category code may have different switch values
+#### 场景：编辑行作用域内的开关
+- **当** 用户编辑某类别行
+- **则** 仅更新该行的三个开关值
+- **且** 同一类别代码的其他 Student Type 行可有不同开关值
 
-### Requirement: Extended movement category seed data
-The system SHALL seed twelve movement category rows covering all four movement types × three Student Types.
-
-#### Scenario: Initial seed includes withdrawal and resumption
-- **WHEN** user opens Change Category for the first time after this extension
-- **THEN** the list includes PT001, DEF001, WDR001, and RES001 groups
-- **AND** each group has Local, Chinese, and International rows
-
-#### Scenario: Resumption category target status
-- **WHEN** a RES001 seed row is displayed
-- **THEN** its configured Student Status is Active and Category is Normal
-
-### Requirement: Resolve category config for movement pipeline
-The system SHALL expose a lookup helper that maps a movement source key and student category to the matching category configuration row.
-
-#### Scenario: Lookup by source key and student type
-- **WHEN** the pipeline resolves config for programme-transfer and student category Local
-- **THEN** the system returns the PT001 row with studentType Local
-
-#### Scenario: China maps to Chinese for lookup
-- **WHEN** student category is China
-- **THEN** lookup uses Chinese as the configuration studentType
-
-#### Scenario: Missing config fallback
-- **WHEN** no matching category row exists
-- **THEN** the pipeline treats all three switches as false
-
-## MODIFIED Requirements
-
-### Requirement: Movement category list page
-The system SHALL display a paginated movement category configuration table under the Change Category menu with columns: selection checkbox, serial number, category code, category name, Student Status, Category, and Actions.
-
-#### Scenario: Initial list with seed data
-- **WHEN** user opens Change Category for the first time
-- **THEN** the system displays four pre-seeded rows (PT001, DEF001, WDR001, RES001 — one row per category code)
-
-#### Scenario: Search filters list
-- **WHEN** user filters by category name, category code, or Student Status and clicks Search
-- **THEN** the list shows only matching rows and resets to page 1
-
-#### Scenario: Reset search
-- **WHEN** user clicks Reset
-- **THEN** all search fields clear and the full list is restored
-
-### Requirement: Create movement category as a single row
-The system SHALL create exactly one list row on Create with category code, category name, Student Status, Category, allow-student-apply, and the three implementation switches.
-
-#### Scenario: Open create form
-- **WHEN** user clicks Create on the list page
-- **THEN** the system opens the Create/Edit modal with category code, category name, Student Status, Category, allow-student-apply, and embedded implementation switches
-- **AND** the form does not include a Student Type field
-
-#### Scenario: Submit create form
-- **WHEN** user completes all required fields and confirms Save
-- **THEN** the system inserts one row with the submitted values
-- **AND** the new row has an empty reasons array
-
-### Requirement: Edit and delete movement category rows
-The system SHALL support editing a single list row and deleting one or more selected rows with confirmation.
-
-#### Scenario: Edit single row
-- **WHEN** user clicks Edit on a row
-- **THEN** the system opens the form modal prefilled for that row only
-- **AND** saving updates only that row
-
-#### Scenario: Bulk delete rows
-- **WHEN** user selects one or more rows and clicks Delete
-- **THEN** the system shows a confirmation dialog
-- **AND** confirmed deletion removes only the selected rows from storage
-
-#### Scenario: Delete is not blocked by downstream references
-- **WHEN** user deletes a category row
-- **THEN** the system removes the row without checking movement application references (out of scope for this change)
-
-### Requirement: Movement category form fields
-The system SHALL require category code, category name, Student Status, Category, and allow-student-apply on create and edit.
-
-#### Scenario: Required field validation
-- **WHEN** user submits the form with missing required fields
-- **THEN** the system prevents save and shows validation feedback
-
-#### Scenario: Allow student application default
-- **WHEN** user opens the create form
-- **THEN** allow-student-apply defaults to Yes
-
-#### Scenario: Duplicate category code
-- **WHEN** user creates or edits a row that would duplicate an existing category code
-- **THEN** the system prevents save and shows a validation message
-
-#### Scenario: Form footer actions
-- **WHEN** the create or edit form modal is open
-- **THEN** the footer shows Cancel and Save buttons
-
-### Requirement: Movement category implementation behavior switches
-The system SHALL provide three independent toggle switches on the create and edit category form, stored per category code row.
-
-#### Scenario: Switches embedded in form layout
-- **WHEN** user opens the create or edit category modal
-- **THEN** modify student status appears on its own form row with label in the standard label column and switch left-aligned in the control area, with hint below the switch
-- **AND** modify student type appears on its own form row with the same layout
-- **AND** the Student Status and Category dropdown rows contain only their selects (no nested switch rows)
-- **AND** auto implement appears on a subsequent row with label in the standard label column and switch left-aligned in the control area, with hint on the next line
-
-#### Scenario: Modify switches on dedicated rows
-- **WHEN** user opens the create or edit category modal
-- **THEN** modify student status and modify student type each occupy a separate grid row aligned with category code label column
-- **AND** neither switch is right-aligned inside the Student Status or Category control area
-
-#### Scenario: Form label column alignment
-- **WHEN** user opens the create or edit category modal
-- **THEN** Student Status, Category, and auto implement use the same left label column (132px, right-aligned) as category code and category name
-- **AND** Student Status and Category labels appear on the same row as their dropdowns (label left, control right)
-- **AND** the form does not use spacer labels or inline bold labels inside the control area for those field names
-
-#### Scenario: Switches default off on create
-- **WHEN** user opens the create category form
-- **THEN** modify student status, modify student type, and auto implement default to off (false)
-
-#### Scenario: Implementation switch hints
-- **WHEN** the create or edit category modal shows the implementation switches
-- **THEN** modify student status displays a hint that enabling means this movement updates student profile status on implementation
-- **AND** modify student type displays a hint that enabling means this movement updates student profile track category on implementation
-- **AND** auto implement displays the hint: 开启后，该异动审批通过后将自动标记为已实施 (Chinese UI)
+### 需求：扩展异动类别种子数据
+系统应预置 12 条异动类别行，覆盖四种异动类型 × 三种 Student Type。
+
+#### 场景：初始种子含退学与复学
+- **当** 用户在本扩展后首次打开异动类别
+- **则** 列表包含 `PT001`、`DEF001`、`WDR001`、`RES001` 四组
+- **且** 每组各有 `Local`、`Chinese`、`International` 行
+
+#### 场景：复学类别目标状态
+- **当** 展示 `RES001` 种子行
+- **则** 配置的 Student Status 为 `Active`，Category 为 `Normal`
+
+### 需求：为异动流水线解析类别配置
+系统应提供查找辅助函数，将异动来源键与学生类别映射到匹配的类别配置行。
+
+#### 场景：按来源键与学生类型查找
+- **当** 流水线为转专业且学生类别为 `Local` 解析配置
+- **则** 系统返回 `studentType` 为 `Local` 的 `PT001` 行
+
+#### 场景：China 映射为 Chinese 查找
+- **当** 学生类别为 `China`
+- **则** 查找时使用 `Chinese` 作为配置 `studentType`
+
+#### 场景：缺失配置时的回退
+- **当** 不存在匹配的类别行
+- **则** 流水线将三个开关均视为 false
+
+## 修改需求
+
+### 需求：异动类别列表页
+系统应在异动类别菜单下展示分页的异动类别配置表格，列含：选择复选框、序号、类别代码、类别名称、Student Status、Category、操作。
+
+#### 场景：含种子数据的初始列表
+- **当** 用户首次打开异动类别
+- **则** 系统展示 4 条预置行（`PT001`、`DEF001`、`WDR001`、`RES001` — 每个类别代码一行）
+
+#### 场景：搜索筛选列表
+- **当** 用户按类别名称、类别代码或 Student Status 筛选并点击查询
+- **则** 列表仅展示匹配行并重置到第 1 页
+
+#### 场景：重置搜索
+- **当** 用户点击重置
+- **则** 清空所有搜索字段并恢复完整列表
+
+### 需求：新增异动类别为单行
+系统应在新建时恰好创建一行，含类别代码、类别名称、Student Status、Category、是否允许学生申请及三个实施开关。
+
+#### 场景：打开新建表单
+- **当** 用户在列表页点击新建
+- **则** 系统打开新建/编辑弹框，含类别代码、类别名称、Student Status、Category、是否允许学生申请及内嵌实施开关
+- **且** 表单不含 Student Type 字段
+
+#### 场景：提交新建表单
+- **当** 用户填写全部必填字段并确认保存
+- **则** 系统插入一行，值为提交内容
+- **且** 新行的 `reasons` 数组为空
+
+### 需求：编辑与删除异动类别行
+系统应支持编辑单条列表行，以及经确认后删除一条或多条所选行。
+
+#### 场景：编辑单行
+- **当** 用户点击某行编辑
+- **则** 系统打开预填该行的表单弹框
+- **且** 保存仅更新该行
+
+#### 场景：批量删除行
+- **当** 用户选中一条或多条行并点击删除
+- **则** 系统展示确认对话框
+- **且** 确认后仅从存储中移除所选行
+
+#### 场景：删除不受下游引用阻塞
+- **当** 用户删除某类别行
+- **则** 系统直接移除该行，不检查异动申请引用（本变更范围外）
+
+### 需求：异动类别表单字段
+系统应在新建与编辑时要求类别代码、类别名称、Student Status、Category、是否允许学生申请。
+
+#### 场景：必填字段校验
+- **当** 用户提交缺少必填字段的表单
+- **则** 系统阻止保存并展示校验反馈
+
+#### 场景：允许学生申请默认值
+- **当** 用户打开新建表单
+- **则** 是否允许学生申请默认为 Yes
+
+#### 场景：类别代码重复
+- **当** 用户新建或编辑将导致类别代码与已有行重复
+- **则** 系统阻止保存并展示校验消息
+
+#### 场景：表单底部操作
+- **当** 新建或编辑表单弹框打开
+- **则** 底部展示取消与保存按钮
+
+### 需求：异动类别实施行为开关
+系统应在新建与编辑类别表单上提供三个独立切换开关，按类别代码行存储。
+
+#### 场景：开关嵌入表单布局
+- **当** 用户打开新建或编辑类别弹框
+- **则** 修改学籍状态独占一行，标签在标准标签列，开关在控件区左对齐，提示在开关下方
+- **且** 修改学生类型采用相同布局
+- **且** Student Status、Category 下拉行仅含各自下拉框（无嵌套开关行）
+- **且** 自动实施在后续行展示，标签在标准标签列，开关左对齐，提示在下一行
+
+#### 场景：修改开关独占行
+- **当** 用户打开新建或编辑类别弹框
+- **则** 修改学籍状态与修改学生类型各占独立网格行，与类别代码标签列对齐
+- **且** 两个开关均不在 Student Status 或 Category 控件区内右对齐
+
+#### 场景：表单标签列对齐
+- **当** 用户打开新建或编辑类别弹框
+- **则** Student Status、Category、自动实施使用与类别代码、类别名称相同的左标签列（132px，右对齐）
+- **且** Student Status、Category 标签与各自下拉框同行（标签左、控件右）
+- **且** 表单不在控件区内使用占位标签或加粗内联标签表示上述字段名
+
+#### 场景：新建时开关默认关闭
+- **当** 用户打开新建类别表单
+- **则** 修改学籍状态、修改学生类型、自动实施默认为关闭（false）
+
+#### 场景：实施开关提示
+- **当** 新建或编辑类别弹框展示实施开关
+- **则** 修改学籍状态提示：启用表示该异动实施时更新学生档案状态
+- **且** 修改学生类型提示：启用表示该异动实施时更新学生档案轨道类别
+- **且** 自动实施提示（中文界面）：开启后，该异动审批通过后将自动标记为已实施
 
-#### Scenario: Persist switches on save
-- **WHEN** user saves the category form with toggled switch values
-- **THEN** the system persists modifyStudentStatus, modifyStudentType, and autoImplement on that category row
+#### 场景：保存时持久化开关
+- **当** 用户保存含切换后开关值的类别表单
+- **则** 系统在该类别行持久化 `modifyStudentStatus`、`modifyStudentType`、`autoImplement`
 
-#### Scenario: One row per category code
-- **WHEN** user edits a category row
-- **THEN** that row's three switch values apply to all movement applications resolved to the same category code
+#### 场景：每个类别代码一行
+- **当** 用户编辑某类别行
+- **则** 该行的三个开关值适用于解析到同一类别代码的所有异动申请
 
-### Requirement: Extended movement category seed data
-The system SHALL seed four movement category rows covering PT001, DEF001, WDR001, and RES001.
+### 需求：扩展异动类别种子数据
+系统应预置四条异动类别行，覆盖 `PT001`、`DEF001`、`WDR001`、`RES001`。
 
-#### Scenario: Initial seed after layout revision
-- **WHEN** user opens Change Category for the first time after this revision
-- **THEN** the list includes exactly four rows (one per category code)
+#### 场景：布局修订后的初始种子
+- **当** 用户在本修订后首次打开异动类别
+- **则** 列表恰好包含四行（每个类别代码一行）
 
-#### Scenario: Resumption category target status
-- **WHEN** the RES001 seed row is displayed
-- **THEN** its configured Student Status is Active and Category is Normal
-- **AND** auto implement may be true for pipeline demonstration
+#### 场景：复学类别目标状态
+- **当** 展示 `RES001` 种子行
+- **则** 配置的 Student Status 为 `Active`，Category 为 `Normal`
+- **且** 自动实施可为 true 以演示流水线
 
-### Requirement: Resolve category config for movement pipeline
-The system SHALL expose a lookup helper that maps a movement source key to the matching category configuration row by category code.
+### 需求：为异动流水线解析类别配置
+系统应提供查找辅助函数，按类别代码将异动来源键映射到匹配的类别配置行。
 
-#### Scenario: Lookup by source key only
-- **WHEN** the pipeline resolves config for programme-transfer
-- **THEN** the system returns the PT001 row regardless of the applicant student category
+#### 场景：仅按来源键查找
+- **当** 流水线为转专业解析配置
+- **则** 系统返回 `PT001` 行，与申请学生类别无关
 
-#### Scenario: Missing config fallback
-- **WHEN** no matching category row exists for the source key
-- **THEN** the pipeline treats all three switches as false
+#### 场景：缺失配置时的回退
+- **当** 来源键不存在匹配的类别行
+- **则** 流水线将三个开关均视为 false
 
-### Requirement: Independent category dropdown
-The system SHALL offer the full track category option list in the Category dropdown without filtering or clearing based on Student Status.
+### 需求：类别下拉独立可选
+系统应在 Category 下拉中提供完整轨道类别选项列表，不基于 Student Status 过滤或清除。
 
-#### Scenario: Category always selectable
-- **WHEN** user opens create or edit and has not selected Student Status
-- **THEN** the Category dropdown remains enabled with all track category options
+#### 场景：类别始终可选
+- **当** 用户打开新建或编辑且未选择 Student Status
+- **则** Category 下拉仍启用，含全部轨道类别选项
 
-#### Scenario: No clear on status change
-- **WHEN** user changes Student Status after selecting a Category
-- **THEN** the system retains the selected Category value
+#### 场景：状态变更不清除类别
+- **当** 用户在选择 Category 后变更 Student Status
+- **则** 系统保留已选 Category 值
 
-### Requirement: Category reasons drive movement application options
-The system SHALL expose movement category reasons as the single source of truth for reason dropdown options on deferment, withdrawal, and programme transfer application forms.
+### 需求：类别原因驱动异动申请选项
+系统应将异动类别原因作为休学、退学、转专业申请表单原因下拉选项的唯一数据源。
 
-#### Scenario: Deferment reason options from category config
-- **WHEN** user opens the deferment create or edit form
-- **THEN** the main reason dropdown lists only reasons configured on the DEF001 category row
+#### 场景：休学原因选项来自类别配置
+- **当** 用户打开休学新建或编辑表单
+- **则** 主原因下拉仅列出 `DEF001` 类别行上配置的原因
 
-#### Scenario: Withdrawal reason options from category config
-- **WHEN** user opens the withdrawal create or edit form
-- **THEN** the main reason dropdown lists only reasons configured on the WDR001 category row
+#### 场景：退学原因选项来自类别配置
+- **当** 用户打开退学新建或编辑表单
+- **则** 主原因下拉仅列出 `WDR001` 类别行上配置的原因
 
-#### Scenario: Programme transfer reason options from category config
-- **WHEN** user opens the programme transfer create or edit form
-- **THEN** the transfer reason control is a dropdown listing reasons configured on the PT001 category row
+#### 场景：转专业原因选项来自类别配置
+- **当** 用户打开转专业新建或编辑表单
+- **则** 转专业原因控件为下拉框，列出 `PT001` 类别行上配置的原因
 
-#### Scenario: Reason options update after admin CRUD
-- **WHEN** an administrator adds, edits, or deletes reasons on a category row via Set Reason
-- **THEN** the corresponding application form reason dropdown reflects the updated list on next open
+#### 场景：管理员 CRUD 后原因选项更新
+- **当** 管理员通过设置原因对类别行增删改原因
+- **则** 下次打开时对应申请表单原因下拉反映更新后的列表
 
-#### Scenario: Empty reasons block submission
-- **WHEN** a category row has no configured reasons and user opens the matching application form
-- **THEN** the reason dropdown has no options
-- **AND** the system prevents submit until a valid reason is selected after reasons are configured
+#### 场景：无原因时阻止提交
+- **当** 某类别行未配置原因且用户打开对应申请表单
+- **则** 原因下拉无选项
+- **且** 配置原因前系统阻止提交，直至选中有效原因
 
-#### Scenario: Seed reasons for mock categories
-- **WHEN** user opens Change Category for the first time after this revision
-- **THEN** DEF001, WDR001, and PT001 rows include pre-seeded reasons aligned with prior hardcoded demo options
+#### 场景：Mock 类别预置原因
+- **当** 用户在本修订后首次打开异动类别
+- **则** `DEF001`、`WDR001`、`PT001` 行含与先前硬编码演示选项对齐的预置原因
 
-#### Scenario: Resolve reason label for display
-- **WHEN** the approval, query, or maintenance pipeline displays movement reason for deferment, withdrawal, or programme transfer
-- **THEN** the system resolves the label from the stored reasonId via the matching category configuration row
+#### 场景：展示时解析原因标签
+- **当** 审批、查询或维护流水线展示休学、退学或转专业的异动原因
+- **则** 系统通过匹配类别配置行，从存储的 `reasonId` 解析标签
 
-#### Scenario: Resumption unchanged
-- **WHEN** the pipeline displays movement reason for resumption
-- **THEN** the system continues to show semester transition text rather than a configured reason list
+#### 场景：复学保持不变
+- **当** 流水线展示复学的异动原因
+- **则** 系统继续展示学期过渡文本，而非配置原因列表
 
-## REMOVED Requirements
+## 移除需求
 
-### Requirement: Category options depend on student status
-**Reason**: Product requires Student Status and Category to be independently selectable.
-**Migration**: Use `trackCategoryOptions` full list; remove `getCategoriesForStatus` from form logic.
+### 需求：类别选项依赖学籍状态
+**原因**：产品要求 Student Status 与 Category 可独立选择。
+**迁移说明**：使用 `trackCategoryOptions` 完整列表；从表单逻辑移除 `getCategoriesForStatus`。
 
-### Requirement: Student Type field and column
-**Reason**: Movement category module no longer uses Student Type as a configuration dimension.
-**Migration**: Remove from form, list, data model, validation, and lookup; consolidate mock to four rows.
+### 需求：学生类型字段与列
+**原因**：异动类别模块不再以 Student Type 作为配置维度。
+**迁移说明**：从表单、列表、数据模型、校验与查找中移除；mock 合并为四行。
 
-### Requirement: Create movement category as a single row
-**Reason**: Product defers category row creation in this phase; four movement types are pre-seeded only.
-**Migration**: Hide Create toolbar button; retain `createMovementCategory` for a future phase.
+### 需求：新增异动类别为单行
+**原因**：产品在本阶段延后类别行新建；四种异动类型仅预置。
+**迁移说明**：隐藏新建工具栏按钮；保留 `createMovementCategory` 供后续阶段使用。
 
-#### Scenario: Open create form
-- **REMOVED** — no Create entry on the list page in this phase
+#### 场景：打开新建表单
+- **已移除** — 本阶段列表页无新建入口
 
-#### Scenario: Submit create form
-- **REMOVED** — superseded by fixed four-row seed
+#### 场景：提交新建表单
+- **已移除** — 由固定四行种子取代
 
-### Requirement: Edit and delete movement category rows (bulk delete)
-**Reason**: Product defers category row deletion in this phase.
-**Migration**: Hide Delete toolbar and list checkboxes; retain `deleteMovementCategories` for a future phase.
+### 需求：编辑与删除异动类别行（批量删除）
+**原因**：产品在本阶段延后类别行删除。
+**迁移说明**：隐藏删除工具栏与列表复选框；保留 `deleteMovementCategories` 供后续阶段使用。
 
-#### Scenario: Bulk delete rows
-- **REMOVED** — no Delete action on the list page in this phase
+#### 场景：批量删除行
+- **已移除** — 本阶段列表页无删除操作
 
-#### Scenario: Delete is not blocked by downstream references
-- **REMOVED** — delete UI unavailable in this phase
+#### 场景：删除不受下游引用阻塞
+- **已移除** — 本阶段删除 UI 不可用
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Movement category list page (fixed four types, read-only structure)
-The system SHALL display exactly four pre-seeded movement category rows (PT001, DEF001, WDR001, RES001) with list actions limited to Edit and Set Reason in this phase. The list SHALL NOT show Create or Delete toolbar buttons or a selection checkbox column.
+### 需求：异动类别列表页（固定四类、只读结构）
+系统应展示恰好四条预置异动类别行（`PT001`、`DEF001`、`WDR001`、`RES001`），本阶段列表操作仅限编辑与设置原因。列表不得展示新建或删除工具栏按钮及选择复选框列。
 
-#### Scenario: No create or delete on list
-- **WHEN** user opens Change Category
-- **THEN** the toolbar does not show Create or Delete
-- **AND** the table does not include a selection checkbox column
+#### 场景：列表无新建或删除
+- **当** 用户打开异动类别
+- **则** 工具栏不展示新建或删除
+- **且** 表格不含选择复选框列
 
-#### Scenario: Row actions limited to edit and set reason
-- **WHEN** user views a category row
-- **THEN** actions show Edit and Set Reason only
+#### 场景：行操作仅限编辑与设置原因
+- **当** 用户查看某类别行
+- **则** 操作仅展示编辑与设置原因
 
-#### Scenario: Fixed four seed rows
-- **WHEN** user opens Change Category
-- **THEN** the list shows four rows matching the four movement application types
+#### 场景：固定四行种子
+- **当** 用户打开异动类别
+- **则** 列表展示与四种异动申请类型对应的四行
 
-### Requirement: Edit movement category row
-The system SHALL support editing a single list row via the Edit action. Category code SHALL be read-only in the edit form.
+### 需求：编辑异动类别行
+系统应通过编辑操作支持编辑单条列表行。编辑表单中类别代码应为只读。
 
-#### Scenario: Edit single row
-- **WHEN** user clicks Edit on a row
-- **THEN** the system opens the form modal prefilled for that row only
-- **AND** category code is read-only
-- **AND** saving updates only that row
+#### 场景：编辑单行
+- **当** 用户点击某行编辑
+- **则** 系统打开预填该行的表单弹框
+- **且** 类别代码为只读
+- **且** 保存仅更新该行
 
-### Requirement: Configure reasons per category row
-The system SHALL continue to provide Set Reason with full reason CRUD inside the reason modal in this phase.
+### 需求：按类别行配置原因
+系统应在本阶段继续提供设置原因，并在原因弹框内支持原因的完整 CRUD。
 
-#### Scenario: Reason CRUD unchanged in set reason modal
-- **WHEN** user opens Set Reason on a row
-- **THEN** the reason modal still supports create, edit, and delete for reasons on that category row
+#### 场景：设置原因弹框内 CRUD 不变
+- **当** 用户对某行打开设置原因
+- **则** 原因弹框仍支持对该类别行原因的新建、编辑、删除
 
-### Requirement: Edit form field layout and switch-dropdown linkage (§20)
-The system SHALL present the movement category edit form in this field order: row 1 — category code (read-only) and category name; row 2 — modify student status and modify student type switches with hints; row 3 — Student Status and Category dropdowns; row 4 — auto implement switch and allow student apply.
+### 需求：编辑表单布局与开关—下拉联动（§20）
+系统应按以下字段顺序呈现异动类别编辑表单：第 1 行 — 类别代码（只读）与类别名称；第 2 行 — 修改学籍状态与修改学生类型开关及提示；第 3 行 — Student Status 与 Category 下拉；第 4 行 — 自动实施开关与是否允许学生申请。
 
-#### Scenario: Switches appear above dropdowns
-- **WHEN** user opens Edit on a category row
-- **THEN** modify student status and modify student type switches appear above the Student Status and Category dropdowns respectively
+#### 场景：开关位于下拉之上
+- **当** 用户对某类别行打开编辑
+- **则** 修改学籍状态与修改学生类型开关分别位于 Student Status 与 Category 下拉之上
 
-#### Scenario: Modify student status locks status dropdown
-- **WHEN** modify student status is enabled
-- **THEN** the Student Status dropdown is disabled and retains its current value
-- **AND** when modify student status is disabled the dropdown is editable
+#### 场景：修改学籍状态锁定状态下拉
+- **当** 修改学籍状态启用
+- **则** Student Status 下拉禁用并保留当前值
+- **且** 修改学籍状态禁用时下拉可编辑
 
-#### Scenario: Modify student type locks category dropdown
-- **WHEN** modify student type is enabled
-- **THEN** the Category dropdown is disabled and retains its current value
-- **AND** when modify student type is disabled the dropdown is editable
+#### 场景：修改学生类型锁定类别下拉
+- **当** 修改学生类型启用
+- **则** Category 下拉禁用并保留当前值
+- **且** 修改学生类型禁用时下拉可编辑
 
-#### Scenario: Required status and category on save
-- **WHEN** user saves the edit form
-- **THEN** Student Status and Category remain required regardless of switch state
+#### 场景：保存时状态与类别仍必填
+- **当** 用户保存编辑表单
+- **则** 无论开关状态如何，Student Status 与 Category 仍为必填
 
-### Requirement: Movement category course handling options (§20–§22)
-The system SHALL show an optional course-handling section with three independently selectable checkboxes when editing any of the four pre-seeded movement category rows (PT001, DEF001, WDR001, RES001): delete original course list (excluding graded courses), preset new programme batch list, and exclude graded courses from preset. As of §21, the three checkboxes SHALL NOT disable, clear, or otherwise depend on one another. As of §22, the section SHALL NOT be limited to PT001.
+### 需求：异动类别处理选课选项（§20–§22）
+系统应在编辑四条预置异动类别行（`PT001`、`DEF001`、`WDR001`、`RES001`）任一行时，展示含三个可独立勾选的复选框的可选选课处理区：删除原课表（不含已获成绩课程）、预置新专业批次课表、预置时排除已获成绩课程。自 §21 起，三个复选框不得相互禁用、清除或产生依赖。自 §22 起，该区域不得限于 `PT001`。
 
-#### Scenario: Course options visible for all four category types (§22)
-- **WHEN** user clicks Edit on PT001, DEF001, WDR001, or RES001
-- **THEN** the form shows the three course-handling checkboxes below auto implement and allow student apply
-- **AND** the same labels and layout apply to all four types
+#### 场景：四类均可见选课处理选项（§22）
+- **当** 用户点击 `PT001`、`DEF001`、`WDR001` 或 `RES001` 的编辑
+- **则** 表单在自动实施与是否允许学生申请下方展示三个选课处理复选框
+- **且** 四类使用相同标签与布局
 
-#### Scenario: Course handling checkboxes are independent (§21)
-- **WHEN** user toggles any course-handling checkbox on any category row
-- **THEN** the other two checkboxes remain enabled and retain their current checked state
-- **AND** the system does not auto-clear exclude graded from preset when preset new programme batch list is unchecked
+#### 场景：选课处理复选框相互独立（§21）
+- **当** 用户在任一类别的行上切换任一选课处理复选框
+- **则** 另外两个复选框仍启用并保留当前勾选状态
+- **且** 取消勾选预置新专业批次课表时，系统不自动清除预置时排除已获成绩课程
 
-#### Scenario: Course handling label aligns with first option (§21)
-- **WHEN** user edits any category row and the course-handling section is visible
-- **THEN** the course-handling label appears on the same row as the first checkbox, vertically centered with that checkbox
-- **AND** the second and third checkboxes align with the first checkbox's left edge
-- **AND** the label and checkbox labels use the same font size as other fields in the modal (13px)
+#### 场景：选课处理标签与首项对齐（§21）
+- **当** 用户编辑任一类别的行且选课处理区可见
+- **则** 选课处理标签与第一个复选框同行，垂直居中对齐
+- **且** 第二、三个复选框与第一个复选框左缘对齐
+- **且** 标签与复选框标签字号与弹框其他字段一致（13px）
 
-#### Scenario: Non–programme-transfer defaults (§22)
-- **WHEN** user opens Edit on DEF001, WDR001, or RES001 for the first time after seed
-- **THEN** all three course-handling checkboxes default to unchecked
+#### 场景：非转专业默认值（§22）
+- **当** 用户在种子数据后首次打开 `DEF001`、`WDR001` 或 `RES001` 的编辑
+- **则** 三个选课处理复选框默认未勾选
 
-#### Scenario: Course options are optional mock config
-- **WHEN** user saves any category row with any combination of the three checkboxes
-- **THEN** the values persist on the category row
-- **AND** no real course-selection API is invoked in this phase
+#### 场景：选课选项为可选 mock 配置
+- **当** 用户以任意三个复选框组合保存任一类别的行
+- **则** 值持久化于该类别行
+- **且** 本阶段不调用真实选课 API
 
-## REMOVED Requirements (§22)
+## 移除需求（§22）
 
-### Requirement: Course handling visible for PT001 only (§20–§21)
-**Reason**: Product requires the same three course-handling options on Edit for all four movement category types.
-**Migration**: Remove `isProgrammeTransfer` / PT001-only `v-if`; show course-handling block for every Edit form.
+### 需求：处理选课仅 PT001 可见（§20–§21）
+**原因**：产品要求在四类异动类别的编辑表单上均展示相同的三个选课处理选项。
+**迁移说明**：移除 `isProgrammeTransfer` / 仅 `PT001` 的 `v-if`；每个编辑表单均展示选课处理区块。
 
-## REMOVED Requirements (§21)
+## 移除需求（§21）
 
-### Requirement: Exclude graded from preset depends on preset batch (§20)
-**Reason**: Product requires three course-handling options to be independently selectable with no UI linkage.
-**Migration**: Remove watch and disabled state on exclude graded from preset; update course-handling layout per §21.
+### 需求：排除已获成绩预置依赖预置批次（§20）
+**原因**：产品要求三个选课处理选项可独立选择，UI 无联动。
+**迁移说明**：移除预置时排除已获成绩课程的 watch 与 disabled 状态；按 §21 更新选课处理布局。

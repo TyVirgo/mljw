@@ -99,8 +99,7 @@ export function validateApprovalForm(action, comment, item = null) {
   }
   if (
     action === 'Approved' &&
-    item?.sourceKey === 'programme-transfer' &&
-    item.approvalStage === 'Dean/HoP'
+    item?.sourceKey === 'programme-transfer'
   ) {
     const programme = item.adminNewProgramme || item.newProgrammeFirstChoice
     if (!programme?.trim()) {
@@ -113,7 +112,7 @@ export function validateApprovalForm(action, comment, item = null) {
 function applyAutoImplementationProfile(sourceKey, item, category) {
   const config = resolveMovementCategoryConfig(sourceKey, category)
   if (config) {
-    applyStudentProfileFromMovement(item.studentId, config)
+    applyStudentProfileFromMovement(item.studentId, config, { sourceKey, item })
   }
 }
 

@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 学籍应用壳层、Student Profile、Programme Transfer、Deferment（休学）与 Resumption（复学）已落地，**Withdrawal（退学）** Phase 1 首版采用简化 3 态（Pending / Approved / Rejected）。产品要求退学与转专业、休学、复学 **统一流转状态语义** 及 **流程日志外置交互**，以支撑完整业务演示：草稿编辑、审批中撤销、打回修改、终态只读、每态 Mock 样例。
 
-## What Changes
+## 变更内容
 
 ### Phase 1（已交付 — 退学基础页 + 中英文 i18n）
 
@@ -52,7 +52,7 @@
 - 复用 **`ApprovalLogModal.vue`**（与转专业/休学/复学四模块统一）
 - i18n：`common.workflowLog`（EN Workflow Log / ZH 流转日志）
 
-### Non-goals（本变更不包含）
+### 非目标（本变更不做）
 
 - Family Info 等其他学籍异动菜单
 - Expired 超期双 mock（可选后续）
@@ -65,17 +65,17 @@
 - vue-router 引入
 - 列表进行中 / 已归档 Tab
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `withdrawal-app`: 退学学籍异动——Withdrawal History 列表、Section I–III 表单（Draft / Submit / Resubmit）、单声明 + 条件 ISAO Note + Supporting Documents、**6 态状态机**、多段审批流、Student Profile 联动、流转日志外置、中英文 i18n
 
-### Modified Capabilities
+### 修改的能力
 
 - `student-records-app`: 将 `sr-withdrawal` 升级为已开发页面；退学列表纳入四模块流转日志统一交互
 
-## Impact
+## 影响范围
 
 - **Phase 1 已新增/修改**
   - `WithdrawalView.vue`、`WithdrawalFormModal.vue`、`WithdrawalDetailModal.vue`

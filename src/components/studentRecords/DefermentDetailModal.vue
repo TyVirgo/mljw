@@ -1,7 +1,13 @@
 <script setup>
 import { computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import MovementAttachmentReadonly from './MovementAttachmentReadonly.vue'
+import MovementAttachmentsReadonly from './MovementAttachmentsReadonly.vue'
+import MovementParentConsentReadonly from './MovementParentConsentReadonly.vue'
+import MovementInternationalStudentRemarks from './MovementInternationalStudentRemarks.vue'
+import MovementDeclarationSection from './MovementDeclarationSection.vue'
+import MovementApplicantNotes from './MovementApplicantNotes.vue'
+import { defermentDeclarationItems } from '../../data/movementDeclarationItems.js'
+import { defermentApplicantNoteKeys } from '../../data/movementApplicantNotes.js'
 import {
   formatDefermentListDate,
   formatApplicationDateDisplay,
@@ -9,8 +15,13 @@ import {
   statusBadgeClass,
   getDefermentReasonDisplay,
 } from '../../data/deferments.js'
-import { resolveApplicationSessionForDisplay } from '../../data/movementApplicationSession.js'
+import { resolveApplicationSessionForDisplay, resolveCurrentAcademicSessionForDisplay } from '../../data/movementApplicationSession.js'
 import { maskPassportIc } from '../../utils/maskPassportIc.js'
+import {
+  displayMovementVisaExpiry,
+  resolveMovementStudentCategory,
+} from '../../utils/movementVisaExpiry.js'
+import '../../styles/movement-form.css'
 
 const props = defineProps({
   visible: Boolean,
@@ -45,6 +56,10 @@ function displayPassport(value) {
   if (!value) return '—'
   return props.maskSensitiveFields ? maskPassportIc(value) : value
 }
+
+function visaExpiryDisplay(item) {
+  return displayMovementVisaExpiry(item?.visaExpiryDate, resolveMovementStudentCategory(item))
+}
 </script>
 
 <template>
@@ -61,47 +76,59 @@ function displayPassport(value) {
           <span :class="['status-badge', statusBadgeClass(item.status)]">{{ statusLabel(item.status) }}</span>
         </div>
 
+        <MovementApplicantNotes
+          title-key="deferment.notes.title"
+          :item-keys="defermentApplicantNoteKeys"
+        />
+
+        <MovementInternationalStudentRemarks
+          source-key="deferment"
+          :student-category="resolveMovementStudentCategory(item)"
+        />
+
         <div class="section-bar">{{ t('deferment.sections.studentInfo') }}</div>
         <dl class="detail-grid">
           <div><dt>{{ tr('Student ID') }}</dt><dd>{{ item.studentId }}</dd></div>
           <div><dt>{{ t('deferment.fields.dateOfApplication') }}</dt><dd>{{ formatApplicationDateDisplay(item.dateOfApplication) }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.currentAcademicSession') }}</dt><dd>{{ resolveCurrentAcademicSessionForDisplay(item) }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
           <div><dt>{{ t('deferment.fields.name') }}</dt><dd>{{ item.fullName || '—' }}</dd></div>
           <div><dt>{{ t('deferment.fields.intake') }}</dt><dd>{{ item.intake || '—' }}</dd></div>
           <div><dt>{{ t('deferment.fields.nricPassport') }}</dt><dd>{{ displayPassport(item.nricPassport) }}</dd></div>
           <div><dt>{{ t('deferment.fields.nationality') }}</dt><dd>{{ item.nationality || '—' }}</dd></div>
           <div><dt>{{ t('deferment.fields.programme') }}</dt><dd>{{ item.programme || '—' }}</dd></div>
           <div><dt>{{ t('deferment.fields.programmeLevel') }}</dt><dd>{{ item.programmeLevel || '—' }}</dd></div>
-          <div><dt>{{ t('movementCommon.fields.applicationAcademicSession') }}</dt><dd>{{ resolveApplicationSessionForDisplay(item) }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.visaExpiry') }}</dt><dd>{{ visaExpiryDisplay(item) }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.personalEmail') }}</dt><dd>{{ item.personalEmail || '—' }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || '—' }}</dd></div>
+          <div><dt>{{ t('movementCommon.fields.accommodationRoomNo') }}</dt><dd>{{ item.accommodationRoomNo || '—' }}</dd></div>
         </dl>
 
         <div class="section-bar">{{ t('deferment.sections.studentApplication') }}</div>
         <dl class="detail-grid">
-          <div><dt>{{ t('deferment.fields.personalEmail') }}</dt><dd>{{ item.personalEmail || '—' }}</dd></div>
-          <div><dt>{{ t('deferment.fields.phoneNumber') }}</dt><dd>{{ item.phoneNumber || '—' }}</dd></div>
-          <div><dt>{{ t('deferment.fields.accommodationRoomNo') }}</dt><dd>{{ item.accommodationRoomNo || '—' }}</dd></div>
           <div><dt>{{ t('deferment.fields.defermentPeriod') }}</dt><dd>{{ item.defermentPeriod || '—' }}</dd></div>
-          <div class="span-2"><dt>{{ t('deferment.fields.mainReason') }}</dt><dd>{{ getDefermentReasonDisplay(item, t) || '—' }}</dd></div>
+          <div><dt>{{ t('deferment.fields.mainReason') }}</dt><dd>{{ getDefermentReasonDisplay(item, t) || '—' }}</dd></div>
+          <div><dt>{{ t('deferment.fields.defermentStartDate') }}</dt><dd>{{ item.defermentStartDate || '—' }}</dd></div>
+          <div><dt>{{ t('deferment.fields.defermentEndDate') }}</dt><dd>{{ item.defermentEndDate || '—' }}</dd></div>
           <div class="span-2"><dt>{{ t('deferment.fields.detailedReason') }}</dt><dd class="multiline">{{ item.detailedReason || '—' }}</dd></div>
         </dl>
 
         <div class="section-bar">{{ t('deferment.sections.parentConsent') }}</div>
-        <dl class="detail-grid">
-          <div><dt>{{ t('deferment.fields.parentGuardianName') }}</dt><dd>{{ item.parentGuardianName || '—' }}</dd></div>
-          <div><dt>{{ t('deferment.fields.parentContactNo') }}</dt><dd>{{ item.parentContactNo || '—' }}</dd></div>
-          <div><dt>{{ t('deferment.fields.parentNricPassport') }}</dt><dd>{{ displayPassport(item.parentNricPassport) }}</dd></div>
-          <div><dt>{{ t('deferment.fields.parentRelationship') }}</dt><dd>{{ item.parentRelationship || '—' }}</dd></div>
-          <div class="span-2"><dt>{{ t('deferment.fields.parentEmail') }}</dt><dd>{{ item.parentEmail || '—' }}</dd></div>
-        </dl>
+        <MovementParentConsentReadonly
+          source-key="deferment"
+          :item="item"
+          :display-passport="displayPassport"
+        />
 
         <div class="section-bar">{{ t('deferment.sections.documents') }}</div>
-        <MovementAttachmentReadonly
-          :file-name="item.attachment?.fileName || ''"
-          movement-type="deferment"
-          :student-id="item.studentId"
-          :programme-level="item.programmeLevel"
-          :application-session="item.applicationSession"
-          label-key="deferment.fields.uploadAttachment"
-          download-label-key="deferment.fields.downloadConsent"
+        <MovementAttachmentsReadonly source-key="deferment" :item="item" />
+
+        <MovementDeclarationSection
+          read-only
+          :section-title="t('deferment.sections.declaration')"
+          :items="defermentDeclarationItems"
+          :checkboxes="[{ field: 'declarationAgreed' }]"
+          :form="item"
         />
       </div>
 

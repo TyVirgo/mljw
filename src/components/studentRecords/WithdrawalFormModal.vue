@@ -10,20 +10,26 @@ import {
   buildStudentSnapshotForWithdrawal,
   validateWithdrawalForm,
   formatApplicationDateDisplay,
-  shouldShowIsaoNote,
   canResubmitWithdrawal,
+  currentWhereaboutOptions,
 } from '../../data/withdrawals.js'
 import { getReasonOptionsBySourceKey } from '../../data/movementCategories.js'
 import { initialStudents } from '../../data/students.js'
 import {
   downloadStudentConsentTemplate,
-  downloadParentConsentTemplate,
-  hasParentConsentTemplate,
 } from '../../utils/consentFormDownload.js'
 import StudentSelectModal from './StudentSelectModal.vue'
+import MovementDeclarationSection from './MovementDeclarationSection.vue'
+import MovementApplicantNotes from './MovementApplicantNotes.vue'
+import { withdrawalDeclarationItems } from '../../data/movementDeclarationItems.js'
+import { withdrawalApplicantNoteKeys } from '../../data/movementApplicantNotes.js'
 import { getCurrentStudent } from '../../data/mockCurrentStudent.js'
 import { formatApplicationSessionField } from '../../data/movementApplicationSession.js'
-import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
+import MovementInternationalStudentRemarks from './MovementInternationalStudentRemarks.vue'
+import MovementDocumentsUploadSection from './MovementDocumentsUploadSection.vue'
+import MovementParentConsentSection from './MovementParentConsentSection.vue'
+import { withMovementAttachments } from '../../data/movementAttachments.js'
+import { withSyncedLegacyParentFields } from '../../data/movementParentContacts.js'
 import '../../styles/movement-form.css'
 
 const props = defineProps({
@@ -45,8 +51,6 @@ const { t, tr } = useAppI18n()
 const form = ref(createEmptyWithdrawal())
 const errors = ref({})
 const studentSelectVisible = ref(false)
-const fileInputRef = ref(null)
-const pendingLocalFile = ref(null)
 
 const isEditMode = computed(() => props.mode === 'edit')
 const isResubmitMode = computed(() => props.initialData && canResubmitWithdrawal(props.initialData))
@@ -80,9 +84,11 @@ const lastDateOfAttendancePicker = computed({
   },
 })
 
-const showIsaoNote = computed(() => shouldShowIsaoNote(form.value.studentCategory))
+const applicantCategory = computed(
+  () => form.value.studentCategory || getSelectedStudentCategory(),
+)
 
-const reasonOptions = computed(() => getReasonOptionsBySourceKey('withdrawal'))
+const reasonOptions = computed(() => getReasonOptionsBySourceKey('withdrawal', props.applicantMode))
 
 function getSelectedStudentCategory() {
   if (form.value.studentCategory) return form.value.studentCategory
@@ -95,10 +101,6 @@ function getConsentLookup() {
     programmeLevel: form.value.programmeLevel,
   }
 }
-
-const showParentConsentDownload = computed(() =>
-  hasParentConsentTemplate('withdrawal', getSelectedStudentCategory(), getConsentLookup()),
-)
 
 function applyStudentProfile(student) {
   if (!student) return
@@ -116,7 +118,6 @@ watch(
   () => {
     if (!props.visible) return
     errors.value = {}
-    pendingLocalFile.value = null
     form.value =
       isEditMode.value && props.initialData
         ? getWithdrawalFormData(props.initialData)
@@ -131,37 +132,8 @@ function fieldError(key) {
   return errors.value[key] ? 'error' : ''
 }
 
-function onFileChange(event) {
-  const file = event.target.files?.[0]
-  if (!file) {
-    form.value.attachment = null
-    pendingLocalFile.value = null
-    return
-  }
-  const allowed = /\.(pdf|jpg|jpeg|png|docx)$/i
-  if (!allowed.test(file.name)) {
-    errors.value.attachment = 'Supported formats: PDF, JPG, PNG, DOCX.'
-    form.value.attachment = null
-    pendingLocalFile.value = null
-    return
-  }
-  if (file.size > 5 * 1024 * 1024) {
-    errors.value.attachment = 'Max file size is 5MB.'
-    form.value.attachment = null
-    pendingLocalFile.value = null
-    return
-  }
-  delete errors.value.attachment
-  pendingLocalFile.value = file
-  form.value.attachment = { fileName: file.name, size: file.size }
-}
-
 function downloadConsentLetter() {
   downloadStudentConsentTemplate('withdrawal', getSelectedStudentCategory(), t, getConsentLookup())
-}
-
-function downloadParentConsentLetter() {
-  downloadParentConsentTemplate('withdrawal', getSelectedStudentCategory(), t, getConsentLookup())
 }
 
 function validateAndEmit(mode, emitter) {
@@ -173,7 +145,7 @@ function validateAndEmit(mode, emitter) {
   )
   errors.value = result.errors
   if (!result.valid) return
-  emitter({ ...form.value })
+  emitter(withMovementAttachments(withSyncedLegacyParentFields({ ...form.value })))
 }
 
 function handleSaveDraft() {
@@ -202,6 +174,17 @@ function handleClose() {
       </header>
 
       <div class="modal-body">
+        <MovementApplicantNotes
+          title-key="withdrawal.notes.title"
+          :item-keys="withdrawalApplicantNoteKeys"
+          variant="instructional"
+        />
+
+        <MovementInternationalStudentRemarks
+          source-key="withdrawal"
+          :student-category="applicantCategory"
+        />
+
         <div class="section-bar">{{ t('withdrawal.sections.studentInfo') }}</div>
         <div class="form-grid">
           <div class="form-field span-2">
@@ -236,6 +219,14 @@ function handleClose() {
             </div>
           </div>
           <div class="form-field">
+            <label>{{ t('movementCommon.fields.currentAcademicSession') }}</label>
+            <input :value="formatApplicationSessionField(form.currentAcademicSession)" type="text" class="form-control" readonly />
+          </div>
+          <div class="form-field">
+            <label>{{ t('movementCommon.fields.applicationAcademicSession') }}</label>
+            <input :value="formatApplicationSessionField(form.applicationSession)" type="text" class="form-control" readonly />
+          </div>
+          <div class="form-field">
             <label>{{ t('withdrawal.fields.dateOfApplication') }}</label>
             <input :value="dateOfApplicationDisplay" type="text" class="form-control" readonly />
           </div>
@@ -260,38 +251,35 @@ function handleClose() {
             <input v-model="form.programmeLevel" type="text" class="form-control" readonly />
           </div>
           <div class="form-field">
-            <label>{{ t('movementCommon.fields.applicationAcademicSession') }}</label>
-            <input :value="formatApplicationSessionField(form.applicationSession)" type="text" class="form-control" readonly />
+            <label>{{ t('movementCommon.fields.visaExpiry') }}</label>
+            <input v-model="form.visaExpiryDate" type="text" class="form-control" readonly />
+          </div>
+          <div class="form-field">
+            <label>{{ t('movementCommon.fields.personalEmail') }}</label>
+            <input v-model="form.personalEmail" type="text" class="form-control" />
+          </div>
+          <div class="form-field">
+            <label>{{ t('movementCommon.fields.phoneNumber') }}</label>
+            <input v-model="form.phoneNumber" type="text" class="form-control" />
+          </div>
+          <div class="form-field">
+            <label>{{ t('movementCommon.fields.accommodationRoomNo') }}</label>
+            <input v-model="form.accommodationRoomNo" type="text" class="form-control" />
           </div>
         </div>
 
         <div class="section-bar">{{ t('withdrawal.sections.studentApplication') }}</div>
         <div class="form-grid">
           <div class="form-field">
-            <label>{{ t('withdrawal.fields.personalEmail') }} <span class="required">*</span></label>
-            <input
-              v-model="form.personalEmail"
-              type="text"
-              :class="['form-control', fieldError('personalEmail')]"
-            />
-            <p v-if="errors.personalEmail" class="field-error">{{ tr(errors.personalEmail) }}</p>
-          </div>
-          <div class="form-field">
-            <label>{{ t('withdrawal.fields.phoneNumber') }} <span class="required">*</span></label>
-            <input
-              v-model="form.phoneNumber"
-              type="text"
-              :class="['form-control', fieldError('phoneNumber')]"
-            />
-            <p v-if="errors.phoneNumber" class="field-error">{{ tr(errors.phoneNumber) }}</p>
-          </div>
-          <div class="form-field">
-            <label>{{ t('withdrawal.fields.lastDateOfAttendance') }} <span class="required">*</span></label>
-            <DatePickerEn
-              v-model="lastDateOfAttendancePicker"
-              :has-error="!!errors.lastDateOfAttendance"
-            />
-            <p v-if="errors.lastDateOfAttendance" class="field-error">{{ tr(errors.lastDateOfAttendance) }}</p>
+            <label>{{ t('withdrawal.fields.currentWhereabout') }} <span class="required">*</span></label>
+            <select
+              v-model="form.currentWhereabout"
+              :class="['form-control', fieldError('currentWhereabout'), { 'is-empty': !form.currentWhereabout }]"
+            >
+              <option value="">{{ t('withdrawal.fields.selectCurrentWhereabout') }}</option>
+              <option v-for="opt in currentWhereaboutOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
+            </select>
+            <p v-if="errors.currentWhereabout" class="field-error">{{ tr(errors.currentWhereabout) }}</p>
           </div>
           <div class="form-field">
             <label>{{ t('withdrawal.fields.destinationAfterLeaving') }} <span class="required">*</span></label>
@@ -303,6 +291,14 @@ function handleClose() {
             <p v-if="errors.destinationAfterLeaving" class="field-error">{{ tr(errors.destinationAfterLeaving) }}</p>
           </div>
           <div class="form-field">
+            <label>{{ t('withdrawal.fields.lastDateOfAttendance') }} <span class="required">*</span></label>
+            <DatePickerEn
+              v-model="lastDateOfAttendancePicker"
+              :has-error="!!errors.lastDateOfAttendance"
+            />
+            <p v-if="errors.lastDateOfAttendance" class="field-error">{{ tr(errors.lastDateOfAttendance) }}</p>
+          </div>
+          <div class="form-field">
             <label>{{ t('withdrawal.fields.mainReason') }} <span class="required">*</span></label>
             <select v-model="form.reasonId" :class="['form-control', fieldError('reasonId')]">
               <option :value="null">{{ tr('pleaseSelect') }}</option>
@@ -311,15 +307,6 @@ function handleClose() {
               </option>
             </select>
             <p v-if="errors.reasonId" class="field-error">{{ tr(errors.reasonId) }}</p>
-          </div>
-          <div class="form-field">
-            <label>{{ t('withdrawal.fields.currentWhereabout') }} <span class="required">*</span></label>
-            <input
-              v-model="form.currentWhereabout"
-              type="text"
-              :class="['form-control', fieldError('currentWhereabout')]"
-            />
-            <p v-if="errors.currentWhereabout" class="field-error">{{ tr(errors.currentWhereabout) }}</p>
           </div>
           <div class="form-field span-2">
             <label>{{ t('withdrawal.fields.detailedReason') }} <span class="required">*</span></label>
@@ -332,122 +319,32 @@ function handleClose() {
           </div>
         </div>
 
-        <div class="declaration-box">
-          <label class="checkbox-row">
-            <input v-model="form.declarationAccepted" type="checkbox" />
-            <span>{{ t('withdrawal.declaration.correct') }} <span class="required">*</span></span>
-          </label>
-          <p v-if="errors.declarationAccepted" class="field-error">{{ tr(errors.declarationAccepted) }}</p>
-        </div>
-
         <div class="section-bar">{{ t('withdrawal.sections.parentConsent') }}</div>
-        <div class="form-grid">
-          <div class="form-field">
-            <label>{{ t('withdrawal.fields.parentGuardianName') }} <span class="required">*</span></label>
-            <input
-              v-model="form.parentGuardianName"
-              type="text"
-              :class="['form-control', fieldError('parentGuardianName')]"
-            />
-            <p v-if="errors.parentGuardianName" class="field-error">{{ tr(errors.parentGuardianName) }}</p>
-          </div>
-          <div class="form-field">
-            <label>{{ t('withdrawal.fields.parentContactNo') }} <span class="required">*</span></label>
-            <input
-              v-model="form.parentContactNo"
-              type="text"
-              :class="['form-control', fieldError('parentContactNo')]"
-            />
-            <p v-if="errors.parentContactNo" class="field-error">{{ tr(errors.parentContactNo) }}</p>
-          </div>
-          <div class="form-field">
-            <label>{{ t('withdrawal.fields.parentNricPassport') }} <span class="required">*</span></label>
-            <input
-              v-model="form.parentNricPassport"
-              type="text"
-              :class="['form-control', fieldError('parentNricPassport')]"
-            />
-            <p v-if="errors.parentNricPassport" class="field-error">{{ tr(errors.parentNricPassport) }}</p>
-          </div>
-          <div class="form-field">
-            <label>{{ t('withdrawal.fields.parentRelationship') }} <span class="required">*</span></label>
-            <input
-              v-model="form.parentRelationship"
-              type="text"
-              :class="['form-control', fieldError('parentRelationship')]"
-            />
-            <p v-if="errors.parentRelationship" class="field-error">{{ tr(errors.parentRelationship) }}</p>
-          </div>
-          <div class="form-field span-2">
-            <label>{{ t('withdrawal.fields.parentEmail') }} <span class="required">*</span></label>
-            <input
-              v-model="form.parentEmail"
-              type="text"
-              :class="['form-control', fieldError('parentEmail')]"
-            />
-            <p v-if="errors.parentEmail" class="field-error">{{ tr(errors.parentEmail) }}</p>
-          </div>
-          <div v-if="showParentConsentDownload" class="form-field span-2 parent-download-row">
-            <button type="button" class="btn btn-outline consent-btn" @click="downloadParentConsentLetter">
-              {{ t('consentForm.downloadParentConsent') }}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <div v-if="showIsaoNote" class="isao-note-alert">{{ t('withdrawal.isaoNoteAlert') }}</div>
+        <MovementParentConsentSection
+          source-key="withdrawal"
+          :contacts="form.parentContacts"
+          :errors="errors"
+          @update:contacts="form.parentContacts = $event"
+        />
 
         <div class="section-bar">{{ t('withdrawal.sections.documents') }}</div>
-        <div class="documents-panel">
-          <div class="attachment-header">
-            <label class="attachment-label">
-              {{ t('withdrawal.fields.uploadAttachment') }}
-              <span class="required">*</span>
-              :
-            </label>
-            <button type="button" class="btn btn-outline consent-btn" @click="downloadConsentLetter">
-              {{ t('withdrawal.fields.downloadConsent') }}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-            </button>
-          </div>
-          <div class="file-row">
-            <button type="button" class="btn btn-default" @click="fileInputRef?.click()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              {{ t('withdrawal.fields.selectFile') }}
-            </button>
-            <AttachmentPreviewTrigger
-              v-if="form.attachment?.fileName"
-              :file-name="form.attachment.fileName"
-              :file-meta="form.attachment"
-              :local-file="pendingLocalFile"
-              :show-file-icon="false"
-            />
-            <span v-else class="file-name">
-              {{ t('withdrawal.fields.noFileSelected') }}
-            </span>
-            <input
-              ref="fileInputRef"
-              type="file"
-              class="hidden-file"
-              accept=".pdf,.jpg,.jpeg,.png,.docx"
-              @change="onFileChange"
-            />
-          </div>
-          <p class="hint-text">{{ t('withdrawal.fields.attachmentHint') }}</p>
-          <p v-if="errors.attachment" class="field-error">{{ tr(errors.attachment) }}</p>
-        </div>
+        <MovementDocumentsUploadSection
+          source-key="withdrawal"
+          :student-category="applicantCategory"
+          :attachments="form.attachments"
+          :errors="errors"
+          @update:attachments="form.attachments = $event"
+          @download-consent="downloadConsentLetter"
+        />
+
+        <MovementDeclarationSection
+          :section-title="t('withdrawal.sections.declaration')"
+          :items="withdrawalDeclarationItems"
+          :checkboxes="[{ field: 'declarationAccepted' }]"
+          :form="form"
+          :errors="errors"
+        />
+
       </div>
 
       <footer class="modal-footer">
@@ -579,24 +476,6 @@ function handleClose() {
   margin: 0;
   font-size: 12px;
   color: #ef4444;
-}
-
-.declaration-box {
-  margin-top: 16px;
-  padding: 12px 0;
-}
-
-.checkbox-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 13px;
-  color: #374151;
-  cursor: pointer;
-}
-
-.checkbox-row input {
-  margin-top: 3px;
 }
 
 .isao-note-alert {

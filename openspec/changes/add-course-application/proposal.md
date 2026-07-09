@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 Course Info → **Course Application**（课程申请）菜单目前指向「建设中」占位页。该模块是课程进入正式库（Course Information）前的申请与审批入口，需按原型提供列表检索、三步申请向导（General Information → CLO → SLT）、详情/审批日志及批量操作，以支撑 HoD/HoP、Senate 等审批阶段的业务演示。
 
-## What Changes
+## 变更内容
 
 - 新增 **Course Application** 主页面：列表、分页、批量选择、搜索/重置、More 展开高级筛选
 - 新增 **Apply New Course** 全页三步向导：**Step 1 内嵌可滚动表单**（双列 grid，无大弹窗）；Stepper **可点击跳转、仅当前步标蓝**；顶栏 **Back（二次确认）| Previous | Next | Save**（无 Cancel）
@@ -18,17 +18,17 @@ Course Info → **Course Application**（课程申请）菜单目前指向「建
 - 将 `course-application` 加入 `developedPages`，并在 `App.vue` 注册视图
 - **首版无真实审批引擎/API**；Import 仅 UI 占位提示
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `course-application`: 课程申请全流程——列表检索、状态与审批阶段展示、三步申请向导、CLO/SLT 嵌套 CRUD、详情、审批日志、导出/删除/提交
 
-### Modified Capabilities
+### 修改的能力
 
 （无现有 spec，留空）
 
-## Impact
+## 影响范围
 
 - **新增文件**
   - `src/views/CourseApplicationView.vue`

@@ -1,114 +1,114 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Student Records sidebar grouped menu
-The system SHALL provide a grouped sidebar menu with two top-level expandable sections: Student Records Management and Student Status Change. The Personal Study Plan section SHALL NOT be displayed in the current phase.
+### 需求：学生档案侧边栏分组菜单
+系统应提供含两个顶级可展开分组的分组侧边栏菜单：学籍管理与学籍异动。当前阶段不得展示个人培养方案分组。
 
-#### Scenario: Management group items
-- **WHEN** user expands the Student Records Management group in the sidebar
-- **THEN** the system lists Student Basic Information as the only child item
+#### 场景：管理分组菜单项
+- **当** 用户在侧边栏展开学籍管理分组
+- **则** 系统仅列出学生基本信息作为子项
 
-#### Scenario: Movement group items
-- **WHEN** user expands the Student Status Change group in the sidebar
-- **THEN** the system lists Change Category, Informed Consent Form, Status Change Application, Status Change Approval, Status Change Maintenance, Status Change Inquiry, and Status Change Statistics in that order
+#### 场景：异动分组菜单项
+- **当** 用户在侧边栏展开学籍异动分组
+- **则** 系统按顺序列出：异动类别、知情同意书、学籍异动申请、学籍异动审批、学籍异动维护、学籍异动查询、学籍异动统计
 
-#### Scenario: Personal study plan group not shown
-- **WHEN** user opens the Student Records Application sidebar
-- **THEN** the system does not display a Personal Study Plan group or Personal Curriculum Plan menu item
+#### 场景：不展示个人培养方案分组
+- **当** 用户打开学生档案应用侧边栏
+- **则** 系统不展示个人培养方案分组或个人培养方案菜单项
 
-#### Scenario: Family Info removed
-- **WHEN** user opens the Student Records Application sidebar
-- **THEN** the system does not display a Family Info menu item
+#### 场景：移除家庭信息
+- **当** 用户打开学生档案应用侧边栏
+- **则** 系统不展示家庭信息菜单项
 
-#### Scenario: Four movement types not in sidebar
-- **WHEN** user opens the Student Records Application sidebar
-- **THEN** Programme Transfer, Deferment, Resumption, and Withdrawal are not listed as separate sidebar items
+#### 场景：四种异动类型不在侧边栏
+- **当** 用户打开学生档案应用侧边栏
+- **则** 转专业、休学、复学、退学不作为独立侧边栏项列出
 
-### Requirement: Student basic information menu label
-The system SHALL display the student profile list page under the menu label Student Basic Information.
+### 需求：学生基本信息菜单标签
+系统应在菜单标签「学生基本信息」下展示学生档案列表页。
 
-#### Scenario: Chinese menu label
-- **WHEN** user sets the application language to Chinese
-- **THEN** the Student Records Management child menu displays「学生基本信息」
+#### 场景：中文菜单标签
+- **当** 用户将应用语言设为中文
+- **则** 学籍管理子菜单显示「学生基本信息」
 
-#### Scenario: English menu label
-- **WHEN** user sets the application language to English
-- **THEN** the Student Records Management child menu displays "Student Basic Information"
+#### 场景：英文菜单标签
+- **当** 用户将应用语言设为英文
+- **则** 学籍管理子菜单显示 "Student Basic Information"
 
-#### Scenario: Navigation to profile list
-- **WHEN** user selects Student Basic Information in the sidebar
-- **THEN** the system displays the existing Student Profile list page
+#### 场景：导航至档案列表
+- **当** 用户在侧边栏选择学生基本信息
+- **则** 系统展示现有学生档案列表页
 
-### Requirement: Default landing unchanged
-The system SHALL continue to land on the student profile list page when opening the Student Records Application from the portal.
+### 需求：默认着陆页不变
+系统应继续在从门户打开学生档案应用时着陆于学生档案列表页。
 
-#### Scenario: Portal open
-- **WHEN** user opens the Student Records Application from the Academic Portal
-- **THEN** the main content displays the Student Profile list page and the Student Basic Information menu item is active
+#### 场景：从门户打开
+- **当** 用户从学术门户打开学生档案应用
+- **则** 主内容展示学生档案列表页，且学生基本信息菜单项为激活状态
 
-### Requirement: Sidebar uses expandable groups like Basic Data
-The system SHALL render student-records sidebar groups with expand/collapse behavior consistent with the Basic Data application.
+### 需求：侧边栏可展开分组与基础数据一致
+系统应以与基础数据应用一致的展开/收起行为渲染学生档案侧边栏分组。
 
-#### Scenario: Default expanded groups
-- **WHEN** user first opens the Student Records Application
-- **THEN** the Student Records Management and Student Status Change sidebar groups are expanded by default
+#### 场景：分组默认展开
+- **当** 用户首次打开学生档案应用
+- **则** 学籍管理与学籍异动侧边栏分组默认展开
 
-#### Scenario: Breadcrumb for grouped leaf
-- **WHEN** user selects Status Change Application
-- **THEN** the breadcrumb shows the module name, the Student Status Change group label, and the Status Change Application page label
+#### 场景：分组叶子节点面包屑
+- **当** 用户选择学籍异动申请
+- **则** 面包屑展示模块名、学籍异动分组标签与学籍异动申请页面标签
 
-### Requirement: Undeveloped movement pages
-The system SHALL show the in-app under-construction page for menu items that are not yet developed.
+### 需求：未开发的异动页面
+系统应对尚未开发的菜单项展示应用内「建设中」页面。
 
-#### Scenario: Undeveloped movement submenu
-- **WHEN** user selects Change Category, Informed Consent Form, Status Change Approval, Status Change Maintenance, Status Change Inquiry, or Status Change Statistics
-- **THEN** the system shows the under-construction page with a back action to Student Basic Information
+#### 场景：未开发的异动子菜单
+- **当** 用户选择异动类别、知情同意书、学籍异动审批、学籍异动维护、学籍异动查询或学籍异动统计
+- **则** 系统展示「建设中」页面，并提供返回学生基本信息的操作
 
-## REMOVED Requirements
+## 移除需求
 
-### Requirement: Undeveloped study plan submenu
-**Reason**: Personal Curriculum Plan is out of scope for the current phase; the entire Personal Study Plan group is removed from the sidebar.
-**Migration**: Reintroduce via a future change when the personal curriculum feature is implemented.
+### 需求：未开发的个人学习计划子菜单
+**原因**：个人培养方案不在当前阶段范围内；整个个人培养方案分组从侧边栏移除。
+**迁移说明**：待个人培养方案功能实现后，通过后续变更重新引入。
 
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Status change application page with top tabs
-The system SHALL provide a Status Change Application page that hosts Programme Transfer, Deferment, Resumption, and Withdrawal as horizontal tabs at the top of the content area.
+### 需求：含顶部 Tab 的学籍异动申请页
+系统应提供学籍异动申请页，在内容区顶部以水平 Tab 托管转专业、休学、复学、退学。
 
-#### Scenario: Open from sidebar
-- **WHEN** user selects Status Change Application in the sidebar
-- **THEN** the system displays the movement application shell with four tabs: Programme Transfer, Deferment, Resumption, and Withdrawal
+#### 场景：从侧边栏打开
+- **当** 用户在侧边栏选择学籍异动申请
+- **则** 系统展示异动申请壳层，含四个 Tab：转专业、休学、复学、退学
 
-#### Scenario: Default tab is deferment
-- **WHEN** user opens Status Change Application for the first time in a session
-- **THEN** the Deferment tab is active by default
+#### 场景：默认 Tab 为休学
+- **当** 用户在本会话中首次打开学籍异动申请
+- **则** 休学 Tab 默认激活
 
-#### Scenario: Switch tab to programme transfer
-- **WHEN** user clicks the Programme Transfer tab
-- **THEN** the system displays the existing Programme Transfer list and workflows within the same page without navigating away from Status Change Application
+#### 场景：切换至转专业 Tab
+- **当** 用户点击转专业 Tab
+- **则** 系统在同一页内展示现有转专业列表与工作流，不离开学籍异动申请
 
-#### Scenario: Switch tab to resumption
-- **WHEN** user clicks the Resumption tab
-- **THEN** the system displays the existing Resumption list and workflows within the same page
+#### 场景：切换至复学 Tab
+- **当** 用户点击复学 Tab
+- **则** 系统在同一页内展示现有复学列表与工作流
 
-#### Scenario: Switch tab to withdrawal
-- **WHEN** user clicks the Withdrawal tab
-- **THEN** the system displays the existing Withdrawal list and workflows within the same page
+#### 场景：切换至退学 Tab
+- **当** 用户点击退学 Tab
+- **则** 系统在同一页内展示现有退学列表与工作流
 
-#### Scenario: Tab state preserved when switching
-- **WHEN** user switches from Deferment to another tab and back to Deferment without leaving Status Change Application
-- **THEN** the Deferment list state from the current session is preserved
+#### 场景：切换 Tab 时保留状态
+- **当** 用户从休学切换到其他 Tab 再切回休学，且未离开学籍异动申请
+- **则** 保留当前会话中的休学列表状态
 
-#### Scenario: Movement modules retain existing behavior
-- **WHEN** user performs create, edit, approve, cancel, or workflow log actions within any tab
-- **THEN** the embedded movement module behaves the same as before this navigation restructure
+#### 场景：异动模块行为保持不变
+- **当** 用户在任一 Tab 内执行新建、编辑、审批、取消或工作流日志操作
+- **则** 嵌入异动模块行为与本导航重构前相同
 
-### Requirement: Status change application tab styling
-The system SHALL style movement application tabs to match the production reference with a horizontal tab bar and active tab underline.
+### 需求：学籍异动申请 Tab 样式
+系统应将异动申请 Tab 样式与生产参考对齐，采用水平 Tab 栏与激活 Tab 下划线。
 
-#### Scenario: Active tab indicator
-- **WHEN** a tab is selected
-- **THEN** the active tab displays a visible underline or equivalent active state distinct from inactive tabs
+#### 场景：激活 Tab 指示器
+- **当** 某 Tab 被选中
+- **则** 激活 Tab 展示可见下划线或等效激活态，与非激活 Tab 区分
 
-#### Scenario: Tabs above module content
-- **WHEN** user views Status Change Application
-- **THEN** the tab bar appears above the embedded movement module content area
+#### 场景：Tab 位于模块内容之上
+- **当** 用户查看学籍异动申请
+- **则** Tab 栏位于嵌入异动模块内容区之上

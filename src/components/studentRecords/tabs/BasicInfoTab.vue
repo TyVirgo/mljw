@@ -8,13 +8,19 @@ import {
   maritalStatusOptions,
   disabilityOptions,
   usesDisabilityDropdown,
+  formatStudentPassExpiryEndDate,
 } from '../../../data/students.js'
+import {
+  getStudentProfileFieldHintKey,
+  getStudentProfileFieldLabelKey,
+} from '../../../data/studentProfileFieldLabels.js'
 
 const props = defineProps({
   form: { type: Object, required: true },
   readOnly: { type: Boolean, default: false },
   errors: { type: Object, default: () => ({}) },
   nationalitySelected: { type: Boolean, default: true },
+  showStudentPassExpiryDetail: { type: Boolean, default: false },
 })
 
 const { tr } = useAppI18n()
@@ -27,6 +33,16 @@ const isLocal = computed(() => category.value === 'Local')
 const isChina = computed(() => category.value === 'China')
 const isChinaOrIntl = computed(() => category.value === 'China' || category.value === 'International')
 const disabilityAsSelect = computed(() => usesDisabilityDropdown(category.value))
+
+const studentPassExpiryDetailDisplay = computed(() => {
+  if (isLocal.value) return ''
+  return formatStudentPassExpiryEndDate(props.form.basicInfo) || ''
+})
+
+const outstandingFeeDisplay = computed(() => {
+  const value = String(props.form.basicInfo?.outstandingFee || '').trim().toUpperCase()
+  return value === 'Y' || value === 'N' ? value : ''
+})
 
 function err(field) {
   return props.errors[`basicInfo.${field}`] || ''
@@ -63,15 +79,15 @@ function onPhotoSelect(event) {
       <StudentFormField label="Full Name (English)" required :read-only="readOnly" :error="err('fullName')" :display-value="form.basicInfo.fullName">
         <input v-model="form.basicInfo.fullName" type="text" />
       </StudentFormField>
-      <StudentFormField label="Chinese Name" :read-only="readOnly" :display-value="form.basicInfo.chineseName">
+      <StudentFormField :label="getStudentProfileFieldLabelKey('chineseName')" :read-only="readOnly" :display-value="form.basicInfo.chineseName">
         <input v-model="form.basicInfo.chineseName" type="text" />
       </StudentFormField>
-      <StudentFormField label="Gender" :read-only="readOnly" :display-value="tr(form.basicInfo.gender)">
+      <StudentFormField :label="getStudentProfileFieldLabelKey('gender')" :read-only="readOnly" :display-value="tr(form.basicInfo.gender)">
         <select v-model="form.basicInfo.gender">
           <option v-for="opt in genderOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
         </select>
       </StudentFormField>
-      <StudentFormField label="Student ID" required :read-only="readOnly" :error="err('studentId')" :display-value="form.basicInfo.studentId">
+      <StudentFormField :label="getStudentProfileFieldLabelKey('studentId')" required :read-only="readOnly" :error="err('studentId')" :display-value="form.basicInfo.studentId">
         <input v-model="form.basicInfo.studentId" type="text" />
       </StudentFormField>
       <StudentFormField label="Application No" :read-only="readOnly" :display-value="form.basicInfo.applicationNo">
@@ -79,7 +95,7 @@ function onPhotoSelect(event) {
       </StudentFormField>
 
       <template v-if="isLocal">
-        <StudentFormField label="IC No. (No dash)" required :read-only="readOnly" :error="err('icNo')" :display-value="form.basicInfo.icNo">
+        <StudentFormField :label="getStudentProfileFieldLabelKey('icNo')" required :read-only="readOnly" :error="err('icNo')" :display-value="form.basicInfo.icNo">
           <input v-model="form.basicInfo.icNo" type="text" />
         </StudentFormField>
         <StudentFormField label="State of Birth" :read-only="readOnly" :display-value="form.basicInfo.stateOfBirth">
@@ -134,6 +150,23 @@ function onPhotoSelect(event) {
         </select>
         <input v-else-if="!readOnly" v-model="form.basicInfo.disability" type="text" />
       </StudentFormField>
+
+      <template v-if="showStudentPassExpiryDetail">
+        <StudentFormField
+          :label="getStudentProfileFieldLabelKey('studentPassExpiryDate')"
+          :label-hint="getStudentProfileFieldHintKey('studentPassExpiryDate')"
+          :read-only="true"
+          :empty-display="isLocal ? '—' : ''"
+          :display-value="studentPassExpiryDetailDisplay"
+        />
+        <StudentFormField
+          :label="getStudentProfileFieldLabelKey('outstandingFee')"
+          :label-hint="getStudentProfileFieldHintKey('outstandingFee')"
+          :read-only="true"
+          empty-display="—"
+          :display-value="outstandingFeeDisplay"
+        />
+      </template>
     </div>
     <div class="photo-panel">
       <div class="photo-title">{{ tr('Student Photo') }}</div>

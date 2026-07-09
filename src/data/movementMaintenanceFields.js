@@ -127,7 +127,7 @@ export function applyImplementationEffect(sourceKey, item) {
   if (!item) return null
   const config = resolveMovementCategoryConfig(sourceKey, inferStudentCategory(item))
   if (config) {
-    applyStudentProfileFromMovement(item.studentId, config)
+    applyStudentProfileFromMovement(item.studentId, config, { sourceKey, item })
   }
   return updateMaintenanceFields(sourceKey, item.id, { implemented: 'Implemented' })
 }
@@ -167,6 +167,12 @@ export function updateMovementNumbers(entries) {
       movementNumber: String(entry.movementNumber || '').trim(),
     })
   }
+}
+
+export function updateExportArchiveNumber(sourceKey, id, exportArchiveNumber) {
+  return updateMaintenanceFields(sourceKey, id, {
+    exportArchiveNumber: String(exportArchiveNumber || '').trim(),
+  })
 }
 
 function patchRecord(sourceKey, id, patch) {

@@ -1,48 +1,48 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Auto implement on final approval
-The system SHALL read the movement category autoImplement flag when a movement application reaches final Approved status and set the initial implemented value accordingly.
+### 需求：终审通过时自动实施
+系统应在异动申请达到最终 `Approved` 状态时读取异动类别 `autoImplement` 标志，并据此设置初始 `implemented` 值。
 
-#### Scenario: Manual implement category
-- **WHEN** final approval completes and the resolved category configuration has autoImplement false
-- **THEN** the application record implemented field is Pending
+#### 场景：手动实施类别
+- **当** 终审完成且解析后的类别配置 `autoImplement` 为 false
+- **则** 申请记录的 `implemented` 字段为 `Pending`
 
-#### Scenario: Auto implement category
-- **WHEN** final approval completes and the resolved category configuration has autoImplement true
-- **THEN** the application record implemented field is Implemented
-- **AND** no manual Implement action is required in maintenance
+#### 场景：自动实施类别
+- **当** 终审完成且解析后的类别配置 `autoImplement` 为 true
+- **则** 申请记录的 `implemented` 字段为 `Implemented`
+- **且** 维护中无需手动实施操作
 
-#### Scenario: No cancel implementation
-- **WHEN** a record is Implemented (manually or automatically)
-- **THEN** the system does not provide an action to revert to Pending
+#### 场景：不可取消实施
+- **当** 某记录已为 `Implemented`（手动或自动）
+- **则** 系统不提供将其恢复为 `Pending` 的操作
 
-### Requirement: Apply student profile updates on implementation
-The system SHALL apply mock student profile updates when a movement record is implemented, according to the category modifyStudentStatus and modifyStudentType flags.
+### 需求：实施时应用学生档案更新
+系统应在异动记录实施时，按类别的 `modifyStudentStatus` 与 `modifyStudentType` 标志应用 mock 学生档案更新。
 
-#### Scenario: Modify student status on implement
-- **WHEN** implementation runs and modifyStudentStatus is true for the resolved category
-- **THEN** the system updates the linked student profile status in mock storage
+#### 场景：实施时修改学籍状态
+- **当** 实施运行且解析后类别的 `modifyStudentStatus` 为 true
+- **则** 系统更新 mock 存储中关联学生档案的状态
 
-#### Scenario: Modify student type on implement
-- **WHEN** implementation runs and modifyStudentType is true for the resolved category
-- **THEN** the system updates the linked student profile student category in mock storage
+#### 场景：实施时修改学生类型
+- **当** 实施运行且解析后类别的 `modifyStudentType` 为 true
+- **则** 系统更新 mock 存储中关联学生档案的学生类别
 
-#### Scenario: Skip profile update when flags off
-- **WHEN** implementation runs and both modify flags are false
-- **THEN** the student profile mock record is unchanged
+#### 场景：标志关闭时跳过档案更新
+- **当** 实施运行且两个修改标志均为 false
+- **则** mock 学生档案记录不变
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Auto implement on final approval
-The system SHALL resolve category configuration by movement source key only (one row per category code) when reading autoImplement on final approval.
+### 需求：终审通过时自动实施
+系统应在终审通过读取 `autoImplement` 时，仅按异动来源键（每个类别代码一行）解析类别配置。
 
-#### Scenario: Auto implement independent of applicant student category
-- **WHEN** final approval completes for deferment regardless of whether the applicant is Local, China, or International
-- **THEN** the system uses the single DEF001 configuration row for autoImplement
+#### 场景：自动实施与申请学生类别无关
+- **当** 休学申请终审完成，无论申请人为 `Local`、`China` 还是 `International`
+- **则** 系统使用唯一的 `DEF001` 配置行判断 `autoImplement`
 
-### Requirement: Movement reason display uses category reasons
-The system SHALL resolve movement reason labels for deferment, withdrawal, and programme transfer from the category configuration reason list using the stored application reasonId.
+### 需求：异动原因展示使用类别原因
+系统应使用申请存储的 `reasonId`，从类别配置原因列表解析休学、退学、转专业的异动原因标签。
 
-#### Scenario: Display reason from reasonId
-- **WHEN** an approval, query, or maintenance row shows movement reason for deferment, withdrawal, or programme transfer
-- **THEN** the displayed text matches the reasonName of the reasonId on the corresponding category row
+#### 场景：按 reasonId 展示原因
+- **当** 审批、查询或维护行展示休学、退学或转专业的异动原因
+- **则** 展示文本与对应类别行上 `reasonId` 的 `reasonName` 一致

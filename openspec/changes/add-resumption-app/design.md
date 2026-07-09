@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 `add-resumption-app` Phase 1 已交付复学列表 + 简化 Pending 审批 + 中英文 i18n。产品要求对齐 `add-deferment-app` Phase 3 / `add-programme-transfer-app` **6 态流转语义** 与 **流程日志外置**。
 
@@ -10,9 +10,9 @@
 
 复学特有：Section I–II、双声明 checkbox、蓝底 Note（无 Section III 家长）。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 6 态状态机 + 每状态 ≥2 条 Mock（≥12 条）
 - 列表状态驱动 Actions + **各状态流转日志**
@@ -20,13 +20,13 @@
 - Details 只读 + In Progress 内嵌审批；**不含内嵌 log**
 - 对齐 Deferment / Programme Transfer 交互
 
-**Non-Goals:**
+**非目标：**
 
 - Expired 双 mock
 - Deferment Semester 联动休学 DEF 记录
 - 后端 API、独立审批菜单页
 
-## Decisions
+## 设计决策
 
 ### 1. 数据模型 — `src/data/resumptions.js`
 
@@ -146,14 +146,14 @@ ResumptionView.vue
   src/components/studentRecords/ApprovalLogModal.vue
 ```
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
 | 与 deferment 代码重复 | 克隆 deferment Phase 3 模式；字段层独立 `resumptions.js` |
 | 双声明校验与 Draft 模式 | draft 模式不强制声明；submit/resubmit 严格校验 |
 
-## Migration Plan
+## 迁移说明
 
 1. 扩展 `resumptions.js` 6 态与 helper
 2. 升级 `resumptionApproval.js`
@@ -162,7 +162,7 @@ ResumptionView.vue
 5. 确认流转日志外置（Phase 3）
 6. 冒烟 + `npm run build`
 
-## Open Questions
+## 待定问题
 
 1. Deferment Semester 是否在后续 change 联动已 Approved 休学记录
 2. Consent Letter 静态文件路径（首版占位）

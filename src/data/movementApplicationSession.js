@@ -4,6 +4,7 @@ import {
 } from './semesterInfo.js'
 import { normalizeAcademicSession } from '../utils/normalizeAcademicSession.js'
 import { parseDdMmYyyy } from './universityInfo.js'
+import { findStudentByStudentId } from './students.js'
 
 
 
@@ -51,7 +52,14 @@ export function resolveApplicationSessionFromStudent(student) {
 
 }
 
-
+/** 选学生后从 enrollment.academicSession 写入 currentAcademicSession */
+export function resolveCurrentAcademicSessionFromStudent(student) {
+  if (!student) return ''
+  const enrollment = student.enrollment || {}
+  const session = String(enrollment.academicSession ?? '').trim()
+  const normalized = normalizeAcademicSession(session)
+  return normalized === '—' ? '' : normalized
+}
 
 export function resolveApplicationSessionForDisplay(item) {
 
@@ -63,6 +71,16 @@ export function resolveApplicationSessionForDisplay(item) {
 
   return fromIntake
 
+}
+
+export function resolveCurrentAcademicSessionForDisplay(item) {
+  const fromField = normalizeAcademicSession(item?.currentAcademicSession)
+  if (fromField !== '—') return fromField
+  const studentId = String(item?.studentId || '').trim()
+  if (!studentId) return '—'
+  const student = findStudentByStudentId(studentId)
+  const resolved = resolveCurrentAcademicSessionFromStudent(student)
+  return resolved ? normalizeAcademicSession(resolved) : '—'
 }
 
 

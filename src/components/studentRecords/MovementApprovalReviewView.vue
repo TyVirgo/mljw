@@ -12,6 +12,7 @@ import {
   applyMovementDecision,
   canRecallMovement,
   recallMovementDecision,
+  validateApprovalForm,
 } from '../../data/movementApprovalEngine.js'
 
 const props = defineProps({
@@ -23,10 +24,11 @@ const props = defineProps({
 
 const emit = defineEmits(['back', 'decided', 'recalled'])
 
-const { t } = useAppI18n()
+const { t, tr } = useAppI18n()
 
 const approvalModalVisible = ref(false)
 const recallConfirmVisible = ref(false)
+const pendingOfficeUse = ref({})
 
 const liveItem = computed(() => {
   const fresh = findInStore(props.queueItem.sourceKey, props.queueItem.id)
@@ -41,19 +43,33 @@ const canRecall = computed(() =>
     : false,
 )
 
-function openApprovalModal() {
+function openApprovalModal(officeUse = {}) {
+  pendingOfficeUse.value = officeUse
   approvalModalVisible.value = true
 }
 
 function handleApprovalConfirm({ action, comment }) {
+  const validationItem = {
+    ...liveItem.value,
+    sourceKey: props.queueItem.sourceKey,
+    ...pendingOfficeUse.value,
+  }
+  const errors = validateApprovalForm(action, comment, validationItem)
+  if (errors.adminNewProgramme) {
+    window.alert(tr(errors.adminNewProgramme))
+    approvalModalVisible.value = false
+    return
+  }
   applyMovementDecision(
     props.queueItem.sourceKey,
     liveItem.value,
     action,
     comment,
     props.currentRole,
+    pendingOfficeUse.value,
   )
   approvalModalVisible.value = false
+  pendingOfficeUse.value = {}
   emit('decided')
 }
 

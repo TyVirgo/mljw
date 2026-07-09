@@ -11,6 +11,7 @@ import DefermentFormModal from '../../components/studentRecords/DefermentFormMod
 import MovementApplicationDetailDrawer from '../../components/studentRecords/MovementApplicationDetailDrawer.vue'
 
 import MovementApplicationSearchBar from '../../components/studentRecords/MovementApplicationSearchBar.vue'
+import MovementStudentCancelAction from '../../components/studentRecords/MovementStudentCancelAction.vue'
 
 import {
   normalizeDeferment,
@@ -339,7 +340,7 @@ function requestDelete(item) {
 
 function requestCancel(item) {
 
-  confirmMessage.value = t('deferment.cancelOne')
+  confirmMessage.value = t('movementStudentCancel.confirmMessage')
 
   confirmAction.value = () => {
 
@@ -501,11 +502,10 @@ function displayDate(item) {
 
                   </button>
 
-                  <button v-if="canCancelDeferment(item)" type="button" class="link-btn" @click="requestCancel(item)">
-
-                    {{ t('deferment.actions.cancelApplication') }}
-
-                  </button>
+                  <MovementStudentCancelAction
+                    v-if="applicantMode === 'student' && canCancelDeferment(item)"
+                    @cancel="requestCancel(item)"
+                  />
 
                 </td>
 
@@ -562,6 +562,7 @@ function displayDate(item) {
       source-key="deferment"
       :item="detailItem"
       mode="student"
+      :enable-export-pdf="applicantMode === 'teacher'"
       @close="closeDrawer"
     />
 

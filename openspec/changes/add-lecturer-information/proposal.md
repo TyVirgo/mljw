@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 Lecturer Info → Lecturer Information 菜单目前指向「建设中」占位页，无法管理教职工基本信息。该模块是 Basic Data 的核心功能之一，需要尽快提供与原型一致的列表、检索、增删改查及详情展示能力，以支撑教务系统对教师资源的统一管理。
 
-## What Changes
+## 变更内容
 
 - 新增 **Lecturer Information** 主页面：列表展示、分页、批量选择、搜索/重置、More 展开高级筛选
 - 新增 **Create / Edit** 四步向导弹窗：
@@ -18,17 +18,17 @@ Lecturer Info → Lecturer Information 菜单目前指向「建设中」占位�
 - CPD 数据在本阶段使用 mock 数据；接口对接（人事系统、教师个人端审批）留作后续集成
 - **不新增** Senate Unit Members Management 子菜单（Lecturer Info 保持现有两项子菜单）
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `lecturer-information`: 教师信息管理全流程——列表检索、CRUD、四步 Create/Edit 向导、四步 Details 详情、导出、批量删除、评价筛选标签
 
-### Modified Capabilities
+### 修改的能力
 
 （无现有 spec，留空）
 
-## Impact
+## 影响范围
 
 - **新增文件**
   - `src/views/LecturerInformationView.vue`

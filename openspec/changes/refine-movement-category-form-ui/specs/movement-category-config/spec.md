@@ -1,143 +1,107 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Movement category list page (fixed four types, read-only structure)
-The system SHALL display exactly four pre-seeded movement category rows (PT001, DEF001, WDR001, RES001) with list actions limited to Edit and Set Reason in this phase. The list SHALL NOT show Create or Delete toolbar buttons or a selection checkbox column. The list table SHALL include Student Status and Track Category (学籍类型) columns that display stored values regardless of whether the corresponding modify switches are enabled on the row.
+### 需求：异动类别列表页（固定四类，结构只读）
+系统应展示恰好四条预置异动类别行（PT001、DEF001、WDR001、RES001），本阶段列表操作仅限「编辑」与「设置原因」。列表不应显示「新增」或「删除」工具栏按钮，也不应有选择复选框列。列表表格应包含「学籍状态」与「学籍类型（Track Category）」列，无论该行对应的 modify 开关是否启用，均展示已存储的值。
 
-#### Scenario: List shows track category column label as student record type
-- **WHEN** user opens Change Category
-- **THEN** the column previously labeled Category displays the localized label Track Category (Chinese: 学籍类型)
-- **AND** column values continue to show the configured track category for each row
+#### 场景：列表学籍类型列标签
+- 当用户打开「异动类别」页面时，则原「类别」列显示本地化标签 Track Category（中文：学籍类型）；且列值仍展示各行配置的 track category
 
-#### Scenario: List values independent of edit form visibility
-- **WHEN** a category row has modifyStudentStatus or modifyStudentType set to false
-- **THEN** the list still displays that row's stored studentStatus and category values
-- **AND** editing the row hides the corresponding dropdown without clearing stored values
+#### 场景：列表值与编辑表单显隐无关
+- 当某类别行的 `modifyStudentStatus` 或 `modifyStudentType` 为 false 时，则列表仍显示该行已存储的 `studentStatus` 与 `category` 值；且编辑该行时会隐藏对应下拉但不清空已存值
 
-### Requirement: Movement category form fields
-The system SHALL require category code, category name, and allow-student-apply on create and edit. Student Status SHALL be required only when modify student status is enabled. Track Category (学籍类型) SHALL be required only when modify student type is enabled.
+### 需求：异动类别表单字段
+系统应要求类别编码、类别名称与「允许学生申请」在新增与编辑时必填。「学籍状态」仅当「修改学籍状态」开关启用时必填。「学籍类型（Track Category）」仅当「修改学籍类型」开关启用时必填。
 
-#### Scenario: Conditional student status required
-- **WHEN** user saves the category form with modify student status enabled and no student status selected
-- **THEN** the system prevents save and shows a validation message
+#### 场景：学籍状态条件必填
+- 当用户启用「修改学籍状态」但未选择学籍状态就保存类别表单时，则系统阻止保存并显示校验提示
 
-#### Scenario: Conditional track category required
-- **WHEN** user saves the category form with modify student type enabled and no track category selected
-- **THEN** the system prevents save and shows a validation message
+#### 场景：学籍类型条件必填
+- 当用户启用「修改学籍类型」但未选择 track category 就保存类别表单时，则系统阻止保存并显示校验提示
 
-#### Scenario: Hidden fields not required when switch off
-- **WHEN** user saves the category form with modify student status disabled
-- **THEN** the system does not require student status even if the dropdown is hidden
-- **AND** the previously stored student status value is retained on the row
+#### 场景：开关关闭时隐藏字段非必填
+- 当用户关闭「修改学籍状态」开关后保存类别表单时，则系统不要求学籍状态，即使下拉已隐藏；且该行此前存储的学籍状态值仍保留
 
-#### Scenario: Hidden track category not required when switch off
-- **WHEN** user saves the category form with modify student type disabled
-- **THEN** the system does not require track category even if the dropdown is hidden
-- **AND** the previously stored category value is retained on the row
+#### 场景：开关关闭时隐藏学籍类型非必填
+- 当用户关闭「修改学籍类型」开关后保存类别表单时，则系统不要求 track category，即使下拉已隐藏；且该行此前存储的 `category` 值仍保留
 
-### Requirement: Movement category implementation behavior switches
-The system SHALL provide three independent toggle switches on the create and edit category form, stored per category code row. Each switch label SHALL include a question-mark hint control that reveals explanatory text in a tooltip on hover or focus-within. The system SHALL NOT display persistent hint text below the switch control area.
+### 需求：异动类别实施行为开关
+系统应在新增与编辑类别表单上提供三个独立开关，按类别编码行存储。每个开关标签应包含问号提示控件，在 hover 或 focus-within 时以气泡展示说明文字。系统不应在开关控件区域下方显示常驻 hint 段落。
 
-#### Scenario: Hint tooltip on modify student status
-- **WHEN** the create or edit category modal shows modify student status
-- **THEN** a question-mark icon appears immediately after the field label text and before the label colon
-- **AND** hovering or focusing the icon shows a tooltip explaining that enabling means this movement updates student profile status on implementation
-- **AND** no hint paragraph appears below the switch
+#### 场景：修改学籍状态 hint 气泡
+- 当新增或编辑类别弹框展示「修改学籍状态」时，则字段标签文字之后、冒号之前出现问号图标；且 hover 或聚焦图标时显示气泡，说明启用表示该异动实施时将更新学籍档案状态；且开关下方不出现 hint 段落
 
-#### Scenario: Hint tooltip on modify student type
-- **WHEN** the create or edit category modal shows modify student type
-- **THEN** a question-mark icon appears after the field label with the same tooltip interaction
-- **AND** the tooltip explains that enabling means this movement updates student profile track category on implementation
+#### 场景：修改学籍类型 hint 气泡
+- 当新增或编辑类别弹框展示「修改学籍类型」时，则字段标签后出现问号图标，交互同上；且气泡说明启用表示该异动实施时将更新学籍档案 track category
 
-#### Scenario: Hint tooltip on auto implement
-- **WHEN** the create or edit category modal shows auto implement
-- **THEN** a question-mark icon appears after the field label with the same tooltip interaction
-- **AND** the tooltip displays: 开启后，该异动审批通过后将自动标记为已实施 (Chinese UI)
+#### 场景：是否自动实施 hint 气泡
+- 当新增或编辑类别弹框展示「是否自动实施」时，则字段标签后出现问号图标，交互同上；且气泡显示：开启后，该异动审批通过后将自动标记为已实施（中文界面）
 
-#### Scenario: Switch layout label question colon control
-- **WHEN** user views any of the three implementation switches
-- **THEN** the layout order is field name, question-mark hint icon, colon, and switch in the control column
-- **AND** the switch remains left-aligned in the control area at 32px row height
+#### 场景：开关布局为标签问号冒号控件
+- 当用户查看三个实施开关之一时，则布局顺序为字段名、问号 hint 图标、冒号、开关（位于控件列）；且开关在 32px 行高的控件区内左对齐
 
-#### Scenario: Persist switches on save
-- **WHEN** user saves the category form with toggled switch values
-- **THEN** the system persists modifyStudentStatus, modifyStudentType, and autoImplement on that category row
+#### 场景：保存时持久化开关
+- 当用户保存带有开关值的类别表单时，则系统在该类别行持久化 `modifyStudentStatus`、`modifyStudentType` 与 `autoImplement`
 
-### Requirement: Edit form field layout and switch-dropdown linkage
-The system SHALL present the movement category edit form in this field order: row 1 — category code (read-only) and category name; row 2 — modify student status and modify student type switches with label tooltips; row 3 — conditionally visible Student Status and Track Category (学籍类型) dropdowns with adaptive single- or two-column layout; row 4 — auto implement switch with label tooltip and allow student apply.
+### 需求：编辑表单字段布局与开关—下拉联动
+系统应按以下字段顺序呈现异动类别编辑表单：第 1 行 — 类别编码（只读）与类别名称；第 2 行 — 带标签 tooltip 的「修改学籍状态」与「修改学籍类型」开关；第 3 行 — 条件可见的「学籍状态」与「学籍类型（Track Category）」下拉，单列或双列自适应；第 4 行 — 带标签 tooltip 的「是否自动实施」开关与「允许学生申请」。
 
-#### Scenario: Switches appear above conditional dropdowns
-- **WHEN** user opens Edit on a category row
-- **THEN** modify student status and modify student type switches appear on row 2 above the conditional dropdown row
+#### 场景：开关位于条件下拉之上
+- 当用户打开某类别行的「编辑」时，则「修改学籍状态」与「修改学籍类型」开关出现在第 2 行，位于条件下拉行之上
 
-#### Scenario: Modify student status shows status dropdown when enabled
-- **WHEN** modify student status is enabled
-- **THEN** the Student Status dropdown is visible and editable
-- **AND** the user must select a value before save
+#### 场景：启用修改学籍状态时展示状态下拉
+- 当「修改学籍状态」启用时，则「学籍状态」下拉可见且可编辑；且保存前用户必须选择值
 
-#### Scenario: Modify student status hides status dropdown when disabled
-- **WHEN** modify student status is disabled
-- **THEN** the Student Status dropdown is not rendered
-- **AND** the stored studentStatus value on the row is unchanged on save
+#### 场景：关闭修改学籍状态时隐藏状态下拉
+- 当「修改学籍状态」关闭时，则不渲染「学籍状态」下拉；且保存时该行已存储的 `studentStatus` 值不变
 
-#### Scenario: Modify student type shows track category dropdown when enabled
-- **WHEN** modify student type is enabled
-- **THEN** the Track Category (学籍类型) dropdown is visible and editable with the full trackCategoryOptions list
-- **AND** the user must select a value before save
+#### 场景：启用修改学籍类型时展示学籍类型下拉
+- 当「修改学籍类型」启用时，则「学籍类型（Track Category）」下拉可见且可编辑，展示完整 `trackCategoryOptions` 列表；且保存前用户必须选择值
 
-#### Scenario: Modify student type hides track category dropdown when disabled
-- **WHEN** modify student type is disabled
-- **THEN** the Track Category dropdown is not rendered
-- **AND** the stored category value on the row is unchanged on save
+#### 场景：关闭修改学籍类型时隐藏学籍类型下拉
+- 当「修改学籍类型」关闭时，则不渲染「学籍类型」下拉；且保存时该行已存储的 `category` 值不变
 
-#### Scenario: Row three hidden when both modify switches off
-- **WHEN** both modify student status and modify student type are disabled
-- **THEN** row 3 is not rendered in the form
+#### 场景：两个 modify 开关均关闭时隐藏第 3 行
+- 当「修改学籍状态」与「修改学籍类型」均关闭时，则表单不渲染第 3 行
 
-#### Scenario: Row three single column when one dropdown visible
-- **WHEN** exactly one of modify student status or modify student type is enabled
-- **THEN** the visible dropdown occupies a single full-width column in the form grid
-- **AND** the form does not reserve an empty second column cell
+#### 场景：仅一个下拉可见时第 3 行单列
+- 当「修改学籍状态」与「修改学籍类型」中恰好一个启用时，则可见下拉占据表单网格中的单列满宽；且表单不为空第二列预留单元格
 
-#### Scenario: Row three two columns when both dropdowns visible
-- **WHEN** both modify student status and modify student type are enabled
-- **THEN** Student Status and Track Category dropdowns appear side by side in two columns
+#### 场景：两个下拉均可见时第 3 行双列
+- 当「修改学籍状态」与「修改学籍类型」均启用时，则「学籍状态」与「学籍类型」下拉并排显示于两列
 
-#### Scenario: Track category field label in form
-- **WHEN** user opens the create or edit category modal
-- **THEN** the dropdown previously labeled Category displays the localized label Track Category (Chinese: 学籍类型)
+#### 场景：表单中学籍类型字段标签
+- 当用户打开新增或编辑类别弹框时，则原「类别」下拉显示本地化标签 Track Category（中文：学籍类型）
 
-### Requirement: Independent category dropdown
-The system SHALL offer the full track category option list in the Track Category (学籍类型) dropdown without filtering or clearing based on Student Status when the dropdown is visible.
+### 需求：独立的学籍类型下拉
+系统应在「学籍类型（Track Category）」下拉可见时提供完整 track category 选项列表，不因「学籍状态」变化而过滤或清空。
 
-#### Scenario: Track category selectable when visible
-- **WHEN** modify student type is enabled and the Track Category dropdown is shown
-- **THEN** the dropdown remains enabled with all track category options
+#### 场景：可见时 track category 可选
+- 当「修改学籍类型」启用且「学籍类型」下拉显示时，则下拉保持启用并展示全部 track category 选项
 
-#### Scenario: No clear on status change
-- **WHEN** user changes Student Status after selecting a Track Category while both dropdowns are visible
-- **THEN** the system retains the selected Track Category value
+#### 场景：变更学籍状态时不自动清空学籍类型
+- 当两个下拉均可见且用户已选择「学籍类型」后变更「学籍状态」时，则系统保留已选的 Track Category 值
 
-## REMOVED Requirements
+## 移除需求
 
-### Requirement: Edit form field layout and switch-dropdown linkage (§20 lock-on-enable)
-**Reason**: Product requires modify switches to control dropdown visibility and editability; ON shows editable target value, OFF hides dropdown while retaining stored values.
-**Migration**: Remove `:disabled="form.modifyStudentStatus"` and `:disabled="form.modifyStudentType"`; replace always-visible dropdowns with conditional `v-if`; update validation to conditional required.
+### 需求：编辑表单字段布局与开关—下拉联动（§20 启用时锁定）
+**原因**：产品要求 modify 开关控制下拉可见性与可编辑性；ON 时展示可编辑的目标值，OFF 时隐藏下拉但保留已存值。
+**迁移**：移除 `:disabled="form.modifyStudentStatus"` 与 `:disabled="form.modifyStudentType"`；将始终可见的下拉改为条件 `v-if`；校验改为条件必填。
 
-#### Scenario: Modify student status locks status dropdown
-- **REMOVED** — replaced by show/hide when enabled/disabled
+#### 场景：修改学籍状态时锁定状态下拉
+- **已移除** — 由启用/禁用时显示/隐藏替代
 
-#### Scenario: Modify student type locks category dropdown
-- **REMOVED** — replaced by show/hide when enabled/disabled
+#### 场景：修改学籍类型时锁定类别下拉
+- **已移除** — 由启用/禁用时显示/隐藏替代
 
-#### Scenario: Required status and category on save regardless of switch state
-- **REMOVED** — replaced by conditional required when corresponding switch is on
+#### 场景：无论开关状态保存时学籍状态与类别均必填
+- **已移除** — 由对应开关开启时条件必填替代
 
-### Requirement: Movement category implementation behavior switches (persistent hints below switch)
-**Reason**: Product requires hint text in label tooltips instead of persistent paragraphs below switches.
-**Migration**: Remove `<p class="field-hint">` under switch rows; add question-mark tooltip on labels for modify student status, modify student type, and auto implement.
+### 需求：异动类别实施行为开关（开关下方常驻 hint）
+**原因**：产品要求 hint 文案置于标签 tooltip，而非开关下方常驻段落。
+**迁移**：移除开关行下方 `<p class="field-hint">`；为 modify student status、modify student type 与 auto implement 的标签增加问号 tooltip。
 
-#### Scenario: Switches embedded in form layout with hint below the switch
-- **REMOVED** — hints move to label question-mark tooltips
+#### 场景：开关嵌入表单布局且 hint 在开关下方
+- **已移除** — hint 移至标签问号 tooltip
 
-#### Scenario: Auto implement appears with hint on the next line below switch
-- **REMOVED** — hint moves to label question-mark tooltip
+#### 场景：是否自动实施 hint 在开关下一行
+- **已移除** — hint 移至标签问号 tooltip

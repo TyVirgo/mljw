@@ -4,6 +4,8 @@ import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import MovementApplicationDetailDrawer from '../../components/studentRecords/MovementApplicationDetailDrawer.vue'
 import MovementApprovalModal from '../../components/studentRecords/MovementApprovalModal.vue'
+import MovementApprovalTableHeaderLabel from '../../components/studentRecords/MovementApprovalTableHeaderLabel.vue'
+import MovementAdminCancelAction from '../../components/studentRecords/MovementAdminCancelAction.vue'
 import ImplementedYnBadge from '../../components/common/ImplementedYnBadge.vue'
 import { useListPageI18n } from '../../composables/useListPageI18n.js'
 import {
@@ -109,7 +111,7 @@ const showApproveToolbar = computed(() => activeTab.value === 'pending')
 const showImplementedColumn = computed(() => activeTab.value === 'history')
 
 const tableColspan = computed(() => {
-  let cols = 10
+  let cols = 11
   if (showApproveToolbar.value) cols += 1
   if (showImplementedColumn.value) cols += 1
   return cols
@@ -354,6 +356,12 @@ function statusLabel(status) {
                 <th>{{ t('movementApproval.columns.applicationSession') }}</th>
                 <th>{{ t('movementApproval.columns.effectiveSession') }}</th>
                 <th>{{ t('movementApproval.columns.movementCategory') }}</th>
+                <th>
+                  <MovementApprovalTableHeaderLabel
+                    label-key="movementApproval.columns.applicationSequence"
+                    hint-key="movementApproval.columnHints.applicationSequence"
+                  />
+                </th>
                 <th>{{ t('movementApproval.columns.applicationDate') }}</th>
                 <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
@@ -383,10 +391,16 @@ function statusLabel(status) {
                 <td>{{ item.applicationSession }}</td>
                 <td>{{ item.effectiveSession }}</td>
                 <td>{{ t(item.movementCategoryKey) }}</td>
+                <td>{{ item.historicalApplicationSequence ?? 1 }}</td>
                 <td>{{ item.applicationDateDisplay }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">
                     <button type="button" class="link-btn" @click="openDetails(item)">{{ t('common.details') }}</button>
+                    <MovementAdminCancelAction
+                      v-if="activeTab === 'history'"
+                      :source-key="item.sourceKey"
+                      :item="item.raw"
+                    />
                   </div>
                 </td>
               </tr>

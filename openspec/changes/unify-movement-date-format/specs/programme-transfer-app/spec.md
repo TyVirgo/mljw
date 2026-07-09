@@ -1,39 +1,28 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Programme transfer form sections match prototype
-The system SHALL render the application form with sections aligned to the StudentSys prototype, including Section VII on create and edit forms as a visible but non-editable administrative block during application.
+### 需求：转专业表单区块对齐原型
+系统应渲染与 StudentSys 原型对齐的申请表单，包括在新建与编辑表单上将 Section VII 作为可见但申请侧不可编辑的教务区块。
 
-#### Scenario: Section I student details
-- **WHEN** user views Section I in the form
-- **THEN** the system shows Student ID (required, searchable select), Full Name, NRIC/Passport No., Nationality, Email, Contact No., and Student Visa Expiry Date
+#### 场景：Section I 学生详情
+- 当用户在表单中查看 Section I 时，则系统展示 Student ID（必填、可搜索下拉）、Full Name、NRIC/Passport No.、Nationality、Email、Contact No. 与 Student Visa Expiry Date。
 
-#### Scenario: Student ID auto-fill
-- **WHEN** user selects a Student ID from the student profile data
-- **THEN** the system auto-fills Section I fields and Section II current programme, intake, and school from the linked student profile
+#### 场景：Student ID 自动填充
+- 当用户从学生档案数据中选择 Student ID 时，则系统自动填充 Section I 字段及 Section II 的 current programme、intake 与 school。
 
-#### Scenario: Section II transfer information
-- **WHEN** user views Section II in the form
-- **THEN** the system shows Current Programme, Current Intake, Current School, New Programme (1st Choice, required), New Programme (2nd Choice, optional), Start Semester of New Programme (required), and Reasons to Transfer (required textarea)
+#### 场景：Section II 转专业信息
+- 当用户在表单中查看 Section II 时，则系统展示 Current Programme、Current Intake、Current School、New Programme (1st Choice, required)、New Programme (2nd Choice, optional)、Start Semester of New Programme (required) 与 Reasons to Transfer（必填 textarea）。
 
-#### Scenario: Section III declaration
-- **WHEN** user views Section III
-- **THEN** the system shows a required declaration checkbox with full legal text and a required checkbox to agree
+#### 场景：Section III 声明
+- 当用户查看 Section III 时，则系统展示带完整法律文本的必填声明 checkbox 及必填同意 checkbox。
 
-#### Scenario: Section IV supporting documents
-- **WHEN** user views Section IV
-- **THEN** the system shows required attachment upload (mock: file name and size) with supported format hint PDF, JPG, PNG, DOCX, max 5MB, and a Download Consent Letter action
+#### 场景：Section IV 支持文档
+- 当用户查看 Section IV 时，则系统展示必填附件上传（mock：文件名与大小）、支持格式提示 PDF/JPG/PNG/DOCX、最大 5MB，以及 Download Consent Letter 操作。
 
-#### Scenario: Section VII visible but disabled on create form
-- **WHEN** user opens the create application form via "+ New Application"
-- **THEN** the system displays Section VII after Section IV with grey section header "FOR ACADEMIC AFFAIRS OFFICE USE ONLY"
-- **AND** fields New Programme, New Intake, and Date are visible with prototype layout
-- **AND** all Section VII inputs are disabled with readonly gray styling and cannot be edited by the applicant
+#### 场景：新建表单 Section VII 可见但 disabled
+- 当用户通过「+ New Application」打开新建申请表单时，则系统在 Section IV 之后展示 Section VII，灰色区块标题为「FOR ACADEMIC AFFAIRS OFFICE USE ONLY」，New Programme、New Intake 与 Date 字段可见且布局对齐原型，且 Section VII 全部输入 disabled、只读置灰样式，申请人不可编辑。
 
-#### Scenario: Section VII layout on form
-- **WHEN** user views Section VII in the create or edit form
-- **THEN** New Programme and New Intake appear on the first row and Date appears on the second row below New Programme
+#### 场景：表单 Section VII 布局
+- 当用户在新建或编辑表单中查看 Section VII 时，则 New Programme 与 New Intake 在第一行，Date 在 New Programme 下方第二行。
 
-#### Scenario: Section VII not validated on submit from application form
-- **WHEN** user submits or saves draft from the programme transfer application form
-- **THEN** the system does not require Section VII fields to be filled
-- **AND** the application-side submit does not persist user edits to Section VII administrative fields
+#### 场景：申请表单提交不校验 Section VII
+- 当用户从转专业申请表单提交或保存草稿时，则系统不要求填写 Section VII 字段，且申请侧提交不持久化用户对 Section VII 教务字段的编辑。

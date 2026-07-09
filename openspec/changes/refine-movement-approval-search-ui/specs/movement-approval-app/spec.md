@@ -1,124 +1,103 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Unified approval table shows common columns only
-The system SHALL display a single paginated table for all four movement types. Common columns on all tabs SHALL be: Status, Approval Stage, Student ID, Student Name, Application Session, Effective Session, Movement Category, and Application Date. The Implemented column SHALL appear only on the History tab and SHALL display Y or N. Movement Reason SHALL NOT appear as a table column.
+### 需求：统一审批表仅展示公共列
+系统应为四种异动类型展示单一分页表格。所有 Tab 的公共列应为：状态、审批阶段、学号、姓名、申请学期、生效学期、异动类别与申请日期。「是否实施」列仅出现在历史 Tab，且显示 Y 或 N。异动原因不得作为表格列出现。
 
-#### Scenario: Movement category column
-- **WHEN** a row represents programme transfer, deferment, resumption, or withdrawal
-- **THEN** the Movement Category column displays the localized movement type label
+#### 场景：异动类别列
+- 当某行代表转专业、休学、复学或退学时，则「异动类别」列显示本地化的异动类型标签
 
-#### Scenario: Type-specific fields not in table
-- **WHEN** user views the approval list
-- **THEN** type-specific application fields (including movement reason) are not shown as table columns and are available only through View
+#### 场景：类型专属字段不在表格中
+- 当用户查看审批列表时，则类型专属申请字段（含异动原因）不作为表格列展示，仅可通过「查看」访问
 
-### Requirement: Approval list uses three role-aware tabsThe system SHALL provide three tabs classifying applications from the current approver role perspective: Submitted, Pending, and History. The approver role SHALL be determined by the system default (v1: `Pending Review`) and SHALL NOT be exposed as a page-level selector on the approval list.
+### 需求：审批列表使用三个角色感知 Tab
+系统应提供三个 Tab，从当前审批角色视角对申请分类：已提交、待我审批与历史。审批角色应由系统默认值决定（v1：`Pending Review`），且不得在审批列表页以页面级选择器暴露。
 
-#### Scenario: Submitted tab
-- **WHEN** user selects the Submitted tab
-- **THEN** the list shows In Progress applications whose current workflow stage is not the current role's active stage and on which the current role has not yet acted in the current submission cycle
+#### 场景：已提交 Tab
+- 当用户选择「已提交」Tab 时，则列表显示进行中且当前工作流阶段不是当前角色活跃阶段、且当前角色在本轮提交中尚未操作的申请
 
-#### Scenario: Pending tab
-- **WHEN** user selects the Pending tab
-- **THEN** the list shows In Progress applications whose current approval stage matches the current role's active stage
+#### 场景：待我审批 Tab
+- 当用户选择「待我审批」Tab 时，则列表显示进行中且当前审批阶段与当前角色活跃阶段匹配的申请
 
-#### Scenario: History tab
-- **WHEN** user selects the History tab
-- **THEN** the list shows applications the current role has already acted on in the current cycle, applications cancelled by the student, or terminal outcomes where the role participated
+#### 场景：历史 Tab
+- 当用户选择「历史」Tab 时，则列表显示当前角色在本轮已操作过的申请、学生取消的申请，或该角色参与过的终态结果
 
-#### Scenario: No role selector on list page
-- **WHEN** user views the movement approval list page
-- **THEN** the system does not display a Current approver role dropdown or equivalent role-switching control
+#### 场景：列表页无角色选择器
+- 当用户查看异动审批列表页时，则系统不显示 Current approver role 下拉或等效的角色切换控件
 
-### Requirement: Approval search area uses responsive field layout
-The system SHALL display five search fields—Academic Session, Programme Code, Status, Student ID, and Student Name—in a single responsive search area without a More/Collapse expand control. The Movement Reason search field SHALL NOT be shown.
+### 需求：审批搜索区采用响应式字段布局
+系统应在单一响应式搜索区展示五个搜索字段：学年学期、专业代码、状态、学号与学生姓名，不使用「更多/收起」展开控件。不得显示「异动原因」搜索字段。
 
-#### Scenario: All search fields visible
-- **WHEN** user opens the movement approval list page
-- **THEN** all five search fields are visible without requiring the user to expand additional filters
+#### 场景：全部搜索字段可见
+- 当用户打开异动审批列表页时，则五个搜索字段均可见，无需展开额外筛选
 
-#### Scenario: Programme code search next to academic session
-- **WHEN** user views the approval search area
-- **THEN** the Programme Code input appears immediately after the Academic Session input
+#### 场景：专业代码搜索紧邻学年学期
+- 当用户查看审批搜索区时，则「专业代码」输入框紧接在「学年学期」输入框之后
 
-#### Scenario: No movement reason search
-- **WHEN** user views the approval search area
-- **THEN** the system does not display a Movement Reason search input
+#### 场景：无异动原因搜索
+- 当用户查看审批搜索区时，则系统不显示「异动原因」搜索输入框
 
-#### Scenario: Filter by programme code
-- **WHEN** user enters a programme code keyword and clicks Search
-- **THEN** the list shows only rows whose resolved programme code matches the keyword (substring match)
+#### 场景：按专业代码筛选
+- 当用户输入专业代码关键字并点击「查询」时，则列表仅显示解析出的专业代码与关键字匹配（substring）的行
 
-#### Scenario: Adaptive field wrapping
-- **WHEN** the viewport width changes
-- **THEN** search fields reflow using a responsive grid or flex-wrap layout so labels and inputs remain readable without horizontal overflow
+#### 场景：字段自适应换行
+- 当视口宽度变化时，则搜索字段通过响应式 grid 或 flex-wrap 重新排列，标签与输入保持可读且无横向溢出
 
-#### Scenario: Search actions alignment
-- **WHEN** search fields are displayed
-- **THEN** Search and Reset actions appear aligned to the right of the search field area on wide viewports and remain accessible when fields wrap on narrow viewports
+#### 场景：搜索操作对齐
+- 当搜索字段展示时，则在宽视口下「查询」与「重置」对齐于搜索字段区域右侧；窄视口字段换行时仍保持可访问
 
-### Requirement: Approval tabs ordered with pending count badge only
-The system SHALL display approval tabs in order Pending, Submitted, then History. Only the Pending tab SHALL show a numeric count badge.
+### 需求：审批 Tab 顺序且仅待我审批显示角标
+系统应按顺序展示审批 Tab：待我审批、已提交、历史。仅「待我审批」Tab 应显示数字角标。
 
-#### Scenario: Tab order
-- **WHEN** user views the movement approval list page
-- **THEN** tabs appear as Pending, Submitted, History from left to right
+#### 场景：Tab 顺序
+- 当用户查看异动审批列表页时，则 Tab 从左到右依次为待我审批、已提交、历史
 
-#### Scenario: Pending count badge only
-- **WHEN** user views the tab bar
-- **THEN** only the Pending tab displays a count badge; Submitted and History tabs do not display numeric badges
+#### 场景：仅待我审批显示角标
+- 当用户查看 Tab 栏时，则仅「待我审批」Tab 显示数量角标；「已提交」与「历史」Tab 不显示数字角标
 
-#### Scenario: Status badge visible
-- **WHEN** user views the Status column on any tab
-- **THEN** status labels use the same localized application status text as movement application lists (excluding Draft) with visible status badge styling
+#### 场景：状态 badge 可见
+- 当用户在任意 Tab 查看「状态」列时，则状态标签使用与异动申请列表相同的本地化申请状态文案（不含 Draft），且 badge 样式可见
 
-#### Scenario: Application date formatting
-- **WHEN** a row represents programme transfer, deferment, resumption, or withdrawal
-- **THEN** Application Date uses the same list date formatter as that movement type application list page
+#### 场景：申请日期格式化
+- 当某行代表转专业、休学、复学或退学时，则「申请日期」使用该异动类型申请列表页的相同列表日期格式化函数
 
-#### Scenario: Implemented column on History only
-- **WHEN** user selects Pending or Submitted tab
-- **THEN** the Implemented column is not shown
+#### 场景：是否实施列仅历史 Tab
+- 当用户选择「待我审批」或「已提交」Tab 时，则不显示「是否实施」列
 
-#### Scenario: Implemented Y/N on History
-- **WHEN** user selects History tab
-- **THEN** the Implemented column displays Y when the record implementation status is Implemented and N for all other values including Approved records pending implementation
+#### 场景：历史 Tab 是否实施 Y/N
+- 当用户选择「历史」Tab 时，则「是否实施」列在记录实施状态为 Implemented 时显示 Y，其余值（含待实施的 Approved 记录）显示 N
 
-### Requirement: Pending View opens approval via footer and modal
-The system SHALL open Pending-tab View as read-only application details without an inline approval form below the detail content. When the user is viewing a Pending application, the detail footer SHALL display Approve and Close actions in that order (Approve immediately before Close). Clicking Approve SHALL open the same MovementApprovalModal used for batch review from the list (Action, Comments, confirm flow). Submitted and History View SHALL show Close only in the detail footer (History may retain separate Recall controls outside the detail footer as implemented today).
+### 需求：待我审批查看通过 footer 与 Modal 审批
+系统应以只读申请详情打开「待我审批」Tab 的「查看」，详情内容下方不得内联展示审批表单。查看待我审批申请时，详情 footer 应按顺序显示「审批」与「关闭」（「审批」紧挨在「关闭」之前）。点击「审批」应打开与列表批量 Review 相同的 `MovementApprovalModal`（含 Action、Comments、确认流程）。「已提交」与「历史」查看的详情 footer 仅显示「关闭」（历史 Tab 可在详情 footer 外保留现有 Recall 控件）。
 
-#### Scenario: View from Submitted
-- **WHEN** user clicks View on a Submitted row
-- **THEN** the system opens read-only application details without an Approve button in the detail footer
+#### 场景：从已提交 Tab 查看
+- 当用户点击「已提交」行的「查看」时，则系统打开只读申请详情，详情 footer 无「审批」按钮
 
-#### Scenario: View from Pending without inline approval
-- **WHEN** user clicks View on a Pending row
-- **THEN** the system opens read-only application details and does not render an inline approval section below the detail panel
+#### 场景：从待我审批查看且无内联审批
+- 当用户点击「待我审批」行的「查看」时，则系统打开只读申请详情，且详情面板下方不渲染内联审批区
 
-#### Scenario: Approve from detail footer
-- **WHEN** user clicks Approve in the detail footer on a Pending application
-- **THEN** the system opens MovementApprovalModal with the current approval stage and single-application target count
+#### 场景：从详情 footer 审批
+- 当用户在待我审批申请的详情 footer 点击「审批」时，则系统打开 `MovementApprovalModal`，展示当前审批阶段且目标数量为 1
 
-#### Scenario: Modal matches list batch review
-- **WHEN** user submits a decision from MovementApprovalModal opened from detail footer
-- **THEN** the modal content and confirmation flow match opening Review from the Pending list with one row selected
+#### 场景：Modal 与列表批量 Review 一致
+- 当用户从详情 footer 打开的 `MovementApprovalModal` 提交决策时，则弹框内容与确认流程与在待我审批列表选中一行后点击 Review 一致
 
-#### Scenario: After detail approval submit
-- **WHEN** user confirms an approval decision from detail footer modal
-- **THEN** the system applies the decision via the movement approval engine and returns the user to the approval list
+#### 场景：详情审批提交后
+- 当用户从详情 footer 弹框确认审批决策时，则系统通过异动审批引擎应用决策并返回审批列表
 
-## REMOVED Requirements
-### Requirement: Inline approval section on Pending View
-**Reason**: Product design moves approval controls from an inline section below the detail panel to footer-triggered MovementApprovalModal, aligned with course approval patterns.
-**Migration**: Remove `approval-section` from MovementApprovalReviewView; wire footer Approve to existing MovementApprovalModal.
+## 移除需求
 
-### Requirement: Movement Reason in approval search and table
-**Reason**: Product removed Movement Reason from the approval list workspace; reason details remain available in View.
-**Migration**: Remove search field and table column; remove from CSV export headers.
+### 需求：待我审批查看页内联审批区
+**原因**：产品设计将审批控件从详情面板下方内联区移至 footer 触发的 `MovementApprovalModal`，与课程审批模式对齐。
+**迁移**：从 `MovementApprovalReviewView` 移除 `approval-section`；footer「审批」接入现有 `MovementApprovalModal`。
 
-### Requirement: Implemented column on Pending and Submitted tabs
-**Reason**: Implementation applies only after approval workflow completes; pending and submitted items are not yet eligible for implementation display.
-**Migration**: Show Implemented column only when History tab is active.
+### 需求：审批搜索与表格中的异动原因
+**原因**：产品从审批列表工作区移除异动原因；原因详情仍可通过「查看」访问。
+**迁移**：移除搜索字段与表格列；从 CSV 导出表头移除。
 
-### Requirement: Mock approver role selector on approval page
-**Reason**: Product design no longer includes an in-page role dropdown; approver context is implicit via system default until authentication is implemented.
-**Migration**: Remove UI binding; retain `DEFAULT_APPROVER_ROLE` for engine calls.
+### 需求：待我审批与已提交 Tab 的是否实施列
+**原因**：实施仅在审批工作流完成后适用；待我审批与已提交项尚不符合实施展示条件。
+**迁移**：仅在历史 Tab 激活时显示「是否实施」列。
+
+### 需求：审批页 mock 审批角色选择器
+**原因**：产品设计不再包含页内角色下拉；审批上下文在实现认证前通过系统默认值隐式确定。
+**迁移**：移除 UI 绑定；引擎调用仍保留 `DEFAULT_APPROVER_ROLE`。

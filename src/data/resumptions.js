@@ -1,6 +1,13 @@
 import { isLocalCategory, findStudentByStudentId } from './students.js'
-import { resolveApplicationSessionFromStudent } from './movementApplicationSession.js'
+import {
+  createEmptyMovementAttachments,
+  validateMovementAttachments,
+  withMovementAttachments,
+} from './movementAttachments.js'
+import { resolveApplicationSessionFromStudent, resolveCurrentAcademicSessionFromStudent } from './movementApplicationSession.js'
+import { resolveMovementVisaExpiryFromStudent } from '../utils/movementVisaExpiry.js'
 import { validateAcademicSessionOrder } from '../utils/normalizeAcademicSession.js'
+import { resolveDefermentPeriodDates } from './deferments.js'
 
 export const resumptionStatusOptions = [
   'Draft',
@@ -53,36 +60,57 @@ export function createEmptyResumption() {
     submittedAt: null,
     dateOfApplication: today,
     applicationSession: '',
+    currentAcademicSession: '',
     fullName: '',
     originalIntake: '',
     programme: '',
     programmeLevel: '',
+    visaExpiryDate: '—',
+    studentCategory: '',
     nricPassport: '',
     nationality: '',
     personalEmail: '',
     phoneNumber: '',
     defermentSemester: '',
+    defermentStartDate: '',
+    defermentEndDate: '',
     resumptionSemester: '',
     attachment: null,
-    declarationCorrect: false,
-    declarationMaxDuration: false,
+    attachments: createEmptyMovementAttachments(),
+    declarationAgreed: false,
     approvalLog: [],
   }
 }
 
+export function syncResumptionDefermentSemesterDates(resumption) {
+  if (!resumption) return resumption
+  const dates = resolveDefermentPeriodDates(resumption.defermentSemester)
+  resumption.defermentStartDate = dates.defermentStartDate
+  resumption.defermentEndDate = dates.defermentEndDate
+  return resumption
+}
+
 export function getResumptionFormData(record) {
   if (!record) return createEmptyResumption()
-  return {
-    ...createEmptyResumption(),
-    ...record,
-    attachment: record.attachment ? { ...record.attachment } : null,
-    approvalLog: (record.approvalLog || []).map((entry) => ({ ...entry })),
+  const form = syncResumptionDefermentSemesterDates(
+    withMovementAttachments({
+      ...createEmptyResumption(),
+      ...record,
+      approvalLog: (record.approvalLog || []).map((entry) => ({ ...entry })),
+    }),
+  )
+  if (form.declarationAgreed == null) {
+    form.declarationAgreed = !!(
+      record.declarationAgreed ??
+      (record.declarationCorrect && record.declarationMaxDuration)
+    )
   }
+  return form
 }
 
 export function normalizeResumption(raw) {
   const base = { ...createEmptyResumption(), ...raw }
-  return {
+  return withMovementAttachments(syncResumptionDefermentSemesterDates({
     ...base,
     id: base.id ?? createResumptionId(),
     applicationId: base.applicationId || createApplicationId(),
@@ -91,7 +119,7 @@ export function normalizeResumption(raw) {
     archived:
       base.archived === true ||
       ['Approved', 'Rejected', 'Cancelled'].includes(base.status),
-  }
+  }))
 }
 
 export function buildStudentSnapshotForResumption(student) {
@@ -113,9 +141,12 @@ export function buildStudentSnapshotForResumption(student) {
     nationality: basic.nationality || '',
     programme: enrollment.programme || '',
     programmeLevel: enrollment.programmeLevel || '',
+    studentCategory: category,
+    visaExpiryDate: resolveMovementVisaExpiryFromStudent(student),
     personalEmail: contact.email || '',
     phoneNumber: contact.mobilePhone || '',
     applicationSession: resolveApplicationSessionFromStudent(student),
+    currentAcademicSession: resolveCurrentAcademicSessionFromStudent(student),
   }
 }
 
@@ -228,14 +259,9 @@ export function validateResumptionForm(data, mode = 'submit', existingList = [],
   if (!String(data.resumptionSemester || '').trim()) {
     requireField('resumptionSemester', 'Resumption Semester is required.')
   }
-  if (!data.attachment?.fileName) {
-    requireField('attachment', 'Supporting document is required.')
-  }
-  if (!data.declarationCorrect) {
-    requireField('declarationCorrect', 'You must agree to the declaration.')
-  }
-  if (!data.declarationMaxDuration) {
-    requireField('declarationMaxDuration', 'You must acknowledge the maximum study duration.')
+  validateMovementAttachments('resumption', data, requireField, mode)
+  if (!data.declarationAgreed) {
+    requireField('declarationAgreed', 'You must agree to the declaration.')
   }
 
   if (
@@ -318,7 +344,10 @@ export function cancelApplication(item, actor = 'Student') {
     actor,
     action: 'Cancelled',
     dateTime: now,
-    comment: 'Application cancelled by student.',
+    comment:
+      actor === 'Student'
+        ? 'Application cancelled by student.'
+        : 'Application cancelled by AC.',
   })
   return normalizeResumption({
     ...updated,
@@ -373,8 +402,7 @@ export const initialResumptions = [
     defermentSemester: '2024/02',
     resumptionSemester: '2025/02',
     attachment: { fileName: 'payment-receipt.pdf', size: 180000 },
-    declarationCorrect: true,
-    declarationMaxDuration: true,
+    declarationAgreed: true,
     status: 'Approved',
     approvalStage: 'Approved',
     implemented: 'Implemented',
@@ -402,8 +430,7 @@ export const initialResumptions = [
     defermentSemester: '2024/09',
     resumptionSemester: '2025/09',
     attachment: { fileName: 'li-clearance.pdf', size: 210000 },
-    declarationCorrect: true,
-    declarationMaxDuration: true,
+    declarationAgreed: true,
     status: 'Approved',
     approvalStage: 'Approved',
     archived: true,
@@ -431,8 +458,7 @@ export const initialResumptions = [
     defermentSemester: '2023/09',
     resumptionSemester: '2024/04',
     attachment: { fileName: 'medical-clearance.pdf', size: 245000 },
-    declarationCorrect: true,
-    declarationMaxDuration: true,
+    declarationAgreed: true,
     status: 'In Progress',
     approvalStage: 'Pending Review',
     submittedAt: '2024-01-15T08:00:00.000Z',
@@ -456,8 +482,7 @@ export const initialResumptions = [
     defermentSemester: '2025/02',
     resumptionSemester: '2025/09',
     attachment: { fileName: 'rizal-payment.pdf', size: 185000 },
-    declarationCorrect: true,
-    declarationMaxDuration: true,
+    declarationAgreed: true,
     status: 'In Progress',
     approvalStage: 'Pending Review',
     submittedAt: '2024-08-01T08:00:00.000Z',
@@ -482,8 +507,7 @@ export const initialResumptions = [
     defermentSemester: '2024/09',
     resumptionSemester: '2025/02',
     attachment: { fileName: 'sarah-clearance.pdf', size: 210000 },
-    declarationCorrect: true,
-    declarationMaxDuration: true,
+    declarationAgreed: true,
     status: 'In Progress',
     approvalStage: 'Academic Affairs',
     submittedAt: '2024-06-15T10:00:00.000Z',
@@ -541,8 +565,7 @@ export const initialResumptions = [
     defermentSemester: '2025/02',
     resumptionSemester: '2025/09',
     attachment: { fileName: 'ng-medical.pdf', size: 95000 },
-    declarationCorrect: true,
-    declarationMaxDuration: true,
+    declarationAgreed: true,
     status: 'Update Required',
     approvalStage: '--',
     submittedAt: '2024-06-15T10:00:00.000Z',
@@ -567,8 +590,7 @@ export const initialResumptions = [
     defermentSemester: '2024/09',
     resumptionSemester: '2025/02',
     attachment: { fileName: 'raj-medical.pdf', size: 88000 },
-    declarationCorrect: true,
-    declarationMaxDuration: true,
+    declarationAgreed: true,
     status: 'Update Required',
     approvalStage: '--',
     submittedAt: '2024-04-01T08:00:00.000Z',
@@ -594,8 +616,7 @@ export const initialResumptions = [
     defermentSemester: '2025/09',
     resumptionSemester: '2026/02',
     attachment: { fileName: 'lim-consent.pdf', size: 110000 },
-    declarationCorrect: true,
-    declarationMaxDuration: true,
+    declarationAgreed: true,
     status: 'Cancelled',
     approvalStage: '--',
     archived: true,
@@ -620,8 +641,7 @@ export const initialResumptions = [
     defermentSemester: '2025/02',
     resumptionSemester: '2025/09',
     attachment: { fileName: 'chen-consent.pdf', size: 130000 },
-    declarationCorrect: true,
-    declarationMaxDuration: true,
+    declarationAgreed: true,
     status: 'Cancelled',
     approvalStage: '--',
     archived: true,
@@ -647,8 +667,7 @@ export const initialResumptions = [
     defermentSemester: '2025/09',
     resumptionSemester: '2026/02',
     attachment: { fileName: 'siti-docs.pdf', size: 102000 },
-    declarationCorrect: true,
-    declarationMaxDuration: true,
+    declarationAgreed: true,
     status: 'Rejected',
     approvalStage: '--',
     archived: true,
@@ -672,8 +691,7 @@ export const initialResumptions = [
     defermentSemester: '2025/02',
     resumptionSemester: '2025/09',
     attachment: { fileName: 'priya-medical.pdf', size: 98000 },
-    declarationCorrect: true,
-    declarationMaxDuration: true,
+    declarationAgreed: true,
     status: 'Rejected',
     approvalStage: '--',
     archived: true,

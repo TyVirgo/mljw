@@ -1,88 +1,82 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Application detail opens in a right-side drawer
-The system SHALL open application details from list row actions in a drawer panel that slides in from the right edge of the viewport, keeping the underlying list page visible.
+### 需求：申请详情在右侧抽屉中打开
+系统应通过列表行操作，在从视口右边缘滑入的抽屉面板中打开申请详情，并保持底层列表页可见。
 
-#### Scenario: Drawer opens from list
-- **WHEN** user clicks the unified Details action on a list row
-- **THEN** the system opens a right-side drawer overlay
-- **AND** the list page remains mounted and visible behind the overlay
+#### 场景：从列表打开抽屉
+- **当** 用户在列表行点击统一的「详情」操作
+- **则** 系统打开右侧抽屉遮罩层，且列表页面保持挂载并在遮罩后方可见
 
-#### Scenario: Drawer closes
-- **WHEN** user clicks Close in the drawer footer or the header close control
-- **OR** user clicks the overlay backdrop
-- **THEN** the drawer closes and returns focus to the list
+#### 场景：关闭抽屉
+- **当** 用户点击抽屉底栏的 Close 或顶栏关闭控件，或点击遮罩背景
+- **则** 抽屉关闭并将焦点返回列表
 
-### Requirement: Drawer layout separates fixed chrome from scrollable content
-The drawer SHALL use a fixed header, a fixed footer, and a single scrollable content region between them.
+### 需求：抽屉布局区分固定区域与可滚动内容
+抽屉应使用固定顶栏、固定底栏，以及介于两者之间的单一可滚动内容区。
 
-#### Scenario: Scroll behavior
-- **WHEN** drawer content exceeds viewport height
-- **THEN** only the middle content region scrolls vertically
-- **AND** the header and footer remain visible and fixed
+#### 场景：滚动行为
+- **当** 抽屉内容超出视口高度
+- **则** 仅中间内容区纵向滚动，且顶栏与底栏保持固定可见
 
-### Requirement: Drawer content orders approval timeline above application details
-The scrollable content region SHALL display the approval/workflow timeline in the upper section and read-only application detail fields in the lower section, separated by a visual divider.
+### 需求：抽屉内容区申请详情位于审批日志之上
+可滚动内容区应在上方展示只读申请详情字段，在下方展示 Approval Log 四列表格，并以视觉分隔区分。
 
-#### Scenario: Timeline above details
-- **WHEN** user opens Details for any in-scope application
-- **THEN** the approval timeline appears above the application detail fields within the same scroll area
+#### 场景：详情在上、审批日志在下
+- **当** 用户为任意范围内申请打开「详情」
+- **则** 申请详情字段出现在同一滚动区内审批日志表格的上方
 
-### Requirement: Approval timeline uses vertical step visualization
-The system SHALL render approval and workflow history as a vertical timeline with stage label, actor name, status badge, and timestamp per node, aligned to the product reference (Submitted / Pending / Approved style badges).
+### 需求：审批日志采用四列表格展示
+系统应将审批与流转历史渲染为表格，列含 Description、Action By、Action By Role、Created At，按日志顺序排列；不使用纵向审批时间线组件。
 
-#### Scenario: Completed node
-- **WHEN** an approval log entry exists for a workflow stage with action Submitted or Approved
-- **THEN** the timeline node shows a completed indicator and the corresponding status badge
+#### 场景：审批日志表格列
+- **当** 抽屉展示审批历史
+- **则** 表格列为 Description、Action By、Action By Role、Created At
 
-#### Scenario: Current pending node
-- **WHEN** the application is In Progress and a workflow stage matches the current approval stage without a terminal action
-- **THEN** the timeline node shows a pending indicator and a Pending status badge
+#### 场景：Submitted 操作描述
+- **当** 审批日志条目的 action 为 Submitted
+- **则** Description 显示 Application Submitted
 
-#### Scenario: Future nodes
-- **WHEN** the workflow defines stages not yet reached
-- **THEN** the timeline shows upcoming nodes without completion timestamps
+#### 场景：Created At 格式
+- **当** 审批日志条目有日期/时间值
+- **则** Created At 显示为 `YYYY-MM-DD HH:mm:ss`
 
-#### Scenario: Empty log on draft
-- **WHEN** an application has no approval log entries and status is Draft or Temporary saved
-- **THEN** the timeline section shows an empty state or applicant-only node as applicable
+#### 场景：草稿态空日志
+- **当** 申请无审批日志条目且状态为 Draft
+- **则** 审批日志表格区域显示空态
 
-### Requirement: Unified Details action replaces separate view and log actions
-On every in-scope list page that previously exposed separate detail/view and approval/workflow log actions, the system SHALL expose a single Details action that opens the combined drawer.
+### 需求：统一「详情」操作替代独立的查看与日志操作
+在原先分别提供详情/查看与审批/流转日志操作的范围内列表页，系统应仅暴露单一「详情」操作，打开合并后的抽屉。
 
-#### Scenario: No separate log action
-- **WHEN** user views the Actions column on an in-scope list row
-- **THEN** separate Approval Log or Workflow Log link actions are not shown
-- **AND** a single Details action opens both timeline and detail content
+#### 场景：无独立日志操作
+- **当** 用户查看范围内列表行的 Actions 列
+- **则** 不显示独立的 Approval Log 或 Workflow Log 链接，且单一「详情」操作同时打开申请详情与审批日志表格
 
-#### Scenario: Other row actions unchanged
-- **WHEN** a list row previously exposed Edit, Delete, Cancel, Submit, Withdraw, or Export actions
-- **THEN** those actions remain in the list Actions column and are not moved into the drawer footer
+#### 场景：其他行内操作不变
+- **当** 列表行原先暴露 Edit、Delete、Cancel、Submit、Withdraw 或 Export 操作
+- **则** 这些操作仍保留在列表 Actions 列，且不移至抽屉底栏
 
-### Requirement: Drawer footer exposes context-specific primary actions
-The drawer footer SHALL provide Close for all contexts and additional primary actions based on page mode.
+### 需求：抽屉底栏按场景暴露主要操作
+抽屉底栏应为所有场景提供 Close，并根据页面模式提供额外主要操作。
 
-#### Scenario: Read-only query context
-- **WHEN** user opens Details from movement query or maintenance list
-- **THEN** the drawer footer shows Close only
+#### 场景：只读查询场景
+- **当** 用户从异动查询或维护列表打开「详情」
+- **则** 抽屉底栏仅显示 Close
 
-#### Scenario: Movement approval pending context
-- **WHEN** user opens Details from the movement approval Pending tab
-- **THEN** the drawer footer shows Close and Review
-- **AND** Review opens the existing approval decision modal
+#### 场景：异动审批 Pending 场景
+- **当** 用户从异动审批 Pending tab 打开「详情」
+- **则** 抽屉底栏显示 Close 与 Review，且 Review 打开现有审批决策弹框
 
-#### Scenario: Movement approval history recall
-- **WHEN** user opens Details from the movement approval History tab and recall is allowed for the current role
-- **THEN** the drawer footer shows Close and Recall
+#### 场景：异动审批 History 撤回
+- **当** 用户从异动审批 History tab 打开「详情」且当前角色允许 Recall
+- **则** 抽屉底栏显示 Close 与 Recall
 
-#### Scenario: Student application list
-- **WHEN** student opens Details from deferment, programme transfer, resumption, or withdrawal list
-- **THEN** the drawer footer shows Close only
-- **AND** Edit, Delete, and Cancel remain on the list row
+#### 场景：学生申请列表
+- **当** 学生从休学、转专业、复学或退学列表打开「详情」
+- **则** 抽屉底栏仅显示 Close，且 Edit、Delete、Cancel 仍保留在列表行
 
-### Requirement: Sensitive field masking in query drawer
-The system SHALL apply the same sensitive-field masking rules in the drawer detail section as previously applied in movement query read-only review.
+### 需求：查询抽屉中的敏感字段脱敏
+系统应在抽屉详情区应用与先前异动查询只读审阅相同的敏感字段脱敏规则。
 
-#### Scenario: Masked passport in query drawer
-- **WHEN** user opens Details from movement query
-- **THEN** passport or IC fields in the detail section are masked consistent with the prior review view behavior
+#### 场景：查询抽屉中护照脱敏
+- **当** 用户从异动查询打开「详情」
+- **则** 详情区护照或 IC 字段按先前 ReviewView 行为脱敏显示

@@ -143,6 +143,7 @@ function handleFormSave(formData) {
   if (formMode.value === 'edit' && editingItem.value) {
     updateConsentForm(editingItem.value.id, {
       formName: formData.formName,
+      applicableStudentScope: formData.applicableStudentScope,
       remark: formData.remark,
     })
   } else {
@@ -190,6 +191,13 @@ function formatProgrammeLevel(level) {
   const key = `consentForm.programmeLevel.${level}`
   const translated = t(key)
   return translated !== key ? translated : tr(level)
+}
+
+function formatApplicableStudentScope(scope) {
+  if (!scope) return '—'
+  const key = `consentForm.applicableStudentScope.${scope}`
+  const translated = t(key)
+  return translated !== key ? translated : scope
 }
 </script>
 
@@ -281,6 +289,7 @@ function formatProgrammeLevel(level) {
                 <th>{{ t('consentForm.columns.movementType') }}</th>
                 <th>{{ t('consentForm.columns.studentType') }}</th>
                 <th>{{ t('consentForm.columns.programmeLevel') }}</th>
+                <th>{{ t('consentForm.columns.applicableStudentScope') }}</th>
                 <th>{{ t('consentForm.columns.remark') }}</th>
                 <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
@@ -295,6 +304,7 @@ function formatProgrammeLevel(level) {
                 <td>{{ formatMovementType(item.movementType) }}</td>
                 <td>{{ formatStudentType(item.studentType) }}</td>
                 <td>{{ formatProgrammeLevel(item.programmeLevel) }}</td>
+                <td>{{ formatApplicableStudentScope(item.applicableStudentScope) }}</td>
                 <td>{{ item.remark || '—' }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">

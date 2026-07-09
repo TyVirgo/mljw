@@ -1,132 +1,101 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Consent form list page
-The system SHALL display a paginated informed consent form configuration table under the Informed Consent Form menu with columns: selection checkbox, serial number, form name, applicable movement type, Student Type, Education Level, remark, and Actions including Edit and Version Snapshot only.
+### 需求：知情同意书列表页
+系统应在「知情同意书」菜单下展示分页的知情同意书配置表格，列包括：选择复选框、序号、表单名称、适用异动类别、Student Type、Education Level、备注，以及仅含「编辑」和「版本快照」的操作列。
 
-#### Scenario: Initial list with seed data
-- **WHEN** user opens Informed Consent Form for the first time
-- **THEN** the system displays pre-seeded template rows covering multiple movement types, Student Types, and Education Levels
-- **AND** each seed row has a distinct non-empty remark for demonstration
+#### 场景：首次打开列表展示种子数据
+- 当用户首次打开「知情同意书」页面时，则系统展示预置模板行，覆盖多种异动类别、Student Type 与 Education Level；且每条种子数据的备注各不相同且非空，便于演示
 
-#### Scenario: Search filters list
-- **WHEN** user filters by applicable movement type, form name, Student Type, or Education Level and clicks Search
-- **THEN** the list shows only matching rows and resets to page 1
+#### 场景：搜索筛选列表
+- 当用户按适用异动类别、表单名称、Student Type 或 Education Level 筛选并点击「查询」时，则列表仅显示匹配行并重置到第 1 页
 
-#### Scenario: Reset search
-- **WHEN** user clicks Reset
-- **THEN** all search fields clear and the full list is restored
+#### 场景：重置搜索
+- 当用户点击「重置」时，则所有搜索字段清空并恢复完整列表
 
-#### Scenario: Version Snapshot action label
-- **WHEN** user views the Actions column on a consent form list row
-- **THEN** the actions show Edit and Version Snapshot only
-- **AND** no View action is displayed
+#### 场景：版本快照操作文案
+- 当用户查看知情同意书列表行的操作列时，则操作仅显示「编辑」和「版本快照」；且不显示「查看」操作
 
-### Requirement: Create and edit consent form templates
-The system SHALL provide separate Create and Edit behaviors in the consent form modal. Create SHALL collect form name, applicable movement type, Student Type, Education Level, and optional remark in a two-row two-column layout without effective academic session or file upload fields. Edit SHALL allow changing only form name and remark.
+### 需求：知情同意书模板的新增与编辑
+系统应在知情同意书弹框中区分新增与编辑行为。新增应收集表单名称、适用异动类别、Student Type、Education Level 及可选备注，采用两行两列布局，不含生效学年学期或文件上传字段。编辑仅允许修改表单名称与备注。
 
-#### Scenario: Open create form layout
-- **WHEN** user clicks Create on the list page
-- **THEN** the system opens the modal with five fields: form name, applicable movement type, Student Type, Education Level, and remark arranged in two rows and two columns plus remark
-- **AND** the modal does not show effective academic session dropdown
-- **AND** the modal does not show student or parent consent file upload controls
+#### 场景：打开新增表单布局
+- 当用户在列表页点击「新增」时，则系统打开包含五个字段的弹框：表单名称、适用异动类别、Student Type、Education Level 与备注，按两行两列加备注排列；且不显示生效学年学期下拉；且不显示学生或家长同意书上传控件
 
-#### Scenario: Create does not require consent files or academic session
-- **WHEN** user submits Create with all required metadata fields
-- **THEN** the system saves the configuration row successfully without creating a version snapshot entry
+#### 场景：新增不要求附件或学年学期
+- 当用户提交包含全部必填元数据字段的新增表单时，则系统成功保存配置行且不创建版本快照条目
 
-#### Scenario: Create leaves versions empty
-- **WHEN** user saves a new consent form configuration successfully
-- **THEN** the configuration row has an empty versions array
-- **AND** the user can open Version Snapshot to add the first version
+#### 场景：新增后 versions 为空
+- 当用户成功保存新的知情同意书配置时，则配置行的 `versions` 数组为空；且用户可打开「版本快照」添加首个版本
 
-#### Scenario: Open edit form limited fields
-- **WHEN** user clicks Edit on a consent form list row
-- **THEN** the system opens the modal with editable form name and remark only
+#### 场景：打开编辑表单仅有限字段
+- 当用户点击列表行的「编辑」时，则系统打开仅可编辑表单名称与备注的弹框
 
-#### Scenario: Edit save does not append version snapshot
-- **WHEN** user saves edits to form name or remark only
-- **THEN** the system updates the configuration row metadata only
-- **AND** does not append a new version snapshot entry
+#### 场景：编辑保存不追加版本快照
+- 当用户仅保存表单名称或备注的编辑时，则系统仅更新配置行元数据；且不追加新的版本快照条目
 
-#### Scenario: Unique movement type student type and education level
-- **WHEN** user saves a template that duplicates the same applicable movement type, Student Type, and Education Level combination
-- **THEN** the system prevents save and shows a validation message
+#### 场景：异动类别、Student Type 与学历层次唯一
+- 当用户保存与已有行重复的「适用异动类别 + Student Type + Education Level」组合时，则系统阻止保存并显示校验提示
 
-### Requirement: Consent form version history by academic session
-The system SHALL provide a Version Snapshot action on each consent form list row that opens a modal for maintaining version snapshots scoped to that row's movement type, Student Type, and Education Level. The Add Version control SHALL appear above the snapshot table on the left. Each version snapshot SHALL have an effective academic session in YYYY/MM format, student and parent consent file metadata, update metadata, and a globally exclusive Apply control implemented as a YnSwitch toggle.
+### 需求：按学年学期维护的版本快照
+系统应在每条知情同意书列表行提供「版本快照」操作，打开按该行异动类别、Student Type 与 Education Level 维度的版本快照维护弹框。「新增版本」控件应位于快照表格上方左侧。每个版本快照应包含 YYYY/MM 格式的生效学年学期、学生与家长同意书文件元数据、更新元数据，以及以 `YnSwitch` 实现的全局互斥「应用」控件。
 
-#### Scenario: Open version snapshot from list row
-- **WHEN** user clicks Version Snapshot on a consent form list row
-- **THEN** the system opens a snapshot modal showing the row's movement type, Student Type, and Education Level as subtitle context
-- **AND** displays an Add Version button above the table on the left
-- **AND** lists version entries with effective academic session, changed by, attachments, updated at, and Apply YnSwitch
+#### 场景：从列表行打开版本快照
+- 当用户点击列表行的「版本快照」时，则系统打开快照弹框，副标题展示该行异动类别、Student Type 与 Education Level；且在表格上方左侧显示「新增版本」按钮；且列表展示生效学年学期、变更人、附件、更新时间与 Apply `YnSwitch`
 
-#### Scenario: Attachments column shows files with preview
-- **WHEN** a version snapshot entry has student or parent consent file metadata
-- **THEN** the attachments column displays each file name with a preview control
+#### 场景：附件列展示文件与预览
+- 当版本快照条目包含学生或家长同意书文件元数据时，则附件列显示各文件名及预览控件
 
-#### Scenario: Add version from snapshot modal
-- **WHEN** user clicks Add Version in the version snapshot modal
-- **THEN** the system opens a sub-modal with effective academic session, required student consent upload, optional parent consent upload, and an Apply Immediately toggle defaulting to off
+#### 场景：从快照弹框新增版本
+- 当用户在版本快照弹框中点击「新增版本」时，则系统打开子弹框，包含生效学年学期、必填的学生同意书上传、可选的家长同意书上传，以及默认关闭的「是否立即应用」开关
 
-#### Scenario: Apply immediately on add version
-- **WHEN** user saves Add Version with Apply Immediately turned on
-- **THEN** the new version entry is saved with isApplied true
-- **AND** all other version entries on the same row have isApplied false
+#### 场景：新增版本时立即应用
+- 当用户保存「新增版本」且「是否立即应用」为开启状态时，则新版本条目以 `isApplied: true` 保存；且同一配置行其他版本条目的 `isApplied` 均为 false
 
-#### Scenario: Apply immediately off by default on add version
-- **WHEN** user saves Add Version without turning on Apply Immediately
-- **THEN** the new version entry is saved with isApplied false even when no other version is currently applied
+#### 场景：新增版本默认不立即应用
+- 当用户保存「新增版本」且未开启「是否立即应用」时，则新版本条目以 `isApplied: false` 保存，即使当前没有其他已应用版本
 
-#### Scenario: Student consent required when adding version
-- **WHEN** user submits Add Version without a student consent file
-- **THEN** the system prevents save and shows validation feedback
+#### 场景：新增版本时学生同意书必填
+- 当用户提交「新增版本」但未上传学生同意书时，则系统阻止保存并显示校验反馈
 
-#### Scenario: Duplicate effective academic session on same row
-- **WHEN** user adds a version whose effective academic session already exists on the same configuration row
-- **THEN** the system prevents save and shows a validation message
+#### 场景：同一行重复生效学年学期
+- 当用户新增版本的生效学年学期在该配置行已存在时，则系统阻止保存并显示校验提示
 
-#### Scenario: One globally applied version per configuration row
-- **WHEN** user turns Apply on for a version snapshot entry using the table YnSwitch
-- **THEN** the system sets isApplied true for that entry
-- **AND** sets isApplied false for every other version entry on the same configuration row
+#### 场景：每条配置行仅一个全局应用版本
+- 当用户通过表格 `YnSwitch` 为某版本快照条目开启「应用」时，则系统将该条目 `isApplied` 设为 true；且将同一配置行所有其他版本条目的 `isApplied` 设为 false
 
-## REMOVED Requirements
+## 移除需求
 
-### Requirement: View consent form template
-**Reason**: Product removed the list View action; configuration and attachments are maintained via Edit and Version Snapshot.
-**Migration**: Remove View from list Actions and drop ConsentFormViewModal usage from ConsentFormView.
+### 需求：查看知情同意书模板
+**原因**：产品移除列表「查看」操作；配置与附件通过「编辑」和「版本快照」维护。
+**迁移**：从列表操作列移除 View，并停止在 `ConsentFormView` 中使用 `ConsentFormViewModal`。
 
-### Requirement: Save-driven version audit log on consent form save
-**Reason**: Version snapshots are created only via Add Version in the snapshot modal; Create no longer seeds versions.
-**Migration**: Remove appendVersionLog; createConsentForm writes empty versions array.
+### 需求：知情同意书保存驱动的版本审计日志
+**原因**：版本快照仅通过快照弹框中的「新增版本」创建；Create 不再预置 versions。
+**迁移**：移除 `appendVersionLog`；`createConsentForm` 写入空 `versions` 数组。
 
-### Requirement: Read-only version history modal without file maintenance
-**Reason**: Replaced by writable Version Snapshot modal with Add Version, attachment preview, and YnSwitch Apply column.
-**Migration**: ConsentFormVersionHistoryModal with table-toolbar Add Version and YnSwitch.
+### 需求：只读版本历史弹框且无文件维护
+**原因**：已由可写的「版本快照」弹框替代，含「新增版本」、附件预览与 `YnSwitch` 应用列。
+**迁移**：`ConsentFormVersionHistoryModal` 使用 table-toolbar「新增版本」与 `YnSwitch`。
 
-#### Scenario: Effective academic session required on create
-**Reason**: Effective academic session moved exclusively to Add Version sub-modal.
-**Migration**: Remove effectiveAcademicSession from Create form and validateConsentFormForm create mode.
+#### 场景：新增时生效学年学期必填
+**原因**：生效学年学期已 exclusively 移至「新增版本」子弹窗。
+**迁移**：从 Create 表单与 `validateConsentFormForm` 新增模式移除 `effectiveAcademicSession`。
 
-#### Scenario: Create seeds first version snapshot
-**Reason**: Create only persists configuration metadata; versions start empty.
-**Migration**: createConsentForm sets versions to empty array.
+#### 场景：新增时预置首条版本快照
+**原因**：Create 仅持久化配置元数据；versions 初始为空。
+**迁移**：`createConsentForm` 将 `versions` 设为空数组。
 
-#### Scenario: New version default not applied when another is applied
-**Reason**: Superseded by explicit Apply Immediately toggle defaulting off on Add Version.
-**Migration**: addConsentFormVersion uses applyImmediately flag only.
+#### 场景：已有应用版本时新版本默认不应用
+**原因**：已由默认关闭的「是否立即应用」开关取代。
+**迁移**：`addConsentFormVersion` 仅依据 `applyImmediately` 标志设置应用状态。
 
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Add consent form version from snapshot modal
-The system SHALL allow administrators to add a new version snapshot entry from the Version Snapshot modal with a user-selected effective academic session, required student consent file upload, optional parent consent file upload, and an Apply Immediately toggle defaulting to off.
+### 需求：从版本快照弹框新增知情同意书版本
+系统应允许管理员从「版本快照」弹框新增版本快照条目，包含用户选择的生效学年学期、必填的学生同意书上传、可选的家长同意书上传，以及默认关闭的「是否立即应用」开关。
 
-#### Scenario: Open add version sub-modal
-- **WHEN** user clicks Add Version above the snapshot table
-- **THEN** the system opens a sub-modal with effective academic session, student and parent consent uploads, and Apply Immediately toggle default off
+#### 场景：打开新增版本子弹窗
+- 当用户点击快照表格上方的「新增版本」时，则系统打开包含生效学年学期、学生与家长同意书上传，以及默认关闭的「是否立即应用」开关的子弹框
 
-#### Scenario: Save new version with files
-- **WHEN** user selects effective academic session, uploads a student consent file, and saves Add Version
-- **THEN** the system appends a new entry to the configuration row versions array
-- **AND** refreshes the snapshot table to show the new row
+#### 场景：保存带附件的新版本
+- 当用户选择生效学年学期、上传学生同意书并保存「新增版本」时，则系统向配置行 `versions` 数组追加新条目；且刷新快照表格以展示新行

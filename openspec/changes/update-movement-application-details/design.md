@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 四异动详情 Modal 当前结构（以转专业为例）：
 
@@ -28,20 +28,20 @@
 └──────────────────────────────────────────────────────────┘
 ```
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 详情 = 表单申请字段的只读镜像（不含 Section VII、不含审批 UI）
 - 共享附件只读组件，四模块一致
 - 审批能力从 UI 剥离但 data 层保留
 
-**Non-Goals:**
+**非目标：**
 
 - 新建审批模块页面
 - 改状态机或 mock 条数
 
-## Decisions
+## 设计决策
 
 ### 1. 详情 vs 表单字段对齐表
 
@@ -151,12 +151,12 @@ Form 保留 Select File + validation；Readonly 仅展示链接。
 
 ### 7. OpenSpec 与 add-programme-transfer-app 关系
 
-本 change 作为 **Phase 5 / 增量**， supersede：
+本 change 作为 **Phase 5 / 增量**，部分取代：
 
 - proposal Phase 4「详情 Modal 移除内嵌 log；**Pending 审批区保留**」→ 改为 **审批区也移除**
 - spec 中「Details modal supports admin approval」类 requirement → MODIFIED
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -164,7 +164,7 @@ Form 保留 Select File + validation；Readonly 仅展示链接。
 | Form/Detail 附件样式两套 | 共享 header 样式 class 或只读组件 + Form 复制 CSS |
 | 转专业 Section VII 仅在 Form 可见，用户困惑 | 设计文档说明；Form Notes 可补充「教务字段仅审批流程填写」 |
 
-## Migration Plan
+## 迁移说明
 
 1. 新增 `MovementAttachmentReadonly.vue`
 2. 逐个改四 `*DetailModal`（先转专业，再休学/复学/退学）
@@ -173,8 +173,8 @@ Form 保留 Select File + validation；Readonly 仅展示链接。
 5. 冒烟 + build
 6. 更新 `add-programme-transfer-app` 相关 spec delta 说明（归档/sync 时）
 
-## Open Questions
+## 待决问题
 
 1. 详情 Declaration 展示：checkbox 结果「Yes/No」还是完整声明条文只读？→ **首版保持现有 Yes/No 或简短摘要**
-2. Form Section VII 是否在 Create 时也隐藏？→ **Non-goal，Form 保持现状**
+2. Form Section VII 是否在 Create 时也隐藏？→ **非目标，Form 保持现状**
 3. 文件名链接点击行为？→ **mock alert「Preview not available in demo」**

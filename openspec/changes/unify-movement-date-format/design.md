@@ -1,24 +1,24 @@
-## Context
+## 背景说明
 
 异动模块各 data 文件各自实现 `format*ListDate` / `formatApplicationDateDisplay`，使用 `DD MMM YYYY`（如 `15 Oct 2023`）。审批 log 写入 `formatDefermentDateTime` 等 `DD.MM.YYYY HH:mm`。维护 `movementDate` mock 已为 `YYYY-MM-DD`，但申请/审批列表不一致。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 单一 helper `formatMovementDate(value)` → `YYYY-MM-DD` 或 `—` / 空
 - 异动全链路**展示**统一；Export 同步
 - approvalLog 新写入与展示均为 `YYYY-MM-DD`
 - 兼容解析 ISO、现有 `YYYY-MM-DD` mock、可解析的旧 `DD MMM YYYY` seed（formatter 内 fallback）
 
-**Non-goals:**
+**非目标：**
 
 - 改 `applicationSession`（`YYYY/MM`）
 - 学生档案、非异动模块
 - DatePicker 输入 UX
 - 强制迁移全部 mock seed（formatter 兼容即可）
 
-## Decisions
+## 设计决策
 
 ### 1. Helper — `src/utils/formatMovementDate.js`
 
@@ -79,7 +79,7 @@ ApprovalLogModal         ─┘
 | `applicationSession` | `YYYY/MM` | `resolveApplicationSessionFromStudent` / 原值 |
 | `dateOfApplication`, `movementDate`, log `dateTime` | `YYYY-MM-DD` | `formatMovementDate` |
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -87,7 +87,7 @@ ApprovalLogModal         ─┘
 | 四 data 文件重复 wrapper | 保留 thin wrapper 导出名，内部一行 delegate |
 | 与 refine-movement-approval spec「同申请列表 formatter」 | 统一后四 Tab + 审批同源 helper，spec 仍成立 |
 
-## Migration Plan
+## 迁移说明
 
 1. 新增 `formatMovementDate.js`
 2. 替换四 Tab format 函数 + approval queue + maintenance

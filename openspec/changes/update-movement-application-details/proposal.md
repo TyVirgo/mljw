@@ -1,10 +1,10 @@
-## Why
+## 背景与动机
 
 `add-programme-transfer-app` 及休学/复学/退学模块在 Phase 4 已将 **流转日志** 外置至列表 Actions，但 **详情 Modal** 仍内嵌审批操作区（Action / Comment / Submit）及转专业 **Section VII（教务专用）** 可编辑区。产品 IA 已重组：`学籍异动申请` Tab 负责学生侧申请，`学籍异动审批` 将独立建设审批能力。
 
 当前详情与职责边界冲突——学生在申请模块详情里不应看到或执行审批；详情应 **只读展示与「新增/编辑表单」一致的申请内容**，附件区需对齐原型图示（标签 + Download Consent Letter + 已上传文件链接）。
 
-## What Changes
+## 变更内容
 
 ### 详情 Modal 职责收窄（四异动统一）
 
@@ -51,18 +51,18 @@
 - 列表 CRUD、6 态、状态机、mock 数据与 `*Approval.js` 逻辑保留（供未来 `sr-movement-approval`）
 - Form Modal 的 Section VII（转专业）在 **新建/编辑** 仍可见（仅详情不展示）
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `movement-application-details`: 学籍异动申请详情只读展示规范（字段范围、附件 UI、无审批）
 
-### Modified Capabilities
+### 修改的能力
 
 - `programme-transfer-app`: 详情移除审批与 Section VII；附件 UI 更新
 - `student-records-app`: 四异动详情行为与 IA 一致（申请 vs 审批分离）
 
-## Impact
+## 影响范围
 
 - **新增** `src/components/studentRecords/MovementAttachmentReadonly.vue`
 - **修改** 四模块 `*DetailModal.vue` — 精简为申请只读 + 新附件组件
@@ -71,7 +71,7 @@
 - **i18n**：如需 `movementAttachment.*` 共享 key
 - **OpenSpec 下游**：`add-programme-transfer-app` proposal Phase 4「Pending 审批区保留」作废，以本 change 为准
 
-## Non-goals
+## 非目标（本变更不做）
 
 - 实现 `学籍异动审批` 菜单页
 - 删除 `*Approval.js` 或 mock 审批流数据

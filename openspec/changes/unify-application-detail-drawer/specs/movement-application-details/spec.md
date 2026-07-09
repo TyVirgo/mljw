@@ -1,30 +1,27 @@
-## MODIFIED Requirements
-
-### Requirement: Movement attachment readonly display matches prototype
-The system SHALL render uploaded attachments in movement application detail views using a bordered panel aligned to the prototype: label row with required marker, Download Consent Letter action on the right, and file link with document icon and eye preview icon below. Detail content SHALL render inside the unified application detail drawer when opened from list actions, not as a standalone centered modal overlay.
-
-#### Scenario: Attachment panel layout in drawer
-- **WHEN** user opens Details from any movement list that uses the unified drawer
-- **THEN** the Documents section appears in the lower detail portion of the drawer with the same attachment panel layout as before
-
-#### Scenario: Preview uploaded attachment in drawer detail
-- **WHEN** user clicks the eye icon next to the uploaded file name in the drawer detail attachment panel
-- **THEN** the system opens the attachment preview modal for that application attachment
-
-#### Scenario: Download consent letter from drawer detail
-- **WHEN** user clicks Download Consent Letter in the drawer detail attachment panel
-- **AND** a matching consent template exists
-- **THEN** the system downloads the configured student consent template file (mock)
-
-### Requirement: Movement detail no longer opens as separate log modal from list
-The system SHALL NOT open a separate Approval Log or Workflow Log modal from movement application, approval, query, or maintenance list row actions.
-
-#### Scenario: Student movement list
-- **WHEN** user views Actions on deferment, programme transfer, resumption, or withdrawal list rows
-- **THEN** Workflow Log is not a separate action
-- **AND** approval history is visible in the timeline section of the Details drawer
-
-#### Scenario: Admin movement lists
-- **WHEN** user views Actions on movement approval, query, or maintenance list rows
-- **THEN** Approval Log is not a separate action
-- **AND** approval history is visible in the timeline section of the Details drawer
+## 修改需求
+
+### 需求：异动附件只读展示对齐原型
+系统应在异动申请详情视图中，使用对齐原型的边框面板渲染已上传附件：带必填标记的标签行，以及下方带文档图标与预览眼图标的文件链接。详情内容应在从列表操作打开的统一申请详情抽屉内渲染，而非独立居中 Modal 遮罩。详情视图**不**显示 Download Consent Letter 模板按钮（该操作仅保留在新增/编辑表单）。
+
+#### 场景：抽屉内附件面板布局
+- **当** 用户从任意使用统一抽屉的异动列表打开「详情」
+- **则** Documents 区出现在抽屉上方详情部分，且附件面板布局与改造前一致（不含同意书模板下载按钮）
+
+#### 场景：在抽屉详情中预览已上传附件
+- **当** 用户点击抽屉详情附件面板中文件名旁的预览眼图标
+- **则** 系统为该申请附件打开附件预览弹框
+
+#### 场景：详情抽屉不显示同意书模板下载
+- **当** 用户在抽屉详情附件面板查看文档区
+- **则** 不显示 Download Consent Letter 按钮
+
+### 需求：异动详情不再从列表单独打开日志弹框
+系统不应从异动申请、审批、查询或维护列表行操作单独打开 Approval Log 或 Workflow Log 弹框。
+
+#### 场景：学生异动列表
+- **当** 用户查看休学、转专业、复学或退学列表行的 Actions
+- **则** Workflow Log 不是独立操作，且审批历史在「详情」抽屉底部的审批日志表格中可见
+
+#### 场景：管理端异动列表
+- **当** 用户查看异动审批、查询或维护列表行的 Actions
+- **则** Approval Log 不是独立操作，且审批历史在「详情」抽屉底部的审批日志表格中可见

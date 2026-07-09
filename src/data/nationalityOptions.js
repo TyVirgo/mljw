@@ -168,7 +168,6 @@ const WORLD_NATIONALITIES = [
   'Sweden',
   'Switzerland',
   'Syria',
-  'Taiwan',
   'Tajikistan',
   'Tanzania',
   'Thailand',

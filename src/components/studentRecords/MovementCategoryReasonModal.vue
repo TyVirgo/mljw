@@ -3,12 +3,14 @@ import { ref, computed, watch } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import TablePagination from '../common/TablePagination.vue'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
+import YnSwitch from '../common/YnSwitch.vue'
 import MovementCategoryReasonEditModal from './MovementCategoryReasonEditModal.vue'
 import {
   getMovementCategoryById,
   addReason,
   updateReason,
   deleteReasons,
+  reasonAllowStudentApply,
 } from '../../data/movementCategories.js'
 
 const props = defineProps({
@@ -18,7 +20,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-const { t, tr } = useAppI18n()
+const { t } = useAppI18n()
 
 const selectedReasonIds = ref([])
 const currentPage = ref(1)
@@ -27,8 +29,12 @@ const reasonEditVisible = ref(false)
 const reasonEditMode = ref('create')
 const editingReasonId = ref(null)
 const editingReasonName = ref('')
+const editingAllowStudentApply = ref(false)
 const confirmVisible = ref(false)
 const pendingDeleteReasonIds = ref([])
+
+const switchOnLabel = computed(() => t('common.yes'))
+const switchOffLabel = computed(() => t('common.no'))
 
 const categoryRow = computed(() =>
   props.categoryId != null ? getMovementCategoryById(props.categoryId) : null,
@@ -92,6 +98,7 @@ function openCreateReason() {
   reasonEditMode.value = 'create'
   editingReasonId.value = null
   editingReasonName.value = ''
+  editingAllowStudentApply.value = false
   reasonEditVisible.value = true
 }
 
@@ -99,17 +106,26 @@ function openEditReason(reason) {
   reasonEditMode.value = 'edit'
   editingReasonId.value = reason.id
   editingReasonName.value = reason.reasonName
+  editingAllowStudentApply.value = reasonAllowStudentApply(reason)
   reasonEditVisible.value = true
 }
 
-function handleReasonSave(name) {
+function handleReasonSave(payload) {
   if (!props.categoryId) return
   if (reasonEditMode.value === 'edit' && editingReasonId.value != null) {
-    updateReason(props.categoryId, editingReasonId.value, name)
+    updateReason(props.categoryId, editingReasonId.value, payload)
   } else {
-    addReason(props.categoryId, name)
+    addReason(props.categoryId, payload)
   }
   reasonEditVisible.value = false
+}
+
+function handleAllowStudentApplyToggle(reason, allow) {
+  if (!props.categoryId) return
+  updateReason(props.categoryId, reason.id, {
+    reasonName: reason.reasonName,
+    allowStudentApply: allow,
+  })
 }
 
 function requestDeleteReason(ids) {
@@ -160,12 +176,13 @@ function confirmDeleteReasons() {
                   <th class="col-check"><input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" /></th>
                   <th class="col-no">{{ t('common.serialNo') }}</th>
                   <th>{{ t('movementCategory.reason.nameColumn') }}</th>
+                  <th class="col-allow-student">{{ t('movementCategory.reason.allowStudentApply') }}</th>
                   <th class="col-actions">{{ t('common.actions') }}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!paginatedReasons.length">
-                  <td colspan="4" class="empty-cell">{{ t('common.noData') }}</td>
+                  <td colspan="5" class="empty-cell">{{ t('common.noData') }}</td>
                 </tr>
                 <tr v-for="(item, index) in paginatedReasons" :key="item.id">
                   <td class="col-check">
@@ -173,6 +190,14 @@ function confirmDeleteReasons() {
                   </td>
                   <td class="col-no">{{ getRowNumber(index) }}</td>
                   <td>{{ item.reasonName }}</td>
+                  <td class="col-allow-student">
+                    <YnSwitch
+                      :model-value="reasonAllowStudentApply(item)"
+                      :on-label="switchOnLabel"
+                      :off-label="switchOffLabel"
+                      @update:model-value="handleAllowStudentApplyToggle(item, $event)"
+                    />
+                  </td>
                   <td class="col-actions">
                     <button type="button" class="link-btn" @click="openEditReason(item)">{{ t('common.edit') }}</button>
                   </td>
@@ -193,6 +218,7 @@ function confirmDeleteReasons() {
     :visible="reasonEditVisible"
     :mode="reasonEditMode"
     :initial-name="editingReasonName"
+    :initial-allow-student-apply="editingAllowStudentApply"
     @close="reasonEditVisible = false"
     @save="handleReasonSave"
   />
@@ -219,7 +245,7 @@ function confirmDeleteReasons() {
 }
 .modal-panel {
   width: 100%;
-  max-width: 800px;
+  max-width: 920px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
@@ -246,6 +272,7 @@ function confirmDeleteReasons() {
 .data-table th { background: #f9fafb; font-weight: 600; }
 .col-check { width: 44px; text-align: center; }
 .col-no { width: 60px; }
+.col-allow-student { width: 160px; }
 .col-actions { width: 100px; }
 .empty-cell { text-align: center; color: #9ca3af; padding: 24px; }
 .link-btn { border: none; background: none; color: #2563eb; font-size: 13px; cursor: pointer; padding: 0; }

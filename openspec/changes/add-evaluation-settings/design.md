@@ -1,19 +1,19 @@
-## Context
+## 背景说明
 
 项目为 Vue 3 + Vite 单页应用。Lecturer Info 下已有 **Lecturer Information**（列表 + CRUD，`requiresEvaluation` 字段与筛选开关已实现），**Evaluation Settings** 菜单项与 i18n 已存在但未注册到 `developedPages`。
 
 静态设计（图 1）为**单页配置表单**，非列表页：顶部蓝色信息条 + 两个配置区块 + 底部 Save。Category 下拉选项与 `lecturers.js` 中 `categoryOptions` 一致（Full-time Lecturer、China Seconded Lecturer、Student Teaching Assistant、Part-time Lecturer）。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - UI 与中英文原型对齐：字段、布局、按钮文案、Toggle 位置
 - 支持 New Lecturer 全局开关与多条 Category Change 规则（from / to / delete / enabled）
 - Save 持久化配置；可选轻量 mock 演示效果（不过度实现规则引擎）
 - 完整 i18n（`tr()` / labelKey），与 University Info 等配置页一致
 
-**Non-Goals:**
+**非目标：**
 
 - 搜索、分页、导出
 - 后端 API、人事系统实时事件订阅
@@ -21,7 +21,7 @@
 - 规则变更历史/审计日志
 - 在 Evaluation Settings 页直接展示教师列表
 
-## Decisions
+## 设计决策
 
 ### 1. 页面结构 — 对齐 University Info 配置页
 
@@ -113,7 +113,7 @@ New Lecturer 与每条 category rule 各一个 Toggle，右对齐于行尾。
 - `menu.js` → `developedPages.add('evaluation-settings')`
 - `App.vue` → `EvaluationSettingsView` 分支
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -121,11 +121,11 @@ New Lecturer 与每条 category rule 各一个 Toggle，右对齐于行尾。
 | 规则引擎简化 | 首版以 UI + 配置持久化为主；列表标记仅轻量演示 |
 | Toggle 样式与原型细微差异 | 实现时对照设计图微调 CSS |
 
-## Migration Plan
+## 迁移说明
 
 纯前端新增。部署后验证菜单 Evaluation Settings 可访问、Save 持久化、Delete 二次确认正常。
 
-## Resolved
+## 已确认
 
 1. **新入职判定**：有入职时间（`dateOfJoining`）且没有任何授课记录（mock：`hasTeachingRecord === false`）。
 2. **规则复杂度**：首版不过度实现逻辑，以页面呈现效果为主。

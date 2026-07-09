@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 `CoursePrerequisiteModal` 被 Course Information 与 Course Application 的 Step 1 共用。当前实现为窄弹窗（640px）、实时 filter、三列简易列表，不符合最新原型。
 
@@ -20,22 +20,22 @@
 
 项目已有 `CourseInformationView` 列表检索 + `TablePagination` 模式，可复用交互范式（draft search vs applied search）。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - UI 与原型一致：宽弹窗、三字段检索 + Search/Reset、七列表格、分页、Discard/Confirm
 - 保留现有集成契约：`selectedCodes` 字符串 ↔ 多选 courseCode 数组
 - Offering 列展示院系英文名（`getOfferingLabel`）；Course Classification 列展示 `tr(courseClassification)`
 - 排除 `excludeCode`（当前正在创建/编辑的课程）
 
-**Non-Goals:**
+**非目标：**
 
 - 修改向导 Step 1 先修课只读输入框 + Choose 按钮布局
 - 服务端分页或远程 Search
 - 弹窗内排序列头
 
-## Decisions
+## 设计决策
 
 ### 1. 弹窗尺寸与结构
 
@@ -121,7 +121,7 @@ paginated = slice(filtered, (page-1)*pageSize, page*pageSize)
 - `courseClassificationOptions` 不需要单独下拉（表格只展示）；检索区无 Course Classification 字段（与原型一致）
 - Application 向导传入的 `allApplications` 需映射为含 `courseCode`, `courseName`, `offering`, `credit`, `courseClassification` 的对象；若缺字段显示 `--`
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -129,13 +129,13 @@ paginated = slice(filtered, (page-1)*pageSize, page*pageSize)
 | 跨页多选 + 全选语义混淆 | 表头全选仅当前页；文档与 spec 明确 |
 | 宽弹窗小屏溢出 | `max-width: min(1000px, 100vw - 48px)` + 表格 `overflow-x: auto` |
 
-## Migration Plan
+## 迁移说明
 
 1. 重写 `CoursePrerequisiteModal.vue`
 2. 补充 i18n
 3. 手动验证 Course Info / Course Application 向导 Choose → Confirm 回写
 4. 无数据迁移
 
-## Open Questions
+## 待定问题
 
 - 原型标题为 **Add**；若业务要求保留「Pre-requisite / co-requisite」，产品可再确认 — **首版按原型用 Add**

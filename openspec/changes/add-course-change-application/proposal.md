@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 Course Info → **Course Change Application**（课程变更申请）菜单目前为占位页。该模块面向**已在 Course Information 中生效的正式课程**，允许申请人基于系统带出的原课程基线发起修订，经变更说明标注、四步表单填报、暂存/送审/撤回及多级审批后，终审通过自动回写更新源课程档案；驳回或需修改的单据退回草稿可重新编辑提报。缺少该页则「正式课库 → 变更申请 → 审批 → 回写」链路无法演示。
 
-## What Changes
+## 变更内容
 
 - 新增 **Course Change Application** 列表页：分页、批量选择、搜索/重置/More；列与原型一致
 - 新增 **Create**（新增申请）四步全页向导：
@@ -23,17 +23,17 @@ Course Info → **Course Change Application**（课程变更申请）菜单目�
 - 注册 `course-change-application` 至 `developedPages` 与 `App.vue`
 - **首版不含 Course Change Review**（审批端为独立菜单，后续变更）；无真实 API/RBAC
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `course-change-application`: 课程变更申请——基线选课、变更说明、四步向导、列表检索、暂存/送审/撤回、详情/审批日志、终审回写 Course Information
 
-### Modified Capabilities
+### 修改的能力
 
 - `course-information`: 变更终审通过后源课程数据被 mock 更新并追加变更记录（changeRecords）
 
-## Impact
+## 影响范围
 
 - **新增文件**
   - `src/views/CourseChangeApplicationView.vue`

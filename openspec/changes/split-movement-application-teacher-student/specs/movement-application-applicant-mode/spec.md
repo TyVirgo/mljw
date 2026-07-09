@@ -1,171 +1,171 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Applicant mode controls list scope
-The system SHALL filter movement application lists by applicant mode so student self-service portals show only the current student's applications.
+### 需求：申请方模式控制列表范围
+系统应按申请方模式筛选异动申请列表，使学生自助门户仅展示当前学生的申请。
 
-#### Scenario: Teacher list shows all applications
-- **WHEN** user views any movement tab with `applicantMode` set to `teacher`
-- **THEN** the list includes applications for all students subject to existing search and pagination filters
+#### 场景：管理端列表展示全部申请
+- **当** 用户在 `applicantMode` 为 `teacher` 下查看任一异动 Tab
+- **则** 列表含所有学生的申请，受现有搜索与分页筛选约束
 
-#### Scenario: Student list shows own applications only
-- **WHEN** user views any movement tab with `applicantMode` set to `student`
-- **THEN** the list includes only applications whose student ID matches the current mock logged-in student
+#### 场景：学生端列表仅展示本人申请
+- **当** 用户在 `applicantMode` 为 `student` 下查看任一异动 Tab
+- **则** 列表仅含学号与当前 mock 登录学生匹配的申请
 
-#### Scenario: Student list search within own records
-- **WHEN** student user applies advanced list filters (Programme Code, Application Session, Approval Status, Implemented) on any tab
-- **THEN** search operates only within the current student's applications and does not expose a Student ID or Name search field
+#### 场景：学生端在本人记录内搜索
+- **当** 学生端用户在任一 Tab 应用高级列表筛选（专业代码、申请学期、审批状态、是否实施）
+- **则** 搜索仅在当前学生的申请范围内操作，且不暴露学号或姓名搜索字段
 
-### Requirement: Student portal auto-fills Section I on create
-The system SHALL auto-populate Section I student identity fields from the current logged-in student when creating any movement application in student mode.
+### 需求：学生端新建时自动填充 Section I
+系统应在学生端模式下创建任一异动申请时，从当前登录学生自动填充 Section I 学生身份字段。
 
-#### Scenario: Create opens with current student snapshot
-- **WHEN** student user opens Create on any movement tab in student mode
-- **THEN** Section I displays the current student's ID, name, and related readonly profile fields without a student picker
+#### 场景：新建打开时携带当前学生快照
+- **当** 学生端用户在学生端模式下于任一异动 Tab 点击新建
+- **则** Section I 展示当前学生的学号、姓名及相关只读档案字段，无需学生选择器
 
-#### Scenario: Section I readonly in student mode
-- **WHEN** student user views Section I in create or draft edit in student mode
-- **THEN** student identity fields are readonly and cannot be changed to another student
+#### 场景：学生端 Section I 只读
+- **当** 学生端用户在学生端模式下查看新建或草稿编辑的 Section I
+- **则** 学生身份字段为只读，不可更改为其他学生
 
-#### Scenario: Consistent across four movement types
-- **WHEN** student user creates Deferment, Resumption, Withdrawal, or Programme Transfer in student mode
-- **THEN** the same auto-fill and readonly Section I behavior applies
+#### 场景：四种异动类型行为一致
+- **当** 学生端用户在学生端模式下创建休学、复学、退学或转专业
+- **则** 应用相同的 Section I 自动填充与只读行为
 
-### Requirement: Staff portal uses student selector on create
-The system SHALL require staff to pick a student via StudentSelectModal when creating any movement application in teacher mode.
+### 需求：管理端新建时使用学生选择器
+系统应要求管理端在管理端模式下创建任一异动申请时，通过 `StudentSelectModal` 选择学生。
 
-#### Scenario: Create requires student selection
-- **WHEN** staff user opens Create on any movement tab in teacher mode with no student selected
-- **THEN** Section I shows an empty student display and a Select action to open StudentSelectModal
+#### 场景：新建需选择学生
+- **当** 管理端用户在管理端模式下于任一异动 Tab 打开新建且未选学生
+- **则** Section I 展示空的学生信息及打开 `StudentSelectModal` 的选择操作
 
-#### Scenario: Draft edit locks student identity
-- **WHEN** staff user edits a Draft or Update Required application in teacher mode
-- **THEN** the bound student ID and name are readonly and the Select action is not available to change student
+#### 场景：草稿编辑锁定学生身份
+- **当** 管理端用户在管理端模式下编辑 `Draft` 或 `Update Required` 申请
+- **则** 绑定的学号与姓名为只读，且不可通过选择操作更换学生
 
-### Requirement: Draft edit mirrors create editable fields
-The system SHALL allow draft editing of the same business fields that are editable on create for each movement type, in both applicant modes, while keeping Section I identity readonly per mode rules.
+### 需求：草稿编辑与新建可编辑字段一致
+系统应允许在两种申请方模式下，对每种异动类型编辑与新建时相同的业务字段，同时按模式规则保持 Section I 身份只读。
 
-#### Scenario: Student draft edits business sections
-- **WHEN** student user edits a Draft application in student mode
-- **THEN** Section II–IV and attachment fields follow the same editability rules as create for that movement type, and Section I remains readonly
+#### 场景：学生端草稿编辑业务区
+- **当** 学生端用户在学生端模式下编辑 `Draft` 申请
+- **则** Section II–IV 与附件字段遵循该异动类型与新建相同的可编辑规则，且 Section I 保持只读
 
-#### Scenario: Staff draft edits business sections
-- **WHEN** staff user edits a Draft application in teacher mode
-- **THEN** Section II–IV and attachment fields follow the same editability rules as create for that movement type, and Section I student identity remains locked
+#### 场景：管理端草稿编辑业务区
+- **当** 管理端用户在管理端模式下编辑 `Draft` 申请
+- **则** Section II–IV 与附件字段遵循该异动类型与新建相同的可编辑规则，且 Section I 学生身份保持锁定
 
-### Requirement: Mock current student for student portal
-The system SHALL resolve the current logged-in student from a single mock module for list filtering and form auto-fill until real authentication is integrated.
+### 需求：学生端 Mock 当前学生
+系统应从单一 mock 模块解析当前登录学生，用于列表筛选与表单自动填充，直至接入真实认证。
 
-#### Scenario: Single source for current student
-- **WHEN** student portal list or form needs the logged-in student
-- **THEN** the system reads from the shared mock current student helper backed by `initialStudents`
+#### 场景：当前学生单一数据源
+- **当** 学生端列表或表单需要登录学生
+- **则** 系统从基于 `initialStudents` 的共享 mock 当前学生辅助函数读取
 
-#### Scenario: Swappable for future SSO
-- **WHEN** authentication is integrated later
-- **THEN** only the mock current student module needs replacement without changing list filter or form auto-fill call sites
+#### 场景：后续 SSO 可替换
+- **当** 后续接入认证
+- **则** 仅需替换 mock 当前学生模块，无需变更列表筛选或表单自动填充调用点
 
-### Requirement: Section I displays student ID and name in separate fields
-The system SHALL show student ID and full name in two adjacent readonly fields on the same form row in all four movement form modals.
+### 需求：Section I 分字段展示学号与姓名
+系统应在四种异动表单弹框中，于同一表单行以两个相邻只读字段分别展示学号与全名。
 
-#### Scenario: Student ID field shows ID only
-- **WHEN** staff or student user views Section I after a student is bound (via selector or auto-fill)
-- **THEN** the Student ID field displays only the student ID and does not concatenate the student name
+#### 场景：学号字段仅显示学号
+- **当** 管理端或学生端用户在绑定学生后（通过选择器或自动填充）查看 Section I
+- **则** 学号字段仅显示学号，不拼接姓名
 
-#### Scenario: Name field shows full name separately
-- **WHEN** staff selects a student or student portal auto-fills on create
-- **THEN** the adjacent Name field displays the student's full name from the profile snapshot
+#### 场景：姓名字段单独显示全名
+- **当** 管理端用户选择学生或学生端自动填充新建
+- **则** 相邻姓名字段显示档案快照中的学生全名
 
-#### Scenario: Same-row layout with Select at row end
-- **WHEN** staff user opens Create on any movement form modal in teacher mode
-- **THEN** Student ID and Name appear on the first row as two equal columns with the Select action at the **end of that row**, not between the Student ID and Name fields
+#### 场景：同行布局且选择按钮在行末
+- **当** 管理端用户在管理端模式下打开任一异动表单弹框的新建
+- **则** 第一行以两等分列展示学号与姓名，选择操作位于**该行末尾**，不在学号与姓名之间
 
-#### Scenario: Student mode without Select button
-- **WHEN** student user opens Create on any movement form modal
-- **THEN** the first row shows Student ID and Name only without a Select action
+#### 场景：学生端无选择按钮
+- **当** 学生端用户打开任一异动表单弹框的新建
+- **则** 第一行仅展示学号与姓名，无选择操作
 
-#### Scenario: Consistent across four movement types
-- **WHEN** user opens Programme Transfer, Deferment, Resumption, or Withdrawal form modals
-- **THEN** the same separate-field, same-row layout with Select-at-end (teacher create only) applies in both teacher and student applicant modes
+#### 场景：四种异动类型布局一致
+- **当** 用户打开转专业、休学、复学或退学表单弹框
+- **则** 在管理端与学生端两种申请方模式下，均应用相同的分字段、同行布局，且管理端新建时选择按钮位于行末
 
-### Requirement: Readonly snapshot fields are visually distinct from editable fields
-The system SHALL apply a consistent readonly (greyed) visual treatment to all profile and snapshot fields populated from the student record, distinct from editable business fields.
+### 需求：只读快照字段与可编辑字段视觉区分
+系统应对来自学生记录的档案与快照只读字段应用一致的只读（灰底）视觉处理，与可编辑业务字段区分。
 
-#### Scenario: Section I and snapshot fields are greyed
-- **WHEN** user views readonly fields in Section I and readonly snapshot fields such as Current Programme, Current Intake, and Current School on Programme Transfer
-- **THEN** those fields use the shared readonly styling (muted background and text) so they are visually distinguishable from editable inputs in later sections
+#### 场景：Section I 与快照字段灰底
+- **当** 用户查看 Section I 只读字段及转专业 Current Programme、Current Intake、Current School 等只读快照字段
+- **则** 这些字段使用共享只读样式（ muted 背景与文字），与后续章节可编辑输入视觉区分
 
-#### Scenario: Editable fields remain white
-- **WHEN** user views editable Section II–IV fields (selects, text inputs, textareas, checkboxes, file upload)
-- **THEN** those fields retain the standard editable control styling without the readonly grey treatment
+#### 场景：可编辑字段保持白底
+- **当** 用户查看 Section II–IV 可编辑字段（下拉、文本输入、文本域、复选框、文件上传）
+- **则** 这些字段保持标准可编辑控件样式，不使用只读灰底处理
 
-### Requirement: Programme transfer list removes simulate expire mock action
-The system SHALL NOT expose a manual "Simulate Expire" action on the programme transfer application list.
+### 需求：转专业列表移除模拟过期 Mock 操作
+系统不得在转专业申请列表上暴露手动「Simulate Expire」操作。
 
-#### Scenario: No simulate expire button
-- **WHEN** staff or student user views programme transfer list actions for Draft or Update Required applications
-- **THEN** the Simulate Expire action is not shown
+#### 场景：无模拟过期按钮
+- **当** 管理端或学生端用户查看 `Draft` 或 `Update Required` 转专业列表操作
+- **则** 不展示 Simulate Expire 操作
 
-#### Scenario: expireApplication helper removed
-- **WHEN** the codebase is updated for this change
-- **THEN** the `expireApplication` mock helper is removed from programme transfer data module and is not imported by views
+#### 场景：移除 expireApplication 辅助函数
+- **当** 代码库为本变更更新
+- **则** 从转专业数据模块移除 `expireApplication` mock 辅助函数，且视图不再导入
 
-### Requirement: Section I displays application academic session
-The system SHALL show a readonly **Application Academic Session** (`applicationSession`) field as the last field in Section I on all four movement form modals and detail modals, using the `YYYY/MM` format consistent with approval, maintenance, and query list columns.
+### 需求：Section I 展示申请学年学期
+系统应在四种异动表单弹框与详情弹框的 Section I 末尾展示只读**申请学年学期**（`applicationSession`）字段，格式 `YYYY/MM`，与审批、维护、查询列表列一致。
 
-#### Scenario: Auto-fill on create
-- **WHEN** user opens Create on any movement form modal (teacher or student mode)
-- **THEN** Section I displays the current application academic session derived from the system current semester (e.g. `2025/09`) as a readonly greyed field at the end of Section I
+#### 场景：新建时自动填充
+- **当** 用户在任一异动表单弹框（管理端或学生端模式）打开新建
+- **则** Section I 在末尾展示从系统当前学期推导的当前申请学年学期（如 `2025/09`），为只读灰底字段
 
-#### Scenario: Frozen on draft edit
-- **WHEN** user edits an existing Draft or Update Required application
-- **THEN** the application academic session retains the value stored on the record and is not recalculated from the current semester
+#### 场景：草稿编辑时冻结
+- **当** 用户编辑现有 `Draft` 或 `Update Required` 申请
+- **则** 申请学年学期保留记录存储值，不根据当前学期重新计算
 
-#### Scenario: Persisted on save and submit
-- **WHEN** user saves a draft or submits an application
-- **THEN** the `applicationSession` value is persisted on the movement record in the store
+#### 场景：保存与提交时持久化
+- **当** 用户保存草稿或提交申请
+- **则** `applicationSession` 值持久化于异动存储记录
 
-#### Scenario: Detail modal matches form format
-- **WHEN** user views application details via any movement DetailModal (including approval review readonly view)
-- **THEN** Section I shows Application Academic Session in the same `YYYY/MM` format as the form modal
+#### 场景：详情弹框与表单格式一致
+- **当** 用户通过任一异动 `DetailModal`（含审批审核只读视图）查看申请详情
+- **则** Section I 以与表单弹框相同的 `YYYY/MM` 格式展示申请学年学期
 
-#### Scenario: Consistent across four movement types
-- **WHEN** user creates or views Programme Transfer, Deferment, Resumption, or Withdrawal
-- **THEN** the application academic session field appears at the end of Section I with the same label and format in all four types
+#### 场景：四种异动类型一致
+- **当** 用户创建或查看转专业、休学、复学、退学
+- **则** 申请学年学期字段在 Section I 末尾以相同标签与格式出现
 
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Section I displays application academic session
-The system SHALL show a readonly **Application Academic Session** (`applicationSession`) field as the last field in Section I on all four movement form modals and detail modals, using the `YYYY/MM` format consistent with approval, maintenance, and query list columns. The value SHALL be derived from the selected student's enrollment intake and SHALL NOT be prefilled before a student is bound.
+### 需求：Section I 展示申请学年学期
+系统应在四种异动表单弹框与详情弹框的 Section I 末尾展示只读**申请学年学期**（`applicationSession`）字段，格式 `YYYY/MM`，与审批、维护、查询列表列一致。值应从所选学生的 enrollment intake 推导，且在绑定学生前不得预填。
 
-#### Scenario: Empty before student selection on teacher create
-- **WHEN** staff user opens Create on any movement form modal in teacher mode before selecting a student
-- **THEN** the Application Academic Session field at the end of Section I is empty or shows an em dash placeholder
-- **AND** the field does not display the system current semester
+#### 场景：管理端新建选学生前为空
+- **当** 管理端用户在管理端模式下于选择学生前打开任一异动表单弹框的新建
+- **则** Section I 末尾的申请学年学期字段为空或显示 em dash 占位符
+- **且** 该字段不显示系统当前学期
 
-#### Scenario: Fill from student intake after selection
-- **WHEN** staff user selects a student via StudentSelectModal on create
-- **THEN** the Application Academic Session field displays that student's enrollment intake in `YYYY/MM` format (e.g. `2023/09`) as a readonly greyed field
+#### 场景：选择学生后从 intake 填充
+- **当** 管理端用户在新建时通过 `StudentSelectModal` 选择学生
+- **则** 申请学年学期字段以该学生 enrollment intake 的 `YYYY/MM` 格式（如 `2023/09`）展示，为只读灰底字段
 
-#### Scenario: Student portal auto-fill includes intake session
-- **WHEN** student user opens Create on any movement form modal in student mode
-- **THEN** Section I displays the current student's enrollment intake as Application Academic Session at the end of Section I
+#### 场景：学生端自动填充含 intake 学期
+- **当** 学生端用户在学生端模式下打开任一异动表单弹框的新建
+- **则** Section I 在末尾以申请学年学期展示当前学生的 enrollment intake
 
-#### Scenario: Frozen on draft edit
-- **WHEN** user edits an existing Draft or Update Required application
-- **THEN** the application academic session retains the value stored on the record and is not recalculated from the student profile or current semester
+#### 场景：草稿编辑时冻结
+- **当** 用户编辑现有 `Draft` 或 `Update Required` 申请
+- **则** 申请学年学期保留记录存储值，不根据学生档案或当前学期重新计算
 
-#### Scenario: Persisted on save and submit
-- **WHEN** user saves a draft or submits an application
-- **THEN** the `applicationSession` value is persisted on the movement record in the store
+#### 场景：保存与提交时持久化
+- **当** 用户保存草稿或提交申请
+- **则** `applicationSession` 值持久化于异动存储记录
 
-#### Scenario: Detail modal matches form format
-- **WHEN** user views application details via any movement DetailModal (including approval review readonly view)
-- **THEN** Section I shows Application Academic Session in the same `YYYY/MM` format as the form modal
+#### 场景：详情弹框与表单格式一致
+- **当** 用户通过任一异动 `DetailModal`（含审批审核只读视图）查看申请详情
+- **则** Section I 以与表单弹框相同的 `YYYY/MM` 格式展示申请学年学期
 
-#### Scenario: Consistent across four movement types
-- **WHEN** user creates or views Programme Transfer, Deferment, Resumption, or Withdrawal
-- **THEN** the application academic session field appears at the end of Section I with the same label and intake-based rules in all four types
+#### 场景：四种异动类型一致
+- **当** 用户创建或查看转专业、休学、复学、退学
+- **则** 申请学年学期字段在 Section I 末尾以相同标签与基于 intake 的规则出现
 
-## REMOVED Requirements
+## 移除需求
 
-#### Scenario: Auto-fill on create from system current semester
-- **REMOVED** — superseded by Empty before student selection on teacher create and Fill from student intake after selection
+#### 场景：新建时从系统当前学期自动填充
+- **已移除** — 由「管理端新建选学生前为空」与「选择学生后从 intake 填充」取代

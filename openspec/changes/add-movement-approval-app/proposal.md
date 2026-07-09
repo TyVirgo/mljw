@@ -1,10 +1,10 @@
-## Why
+## 背景与动机
 
 `restructure-student-records-navigation` 已将 **学籍异动申请** 与 **学籍异动审批** 拆分为独立菜单；`update-movement-application-details` 已将四异动申请详情改为只读（审批 UI 从申请侧移除）。
 
 侧边栏 **学籍异动审批**（`sr-movement-approval`）仍为建设中占位页，审批能力无处承载。产品原型要求：统一审批工作台、共性列表字段、按审批人视角三 Tab（Submitted / Pending / History），审批针对同一份申请内容，异构字段进 View 详情。
 
-## What Changes
+## 变更内容
 
 ### 学籍异动审批列表页（`MovementApprovalView`）
 
@@ -40,17 +40,17 @@
 - 审批页：推进 `status` / `approvalStage` / `approvalLog`；写回对应 data store
 - `*Approval.js` 逐步收敛为统一 `movementApprovalEngine.js`（或各 type 注册 workflow）
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `movement-approval-app`：学籍异动审批统一列表、三 Tab 分桶、View/Recall、批量审批、四异动 workflow mock
 
-### Modified Capabilities
+### 修改的能力
 
 - `student-records-app`：`sr-movement-approval` 升级为已开发页面；与申请 Tab 职责分离
 
-## Impact
+## 影响范围
 
 - **新增**
   - `src/views/studentRecords/MovementApprovalView.vue`
@@ -67,7 +67,7 @@
   - `CourseApprovalView` 列表壳层模式
   - `ApprovalLogModal.vue`、`MovementAttachmentReadonly.vue`、各 `*DetailModal` 只读结构
 
-## Non-goals
+## 非目标（本变更不做）
 
 - 真实 RBAC / 多用户会签 UI（首版 mock 角色切换）
 - 并行会签完整实现（v1 可串行化节点）
@@ -97,7 +97,7 @@
 
 可选（`selectedByDefault: false`）：`implemented`
 
-### Decisions（§8 已确认）
+### 设计决策（
 
 | 项 | 决策 |
 |----|------|
@@ -105,3 +105,13 @@
 | 脱敏 | 首版不做 |
 | 字段范围 | 首版对齐列表列；额外列以后再加 |
 | CSV 直出 | 移除，改 ExportModal |
+
+---
+
+## §9 详情抽屉与审核弹框文案（2026-06 原型补档）
+
+| 变更 | 说明 |
+|------|------|
+| `unify-application-detail-drawer` | View + Approval Log → 右滑详情抽屉；Pending Tab footer Review 打开 `MovementApprovalModal` |
+| `refine-approval-modal-action-labels` | 审批弹框 Action 单选：通过 / 不通过 / 驳回（存库值不变） |
+| `add-movement-maintenance` §12 | History Tab「是否实施」列使用 `ImplementedYnBadge` |

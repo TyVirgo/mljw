@@ -1,13 +1,12 @@
-## MODIFIED Requirements
+## 修改需求
 
-### Requirement: Movement application modules expose unified Details with workflow history
-Each movement application module (programme transfer, deferment, resumption, withdrawal) SHALL expose a single Details list action that opens a right-side drawer containing approval/workflow timeline and application detail content.
+### 需求：异动申请模块暴露含流转历史的统一「详情」
+各异动申请模块（转专业、休学、复学、退学）应暴露单一「详情」列表操作，打开含申请详情内容与底部审批日志表格的右侧抽屉。
 
-#### Scenario: Student list Actions
-- **WHEN** user views Actions on any movement application list row in student or teacher applicant mode
-- **THEN** Details opens the unified drawer
-- **AND** Workflow Log is not a separate action
+#### 场景：学生列表 Actions
+- **当** 用户在学生或教师申请模式下查看任意异动申请列表行的 Actions
+- **则** 「详情」打开统一抽屉，且 Workflow Log 不是独立操作
 
-#### Scenario: Other student actions unchanged
-- **WHEN** a row supports Edit, Delete, or Cancel Application
-- **THEN** those actions remain in the list Actions column
+#### 场景：其他学生操作不变
+- **当** 行支持 Edit、Delete 或 Cancel Application
+- **则** 这些操作仍保留在列表 Actions 列

@@ -1,12 +1,12 @@
-## Context
+## 背景说明
 
 `add-movement-approval-app` 已实现四 Tab 合并审批队列（`movementApprovalQueue.js` + `MovementApprovalView`），store 中已有 `implemented` 占位（Approved → Pending）。`sr-movement-maintenance` 菜单占位但未实现。
 
 产品图示1–3 要求：**Approved 异动申请的教务实施宽表**，搜索/分页对齐审批页，扩展列偏转专业，尾部维护字段 + 三个下钻。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 合并四 Tab **Approved** 记录为单一维护列表（图示1–3）
 - 搜索、分页、宽表横向滚动
@@ -15,14 +15,14 @@
 - 扩展 store 维护字段 + 6 条 mock 种子
 - Student Type 列用 Local / Chinese / International（中文 UI「中国」）
 
-**Non-Goals:**
+**非目标：**
 
 - 后端 API、真实学籍写入
 - 异动查询/统计
 - 非 Approved 状态进入维护列表
 - 重新审批已实施记录
 
-## Decisions
+## 设计决策
 
 ### 1. 队列层 — `movementMaintenanceQueue.js`
 
@@ -133,7 +133,7 @@ Edit Footer：**Cancel + Save**
 - `App.vue` → `MovementMaintenanceView`
 - 新增 `movementMaintenance.*` 命名空间
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -142,7 +142,7 @@ Edit Footer：**Cancel + Save**
 | 与审批列表重复逻辑 | 抽取 queue normalize 模式，不合并两页面 |
 | Nationality 列语义 | 规格明确为 Student Type，非 nationality 字段 |
 
-## Migration Plan
+## 迁移说明
 
 1. 扩展四 Tab mock + maintenance field helpers
 2. `movementMaintenanceQueue.js`
@@ -151,7 +151,7 @@ Edit Footer：**Cancel + Save**
 5. i18n + 菜单注册
 6. 冒烟 + `npm run build`
 
-## Open Questions
+## 待决问题
 
 - Export 用 ExportModal 还是 alert：首版与审批页一致（alert mock）即可
 - CGPA 格式：自由文本，不做数值校验
@@ -294,7 +294,7 @@ export function processDueImplementations() {
 4. seed：至少 1 条 Pending 且 effectiveSession > current 便于 demo
 5. 冒烟 + build
 
-## Risks / Trade-offs（§11）
+## 风险与应对（§11）
 
 | 风险 | 缓解 |
 |------|------|

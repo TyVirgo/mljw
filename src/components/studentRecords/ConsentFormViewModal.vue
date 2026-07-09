@@ -48,6 +48,13 @@ function formatProgrammeLevel(level) {
   const translated = t(key)
   return translated !== key ? translated : tr(level)
 }
+
+function formatApplicableStudentScope(scope) {
+  if (!scope) return '—'
+  const key = `consentForm.applicableStudentScope.${scope}`
+  const translated = t(key)
+  return translated !== key ? translated : scope
+}
 </script>
 
 <template>
@@ -76,6 +83,10 @@ function formatProgrammeLevel(level) {
             <div class="detail-row">
               <dt>{{ t('consentForm.fields.programmeLevel') }}</dt>
               <dd>{{ formatProgrammeLevel(row.programmeLevel) }}</dd>
+            </div>
+            <div class="detail-row">
+              <dt>{{ t('consentForm.fields.applicableStudentScope') }}</dt>
+              <dd>{{ formatApplicableStudentScope(row.applicableStudentScope) }}</dd>
             </div>
             <div class="detail-row">
               <dt>{{ t('consentForm.fields.remark') }}</dt>

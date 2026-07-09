@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 学籍应用壳层与 Student Profile、Programme Transfer 已落地，但侧边栏 **Deferment（休学）** 首版采用简化 3 态（Pending / Approved / Rejected）。产品要求休学与转专业 **统一流转状态语义** 及 **流程日志外置交互**，以支撑完整业务演示：草稿编辑、审批中撤销、打回修改、终态只读、每态 Mock 样例。
 
-## What Changes
+## 变更内容
 
 ### Phase 1–2（已交付 — 休学基础页 + 中英文 i18n）
 
@@ -55,7 +55,7 @@
 - 复用 **`ApprovalLogModal.vue`**（表格 Stage / Actor / Action / Date / Comment；副标题申请编号 · 学号 · 姓名）
 - i18n：`common.workflowLog`（EN Workflow Log / ZH 流转日志）
 
-### Non-goals（本变更不包含）
+### 非目标（本变更不做）
 
 - Family Info、Resumption、Withdrawal 等其他学籍异动菜单（各自独立 change）
 - 真实后端 API、文件存储、角色权限体系（首版 Admin 演示身份可审批）
@@ -64,17 +64,17 @@
 - Import / Export Excel
 - vue-router 引入
 
-## Capabilities
+## 能力范围
 
-### New Capabilities
+### 新增能力
 
 - `deferment-app`: 休学学籍异动——Deferment History 列表、多 Section 表单（Draft / Submit / Resubmit）、**6 态状态机**、多段审批流、Student Profile 联动、流转日志外置
 
-### Modified Capabilities
+### 修改的能力
 
 - `student-records-app`: 将 `sr-deferment` 从建设中页升级为已开发页面；休学列表纳入四模块流转日志统一交互
 
-## Impact
+## 影响范围
 
 - **Phase 1–2 已新增/修改**
   - `DefermentView.vue`、`DefermentFormModal.vue`、`DefermentDetailModal.vue`

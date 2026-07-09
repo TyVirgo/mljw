@@ -1,8 +1,8 @@
-## Why
+## 背景与动机
 
 异动类别编辑弹框当前将三个实施开关的功能说明以灰色文字常驻展示在开关下方，占用纵向空间；且「修改学籍状态 / 修改学籍类型」开关与「学籍状态 / 类别」下拉的联动语义与产品预期相反——开关 **开启** 时反而 **禁用** 下拉，开关 **关闭** 时始终展示下拉。产品要求：说明改为标签旁问号气泡；开关 **开启** 时才展示对应下拉并允许选择目标值；开关 **关闭** 时隐藏下拉但 **保留已存值**；列表与表单将「类别」统一为「学籍类型」。
 
-## What Changes
+## 变更内容
 
 ### 编辑弹框 — 功能说明（hint）
 
@@ -34,13 +34,13 @@
 
 - `validateMovementCategoryForm`：`studentStatus` 仅在 `modifyStudentStatus === true` 时 required；`category` 仅在 `modifyStudentType === true` 时 required
 
-## Capabilities
+## 能力范围
 
-### Modified Capabilities
+### 修改的能力
 
 - `movement-category-config`：编辑表单 hint 气泡、开关—下拉条件显隐、学籍类型标签、条件校验
 
-## Impact
+## 影响范围
 
 - **修改**
   - `MovementCategoryFormModal.vue` — tooltip、条件 `v-if`、Row3 自适应、移除 disabled 反向逻辑
@@ -52,7 +52,7 @@
   - 处理选课三 checkbox、允许学生申请、Set Reason
   - 列表列仍显示学籍状态与学籍类型值
 
-## Non-goals
+## 非目标（本变更不做）
 
 - 新增通用 `FieldHintTooltip` 公共组件（本变更可在弹框内联 CSS，与 `ProgrammeVersionCreateModal` 模式一致）
 - 变更列表搜索字段或列顺序

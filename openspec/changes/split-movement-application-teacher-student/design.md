@@ -1,12 +1,12 @@
-## Context
+## 背景说明
 
 `split-movement-application-teacher-student` 首版已交付：双菜单、`applicantMode`、StudentSelectModal、学生本人列表与表单自动填充。四异动列表仍仅 **单行学号/姓名 keyword**；转专业另有 **进行中/已归档** Tab 分段。
 
 产品要求列表检索对齐异动查询/维护字段，并区分 portal 在搜索与列上的差异。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 四异动 × 老师/学生：专业代码、申请学年学期、审批状态、是否实施 过滤
 - 搜索 UI：两行 + 可收起（参考 `MovementQueryView`）
@@ -18,13 +18,13 @@
 - Section I 末字段：申请学年学期（`applicationSession`，create 自动带出，`YYYY/MM`）
 - 申请 Form/Detail 与审批、维护、查询列表 `applicationSession` 格式一致
 
-**Non-Goals:**
+**非目标：**
 
 - 改 store 结构
 - 新专业代码过滤
 - 改 query/maintenance/approval 模块
 
-## Decisions
+## 设计决策
 
 ### 1. 共享搜索模块 — `movementApplicationSearch.js`
 
@@ -222,7 +222,7 @@ export function getCurrentApplicationSession(records = initialSemesterRecords) {
 | Section I 字段 | `movementCommon.fields.applicationAcademicSession` → zh: 申请学年学期 |
 | 列表列（可选对齐） | 复用同一 key 或保留 `movementApproval.columns.applicationSession` 并改为「申请学年学期」 |
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -234,7 +234,7 @@ export function getCurrentApplicationSession(records = initialSemesterRecords) {
 | 旧 seed 缺 applicationSession | Detail/列表回退 `extractApplicationSession`；可选批量补 seed |
 | 选择按钮行末布局 | 四 modal + 共享 CSS 一次改齐，避免逐文件样式漂移 |
 
-## Migration Plan
+## 迁移说明
 
 1. 新建 `movementApplicationSearch.js`
 2. （可选）新建 `MovementApplicationSearchBar.vue`
@@ -247,7 +247,7 @@ export function getCurrentApplicationSession(records = initialSemesterRecords) {
 9. **§14 增量**：`getCurrentApplicationSession` + 四 data `createEmpty*` + 四 FormModal/DetailModal Section I 末字段
 10. **§15**：冒烟 + `npm run build`
 
-## Open Questions
+## 待决问题
 
 （均已确认，无遗留）
 
@@ -358,7 +358,7 @@ srMovementApplicationTeacher: 'Status Change Application (Management)',
 2. 冒烟：管理端/学生端 → 四 Tab 搜索区查询蓝钮、重置描边钮；侧边栏与面包屑「管理端」
 3. `npm run build`
 
-## Risks / Trade-offs（§23）
+## 风险与应对（§23）
 
 | 风险 | 缓解 |
 |------|------|

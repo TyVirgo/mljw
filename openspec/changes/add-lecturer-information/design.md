@@ -1,25 +1,25 @@
-## Context
+## 背景说明
 
 项目为 Vue 3 + Vite 单页应用，已有多个 Basic Data 管理页（Department Info、Classroom Info 等）作为成熟模式：本地 mock 数据（`src/data/*.js`）、View 负责列表/搜索/分页/CRUD、Modal 负责表单与详情、公共组件（`ConfirmDialog`、`ExportModal`、`TablePagination`、`DatePickerEn`）复用。
 
 Lecturer Information 是 Lecturer Info 子菜单的第一项（`lecturer-information`），目前未在 `developedPages` 中注册。原型要求比 Department 更复杂：四步 Create/Edit 向导 + 四步 Details，含嵌套子实体（学历、工作经历）和 CPD 年度分组表格。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 - 实现与原型图 1–8 一致的 UI 结构与交互流程
 - 复用现有页面架构，保持代码风格一致
 - 提供完整 mock 数据，支持列表 CRUD、搜索、导出、详情浏览
 - 四步向导在 Create/Edit 与 Details 间共享步骤定义与字段映射
 
-**Non-Goals:**
+**非目标：**
 - 后端 API 对接（人事系统、EMS、教师个人端 CPD 审批）
 - Sync Cache / Refers to EMS system 的真实业务逻辑
 - Evaluation Settings 等其他 Lecturer Info 子菜单
 - **Senate Unit Members Management** 子菜单（原型 sidebar 曾出现，已确认不纳入本项目）
 - CPD 在 Create/Edit 流程中的手动录入（仅 Details 只读展示 mock）
 
-## Decisions
+## 设计决策
 
 ### 1. 文件结构 — 对齐 Department / Classroom 模式
 
@@ -96,7 +96,7 @@ Lecturer Info 子菜单保持现有两项：`Lecturer Information`、`Evaluation
 
 **理由**：产品确认不需要该菜单；避免 scope 蔓延。
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -105,18 +105,18 @@ Lecturer Info 子菜单保持现有两项：`Lecturer Information`、`Evaluation
 | CPD 无后端时数据静态 | mock 2 个年度样本；Sync Cache 按钮提示未连接 |
 | 表单字段多，校验复杂 | Step 1 必填校验阻止 Next；Step 2/3 允许空列表但已开编辑卡片须 Save 或 Cancel |
 
-## Migration Plan
+## 迁移说明
 
 纯前端新增，无数据库迁移。部署步骤：
 1. 合并代码
 2. 验证 `lecturer-information` 菜单可访问
 3. 无 rollback 风险（不影响已有页面）
 
-## Open Questions
+## 待定问题
 
 1. **Batch Delete** 按钮颜色：原型为黑色按钮，是否沿用 `btn-default` 或新增 `btn-dark`？
 2. **Date of Joining** 格式：列表用 `MM.DD.YYYY`，是否与现有 `DatePickerEn` 输出格式统一？
 
-## Resolved
+## 已确认
 
 - **Senate Unit Members Management**：不新增该子菜单（2025-06-02 确认）

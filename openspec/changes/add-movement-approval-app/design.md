@@ -1,4 +1,4 @@
-## Context
+## 背景说明
 
 ```
 申请侧（已实现）                    审批侧（本 change）
@@ -12,21 +12,21 @@ StudentMovementApplicationView     MovementApprovalView
 
 参考实现：`CourseApprovalView.vue`（搜索、勾选、Approve、Export、Details + Approval Log）。
 
-## Goals / Non-Goals
+## 目标 / 非目标
 
-**Goals:**
+**目标：**
 
 - 三 Tab 按 **当前 mock 审批角色** 分桶：Submitted / Pending / History
 - 主表仅共性字段；类型差异字段在 View 内
 - 审批修改四 store 中对应记录的状态与 log
 - 四异动 workflow 可演示 Local / Intl 分支（至少 ISAO 差异）
 
-**Non-goals:**
+**非目标：**
 
 - 真实组织架构与权限
 - v1 完整并行会签（见 Decision 4）
 
-## Decisions
+## 设计决策
 
 ### 1. 归一化队列项 `MovementApprovalQueueItem`
 
@@ -186,7 +186,7 @@ recallMovementApproval({ sourceKey, id, currentRole })
 | movementApproval.actions.recall | 撤回 | Recall |
 | movementApproval.stages.* | 各节点名 | |
 
-## Risks / Trade-offs
+## 风险与应对
 
 | 风险 | 缓解 |
 |------|------|
@@ -195,7 +195,7 @@ recallMovementApproval({ sourceKey, id, currentRole })
 | 角色切换 demo 与真实权限差距 | OpenSpec Non-goal；UI 标明 mock |
 | Recall 边界复杂 | v1 仅「下一节点未动」可 Recall |
 
-## Migration Plan
+## 迁移说明
 
 1. `movementApprovalWorkflows.js` + `movementApprovalEngine.js`
 2. 扩展 mock 数据 stage / session / implemented
@@ -205,7 +205,7 @@ recallMovementApproval({ sourceKey, id, currentRole })
 6. 注册 App + i18n + build 冒烟
 7. §8：ExportModal + xlsx 替换 CSV（见 tasks §8）
 
-## Open Questions
+## 待决问题
 
 1. **Cancelled 可见性**：History 是否对所有审批角色可见？→ 首版 **是**（便于审计）
 2. **Export 字段**：是否与列表列一致？→ 首版是
@@ -242,4 +242,4 @@ export const movementApprovalExportColumnMeta = [
 
 **formatApprovalExportRow**：status i18n、`tr(approvalStage)`、`t(movementCategoryKey)`、`applicationDateDisplay`；implemented 用 Y/N（`formatImplementedYn`）。
 
-**Non-goals**：Passport/IC 脱敏、超出列表的扩展 Export 列（以后加列再议）。
+**非目标**：Passport/IC 脱敏、超出列表的扩展 Export 列（以后加列再议）。

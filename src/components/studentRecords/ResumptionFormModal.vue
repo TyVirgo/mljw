@@ -22,14 +22,22 @@ import {
 
   isEligibleForResumption,
 
+  syncResumptionDefermentSemesterDates,
+
 } from '../../data/resumptions.js'
 
 import { findStudentByStudentId, initialStudents } from '../../data/students.js'
 import { downloadStudentConsentTemplate } from '../../utils/consentFormDownload.js'
 import StudentSelectModal from './StudentSelectModal.vue'
+import MovementDeclarationSection from './MovementDeclarationSection.vue'
+import MovementApplicantNotes from './MovementApplicantNotes.vue'
+import { resumptionDeclarationItems } from '../../data/movementDeclarationItems.js'
+import { resumptionApplicantNoteKeys } from '../../data/movementApplicantNotes.js'
 import { getCurrentStudent } from '../../data/mockCurrentStudent.js'
 import { formatApplicationSessionField } from '../../data/movementApplicationSession.js'
-import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
+import MovementInternationalStudentRemarks from './MovementInternationalStudentRemarks.vue'
+import MovementDocumentsUploadSection from './MovementDocumentsUploadSection.vue'
+import { withMovementAttachments } from '../../data/movementAttachments.js'
 import '../../styles/movement-form.css'
 
 const props = defineProps({
@@ -60,11 +68,6 @@ const errors = ref({})
 
 const studentSelectVisible = ref(false)
 
-const fileInputRef = ref(null)
-const pendingLocalFile = ref(null)
-
-
-
 const isEditMode = computed(() => props.mode === 'edit')
 
 const isResubmitMode = computed(() => props.initialData && canResubmitResumption(props.initialData))
@@ -76,8 +79,6 @@ const modalTitle = computed(() =>
   isEditMode.value ? t('resumption.form.editTitle') : t('resumption.form.createTitle'),
 
 )
-
-
 
 const dateOfApplicationDisplay = computed(() =>
 
@@ -98,7 +99,9 @@ const eligibilityBlocked = computed(
 
 const canSubmitResumption = computed(() => !eligibilityBlocked.value)
 
-
+const applicantCategory = computed(
+  () => form.value.studentCategory || getSelectedStudentCategory(),
+)
 
 function applyStudentProfile(student) {
   if (!student) return
@@ -116,7 +119,6 @@ watch(
   () => {
     if (!props.visible) return
     errors.value = {}
-    pendingLocalFile.value = null
     form.value =
       isEditMode.value && props.initialData
         ? getResumptionFormData(props.initialData)
@@ -127,36 +129,17 @@ watch(
   },
 )
 
+watch(
+  () => form.value.defermentSemester,
+  () => {
+    syncResumptionDefermentSemesterDates(form.value)
+  },
+  { immediate: true },
+)
+
 function fieldError(key) {
   return errors.value[key] ? 'error' : ''
 }
-
-function onFileChange(event) {
-  const file = event.target.files?.[0]
-  if (!file) {
-    form.value.attachment = null
-    pendingLocalFile.value = null
-    return
-  }
-  const allowed = /\.(pdf|jpg|jpeg|png|docx)$/i
-  if (!allowed.test(file.name)) {
-    errors.value.attachment = 'Supported formats: PDF, JPG, PNG, DOCX.'
-    form.value.attachment = null
-    pendingLocalFile.value = null
-    return
-  }
-  if (file.size > 5 * 1024 * 1024) {
-    errors.value.attachment = 'Max file size is 5MB.'
-    form.value.attachment = null
-    pendingLocalFile.value = null
-    return
-  }
-  delete errors.value.attachment
-  pendingLocalFile.value = file
-  form.value.attachment = { fileName: file.name, size: file.size }
-}
-
-
 
 function getSelectedStudentCategory() {
   const student = initialStudents.find((item) => item.studentId === form.value.studentId)
@@ -193,7 +176,7 @@ function validateAndEmit(mode, emitter) {
 
   if (!result.valid) return
 
-  emitter({ ...form.value })
+  emitter(withMovementAttachments(form.value))
 
 }
 
@@ -250,6 +233,15 @@ function handleClose() {
 
 
       <div class="modal-body">
+        <MovementApplicantNotes
+          title-key="resumption.notes.title"
+          :item-keys="resumptionApplicantNoteKeys"
+        />
+
+        <MovementInternationalStudentRemarks
+          source-key="resumption"
+          :student-category="applicantCategory"
+        />
 
         <div class="section-bar">{{ t('resumption.sections.studentInfo') }}</div>
 
@@ -304,6 +296,22 @@ function handleClose() {
 
           <div class="form-field">
 
+            <label>{{ t('movementCommon.fields.currentAcademicSession') }}</label>
+
+            <input :value="formatApplicationSessionField(form.currentAcademicSession)" type="text" class="form-control" readonly />
+
+          </div>
+
+          <div class="form-field">
+
+            <label>{{ t('movementCommon.fields.applicationAcademicSession') }}</label>
+
+            <input :value="formatApplicationSessionField(form.applicationSession)" type="text" class="form-control" readonly />
+
+          </div>
+
+          <div class="form-field">
+
             <label>{{ t('resumption.fields.dateOfApplication') }}</label>
 
             <input :value="dateOfApplicationDisplay" type="text" class="form-control" readonly />
@@ -352,23 +360,15 @@ function handleClose() {
 
           <div class="form-field">
 
-            <label>{{ t('movementCommon.fields.applicationAcademicSession') }}</label>
+            <label>{{ t('movementCommon.fields.visaExpiry') }}</label>
 
-            <input :value="formatApplicationSessionField(form.applicationSession)" type="text" class="form-control" readonly />
+            <input v-model="form.visaExpiryDate" type="text" class="form-control" readonly />
 
           </div>
 
-        </div>
-
-
-
-        <div class="section-bar">{{ t('resumption.sections.resumptionDetails') }}</div>
-
-        <div class="form-grid">
-
           <div class="form-field">
 
-            <label>{{ t('resumption.fields.personalEmail') }}</label>
+            <label>{{ t('movementCommon.fields.personalEmail') }}</label>
 
             <input v-model="form.personalEmail" type="text" class="form-control" />
 
@@ -376,11 +376,19 @@ function handleClose() {
 
           <div class="form-field">
 
-            <label>{{ t('resumption.fields.phoneNumber') }}</label>
+            <label>{{ t('movementCommon.fields.phoneNumber') }}</label>
 
             <input v-model="form.phoneNumber" type="text" class="form-control" />
 
           </div>
+
+        </div>
+
+
+
+        <div class="section-bar">{{ t('resumption.sections.studentApplication') }}</div>
+
+        <div class="form-grid">
 
           <div class="form-field">
 
@@ -414,122 +422,64 @@ function handleClose() {
 
           </div>
 
+          <div class="form-field">
+
+            <label>{{ t('deferment.fields.defermentStartDate') }}</label>
+
+            <input
+
+              :value="form.defermentStartDate"
+
+              type="text"
+
+              class="form-control"
+
+              readonly
+
+            />
+
+          </div>
+
+          <div class="form-field">
+
+            <label>{{ t('deferment.fields.defermentEndDate') }}</label>
+
+            <input
+
+              :value="form.defermentEndDate"
+
+              type="text"
+
+              class="form-control"
+
+              readonly
+
+            />
+
+          </div>
+
         </div>
 
 
 
         <div class="section-bar">{{ t('resumption.sections.documents') }}</div>
 
-        <div class="documents-panel">
+        <MovementDocumentsUploadSection
+          source-key="resumption"
+          :student-category="applicantCategory"
+          :attachments="form.attachments"
+          :errors="errors"
+          @update:attachments="form.attachments = $event"
+          @download-consent="downloadConsentLetter"
+        />
 
-          <div class="attachment-header">
-
-            <label class="attachment-label">
-
-              {{ t('resumption.fields.uploadAttachment') }}
-
-              <span class="required">*</span>
-
-              :
-
-            </label>
-
-            <button type="button" class="btn btn-outline consent-btn" @click="downloadConsentLetter">
-
-              {{ t('resumption.fields.downloadConsent') }}
-
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon" aria-hidden="true">
-
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-
-                <polyline points="7 10 12 15 17 10" />
-
-                <line x1="12" y1="15" x2="12" y2="3" />
-
-              </svg>
-
-            </button>
-
-          </div>
-
-          <div class="file-row">
-
-            <button type="button" class="btn btn-default" @click="fileInputRef?.click()">
-
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
-
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-
-                <polyline points="17 8 12 3 7 8" />
-
-                <line x1="12" y1="3" x2="12" y2="15" />
-
-              </svg>
-
-              {{ t('resumption.fields.selectFile') }}
-
-            </button>
-
-            <AttachmentPreviewTrigger
-              v-if="form.attachment?.fileName"
-              :file-name="form.attachment.fileName"
-              :file-meta="form.attachment"
-              :local-file="pendingLocalFile"
-              :show-file-icon="false"
-            />
-            <span v-else class="file-name">
-              {{ t('resumption.fields.noFileSelected') }}
-            </span>
-
-            <input
-
-              ref="fileInputRef"
-
-              type="file"
-
-              class="hidden-file"
-
-              accept=".pdf,.jpg,.jpeg,.png,.docx"
-
-              @change="onFileChange"
-
-            />
-
-          </div>
-
-          <p class="hint-text">{{ t('resumption.fields.attachmentHint') }}</p>
-
-          <p v-if="errors.attachment" class="field-error">{{ tr(errors.attachment) }}</p>
-
-        </div>
-
-
-
-        <div class="declaration-box">
-
-          <label class="checkbox-row">
-
-            <input v-model="form.declarationCorrect" type="checkbox" />
-
-            <span>{{ t('resumption.declaration.correct') }} <span class="required">*</span></span>
-
-          </label>
-
-          <p v-if="errors.declarationCorrect" class="field-error">{{ tr(errors.declarationCorrect) }}</p>
-
-          <label class="checkbox-row">
-
-            <input v-model="form.declarationMaxDuration" type="checkbox" />
-
-            <span>{{ t('resumption.declaration.maxDuration') }} <span class="required">*</span></span>
-
-          </label>
-
-          <p v-if="errors.declarationMaxDuration" class="field-error">{{ tr(errors.declarationMaxDuration) }}</p>
-
-        </div>
-
-
+        <MovementDeclarationSection
+          :section-title="t('resumption.sections.declaration')"
+          :items="resumptionDeclarationItems"
+          :checkboxes="[{ field: 'declarationAgreed' }]"
+          :form="form"
+          :errors="errors"
+        />
 
         <div class="note-alert">{{ t('resumption.noteAlert') }}</div>
 
@@ -981,46 +931,6 @@ function handleClose() {
 .consent-btn {
 
   flex-shrink: 0;
-
-}
-
-
-
-.declaration-box {
-
-  margin-top: 16px;
-
-  padding: 12px 16px;
-
-  border: 1px solid #e5e7eb;
-
-  border-radius: 8px;
-
-  background: #fafafa;
-
-}
-
-
-
-.checkbox-row {
-
-  display: flex;
-
-  align-items: flex-start;
-
-  gap: 8px;
-
-  font-size: 13px;
-
-  margin-bottom: 10px;
-
-}
-
-
-
-.checkbox-row:last-of-type {
-
-  margin-bottom: 0;
 
 }
 
