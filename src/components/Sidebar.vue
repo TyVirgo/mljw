@@ -98,7 +98,12 @@ function isChildActive(item) {
                 <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
               </svg>
             </span>
-            <span class="nav-label">{{ t(item.labelKey) }}</span>
+            <span class="nav-label">
+              {{ t(item.labelKey) }}
+              <span v-if="item.audience" class="nav-audience" :class="`nav-audience--${item.audience}`">
+                {{ t(`courseRegistration.audience.${item.audience}`) }}
+              </span>
+            </span>
             <svg
               class="nav-chevron"
               :class="{ expanded: isExpanded(item.id) }"
@@ -120,7 +125,7 @@ function isChildActive(item) {
               :class="{ active: isActive(child.id) }"
               @click="selectItem(child.id)"
             >
-              {{ t(child.labelKey) }}
+              <span class="submenu-label">{{ t(child.labelKey) }}</span>
             </button>
           </div>
         </div>
@@ -274,10 +279,37 @@ function isChildActive(item) {
   line-height: 1.4;
   color: #6b7280;
   text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+
+.submenu-label {
+  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: background 0.15s, color 0.15s;
+}
+
+.nav-audience {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+.nav-audience--sub {
+  display: none;
+}
+
+.nav-audience--admin {
+  color: #1e40af;
+  background: #dbeafe;
+}
+
+.nav-audience--student {
+  color: #047857;
+  background: #d1fae5;
 }
 
 .submenu-item:hover {

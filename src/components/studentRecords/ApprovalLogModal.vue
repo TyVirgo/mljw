@@ -1,6 +1,7 @@
 <script setup>
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { formatMovementDate } from '../../utils/formatMovementDate.js'
+import { formatApprovalStageLabel } from '../../utils/movementApprovalLogDisplay.js'
 
 defineProps({
   visible: Boolean,
@@ -11,6 +12,10 @@ defineProps({
 const emit = defineEmits(['close'])
 
 const { t, tr } = useAppI18n()
+
+function stageLabel(stage) {
+  return formatApprovalStageLabel(stage, tr)
+}
 
 function handleOverlayClick(event) {
   if (event.target === event.currentTarget) emit('close')
@@ -41,7 +46,7 @@ function handleOverlayClick(event) {
             </thead>
             <tbody>
               <tr v-for="item in logs" :key="item.id">
-                <td>{{ tr(item.stage) }}</td>
+                <td>{{ stageLabel(item.stage) }}</td>
                 <td>{{ item.actor }}</td>
                 <td>{{ tr(item.action) }}</td>
                 <td>{{ formatMovementDate(item.dateTime) }}</td>

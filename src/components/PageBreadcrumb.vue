@@ -6,6 +6,10 @@ import {
   buildStudentRecordsBreadcrumbKeys,
   studentRecordsModuleKey,
 } from '../config/studentRecordsMenu.js'
+import {
+  buildCourseRegistrationBreadcrumbKeys,
+  courseRegistrationModuleKey,
+} from '../config/courseRegistrationMenu.js'
 import { useAppI18n } from '../composables/useAppI18n.js'
 
 const props = defineProps({
@@ -31,6 +35,8 @@ const crumbs = computed(() => {
     keys = buildMenuBreadcrumbKeys(props.pageId)
   } else if (props.moduleKey === studentRecordsModuleKey) {
     keys = buildStudentRecordsBreadcrumbKeys(props.pageId)
+  } else if (props.moduleKey === courseRegistrationModuleKey) {
+    keys = buildCourseRegistrationBreadcrumbKeys(props.pageId)
   } else {
     keys = buildKeys(props.pageId, props.moduleKey, props.items)
   }

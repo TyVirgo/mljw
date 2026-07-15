@@ -8,6 +8,7 @@ import {
   validateApprovalForm,
 } from '../../data/movementApprovalEngine.js'
 import { getApprovalActionLabel } from '../../utils/approvalActionLabels.js'
+import { formatApprovalStageLabel } from '../../utils/movementApprovalLogDisplay.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -41,7 +42,7 @@ watch(
 
 const introText = computed(() => {
   const template = tr('Please fill in the following information before submitting (Current {stage}) :')
-  return template.replace('{stage}', props.approvalStage || '--')
+  return template.replace('{stage}', formatApprovalStageLabel(props.approvalStage, tr))
 })
 
 const batchHint = computed(() => {

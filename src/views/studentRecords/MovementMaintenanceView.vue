@@ -28,6 +28,7 @@ import {
 } from '../../data/movementMaintenanceFields.js'
 import { exportMovementQueryToExcel } from '../../utils/exportMovementQueryExcel.js'
 import { maskPassportIc } from '../../utils/maskPassportIc.js'
+import { formatApprovalStageLabel } from '../../utils/movementApprovalLogDisplay.js'
 import { movementListStatusBadgeClass } from '../../utils/movementListStatusBadge.js'
 import '../../styles/movement-status-badge.css'
 
@@ -266,7 +267,7 @@ function displayPassportIc(value) {
 function getCellValue(item, column) {
   switch (column.key) {
     case 'approvalStage':
-      return tr(item.approvalStage)
+      return formatApprovalStageLabel(item.approvalStage, tr)
     case 'movementCategory':
       return t(item.movementCategoryKey)
     case 'effectiveDate':

@@ -110,6 +110,73 @@ export function getPreviousStage(sourceKey, currentStage, category) {
   return stages[idx - 1]
 }
 
+/**
+ * 会签逻辑组（v1 仍串行推进；用于「前一节点」时间取 max）
+ * @returns {string[][]}
+ */
+export function getParallelGroups(sourceKey) {
+  switch (sourceKey) {
+    case 'deferment':
+      return [['Admissions Office', 'Library', 'IT Office', 'Accommodation Office']]
+    case 'resumption':
+      return [['Admissions Office', 'Accommodation Office']]
+    case 'withdrawal':
+      return [
+        [
+          'Admissions Office',
+          'Library',
+          'IT Office',
+          'Counselling Center',
+          'Accommodation Office',
+        ],
+      ]
+    default:
+      return []
+  }
+}
+
+function findParallelGroup(sourceKey, stage) {
+  return getParallelGroups(sourceKey).find((group) => group.includes(stage)) || null
+}
+
+/**
+ * 相对当前 stage 的前一逻辑节点所包含的 stage 列表。
+ * - 首节点：返回 []（调用方取 Submitted）
+ * - 会签组内：返回组前串行节点
+ * - 会签组后：返回整组
+ * - 其它：返回上一串行 stage
+ */
+export function getPreviousLogicalNodeStages(sourceKey, currentStage, category) {
+  const stages = getWorkflowStages(sourceKey, category).filter((s) => s !== TERMINAL_STAGE)
+  if (!stages.length) return []
+
+  let stage = currentStage
+  if (stage === TERMINAL_STAGE) {
+    stage = stages[stages.length - 1]
+    // 「当前」视为 Approved 之后：前一逻辑节点相对末级 stage 的下一跳语义
+    // 即末级 stage 本身（或其所在会签组）为前一节点
+    const groupAtEnd = findParallelGroup(sourceKey, stage)
+    if (groupAtEnd) return [...groupAtEnd]
+    return [stage]
+  }
+
+  const idx = stages.indexOf(stage)
+  if (idx <= 0) return []
+
+  const currentGroup = findParallelGroup(sourceKey, stage)
+  if (currentGroup) {
+    const firstInGroup = currentGroup[0]
+    const groupStartIdx = stages.indexOf(firstInGroup)
+    if (groupStartIdx <= 0) return []
+    return [stages[groupStartIdx - 1]]
+  }
+
+  const prevLinear = stages[idx - 1]
+  const prevGroup = findParallelGroup(sourceKey, prevLinear)
+  if (prevGroup) return [...prevGroup]
+  return [prevLinear]
+}
+
 export function stageMatchesRole(stage, role) {
   if (!stage || !role) return false
   return stage === role

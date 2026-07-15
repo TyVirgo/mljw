@@ -19,9 +19,10 @@ const SEMESTER_MONTH_ORDER = { '02': 1, '04': 2, '09': 3 }
 export function getDefermentPeriodOptions(records = initialSemesterRecords) {
   return [...records]
     .sort((a, b) => {
-      const yearDiff = parseInt(a.academicYear, 10) - parseInt(b.academicYear, 10)
+      // 新学年学期在前：年降序，同年内 09 → 04 → 02
+      const yearDiff = parseInt(b.academicYear, 10) - parseInt(a.academicYear, 10)
       if (yearDiff !== 0) return yearDiff
-      return (SEMESTER_MONTH_ORDER[a.semester] || 0) - (SEMESTER_MONTH_ORDER[b.semester] || 0)
+      return (SEMESTER_MONTH_ORDER[b.semester] || 0) - (SEMESTER_MONTH_ORDER[a.semester] || 0)
     })
     .map((record) => `${record.academicYear}/${record.semester}`)
 }
@@ -673,6 +674,86 @@ export const initialDeferments = [
       { id: 1, stage: 'Submission', actor: 'Lee Recall Demo', action: 'Submitted', dateTime: '01.10.2024 09:00', comment: '' },
       { id: 2, stage: 'Pending Review', actor: 'Pending Review', action: 'Approved', dateTime: '05.10.2024 10:00', comment: '' },
       { id: 3, stage: 'HOD/HOP', actor: 'HOD/HOP', action: 'Approved', dateTime: '08.10.2024 11:00', comment: 'Endorsed for AA HOD review.' },
+    ],
+  }),
+  // —— 会签并行进行中（审批日志演示：通过 / 待审 / 需修改）——
+  buildRecord({
+    id: 16,
+    applicationId: 'DEF016',
+    studentId: 'XMUM2309033',
+    fullName: 'Parallel Branch Demo',
+    intake: '2024/02',
+    nricPassport: '060606060606',
+    nationality: 'Malaysia',
+    programme: 'Bachelor of Software Engineering',
+    programmeLevel: 'Undergraduate',
+    personalEmail: 'parallel.demo@student.xmum.edu.my',
+    phoneNumber: '0176655443',
+    accommodationRoomNo: 'F-110',
+    defermentPeriod: '2025/09',
+    mainReason: 'Personal Reason',
+    detailedReason: 'Demo for parallel countersignature approval log.',
+    parentGuardianName: 'Demo Parent',
+    parentContactNo: '0171122334',
+    parentNricPassport: '710101010101',
+    parentRelationship: 'Father',
+    parentEmail: 'demo.parent@email.com',
+    attachment: { fileName: 'parallel-demo.pdf', size: 156000 },
+    status: 'In Progress',
+    approvalStage: 'Library',
+    applicationSession: '2024/02',
+    effectiveSession: '2025/09',
+    submittedAt: '2025-03-01T09:00:00.000Z',
+    dateOfApplication: '2025-02-28',
+    approvalLog: [
+      {
+        id: 1,
+        stage: 'Submission',
+        actor: 'Parallel Branch Demo',
+        action: 'Submitted',
+        dateTime: '01.03.2025 09:00',
+        comment: '',
+      },
+      {
+        id: 2,
+        stage: 'Pending Review',
+        actor: 'AC Officer',
+        action: 'Approved',
+        dateTime: '03.03.2025 10:00',
+        comment: '附件材料符合，允许申请',
+      },
+      {
+        id: 3,
+        stage: 'HOD/HOP',
+        actor: 'HOD Officer',
+        action: 'Approved',
+        dateTime: '05.03.2025 14:00',
+        comment: '',
+      },
+      {
+        id: 4,
+        stage: 'AA HOD',
+        actor: 'AA HOD Officer',
+        action: 'Approved',
+        dateTime: '07.03.2025 11:00',
+        comment: '',
+      },
+      {
+        id: 5,
+        stage: 'Admissions Office',
+        actor: 'Admissions Officer',
+        action: 'Approved',
+        dateTime: '10.03.2025 09:30',
+        comment: '录取档案核对无误',
+      },
+      {
+        id: 6,
+        stage: 'IT Office',
+        actor: 'IT Officer',
+        action: 'Update Required',
+        dateTime: '11.03.2025 16:00',
+        comment: '附件材料缺失',
+      },
     ],
   }),
   // —— Draft ×2 ——

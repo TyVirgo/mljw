@@ -32,6 +32,7 @@ import {
 } from './movementCategories.js'
 import { resolveStatDimensions } from './movementStatisticsDimensions.js'
 import { normalizeAcademicSession } from '../utils/normalizeAcademicSession.js'
+import { resolveLastApprovalActionTime } from '../utils/movementApprovalLogDisplay.js'
 
 function extractMovementReason(sourceKey, item, t) {
   const categoryCode = MOVEMENT_SOURCE_TO_CATEGORY_CODE[sourceKey]
@@ -192,6 +193,10 @@ export function mergeMovementApprovalQueue(t) {
       if (item.status === 'Draft') continue
       const row = normalizeQueueItem(sourceKey, item, t)
       row.historicalApplicationSequence = sequenceMaps[sourceKey].get(item.id) ?? 1
+      row.lastApprovalActionTime = resolveLastApprovalActionTime(item, {
+        sourceKey,
+        studentCategory: row.studentCategory,
+      })
       rows.push(row)
     }
   }

@@ -3,6 +3,7 @@ import { movementApprovalExportColumnMeta } from '../data/movementApprovalExport
 import { formatImplementedYn } from '../data/movementApprovalQueue.js'
 import { formatMovementDate } from './formatMovementDate.js'
 import { formatEffectiveSession } from './formatEffectiveSession.js'
+import { formatApprovalStageLabel } from './movementApprovalLogDisplay.js'
 
 function approvalStatusLabel(status, t) {
   const map = {
@@ -22,7 +23,7 @@ export function formatApprovalExportRow(row, index, { t, tr } = {}) {
   return {
     no: index + 1,
     status: approvalStatusLabel(row.status, t),
-    approvalStage: tr(row.approvalStage),
+    approvalStage: formatApprovalStageLabel(row.approvalStage, tr),
     studentId: row.studentId || '',
     fullName: row.fullName || '',
     applicationSession: row.applicationSession || '',
@@ -30,6 +31,10 @@ export function formatApprovalExportRow(row, index, { t, tr } = {}) {
     movementCategory: t(row.movementCategoryKey),
     historicalApplicationSequence:
       row.historicalApplicationSequence != null ? String(row.historicalApplicationSequence) : '1',
+    lastApprovalActionTime:
+      row.lastApprovalActionTime && row.lastApprovalActionTime !== '—'
+        ? row.lastApprovalActionTime
+        : '',
     applicationDate: formatMovementDate(row.applicationDateDisplay || row.submittedAt || row.dateOfApplication),
     implemented: formatImplementedYn(row.implemented),
   }

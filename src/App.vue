@@ -30,6 +30,22 @@ import MovementMaintenanceView from './views/studentRecords/MovementMaintenanceV
 import MovementQueryView from './views/studentRecords/MovementQueryView.vue'
 import MovementStatisticsView from './views/studentRecords/MovementStatisticsView.vue'
 import MovementRuleSettingsView from './views/studentRecords/MovementRuleSettingsView.vue'
+import RegistrationBatchView from './views/courseRegistration/RegistrationBatchView.vue'
+import RegistrationMonitorView from './views/courseRegistration/RegistrationMonitorView.vue'
+import AddDropApprovalView from './views/courseRegistration/AddDropApprovalView.vue'
+import SupplementListView from './views/courseRegistration/SupplementListView.vue'
+import RegistrationResultView from './views/courseRegistration/RegistrationResultView.vue'
+import AcademicAlertView from './views/courseRegistration/AcademicAlertView.vue'
+import WaitlistView from './views/courseRegistration/WaitlistView.vue'
+import WhitelistView from './views/courseRegistration/WhitelistView.vue'
+import RegistrationReportView from './views/courseRegistration/RegistrationReportView.vue'
+import CourseRegistrationFlowGuideView from './views/courseRegistration/CourseRegistrationFlowGuideView.vue'
+import StudentRegisterView from './views/courseRegistration/student/StudentRegisterView.vue'
+import StudentScheduleView from './views/courseRegistration/student/StudentScheduleView.vue'
+import StudentAddDropView from './views/courseRegistration/student/StudentAddDropView.vue'
+import StudentMyWaitlistView from './views/courseRegistration/student/StudentMyWaitlistView.vue'
+import StudentMyResultView from './views/courseRegistration/student/StudentMyResultView.vue'
+import RegistrationQueueOverlay from './components/courseRegistration/RegistrationQueueOverlay.vue'
 import UnderConstructionView from './views/UnderConstructionView.vue'
 import AcademicPortalView from './views/AcademicPortalView.vue'
 import { developedPages, basicDataModuleKey } from './config/menu.js'
@@ -38,16 +54,24 @@ import {
   studentRecordsMenuItems,
   studentRecordsModuleKey,
 } from './config/studentRecordsMenu.js'
+import {
+  courseRegistrationDevelopedPages,
+  courseRegistrationMenuItems,
+  courseRegistrationModuleKey,
+} from './config/courseRegistrationMenu.js'
 import { processDueImplementations } from './data/movementImplementationScheduler.js'
+import { seedStudentRegistrationDemo } from './data/courseRegistration/studentDemoSeed.js'
 
 onMounted(() => {
   processDueImplementations()
+  seedStudentRegistrationDemo()
 })
 
 const appView = ref('student-records')
 const currentPageId = ref('sr-student-profile')
 
 const isStudentRecordsApp = computed(() => appView.value === 'student-records')
+const isCourseRegistrationApp = computed(() => appView.value === 'course-registration')
 
 const isDashboard = computed(() => currentPageId.value === 'dashboard')
 const isBlockManagement = computed(() => currentPageId.value === 'block-management')
@@ -85,22 +109,45 @@ const isMovementQuery = computed(() => currentPageId.value === 'sr-movement-quer
 const isMovementStatistics = computed(() => currentPageId.value === 'sr-movement-statistics')
 const isSrUnderConstruction = computed(() => !studentRecordsDevelopedPages.has(currentPageId.value))
 
-const headerModuleKey = computed(() =>
-  isStudentRecordsApp.value ? studentRecordsModuleKey : basicDataModuleKey,
-)
+const isCrFlowGuide = computed(() => currentPageId.value === 'cr-flow-guide')
+const isCrBatch = computed(() => currentPageId.value === 'cr-batch')
+const isCrMonitor = computed(() => currentPageId.value === 'cr-monitor')
+const isCrApproval = computed(() => currentPageId.value === 'cr-approval')
+const isCrSupplement = computed(() => currentPageId.value === 'cr-supplement')
+const isCrResult = computed(() => currentPageId.value === 'cr-result')
+const isCrAlert = computed(() => currentPageId.value === 'cr-alert')
+const isCrWaitlist = computed(() => currentPageId.value === 'cr-waitlist')
+const isCrWhitelist = computed(() => currentPageId.value === 'cr-whitelist')
+const isCrReport = computed(() => currentPageId.value === 'cr-report')
+const isCrsRegister = computed(() => currentPageId.value === 'crs-register')
+const isCrsSchedule = computed(() => currentPageId.value === 'crs-schedule')
+const isCrsAddDrop = computed(() => currentPageId.value === 'crs-adddrop')
+const isCrsWaitlist = computed(() => currentPageId.value === 'crs-waitlist')
+const isCrsResult = computed(() => currentPageId.value === 'crs-result')
+const isCrUnderConstruction = computed(() => !courseRegistrationDevelopedPages.has(currentPageId.value))
 
-const sidebarItems = computed(() =>
-  isStudentRecordsApp.value ? studentRecordsMenuItems : undefined,
-)
+const headerModuleKey = computed(() => {
+  if (isStudentRecordsApp.value) return studentRecordsModuleKey
+  if (isCourseRegistrationApp.value) return courseRegistrationModuleKey
+  return basicDataModuleKey
+})
 
-const sidebarExpandedGroups = computed(() =>
-  isStudentRecordsApp.value
-    ? ['sr-mgmt-group', 'sr-movement-group']
-    : undefined,
-)
+const sidebarItems = computed(() => {
+  if (isStudentRecordsApp.value) return studentRecordsMenuItems
+  if (isCourseRegistrationApp.value) return courseRegistrationMenuItems
+  return undefined
+})
+
+const sidebarExpandedGroups = computed(() => {
+  if (isStudentRecordsApp.value) return ['sr-mgmt-group', 'sr-movement-group']
+  if (isCourseRegistrationApp.value) {
+    return ['cr-guide-group', 'cr-student-group', 'cr-config-group', 'cr-process-group', 'cr-result-group', 'cr-governance-group']
+  }
+  return undefined
+})
 
 function handleSelect(id) {
-  currentPageId.value = id
+  currentPageId.value = id === 'cr-courses' ? 'cr-batch' : id
 }
 
 function handleBack() {
@@ -125,6 +172,19 @@ function openStudentRecordsApp() {
   currentPageId.value = 'sr-student-profile'
 }
 
+function openCourseRegistrationApp() {
+  appView.value = 'course-registration'
+  currentPageId.value = 'crs-register'
+}
+
+function handleCrBack() {
+  currentPageId.value = 'cr-batch'
+}
+
+function handleCrNavigate(pageId) {
+  currentPageId.value = pageId === 'cr-courses' ? 'cr-batch' : pageId
+}
+
 function openStudentPreviewPortal() {
   currentPageId.value = 'sr-movement-application-student'
 }
@@ -135,6 +195,7 @@ function openStudentPreviewPortal() {
     v-if="appView === 'portal'"
     @open-basic-data="openBasicDataAdmin"
     @open-student-records="openStudentRecordsApp"
+    @open-course-registration="openCourseRegistrationApp"
   />
 
   <div v-else class="app-layout">
@@ -173,6 +234,25 @@ function openStudentPreviewPortal() {
             <UnderConstructionView v-else-if="isSrUnderConstruction" @back="handleSrBack" />
           </template>
 
+          <template v-else-if="isCourseRegistrationApp">
+            <CourseRegistrationFlowGuideView v-if="isCrFlowGuide" @navigate="handleCrNavigate" />
+            <RegistrationBatchView v-else-if="isCrBatch" @navigate="handleCrNavigate" />
+            <RegistrationMonitorView v-else-if="isCrMonitor" @navigate="handleCrNavigate" />
+            <AddDropApprovalView v-else-if="isCrApproval" />
+            <SupplementListView v-else-if="isCrSupplement" />
+            <RegistrationResultView v-else-if="isCrResult" />
+            <AcademicAlertView v-else-if="isCrAlert" @navigate="handleCrNavigate" />
+            <WaitlistView v-else-if="isCrWaitlist" />
+            <WhitelistView v-else-if="isCrWhitelist" />
+            <RegistrationReportView v-else-if="isCrReport" />
+            <StudentRegisterView v-else-if="isCrsRegister" @navigate="handleCrNavigate" />
+            <StudentScheduleView v-else-if="isCrsSchedule" />
+            <StudentAddDropView v-else-if="isCrsAddDrop" />
+            <StudentMyWaitlistView v-else-if="isCrsWaitlist" />
+            <StudentMyResultView v-else-if="isCrsResult" />
+            <UnderConstructionView v-else-if="isCrUnderConstruction" @back="handleCrBack" />
+          </template>
+
           <template v-else>
             <DashboardView v-if="isDashboard" @navigate="handleSelect" />
             <BlockManagementView v-else-if="isBlockManagement" />
@@ -198,6 +278,8 @@ function openStudentPreviewPortal() {
       </div>
     </div>
   </div>
+
+  <RegistrationQueueOverlay v-if="isCourseRegistrationApp" @view-schedule="handleCrNavigate('crs-schedule')" />
 </template>
 
 <style scoped>

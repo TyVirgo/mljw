@@ -26,10 +26,15 @@ import {
   movementApprovalExportColumnMeta,
 } from '../../data/movementApprovalExportFields.js'
 import { exportMovementApprovalToExcel } from '../../utils/exportMovementApprovalExcel.js'
+import { formatApprovalStageLabel } from '../../utils/movementApprovalLogDisplay.js'
 import { movementListStatusBadgeClass } from '../../utils/movementListStatusBadge.js'
 import '../../styles/movement-status-badge.css'
 
 const { t, tr, translatedExportFields } = useListPageI18n(movementApprovalExportFields)
+
+function approvalStageLabel(stage) {
+  return formatApprovalStageLabel(stage, tr)
+}
 
 const APPROVAL_TABS = [
   { id: 'pending', labelKey: 'movementApproval.tabs.pending' },
@@ -111,7 +116,7 @@ const showApproveToolbar = computed(() => activeTab.value === 'pending')
 const showImplementedColumn = computed(() => activeTab.value === 'history')
 
 const tableColspan = computed(() => {
-  let cols = 11
+  let cols = 12
   if (showApproveToolbar.value) cols += 1
   if (showImplementedColumn.value) cols += 1
   return cols
@@ -362,6 +367,12 @@ function statusLabel(status) {
                     hint-key="movementApproval.columnHints.applicationSequence"
                   />
                 </th>
+                <th>
+                  <MovementApprovalTableHeaderLabel
+                    label-key="movementApproval.columns.lastActionTime"
+                    hint-key="movementApproval.columnHints.lastActionTime"
+                  />
+                </th>
                 <th>{{ t('movementApproval.columns.applicationDate') }}</th>
                 <th class="col-sticky-right">{{ t('common.actions') }}</th>
               </tr>
@@ -384,7 +395,7 @@ function statusLabel(status) {
                     {{ statusLabel(item.status) }}
                   </span>
                 </td>
-                <td>{{ tr(item.approvalStage) }}</td>
+                <td>{{ approvalStageLabel(item.approvalStage) }}</td>
                 <td v-if="showImplementedColumn"><ImplementedYnBadge :value="item.implemented" /></td>
                 <td>{{ item.studentId }}</td>
                 <td>{{ item.fullName }}</td>
@@ -392,6 +403,7 @@ function statusLabel(status) {
                 <td>{{ item.effectiveSession }}</td>
                 <td>{{ t(item.movementCategoryKey) }}</td>
                 <td>{{ item.historicalApplicationSequence ?? 1 }}</td>
+                <td>{{ item.lastApprovalActionTime || '—' }}</td>
                 <td>{{ item.applicationDateDisplay }}</td>
                 <td class="actions-cell col-sticky-right">
                   <div class="actions-inner">

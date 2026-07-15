@@ -5,6 +5,7 @@ import { formatImplementedYn } from '../data/movementApprovalQueue.js'
 import { maskPassportIc } from './maskPassportIc.js'
 import { formatMovementDate } from './formatMovementDate.js'
 import { formatEffectiveSession } from './formatEffectiveSession.js'
+import { formatApprovalStageLabel } from './movementApprovalLogDisplay.js'
 
 function displayCell(value) {
   if (value === '' || value == null) return MAINTENANCE_EMPTY
@@ -50,7 +51,7 @@ export function formatQueryExportRow(row, index, { t, tr, implementedAsYn = fals
   return {
     no: index + 1,
     status: statusLabel(row.status, t),
-    approvalStage: tr(row.approvalStage),
+    approvalStage: formatApprovalStageLabel(row.approvalStage, tr),
     implemented: implementedAsYn
       ? formatImplementedYn(row.implemented)
       : implementedLabel(row.implemented, t),

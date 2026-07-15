@@ -4,7 +4,7 @@ import UserProfileMenu from '../components/UserProfileMenu.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import { useAppI18n } from '../composables/useAppI18n.js'
 
-const emit = defineEmits(['open-basic-data', 'open-student-records'])
+const emit = defineEmits(['open-basic-data', 'open-student-records', 'open-course-registration'])
 
 const { t } = useAppI18n()
 
@@ -27,6 +27,13 @@ const applications = [
     category: 'basic',
     developed: true,
     icon: 'student',
+  },
+  {
+    id: 'course-registration',
+    nameKey: 'portal.apps.courseRegistration',
+    category: 'basic',
+    developed: true,
+    icon: 'course',
   },
 ]
 
@@ -56,6 +63,10 @@ function openApplication(app) {
   }
   if (app.developed && app.id === 'student-records') {
     emit('open-student-records')
+    return
+  }
+  if (app.developed && app.id === 'course-registration') {
+    emit('open-course-registration')
     return
   }
   if (!app.developed) {
@@ -191,7 +202,7 @@ function backFromUnderConstruction() {
               :class="{ pending: !app.developed }"
               @click="openApplication(app)"
             >
-              <span class="service-icon" :class="{ 'icon-student': app.icon === 'student' }" aria-hidden="true">
+              <span class="service-icon" :class="{ 'icon-student': app.icon === 'student', 'icon-course': app.icon === 'course' }" aria-hidden="true">
                 <svg
                   v-if="app.icon === 'student'"
                   viewBox="0 0 24 24"
@@ -203,6 +214,18 @@ function backFromUnderConstruction() {
                   <circle cx="12" cy="7" r="4" />
                   <path d="M12 11v3" />
                   <path d="M10 14h4" />
+                </svg>
+                <svg
+                  v-else-if="app.icon === 'course'"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                  <line x1="8" y1="7" x2="16" y2="7" />
+                  <line x1="8" y1="11" x2="14" y2="11" />
                 </svg>
                 <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -469,6 +492,10 @@ function backFromUnderConstruction() {
 
 .service-icon.icon-student {
   background: #1d4ed8;
+}
+
+.service-icon.icon-course {
+  background: #0d9488;
 }
 
 .service-icon svg {
