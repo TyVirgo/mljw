@@ -33,7 +33,6 @@ function applyInitialForm(data) {
     autoImplement: data.autoImplement === true,
     deleteOriginalCourseList: data.deleteOriginalCourseList === true,
     presetNewProgrammeBatchList: data.presetNewProgrammeBatchList === true,
-    excludeGradedFromPreset: data.excludeGradedFromPreset === true,
   }
 }
 
@@ -158,10 +157,6 @@ function handleSave() {
                 <label class="checkbox-row">
                   <input v-model="form.presetNewProgrammeBatchList" type="checkbox" />
                   <span>{{ t('movementCategory.fields.presetNewProgrammeBatchList') }}</span>
-                </label>
-                <label class="checkbox-row">
-                  <input v-model="form.excludeGradedFromPreset" type="checkbox" />
-                  <span>{{ t('movementCategory.fields.excludeGradedFromPreset') }}</span>
                 </label>
               </div>
             </div>

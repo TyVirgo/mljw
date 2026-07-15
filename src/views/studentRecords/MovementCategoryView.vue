@@ -91,7 +91,6 @@ function handleFormSave(formData) {
       autoImplement: formData.autoImplement,
       deleteOriginalCourseList: formData.deleteOriginalCourseList,
       presetNewProgrammeBatchList: formData.presetNewProgrammeBatchList,
-      excludeGradedFromPreset: formData.excludeGradedFromPreset,
     })
   }
   closeForm()

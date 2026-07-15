@@ -870,7 +870,6 @@ export default {
       courseHandling: 'Course Handling',
       deleteOriginalCourseList: 'Delete original course list (courses with grades are retained)',
       presetNewProgrammeBatchList: 'Preset new programme batch course list',
-      excludeGradedFromPreset: 'Do not preset courses that already have grades into the new programme batch list',
     },
     form: {
       createTitle: 'Create Movement Category',

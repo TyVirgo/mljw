@@ -185,7 +185,6 @@ function normalizeRow(raw) {
     autoImplement: raw.autoImplement === true,
     deleteOriginalCourseList: raw.deleteOriginalCourseList === true,
     presetNewProgrammeBatchList: raw.presetNewProgrammeBatchList === true,
-    excludeGradedFromPreset: raw.excludeGradedFromPreset === true,
     reasons: Array.isArray(raw.reasons) ? raw.reasons.map((r) => normalizeReasonRecord(r)) : [],
   }
 }
@@ -203,7 +202,6 @@ export const initialMovementCategories = [
     autoImplement: false,
     deleteOriginalCourseList: true,
     presetNewProgrammeBatchList: true,
-    excludeGradedFromPreset: true,
     reasons: [...(seedReasonsByCode.PT001 || [])],
   },
   {
@@ -218,7 +216,6 @@ export const initialMovementCategories = [
     autoImplement: false,
     deleteOriginalCourseList: false,
     presetNewProgrammeBatchList: false,
-    excludeGradedFromPreset: false,
     reasons: [...(seedReasonsByCode.DEF001 || [])],
   },
   {
@@ -233,7 +230,6 @@ export const initialMovementCategories = [
     autoImplement: false,
     deleteOriginalCourseList: false,
     presetNewProgrammeBatchList: false,
-    excludeGradedFromPreset: false,
     reasons: [...(seedReasonsByCode.WDR001 || [])],
   },
   {
@@ -248,7 +244,6 @@ export const initialMovementCategories = [
     autoImplement: true,
     deleteOriginalCourseList: false,
     presetNewProgrammeBatchList: false,
-    excludeGradedFromPreset: false,
     reasons: [],
   },
 ].map(normalizeRow)
@@ -313,7 +308,6 @@ export function createEmptyMovementCategoryForm() {
     autoImplement: false,
     deleteOriginalCourseList: false,
     presetNewProgrammeBatchList: false,
-    excludeGradedFromPreset: false,
   }
 }
 

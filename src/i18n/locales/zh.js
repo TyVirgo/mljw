@@ -854,7 +854,6 @@ export default {
       courseHandling: '处理选课',
       deleteOriginalCourseList: '删除原课程名单（已获得成绩的不删）',
       presetNewProgrammeBatchList: '预置新专业批次名单',
-      excludeGradedFromPreset: '已获得成绩课程不预置到新专业批次名单',
     },
     form: {
       createTitle: '新增异动类别',
