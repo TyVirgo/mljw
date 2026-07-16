@@ -305,6 +305,7 @@ export default {
       accommodation: '住宿信息',
       others: '其他信息',
       statusLog: '状态日志',
+      profileChangeLog: '信息变更记录',
     },
     statusLog: {
       status: '状态',
@@ -312,6 +313,19 @@ export default {
       movementCategory: '异动类别',
       changedBy: '变更人',
       remarks: '备注',
+    },
+    profileChangeLog: {
+      changedAt: '变更时间',
+      section: '分区',
+      field: '字段',
+      oldValue: '原值',
+      newValue: '新值',
+      changedBy: '变更人',
+      changedByRole: '角色',
+      roleTeacher: '老师',
+      roleStudent: '学生',
+      sectionBasic: '基本信息',
+      sectionAccommodation: '住宿信息',
     },
     status: {
       active: '在读',
@@ -728,6 +742,12 @@ export default {
       personalEmail: '个人邮箱',
       phoneNumber: '联系电话',
       lastDateOfAttendance: '最后出勤日期',
+      lastDateOfAttendanceHint:
+        '若「是否完成本学期期末考核」选择 Yes，最后出勤日期识别为本学期 Exam week 的最后一天。',
+      completeFinalAssessment: '是否完成本学期期末考核？',
+      completeFinalAssessmentHint:
+        '选择「Yes」即确认将完成本学期学业并参加期末考核。正式成绩单将包含本学期成绩，退学申请将在成绩公布后才最终办结。',
+      selectCompleteFinalAssessment: '请选择',
       destinationAfterLeaving: '离校去向',
       mainReason: '主要退学原因',
       currentWhereabout: '目前所在地',
@@ -1126,8 +1146,15 @@ export default {
       phoneNumber: '电话号码',
       accommodationRoomNo: '住宿房间号',
     },
+    parentConsent: {
+      fromProfileHint:
+        '家长/监护人信息来自学生个人信息页，申请内不可修改。如需变更请前往学生个人信息页维护。提交前须至少有一位家长/监护人。',
+      emptyFromProfile:
+        '学生个人信息页尚无家长/监护人联系人。请先在学生个人信息页至少维护一位后再提交。',
+    },
     declaration: {
       correct: '我声明，为支持我的申请而提供的所有信息均真实且完整。',
+      parentEmailNotice: '我知悉，家长/监护人将通过电子邮件获知本申请结果。',
       maxStudyDuration:
         '我知悉，学生必须在 XMUM 规定的最长修读年限内完成毕业所需的学分。XMUM 的最长修读年限不得超过 6 年（五年制课程为 7 年），包括任何休学期间。',
     },

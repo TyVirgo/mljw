@@ -1083,7 +1083,9 @@ export const zhFlat = {
   'Deferment Period is required.': '休学期间为必填项。',
   'Main Reason for Deferment is required.': '休学主要原因为必填项。',
   'Parent/Guardian': '家长/监护人',
-  'At least one parent/guardian contact is required.': '至少填写一位家长/监护人联系人。',
+  'At least one parent/guardian contact is required.': '至少需要一位家长/监护人联系人。',
+  'At least one parent/guardian contact is required in the student profile before submitting.':
+    '学生个人信息页须至少有一位家长/监护人联系人后方可提交。',
   'Parent/Guardian Name is required.': '家长/监护人姓名为必填项。',
   'Contact No. is required.': '联系电话为必填项。',
   'This student already has a pending deferment application.': '该学生已有进行中的休学申请。',
@@ -1102,6 +1104,7 @@ export const zhFlat = {
   'Personal Email is required.': '个人邮箱为必填项。',
   'Phone Number is required.': '联系电话为必填项。',
   'Last Date of Attendance is required.': '最后出勤日期为必填项。',
+  'Will you complete Final Assessment is required.': '请选择是否完成本学期期末考核。',
   'Destination after Leaving is required.': '离校去向为必填项。',
   'Main Reason for Withdrawal is required.': '主要退学原因为必填项。',
   'In Campus': '在校内',

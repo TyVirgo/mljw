@@ -311,12 +311,23 @@ function handleClose() {
           </div>
         </div>
 
-        <div class="section-bar">{{ t('deferment.sections.parentConsent') }}</div>
+        <div class="section-bar section-bar--with-hint">
+          <span>{{ t('deferment.sections.parentConsent') }}</span>
+          <span
+            class="field-hint-tip-wrap"
+            tabindex="0"
+            :aria-label="t('movementCommon.parentConsent.fromProfileHint')"
+          >
+            <span class="field-hint-icon" aria-hidden="true">?</span>
+            <span class="field-hint-tooltip" role="tooltip">
+              {{ t('movementCommon.parentConsent.fromProfileHint') }}
+            </span>
+          </span>
+        </div>
         <MovementParentConsentSection
           source-key="deferment"
           :contacts="form.parentContacts"
           :errors="errors"
-          @update:contacts="form.parentContacts = $event"
         />
 
         <div class="section-bar">{{ t('deferment.sections.documents') }}</div>

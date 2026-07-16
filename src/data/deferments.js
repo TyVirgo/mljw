@@ -127,7 +127,6 @@ export function formatApplicationDateDisplay(value) {
 import { isLocalCategory } from './students.js'
 import {
   buildParentContactsFromStudentFamily,
-  createEmptyParentContact,
   normalizeParentContacts,
   validateParentContacts,
   withSyncedLegacyParentFields,
@@ -166,7 +165,7 @@ export function createEmptyDeferment() {
     reasonId: null,
     mainReason: '',
     detailedReason: '',
-    parentContacts: [createEmptyParentContact()],
+    parentContacts: [],
     parentGuardianName: '',
     parentContactNo: '',
     parentNricPassport: '',

@@ -311,6 +311,7 @@ export default {
       accommodation: 'Accommodation',
       others: 'Others',
       statusLog: 'Status Log',
+      profileChangeLog: 'Profile Change Log',
     },
     statusLog: {
       status: 'Status',
@@ -318,6 +319,19 @@ export default {
       movementCategory: 'Movement Category',
       changedBy: 'Changed By',
       remarks: 'Remarks',
+    },
+    profileChangeLog: {
+      changedAt: 'Changed At',
+      section: 'Section',
+      field: 'Field',
+      oldValue: 'Previous Value',
+      newValue: 'New Value',
+      changedBy: 'Changed By',
+      changedByRole: 'Role',
+      roleTeacher: 'Teacher',
+      roleStudent: 'Student',
+      sectionBasic: 'Basic Info',
+      sectionAccommodation: 'Accommodation',
     },
     status: {
       active: 'Active',
@@ -740,6 +754,12 @@ export default {
       personalEmail: 'Personal Email',
       phoneNumber: 'Phone Number',
       lastDateOfAttendance: 'Last Date of Attendance',
+      lastDateOfAttendanceHint:
+        'If you select Yes for "Will you complete Final Assessment?", Last Date of Attendance is treated as the last day of this semester\'s Exam week.',
+      completeFinalAssessment: 'Will you complete Final Assessment?',
+      completeFinalAssessmentHint:
+        'By selecting "Yes", you confirm that you will continue your studies this semester and complete the final assessment. Your official result slip will include this semester\'s results, and your withdrawal application will only be completed after the results are released.',
+      selectCompleteFinalAssessment: 'Please select',
       destinationAfterLeaving: 'Destination after Leaving',
       mainReason: 'Main Reason for Withdrawal',
       currentWhereabout: 'Current Whereabout',
@@ -1146,9 +1166,17 @@ export default {
       phoneNumber: 'Phone Number',
       accommodationRoomNo: 'Accommodation Room Number',
     },
+    parentConsent: {
+      fromProfileHint:
+        'Parent/guardian details are loaded from the student profile and cannot be edited here. If changes are needed, update them on the Student Information page. At least one parent/guardian contact is required to submit.',
+      emptyFromProfile:
+        'No parent/guardian contact found in the student profile. Please add at least one on the Student Information page before submitting.',
+    },
     declaration: {
       correct:
         'I declare that all the information provided in support of my application is correct and complete.',
+      parentEmailNotice:
+        'I acknowledge that my parent(s)/guardian(s) will be notified of the application result by email.',
       maxStudyDuration:
         'I acknowledge that students must complete the required credits for graduation at XMUM within the maximum study duration. The maximum length of study at XMUM must not exceed 6 years (7 years for five-year programme), including any periods of deferment.',
     },

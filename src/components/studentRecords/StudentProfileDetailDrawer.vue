@@ -10,6 +10,7 @@ import FamilyTab from './tabs/FamilyTab.vue'
 import AccommodationTab from './tabs/AccommodationTab.vue'
 import OthersTab from './tabs/OthersTab.vue'
 import StatusLogTab from './tabs/StatusLogTab.vue'
+import ProfileChangeLogTab from './tabs/ProfileChangeLogTab.vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -32,6 +33,7 @@ const tabComponents = {
   accommodation: AccommodationTab,
   others: OthersTab,
   statusLog: StatusLogTab,
+  profileChangeLog: ProfileChangeLogTab,
 }
 
 const translatedTabs = computed(() =>

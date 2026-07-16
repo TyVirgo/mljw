@@ -1,7 +1,6 @@
 import { isLocalCategory } from './students.js'
 import {
   buildParentContactsFromStudentFamily,
-  createEmptyParentContact,
   normalizeParentContacts,
   validateParentContacts,
   withSyncedLegacyParentFields,
@@ -23,6 +22,22 @@ import {
 const WDR_CATEGORY_CODE = 'WDR001'
 
 export const currentWhereaboutOptions = ['In Campus', 'Out of Campus']
+
+export const completeFinalAssessmentOptions = ['Yes', 'No']
+
+/** Mock: last day of exam week by academic session (prototype only). */
+const EXAM_WEEK_LAST_DAY_BY_SESSION = {
+  '2024/2025-2': '2025-05-16',
+  '2025/2026-1': '2025-12-19',
+  '2025/2026-2': '2026-05-15',
+}
+
+const DEFAULT_EXAM_WEEK_LAST_DAY = '2026-05-15'
+
+export function getExamWeekLastDay(session) {
+  const key = normalizeAcademicSession(session) || String(session || '').trim()
+  return EXAM_WEEK_LAST_DAY_BY_SESSION[key] || DEFAULT_EXAM_WEEK_LAST_DAY
+}
 
 export const withdrawalStatusOptions = [
   'Draft',
@@ -128,6 +143,7 @@ export function createEmptyWithdrawal() {
     personalEmail: '',
     phoneNumber: '',
     accommodationRoomNo: '',
+    completeFinalAssessment: '',
     lastDateOfAttendance: '',
     destinationAfterLeaving: '',
     reasonId: null,
@@ -135,7 +151,7 @@ export function createEmptyWithdrawal() {
     currentWhereabout: '',
     detailedReason: '',
     declarationAccepted: false,
-    parentContacts: [createEmptyParentContact()],
+    parentContacts: [],
     parentGuardianName: '',
     parentContactNo: '',
     parentNricPassport: '',
@@ -303,6 +319,9 @@ export function validateWithdrawalForm(data, mode = 'submit', existingList = [],
 
   if (!String(data.lastDateOfAttendance || '').trim()) {
     requireField('lastDateOfAttendance', 'Last Date of Attendance is required.')
+  }
+  if (!completeFinalAssessmentOptions.includes(String(data.completeFinalAssessment || '').trim())) {
+    requireField('completeFinalAssessment', 'Will you complete Final Assessment is required.')
   }
   if (!String(data.destinationAfterLeaving || '').trim()) {
     requireField('destinationAfterLeaving', 'Destination after Leaving is required.')

@@ -137,6 +137,7 @@ export const studentFormTabs = [
 export const studentDetailTabs = [
   ...studentFormTabs,
   { id: 'statusLog', labelKey: 'studentProfile.tabs.statusLog' },
+  { id: 'profileChangeLog', labelKey: 'studentProfile.tabs.profileChangeLog' },
 ]
 
 let nextId = 4
@@ -326,6 +327,21 @@ export function createEmptyStatusLogEntry(partial = {}) {
   }
 }
 
+/** Mock profile field change log (学工同步只读对比)，section: basic | accommodation */
+export function createEmptyProfileChangeLogEntry(partial = {}) {
+  return {
+    id: partial.id ?? null,
+    changedAt: partial.changedAt ?? '',
+    section: partial.section === 'accommodation' ? 'accommodation' : 'basic',
+    fieldKey: partial.fieldKey ?? '',
+    fieldLabel: partial.fieldLabel ?? '',
+    oldValue: partial.oldValue ?? '',
+    newValue: partial.newValue ?? '',
+    changedBy: partial.changedBy ?? '',
+    changedByRole: partial.changedByRole === 'student' ? 'student' : 'teacher',
+  }
+}
+
 export function createEmptyStudent() {
   return {
     id: null,
@@ -339,6 +355,7 @@ export function createEmptyStudent() {
     accommodation: createEmptyAccommodation(),
     others: createEmptyOthers(),
     statusLogs: [],
+    profileChangeLogs: [],
   }
 }
 
@@ -361,6 +378,9 @@ export function getStudentFormData(record) {
     others: cloneSection(record.others, createEmptyOthers),
     statusLogs: Array.isArray(record.statusLogs)
       ? record.statusLogs.map((entry) => createEmptyStatusLogEntry(entry))
+      : [],
+    profileChangeLogs: Array.isArray(record.profileChangeLogs)
+      ? record.profileChangeLogs.map((entry) => createEmptyProfileChangeLogEntry(entry))
       : [],
   }
 }
@@ -470,6 +490,9 @@ export function normalizeStudent(raw) {
   const statusLogs = Array.isArray(raw.statusLogs)
     ? raw.statusLogs.map((entry) => createEmptyStatusLogEntry(entry))
     : []
+  const profileChangeLogs = Array.isArray(raw.profileChangeLogs)
+    ? raw.profileChangeLogs.map((entry) => createEmptyProfileChangeLogEntry(entry))
+    : []
   const latestStatus = getLatestStudentStatus({ statusLogs, enrollment })
 
   return {
@@ -484,6 +507,7 @@ export function normalizeStudent(raw) {
     accommodation: cloneSection(raw.accommodation, createEmptyAccommodation),
     others: cloneSection(raw.others, createEmptyOthers),
     statusLogs,
+    profileChangeLogs,
     studentId: basicInfo.studentId,
     name: basicInfo.fullName,
     nameCn: basicInfo.chineseName,
@@ -875,6 +899,52 @@ export const initialStudents = [
         remarkLines: buildGraduationStatusLogRemarkLines(),
       },
     ],
+    profileChangeLogs: [
+      {
+        id: 1,
+        changedAt: '2025-11-12T10:30:00',
+        section: 'basic',
+        fieldKey: 'basicInfo.race',
+        fieldLabel: 'Race',
+        oldValue: 'Malay',
+        newValue: 'Chinese',
+        changedBy: 'LEE LAY TEEN',
+        changedByRole: 'teacher',
+      },
+      {
+        id: 2,
+        changedAt: '2026-01-08T14:15:00',
+        section: 'accommodation',
+        fieldKey: 'accommodation.roomNo',
+        fieldLabel: 'Room No',
+        oldValue: '301',
+        newValue: '305',
+        changedBy: 'Tan Wei Ming',
+        changedByRole: 'student',
+      },
+      {
+        id: 3,
+        changedAt: '2026-03-20T09:05:00',
+        section: 'accommodation',
+        fieldKey: 'accommodation.bedNo',
+        fieldLabel: 'Bed No',
+        oldValue: 'A',
+        newValue: 'B',
+        changedBy: 'HOSTEL OFFICE',
+        changedByRole: 'teacher',
+      },
+      {
+        id: 4,
+        changedAt: '2026-04-02T16:40:00',
+        section: 'basic',
+        fieldKey: 'basicInfo.religion',
+        fieldLabel: 'Religion',
+        oldValue: 'None',
+        newValue: 'Buddhism',
+        changedBy: 'Tan Wei Ming',
+        changedByRole: 'student',
+      },
+    ],
   }),
   sampleStudent({
     studentCategory: 'China',
@@ -1035,6 +1105,41 @@ export const initialStudents = [
           reasonId: 6,
           note: 'Reinstated via appeal on 01.12.2024',
         }),
+      },
+    ],
+    profileChangeLogs: [
+      {
+        id: 1,
+        changedAt: '2025-08-05T11:20:00',
+        section: 'basic',
+        fieldKey: 'basicInfo.passportExpiry',
+        fieldLabel: 'Passport Expiry',
+        oldValue: '31.12.2028',
+        newValue: '31.12.2030',
+        changedBy: 'WANG MEI LING',
+        changedByRole: 'teacher',
+      },
+      {
+        id: 2,
+        changedAt: '2025-09-18T08:50:00',
+        section: 'accommodation',
+        fieldKey: 'accommodation.roomType',
+        fieldLabel: 'Room Type',
+        oldValue: 'Double',
+        newValue: 'Single',
+        changedBy: 'Li Xiu',
+        changedByRole: 'student',
+      },
+      {
+        id: 3,
+        changedAt: '2026-02-10T13:00:00',
+        section: 'accommodation',
+        fieldKey: 'accommodation.blockNo',
+        fieldLabel: 'Block No',
+        oldValue: 'A05',
+        newValue: 'A08',
+        changedBy: 'HOSTEL OFFICE',
+        changedByRole: 'teacher',
       },
     ],
   }),

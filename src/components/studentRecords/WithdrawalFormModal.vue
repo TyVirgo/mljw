@@ -12,6 +12,8 @@ import {
   formatApplicationDateDisplay,
   canResubmitWithdrawal,
   currentWhereaboutOptions,
+  completeFinalAssessmentOptions,
+  getExamWeekLastDay,
 } from '../../data/withdrawals.js'
 import { getReasonOptionsBySourceKey } from '../../data/movementCategories.js'
 import { initialStudents } from '../../data/students.js'
@@ -83,6 +85,12 @@ const lastDateOfAttendancePicker = computed({
     form.value.lastDateOfAttendance = pickerValueToMovementDateIso(value)
   },
 })
+
+function onCompleteFinalAssessmentChange() {
+  if (form.value.completeFinalAssessment !== 'Yes') return
+  const session = form.value.applicationSession || form.value.currentAcademicSession
+  form.value.lastDateOfAttendance = getExamWeekLastDay(session)
+}
 
 const applicantCategory = computed(
   () => form.value.studentCategory || getSelectedStudentCategory(),
@@ -291,7 +299,45 @@ function handleClose() {
             <p v-if="errors.destinationAfterLeaving" class="field-error">{{ tr(errors.destinationAfterLeaving) }}</p>
           </div>
           <div class="form-field">
-            <label>{{ t('withdrawal.fields.lastDateOfAttendance') }} <span class="required">*</span></label>
+            <label>
+              {{ t('withdrawal.fields.completeFinalAssessment') }}
+              <span class="required">*</span>
+              <span
+                class="field-hint-tip-wrap"
+                tabindex="0"
+                :aria-label="t('withdrawal.fields.completeFinalAssessmentHint')"
+              >
+                <span class="field-hint-icon" aria-hidden="true">?</span>
+                <span class="field-hint-tooltip" role="tooltip">
+                  {{ t('withdrawal.fields.completeFinalAssessmentHint') }}
+                </span>
+              </span>
+            </label>
+            <select
+              v-model="form.completeFinalAssessment"
+              :class="['form-control', fieldError('completeFinalAssessment'), { 'is-empty': !form.completeFinalAssessment }]"
+              @change="onCompleteFinalAssessmentChange"
+            >
+              <option value="">{{ t('withdrawal.fields.selectCompleteFinalAssessment') }}</option>
+              <option v-for="opt in completeFinalAssessmentOptions" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+            <p v-if="errors.completeFinalAssessment" class="field-error">{{ tr(errors.completeFinalAssessment) }}</p>
+          </div>
+          <div class="form-field">
+            <label>
+              {{ t('withdrawal.fields.lastDateOfAttendance') }}
+              <span class="required">*</span>
+              <span
+                class="field-hint-tip-wrap"
+                tabindex="0"
+                :aria-label="t('withdrawal.fields.lastDateOfAttendanceHint')"
+              >
+                <span class="field-hint-icon" aria-hidden="true">?</span>
+                <span class="field-hint-tooltip" role="tooltip">
+                  {{ t('withdrawal.fields.lastDateOfAttendanceHint') }}
+                </span>
+              </span>
+            </label>
             <DatePickerEn
               v-model="lastDateOfAttendancePicker"
               :has-error="!!errors.lastDateOfAttendance"
@@ -319,12 +365,23 @@ function handleClose() {
           </div>
         </div>
 
-        <div class="section-bar">{{ t('withdrawal.sections.parentConsent') }}</div>
+        <div class="section-bar section-bar--with-hint">
+          <span>{{ t('withdrawal.sections.parentConsent') }}</span>
+          <span
+            class="field-hint-tip-wrap"
+            tabindex="0"
+            :aria-label="t('movementCommon.parentConsent.fromProfileHint')"
+          >
+            <span class="field-hint-icon" aria-hidden="true">?</span>
+            <span class="field-hint-tooltip" role="tooltip">
+              {{ t('movementCommon.parentConsent.fromProfileHint') }}
+            </span>
+          </span>
+        </div>
         <MovementParentConsentSection
           source-key="withdrawal"
           :contacts="form.parentContacts"
           :errors="errors"
-          @update:contacts="form.parentContacts = $event"
         />
 
         <div class="section-bar">{{ t('withdrawal.sections.documents') }}</div>

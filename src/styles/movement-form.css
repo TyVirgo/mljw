@@ -220,6 +220,12 @@ textarea.form-control {
   margin-top: 4px;
 }
 
+.section-bar.section-bar--with-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .field-hint-tip-wrap {
   position: relative;
   display: inline-flex;

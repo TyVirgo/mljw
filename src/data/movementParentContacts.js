@@ -93,7 +93,10 @@ export function validateParentContacts(contacts, requireField, { mode = 'deferme
     .filter(({ contact }) => !isParentContactEmpty(contact))
 
   if (!active.length) {
-    requireField('parentContacts', 'At least one parent/guardian contact is required.')
+    requireField(
+      'parentContacts',
+      'At least one parent/guardian contact is required in the student profile before submitting.',
+    )
     return
   }
 

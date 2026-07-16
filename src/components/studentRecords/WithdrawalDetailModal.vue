@@ -114,6 +114,7 @@ function visaExpiryDisplay(item) {
         <dl class="detail-grid">
           <div><dt>{{ t('withdrawal.fields.currentWhereabout') }}</dt><dd>{{ item.currentWhereabout || '—' }}</dd></div>
           <div><dt>{{ t('withdrawal.fields.destinationAfterLeaving') }}</dt><dd>{{ item.destinationAfterLeaving || '—' }}</dd></div>
+          <div><dt>{{ t('withdrawal.fields.completeFinalAssessment') }}</dt><dd>{{ item.completeFinalAssessment || '—' }}</dd></div>
           <div><dt>{{ t('withdrawal.fields.lastDateOfAttendance') }}</dt><dd>{{ formatAttendanceDate(item.lastDateOfAttendance) }}</dd></div>
           <div><dt>{{ t('withdrawal.fields.mainReason') }}</dt><dd>{{ getWithdrawalReasonDisplay(item, t) || '—' }}</dd></div>
           <div class="span-2"><dt>{{ t('withdrawal.fields.detailedReason') }}</dt><dd class="multiline">{{ item.detailedReason || '—' }}</dd></div>
