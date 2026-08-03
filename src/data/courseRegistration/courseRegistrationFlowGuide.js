@@ -1,6 +1,6 @@
 /**
  * 选课模块全局流程说明（原型文档页，非业务编排引擎）
- * 内容对齐调研文档第 7–9 次及需求总结第八章
+ * 仅映射菜单已开发页与现行 demo 逻辑
  */
 
 export const semesterPhases = [
@@ -8,7 +8,7 @@ export const semesterPhases = [
     key: 'A',
     labelKey: 'courseRegistration.flowGuide.phases.A.label',
     descKey: 'courseRegistration.flowGuide.phases.A.desc',
-    relatedPageIds: ['cr-batch'],
+    relatedPageIds: ['cr-batch', 'cr-rules'],
   },
   {
     key: 'B',
@@ -20,13 +20,13 @@ export const semesterPhases = [
     key: 'C',
     labelKey: 'courseRegistration.flowGuide.phases.C.label',
     descKey: 'courseRegistration.flowGuide.phases.C.desc',
-    relatedPageIds: ['crs-register', 'cr-monitor'],
+    relatedPageIds: ['crs-register', 'cr-result'],
   },
   {
     key: 'D',
     labelKey: 'courseRegistration.flowGuide.phases.D.label',
     descKey: 'courseRegistration.flowGuide.phases.D.desc',
-    relatedPageIds: ['crs-register', 'cr-monitor'],
+    relatedPageIds: ['crs-register', 'cr-monitor', 'cr-log'],
   },
   {
     key: 'E',
@@ -38,40 +38,23 @@ export const semesterPhases = [
     key: 'F',
     labelKey: 'courseRegistration.flowGuide.phases.F.label',
     descKey: 'courseRegistration.flowGuide.phases.F.desc',
-    relatedPageIds: ['cr-supplement', 'cr-monitor'],
+    relatedPageIds: ['cr-supplement', 'cr-monitor', 'crs-adddrop'],
   },
   {
     key: 'G',
     labelKey: 'courseRegistration.flowGuide.phases.G.label',
     descKey: 'courseRegistration.flowGuide.phases.G.desc',
-    relatedPageIds: ['cr-result', 'crs-result'],
+    relatedPageIds: ['cr-fee-roster'],
   },
   {
     key: 'H',
     labelKey: 'courseRegistration.flowGuide.phases.H.label',
     descKey: 'courseRegistration.flowGuide.phases.H.desc',
-    relatedPageIds: ['cr-monitor'],
-  },
-  {
-    key: 'I',
-    labelKey: 'courseRegistration.flowGuide.phases.I.label',
-    descKey: 'courseRegistration.flowGuide.phases.I.desc',
-    relatedPageIds: ['crs-register'],
-  },
-  {
-    key: 'J',
-    labelKey: 'courseRegistration.flowGuide.phases.J.label',
-    descKey: 'courseRegistration.flowGuide.phases.J.desc',
-    relatedPageIds: [],
-  },
-  {
-    key: 'K',
-    labelKey: 'courseRegistration.flowGuide.phases.K.label',
-    descKey: 'courseRegistration.flowGuide.phases.K.desc',
-    relatedPageIds: ['cr-result'],
+    relatedPageIds: ['cr-result', 'crs-result', 'cr-log', 'cr-monitor'],
   },
 ]
 
+/** 管理端：与 courseRegistrationMenu 已开发页一致 */
 export const adminFlowNodes = [
   {
     pageId: 'cr-batch',
@@ -81,42 +64,64 @@ export const adminFlowNodes = [
     phaseKeys: ['A', 'B'],
   },
   {
-    pageId: 'cr-monitor',
+    pageId: 'cr-rules',
     order: 2,
+    menuKey: 'menu.crRules',
+    descKey: 'courseRegistration.flowGuide.nodes.crRules',
+    phaseKeys: ['A'],
+  },
+  {
+    pageId: 'cr-monitor',
+    order: 3,
     menuKey: 'menu.crMonitor',
     descKey: 'courseRegistration.flowGuide.nodes.crMonitor',
-    phaseKeys: ['C', 'D', 'H'],
+    phaseKeys: ['D', 'F', 'H'],
   },
   {
     pageId: 'cr-approval',
-    order: 3,
+    order: 4,
     menuKey: 'menu.crApproval',
     descKey: 'courseRegistration.flowGuide.nodes.crApproval',
     phaseKeys: ['E'],
   },
   {
+    pageId: 'cr-fee-roster',
+    order: 5,
+    menuKey: 'menu.crFeeRoster',
+    descKey: 'courseRegistration.flowGuide.nodes.crFeeRoster',
+    phaseKeys: ['G'],
+  },
+  {
     pageId: 'cr-supplement',
-    order: 4,
+    order: 6,
     menuKey: 'menu.crSupplement',
     descKey: 'courseRegistration.flowGuide.nodes.crSupplement',
     phaseKeys: ['F'],
   },
   {
     pageId: 'cr-result',
-    order: 5,
+    order: 7,
     menuKey: 'menu.crResult',
     descKey: 'courseRegistration.flowGuide.nodes.crResult',
-    phaseKeys: ['G', 'K'],
+    phaseKeys: ['C', 'H'],
+  },
+  {
+    pageId: 'cr-log',
+    order: 8,
+    menuKey: 'menu.crLog',
+    descKey: 'courseRegistration.flowGuide.nodes.crLog',
+    phaseKeys: ['D', 'H'],
   },
 ]
 
+/** 学生端：与菜单已开发页一致 */
 export const studentFlowNodes = [
   {
     pageId: 'crs-register',
     order: 1,
     menuKey: 'menu.crsRegister',
     descKey: 'courseRegistration.flowGuide.nodes.crsRegister',
-    phaseKeys: ['B', 'C', 'D', 'I'],
+    phaseKeys: ['B', 'C', 'D'],
     badges: ['prerequisite', 'scope', 'enrollment'],
   },
   {
@@ -124,14 +129,14 @@ export const studentFlowNodes = [
     order: 2,
     menuKey: 'menu.crsResult',
     descKey: 'courseRegistration.flowGuide.nodes.crsResult',
-    phaseKeys: ['G'],
+    phaseKeys: ['H'],
   },
   {
     pageId: 'crs-adddrop',
     order: 3,
     menuKey: 'menu.crsAddDrop',
     descKey: 'courseRegistration.flowGuide.nodes.crsAddDrop',
-    phaseKeys: ['E'],
+    phaseKeys: ['E', 'F'],
   },
 ]
 
@@ -171,6 +176,13 @@ export const crossLinks = [
     fromPageId: 'cr-result',
     toPageId: 'crs-result',
   },
+  {
+    fromKey: 'menu.crMonitor',
+    toKey: 'menu.crFeeRoster',
+    descKey: 'courseRegistration.flowGuide.links.monitorToFeeRoster',
+    fromPageId: 'cr-monitor',
+    toPageId: 'cr-fee-roster',
+  },
 ]
 
 export const sequenceConstraints = [
@@ -181,7 +193,6 @@ export const sequenceConstraints = [
   'courseRegistration.flowGuide.constraints.c5',
   'courseRegistration.flowGuide.constraints.c6',
   'courseRegistration.flowGuide.constraints.c7',
-  'courseRegistration.flowGuide.constraints.c8',
 ]
 
 export const dimensionBadges = {

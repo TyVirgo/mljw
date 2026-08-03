@@ -6,6 +6,7 @@ import { ref, computed, watch } from 'vue'
 import TablePagination from '../common/TablePagination.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { formatIntakeBatch } from '../../data/intakeSets.js'
+import { getBatchById } from '../../data/courseRegistration/registrationBatches.js'
 import {
   listTargetCourseSectionOptions,
   listAdminAddStudentCandidates,
@@ -49,13 +50,21 @@ const paginatedRows = computed(() => {
   return filteredRows.value.slice(start, start + pageSize.value)
 })
 
-/** 当前批次下未满员教学分组选项 */
+/** 当前批次下未满员教学分组选项（批次取页顶只读） */
 const sectionOptions = computed(() =>
   listTargetCourseSectionOptions('', {
     batchId: props.batchId || '',
     onlyAvailable: true,
   }),
 )
+
+/** 页顶批次只读展示名 */
+const batchDisplayName = computed(() => {
+  const id = String(props.batchId || '').trim()
+  if (!id) return '—'
+  const batch = getBatchById(id)
+  return batch?.name || id
+})
 
 watch(
   () => [props.visible, props.batchId],
@@ -69,6 +78,14 @@ watch(
     pageSize.value = 10
     filtersExpanded.value = false
     errorKey.value = ''
+  },
+)
+
+/** 批次变更时清空已选课程班（页顶切换后重新打开也会走 reset） */
+watch(
+  () => props.batchId,
+  () => {
+    targetValue.value = ''
   },
 )
 
@@ -156,17 +173,28 @@ function handleConfirm() {
         </div>
 
         <div class="add-reg-body">
-          <div class="form-field">
-            <label>{{ t('courseRegistration.result.targetSection') }}</label>
-            <select v-model="targetValue" class="search-select form-select">
-              <option value="">{{ t('common.pleaseSelect') }}</option>
-              <option v-for="opt in sectionOptions" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </option>
-            </select>
-            <p v-if="!sectionOptions.length" class="field-hint">
-              {{ t('courseRegistration.result.addNoAvailableSection') }}
-            </p>
+          <!-- 先确认页顶批次（只读），再选该批次下课×分组 -->
+          <div class="target-block">
+            <div class="search-item target-item">
+              <label>{{ t('courseRegistration.batch.name') }}</label>
+              <div class="readonly-field" :title="batchDisplayName">{{ batchDisplayName }}</div>
+            </div>
+            <div class="search-item target-item">
+              <label>{{ t('courseRegistration.result.targetSection') }}</label>
+              <select
+                v-model="targetValue"
+                class="search-select"
+                :disabled="!batchId || !sectionOptions.length"
+              >
+                <option value="">{{ t('common.pleaseSelect') }}</option>
+                <option v-for="opt in sectionOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+              <p v-if="batchId && !sectionOptions.length" class="field-hint">
+                {{ t('courseRegistration.result.addNoAvailableSection') }}
+              </p>
+            </div>
           </div>
 
           <div class="search-bar add-reg-search">
@@ -354,12 +382,68 @@ function handleConfirm() {
   font-weight: 500;
 }
 
-.form-select {
-  max-width: 100%;
+.target-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.target-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  max-width: none;
+  width: 100%;
+}
+
+.target-item label {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.target-item .search-select {
+  width: 100%;
+  max-width: none;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 13px;
+  color: #111827;
+}
+
+.target-item .search-select:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.readonly-field {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .field-hint {
-  margin: 0;
+  margin: 4px 0 0;
   font-size: 12px;
   color: #6b7280;
 }
@@ -426,6 +510,32 @@ function handleConfirm() {
   padding: 12px 20px;
   border-top: 1px solid #e5e7eb;
   background: #fafafa;
+}
+
+/* 页脚按钮：不在 search-bar 内，需自带样式 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.btn-default {
+  background: #fff;
+  border-color: #d1d5db;
+  color: #374151;
 }
 
 .link-btn {
