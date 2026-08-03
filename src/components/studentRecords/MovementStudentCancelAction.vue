@@ -2,8 +2,15 @@
 import { ref } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 
-defineProps({
+const props = defineProps({
   visible: { type: Boolean, default: true },
+  actionKey: { type: String, default: 'movementStudentCancel.action' },
+  tooltipTitleKey: { type: String, default: 'movementStudentCancel.tooltipTitle' },
+  /** 若提供，则用单段说明替代三条列表（加退课等简短 tip） */
+  tooltipBodyKey: { type: String, default: '' },
+  tooltipItem1Key: { type: String, default: 'movementStudentCancel.tooltipItem1' },
+  tooltipItem2Key: { type: String, default: 'movementStudentCancel.tooltipItem2' },
+  tooltipItem3Key: { type: String, default: 'movementStudentCancel.tooltipItem3' },
 })
 
 const emit = defineEmits(['cancel'])
@@ -33,12 +40,12 @@ function hideTooltip() {
   <span v-if="visible" class="movement-student-cancel">
     <span class="movement-student-cancel__trigger">
       <button type="button" class="link-btn" @click="emit('cancel')">
-        {{ t('movementStudentCancel.action') }}
+        {{ t(actionKey) }}
       </button>
       <span
         class="movement-student-cancel__tip-wrap"
         tabindex="0"
-        :aria-label="t('movementStudentCancel.tooltipTitle')"
+        :aria-label="t(tooltipTitleKey)"
         @mouseenter="showTooltip"
         @mouseleave="hideTooltip"
         @focusin="showTooltip"
@@ -54,11 +61,14 @@ function hideTooltip() {
         role="tooltip"
         :style="tooltipStyle"
       >
-        <p class="movement-student-cancel__tooltip-title">{{ t('movementStudentCancel.tooltipTitle') }}</p>
-        <ul>
-          <li>{{ t('movementStudentCancel.tooltipItem1') }}</li>
-          <li>{{ t('movementStudentCancel.tooltipItem2') }}</li>
-          <li>{{ t('movementStudentCancel.tooltipItem3') }}</li>
+        <p class="movement-student-cancel__tooltip-title">{{ t(tooltipTitleKey) }}</p>
+        <p v-if="tooltipBodyKey" class="movement-student-cancel__tooltip-body">
+          {{ t(tooltipBodyKey) }}
+        </p>
+        <ul v-else>
+          <li>{{ t(tooltipItem1Key) }}</li>
+          <li>{{ t(tooltipItem2Key) }}</li>
+          <li>{{ t(tooltipItem3Key) }}</li>
         </ul>
       </div>
     </Teleport>
@@ -123,6 +133,10 @@ function hideTooltip() {
   margin: 0 0 6px;
   font-weight: 600;
   color: #111827;
+}
+
+.movement-student-cancel__tooltip-body {
+  margin: 0;
 }
 
 .movement-student-cancel__tooltip ul {

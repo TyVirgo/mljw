@@ -8,12 +8,15 @@ import {
   attachmentErrorKey,
   validateMovementAttachmentFile,
   normalizeMovementAttachments,
+  normalizeOtherDocuments,
 } from '../../data/movementAttachments.js'
 import '../../styles/movement-form.css'
 
 const props = defineProps({
   sourceKey: { type: String, required: true },
   studentCategory: { type: String, default: '' },
+  /** 国籍：休学按马/中/其他切换附件清单 */
+  nationality: { type: String, default: '' },
   attachments: { type: Object, required: true },
   errors: { type: Object, default: () => ({}) },
 })
@@ -26,29 +29,37 @@ const fileInputRefs = ref({})
 const pendingLocalFiles = ref({})
 
 const documentFields = computed(() =>
-  getMovementDocumentFields(props.sourceKey, props.studentCategory),
+  getMovementDocumentFields(props.sourceKey, props.studentCategory, props.nationality),
 )
 
 const hintKey = computed(() => getMovementAttachmentHintKey(props.sourceKey))
 
-const normalizedAttachments = computed(() => normalizeMovementAttachments({ attachments: props.attachments }))
+const normalizedAttachments = computed(() =>
+  normalizeMovementAttachments({ attachments: props.attachments }),
+)
 
 watch(
-  () => props.studentCategory,
+  () => [props.studentCategory, props.nationality],
   () => {
     pendingLocalFiles.value = {}
   },
 )
 
-function fieldError(key) {
-  return props.errors[attachmentErrorKey(key)] ? 'error' : ''
-}
+// 原 fieldError 用于控件 error class；当前上传行未绑定 class，保留逻辑备查
+// function fieldError(key) {
+//   return props.errors[attachmentErrorKey(key)] ? 'error' : ''
+// }
 
 function errorMessage(key) {
   const msg = props.errors[attachmentErrorKey(key)]
   return msg ? tr(msg) : ''
 }
 
+/**
+ * 写回整个 attachments 对象
+ * @param {string} key 槽位键
+ * @param {unknown} value 槽位值
+ */
 function setAttachment(key, value) {
   emit('update:attachments', {
     ...normalizedAttachments.value,
@@ -56,6 +67,11 @@ function setAttachment(key, value) {
   })
 }
 
+/**
+ * 单文件槽位变更
+ * @param {string} key 槽位键
+ * @param {Event} event input change
+ */
 function onFileChange(key, event) {
   const file = event.target.files?.[0]
   if (!file) {
@@ -73,12 +89,69 @@ function onFileChange(key, event) {
   setAttachment(key, result.meta)
 }
 
+/**
+ * 多文件槽位（otherDocuments）某一行变更
+ * @param {number} index 行下标
+ * @param {Event} event input change
+ */
+function onMultiFileChange(index, event) {
+  const pendingKey = `otherDocuments:${index}`
+  const file = event.target.files?.[0]
+  const list = normalizeOtherDocuments(normalizedAttachments.value.otherDocuments)
+  if (!file) {
+    pendingLocalFiles.value = { ...pendingLocalFiles.value, [pendingKey]: null }
+    list[index] = null
+    setAttachment('otherDocuments', list)
+    return
+  }
+  const result = validateMovementAttachmentFile(file)
+  if (!result.valid) {
+    pendingLocalFiles.value = { ...pendingLocalFiles.value, [pendingKey]: null }
+    list[index] = null
+    setAttachment('otherDocuments', list)
+    return
+  }
+  pendingLocalFiles.value = { ...pendingLocalFiles.value, [pendingKey]: file }
+  list[index] = result.meta
+  setAttachment('otherDocuments', list)
+}
+
+/** Other Documents 增加一行空上传 */
+function addOtherDocumentSlot() {
+  const list = normalizeOtherDocuments(normalizedAttachments.value.otherDocuments)
+  list.push(null)
+  setAttachment('otherDocuments', list)
+}
+
+/**
+ * 删除 Other Documents 第 index 行（仅 index>=1；至少保留一行）
+ * @param {number} index 行下标
+ */
+function removeOtherDocumentSlot(index) {
+  if (index < 1) return
+  const list = normalizeOtherDocuments(normalizedAttachments.value.otherDocuments)
+  if (list.length <= 1) return
+  list.splice(index, 1)
+  // 清理被删行及后续行的 pending 本地文件映射
+  const nextPending = { ...pendingLocalFiles.value }
+  Object.keys(nextPending).forEach((key) => {
+    if (key.startsWith('otherDocuments:')) delete nextPending[key]
+  })
+  pendingLocalFiles.value = nextPending
+  setAttachment('otherDocuments', normalizeOtherDocuments(list, 1))
+}
+
 function triggerFileInput(key) {
   fileInputRefs.value[key]?.click()
 }
 
 function setFileInputRef(key, el) {
   if (el) fileInputRefs.value[key] = el
+}
+
+/** 多文件某行的本地 File，供预览 */
+function multiPendingFile(index) {
+  return pendingLocalFiles.value[`otherDocuments:${index}`] || null
 }
 </script>
 
@@ -108,34 +181,93 @@ function setFileInputRef(key, el) {
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
         </button>
-      </div>
-      <div class="file-row">
-        <button type="button" class="btn btn-default" @click="triggerFileInput(field.key)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="17 8 12 3 7 8" />
-            <line x1="12" y1="3" x2="12" y2="15" />
-          </svg>
-          {{ t('movementDocuments.selectFile') }}
+        <!-- Other Documents：右侧 Add More Files -->
+        <button
+          v-else-if="field.multi"
+          type="button"
+          class="btn btn-outline consent-btn"
+          @click="addOtherDocumentSlot"
+        >
+          {{ t('movementDocuments.addMoreFiles') }}
         </button>
-        <AttachmentPreviewTrigger
-          v-if="normalizedAttachments[field.key]?.fileName"
-          :file-name="normalizedAttachments[field.key].fileName"
-          :file-meta="normalizedAttachments[field.key]"
-          :local-file="pendingLocalFiles[field.key]"
-          :show-file-icon="false"
-        />
-        <span v-else class="file-name">{{ t('movementDocuments.noFileSelected') }}</span>
-        <input
-          :ref="(el) => setFileInputRef(field.key, el)"
-          type="file"
-          class="hidden-file"
-          accept=".pdf,.jpg,.jpeg,.png,.docx"
-          @change="onFileChange(field.key, $event)"
-        />
       </div>
+
+      <!-- 多附件：默认一行，可继续添加；第 2 行起可关闭 -->
+      <template v-if="field.multi">
+        <div
+          v-for="(slot, index) in normalizedAttachments.otherDocuments"
+          :key="`other-${index}`"
+          class="file-row"
+          :class="{ 'file-row--multi': index > 0 }"
+        >
+          <button type="button" class="btn btn-default" @click="triggerFileInput(`otherDocuments:${index}`)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            {{ t('movementDocuments.selectFile') }}
+          </button>
+          <AttachmentPreviewTrigger
+            v-if="slot?.fileName"
+            :file-name="slot.fileName"
+            :file-meta="slot"
+            :local-file="multiPendingFile(index)"
+            :show-file-icon="false"
+          />
+          <span v-else class="file-name">{{ t('movementDocuments.noFileSelected') }}</span>
+          <!-- 第 2 行及以后：关闭小按钮 -->
+          <button
+            v-if="index > 0"
+            type="button"
+            class="btn-remove-slot"
+            :aria-label="t('common.close')"
+            :title="t('common.close')"
+            @click="removeOtherDocumentSlot(index)"
+          >
+            ×
+          </button>
+          <input
+            :ref="(el) => setFileInputRef(`otherDocuments:${index}`, el)"
+            type="file"
+            class="hidden-file"
+            accept=".pdf,.jpg,.jpeg,.png,.docx"
+            @change="onMultiFileChange(index, $event)"
+          />
+        </div>
+      </template>
+
+      <!-- 单附件槽位（保持既有自定义选择按钮，不改成原生 file 外观） -->
+      <template v-else>
+        <div class="file-row">
+          <button type="button" class="btn btn-default" @click="triggerFileInput(field.key)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            {{ t('movementDocuments.selectFile') }}
+          </button>
+          <AttachmentPreviewTrigger
+            v-if="normalizedAttachments[field.key]?.fileName"
+            :file-name="normalizedAttachments[field.key].fileName"
+            :file-meta="normalizedAttachments[field.key]"
+            :local-file="pendingLocalFiles[field.key]"
+            :show-file-icon="false"
+          />
+          <span v-else class="file-name">{{ t('movementDocuments.noFileSelected') }}</span>
+          <input
+            :ref="(el) => setFileInputRef(field.key, el)"
+            type="file"
+            class="hidden-file"
+            accept=".pdf,.jpg,.jpeg,.png,.docx"
+            @change="onFileChange(field.key, $event)"
+          />
+        </div>
+      </template>
+
       <p class="hint-text movement-documents-upload__format-hint">{{ t(hintKey) }}</p>
-      <p v-if="errorMessage(field.key)" class="field-error">{{ errorMessage(field.key) }}</p>
+      <p v-if="!field.multi && errorMessage(field.key)" class="field-error">{{ errorMessage(field.key) }}</p>
     </div>
   </div>
 </template>
@@ -213,6 +345,32 @@ function setFileInputRef(key, el) {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.file-row--multi {
+  margin-top: 10px;
+}
+
+/* Other Documents 第 2 行起的关闭小按钮 */
+.btn-remove-slot {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #6b7280;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.btn-remove-slot:hover {
+  color: #ef4444;
+  border-color: #fca5a5;
+  background: #fef2f2;
 }
 
 .file-name {

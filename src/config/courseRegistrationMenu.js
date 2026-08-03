@@ -8,24 +8,14 @@ export const courseRegistrationModuleKey = 'menu.courseRegistration'
 
 export const courseRegistrationMenuItems = [
   {
-    id: 'cr-guide-group',
-    labelKey: 'menu.crGuideGroup',
-    icon: 'book',
-    children: [
-      { id: 'cr-flow-guide', labelKey: 'menu.crFlowGuide' },
-    ],
-  },
-  {
     id: 'cr-student-group',
     labelKey: 'menu.crStudentGroup',
     icon: 'user',
     audience: 'student',
     children: [
       { id: 'crs-register', labelKey: 'menu.crsRegister', audience: 'student' },
-      { id: 'crs-schedule', labelKey: 'menu.crsSchedule', audience: 'student' },
-      { id: 'crs-adddrop', labelKey: 'menu.crsAddDrop', audience: 'student' },
-      { id: 'crs-waitlist', labelKey: 'menu.crsWaitlist', audience: 'student' },
       { id: 'crs-result', labelKey: 'menu.crsResult', audience: 'student' },
+      { id: 'crs-adddrop', labelKey: 'menu.crsAddDrop', audience: 'student' },
     ],
   },
   {
@@ -35,6 +25,7 @@ export const courseRegistrationMenuItems = [
     audience: 'admin',
     children: [
       { id: 'cr-batch', labelKey: 'menu.crBatch', audience: 'admin' },
+      { id: 'cr-rules', labelKey: 'menu.crRules', audience: 'admin' },
     ],
   },
   {
@@ -44,9 +35,9 @@ export const courseRegistrationMenuItems = [
     audience: 'admin',
     children: [
       { id: 'cr-monitor', labelKey: 'menu.crMonitor', audience: 'admin' },
-      { id: 'cr-supplement', labelKey: 'menu.crSupplement', audience: 'admin' },
       { id: 'cr-approval', labelKey: 'menu.crApproval', audience: 'admin' },
-      { id: 'cr-waitlist', labelKey: 'menu.crWaitlist', audience: 'admin' },
+      { id: 'cr-fee-roster', labelKey: 'menu.crFeeRoster', audience: 'admin' },
+      { id: 'cr-supplement', labelKey: 'menu.crSupplement', audience: 'admin' },
     ],
   },
   {
@@ -56,17 +47,16 @@ export const courseRegistrationMenuItems = [
     audience: 'admin',
     children: [
       { id: 'cr-result', labelKey: 'menu.crResult', audience: 'admin' },
-      { id: 'cr-alert', labelKey: 'menu.crAlert', audience: 'admin' },
+      { id: 'cr-log', labelKey: 'menu.crLog', audience: 'admin' },
     ],
   },
   {
-    id: 'cr-governance-group',
-    labelKey: 'menu.crGovernanceGroup',
-    icon: 'grid',
-    audience: 'admin',
+    id: 'cr-guide-group',
+    labelKey: 'menu.crGuideGroup',
+    labelHintKey: 'menu.crGuideGroupHint',
+    icon: 'book',
     children: [
-      { id: 'cr-whitelist', labelKey: 'menu.crWhitelist', audience: 'admin' },
-      { id: 'cr-report', labelKey: 'menu.crReport', audience: 'admin' },
+      { id: 'cr-flow-guide', labelKey: 'menu.crFlowGuide' },
     ],
   },
 ]
@@ -74,18 +64,15 @@ export const courseRegistrationMenuItems = [
 export const courseRegistrationDevelopedPages = new Set([
   'cr-flow-guide',
   'cr-batch',
+  'cr-rules',
   'cr-monitor',
   'cr-approval',
   'cr-supplement',
   'cr-result',
-  'cr-alert',
-  'cr-waitlist',
-  'cr-whitelist',
-  'cr-report',
+  'cr-log',
+  'cr-fee-roster',
   'crs-register',
-  'crs-schedule',
   'crs-adddrop',
-  'crs-waitlist',
   'crs-result',
 ])
 

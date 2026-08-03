@@ -15,7 +15,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'search', 'reset'])
 
 const { t } = useAppI18n()
-const searchExpanded = ref(false)
+const searchExpanded = ref(true)
 
 function updateField(key, value) {
   emit('update:modelValue', { ...props.modelValue, [key]: value })

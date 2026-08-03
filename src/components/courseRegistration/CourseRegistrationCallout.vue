@@ -11,9 +11,8 @@ defineProps({
 <template>
   <div class="cr-callout" :class="`cr-callout--${variant}`">
     <span class="cr-callout__icon" aria-hidden="true">
-      <template v-if="variant === 'warning'">!</template>
-      <template v-else-if="variant === 'rule'">§</template>
-      <template v-else>i</template>
+      <template v-if="variant === 'info'">i</template>
+      <template v-else>!</template>
     </span>
     <div class="cr-callout__body">
       <slot />
@@ -46,9 +45,9 @@ defineProps({
 }
 
 .cr-callout--rule {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #334155;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
 }
 
 .cr-callout__icon {
@@ -75,7 +74,7 @@ defineProps({
 }
 
 .cr-callout--rule .cr-callout__icon {
-  background: #64748b;
+  background: #2563eb;
   color: #fff;
 }
 

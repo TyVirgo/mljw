@@ -30,6 +30,7 @@ const programmeCodeFilter = ref('')
 const selectedProgrammeIds = ref([])
 const intake = ref('')
 const startingSemester = ref('')
+const plannedEnrollment = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const errors = ref({})
@@ -75,6 +76,7 @@ watch(
     selectedProgrammeIds.value = []
     intake.value = ''
     startingSemester.value = ''
+    plannedEnrollment.value = ''
     currentPage.value = 1
     pageSize.value = 10
     errors.value = {}
@@ -137,6 +139,7 @@ function handleConfirm() {
     selectedProgrammeIds: selectedProgrammeIds.value,
     intake: intake.value,
     startingSemester: startingSemester.value,
+    plannedEnrollment: plannedEnrollment.value,
   })
   errors.value = validationErrors
   if (Object.keys(validationErrors).length) return
@@ -146,6 +149,7 @@ function handleConfirm() {
     selectedProgrammes,
     intake.value,
     startingSemester.value,
+    plannedEnrollment.value,
     props.allItems,
   )
 
@@ -274,14 +278,30 @@ function handleOverlayClick(event) {
 
           <div class="bottom-form">
             <div class="bottom-form-fields">
-              <div class="form-field">
-                <label class="form-label"><span class="required">*</span> Intake:</label>
-                <div class="form-field-control">
-                  <select v-model="intake" class="form-input" :class="{ error: errors.intake, 'is-empty': !intake }">
-                    <option value="">{{ t('common.pleaseSelect') }}</option>
-                    <option v-for="opt in activeIntakeOptions" :key="opt" :value="opt">{{ opt }}</option>
-                  </select>
-                  <p v-if="errors.intake" class="field-error">{{ errors.intake }}</p>
+              <div class="form-field-col">
+                <div class="form-field">
+                  <label class="form-label"><span class="required">*</span> Intake:</label>
+                  <div class="form-field-control">
+                    <select v-model="intake" class="form-input" :class="{ error: errors.intake, 'is-empty': !intake }">
+                      <option value="">{{ t('common.pleaseSelect') }}</option>
+                      <option v-for="opt in activeIntakeOptions" :key="opt" :value="opt">{{ opt }}</option>
+                    </select>
+                    <p v-if="errors.intake" class="field-error">{{ errors.intake }}</p>
+                  </div>
+                </div>
+
+                <div class="form-field">
+                  <label class="form-label"><span class="required">*</span> {{ tr('Planned Enrollment:') }}</label>
+                  <div class="form-field-control">
+                    <input
+                      v-model="plannedEnrollment"
+                      type="number"
+                      class="form-input"
+                      :class="{ error: errors.plannedEnrollment, 'is-empty': plannedEnrollment === '' }"
+                      :placeholder="t('common.pleaseInput')"
+                    />
+                    <p v-if="errors.plannedEnrollment" class="field-error">{{ tr(errors.plannedEnrollment) }}</p>
+                  </div>
                 </div>
               </div>
 
@@ -477,12 +497,26 @@ function handleOverlayClick(event) {
   gap: 12px 32px;
 }
 
+.form-field-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-width: 320px;
+}
+
 .form-field {
   display: flex;
   align-items: flex-start;
   gap: 12px;
   flex: 1;
   min-width: 320px;
+}
+
+.form-field-col .form-field {
+  flex: none;
+  min-width: 0;
+  width: 100%;
 }
 
 .form-field .form-label {

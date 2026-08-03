@@ -1,104 +1,65 @@
 import { ref } from 'vue'
 
-export const supplementListTypes = [
-  'supplement',
-  'supplementDrop',
-  'retake',
-  'resumption',
-  'graduateSpecial',
-]
+/** 本期仅保留单一「补注册」开门名单 */
+export const supplementListTypes = ['supplement']
 
 const initialSupplementList = [
   {
     id: 'sup-001',
-    studentId: 'AIT2409010',
-    studentName: 'Siti Nurhaliza',
-    programme: 'AIT',
-    intake: '2409',
-    listType: 'resumption',
+    studentId: 'COS2504015',
+    studentName: 'Tan Mei Ling',
+    programme: 'COS',
+    intake: '2025/04',
+    listType: 'supplement',
     canAdd: true,
     canDrop: true,
     canRetake: true,
     bypassCreditMax: false,
     bypassPrerequisite: false,
-    addedAt: '28-Aug-2025',
-    addedBy: 'AC AIT',
-    source: 'batch-auto',
-    remark: '复学自动纳入',
-  },
-  {
-    id: 'sup-002',
-    studentId: 'COS2504015',
-    studentName: 'Tan Mei Ling',
-    programme: 'COS',
-    intake: '2504',
-    listType: 'supplement',
-    canAdd: true,
-    canDrop: false,
-    canRetake: false,
-    bypassCreditMax: false,
-    bypassPrerequisite: false,
     addedAt: '10-Sep-2025',
     addedBy: 'AC COS',
-    source: 'academic-alert',
+    source: 'registration-monitor',
     remark: '未选课补注册',
   },
   {
-    id: 'sup-003',
+    id: 'sup-002',
     studentId: 'DSA2504002',
     studentName: 'Lee Wei Ming',
     programme: 'DSA',
-    intake: '2504',
-    listType: 'supplementDrop',
-    canAdd: false,
+    intake: '2025/04',
+    listType: 'supplement',
+    canAdd: true,
     canDrop: true,
-    canRetake: false,
+    canRetake: true,
     bypassCreditMax: false,
     bypassPrerequisite: false,
     addedAt: '09-Sep-2025',
     addedBy: 'AC DSA',
     source: 'manual',
-    remark: '补退课窗口',
+    remark: '学分不足，开放加退课申请',
   },
   {
-    id: 'sup-004',
-    studentId: 'COS2409005',
-    studentName: 'Wong Kah Wai',
-    programme: 'COS',
-    intake: '2409',
-    listType: 'retake',
-    canAdd: false,
-    canDrop: false,
-    canRetake: true,
-    bypassCreditMax: false,
-    bypassPrerequisite: false,
-    addedAt: '08-Sep-2025',
-    addedBy: 'AC COS',
-    source: 'manual',
-    remark: '重修 COMP201 F',
-  },
-  {
-    id: 'sup-005',
-    studentId: 'DSA2409012',
-    studentName: 'Nurul Aina',
-    programme: 'DSA',
-    intake: '2409',
-    listType: 'graduateSpecial',
+    id: 'sup-003',
+    studentId: 'XMUM2309001',
+    studentName: 'Tan Wei Ming',
+    programme: 'SWE',
+    intake: '2023/09',
+    listType: 'supplement',
     canAdd: true,
     canDrop: true,
     canRetake: true,
-    bypassCreditMax: true,
-    bypassPrerequisite: true,
-    addedAt: '07-Sep-2025',
-    addedBy: 'AC DSA',
+    bypassCreditMax: false,
+    bypassPrerequisite: false,
+    addedAt: '12-Sep-2025',
+    addedBy: 'AC Demo',
     source: 'manual',
-    remark: '毕业生特殊审批',
+    remark: '演示学生：窗口外也可申请',
   },
 ]
 
 export const supplementListQueue = ref(initialSupplementList.map((item) => ({ ...item })))
 
-let supplementSeq = 6
+let supplementSeq = 4
 
 export function createSupplementId() {
   return `sup-${String(supplementSeq++).padStart(3, '0')}`
@@ -106,6 +67,10 @@ export function createSupplementId() {
 
 export function isStudentInSupplementList(studentId) {
   return supplementListQueue.value.some((item) => item.studentId === studentId)
+}
+
+export function getSupplementEntry(studentId) {
+  return supplementListQueue.value.find((item) => item.studentId === studentId) || null
 }
 
 export function addStudentToSupplementList(student, options = {}) {
@@ -119,12 +84,12 @@ export function addStudentToSupplementList(student, options = {}) {
     studentName: student.studentName,
     programme: student.programme,
     intake: student.intake,
-    listType: options.listType || 'supplement',
+    listType: 'supplement',
     canAdd: options.canAdd ?? true,
     canDrop: options.canDrop ?? true,
     canRetake: options.canRetake ?? true,
-    bypassCreditMax: options.bypassCreditMax ?? false,
-    bypassPrerequisite: options.bypassPrerequisite ?? false,
+    bypassCreditMax: false,
+    bypassPrerequisite: false,
     addedAt: new Date().toISOString().slice(0, 10),
     addedBy: options.addedBy || 'AC Demo',
     source: options.source || 'manual',
@@ -143,7 +108,6 @@ export function removeSupplementEntry(id) {
 
 export function filterSupplementList(rows, filters = {}) {
   let list = [...rows]
-  if (filters.listType) list = list.filter((r) => r.listType === filters.listType)
   if (filters.programme) {
     list = list.filter((r) => r.programme.toLowerCase().includes(filters.programme.toLowerCase()))
   }
@@ -159,6 +123,7 @@ export function filterSupplementList(rows, filters = {}) {
 export function updateSupplementEntry(id, patch) {
   const index = supplementListQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
-  supplementListQueue.value[index] = { ...supplementListQueue.value[index], ...patch }
-  return { ok: true, item: supplementListQueue.value[index] }
+  const next = { ...supplementListQueue.value[index], ...patch, listType: 'supplement' }
+  supplementListQueue.value[index] = next
+  return { ok: true, item: next }
 }

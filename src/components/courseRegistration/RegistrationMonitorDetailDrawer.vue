@@ -4,7 +4,7 @@ import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
 import CreditProgressRing from './CreditProgressRing.vue'
 import WeekScheduleGrid from './WeekScheduleGrid.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { runRegistrationQueue } from '../../composables/useRegistrationQueue.js'
+import { formatIntakeBatch } from '../../data/intakeSets.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -17,9 +17,11 @@ const emit = defineEmits(['close', 'add-supplement'])
 const { t } = useAppI18n()
 
 const title = computed(() => props.row?.studentName || '')
-const subtitle = computed(() =>
-  props.row ? `${props.row.studentId} · ${props.row.programme}/${props.row.intake}` : '',
-)
+const subtitle = computed(() => {
+  if (!props.row) return ''
+  const intake = formatIntakeBatch(props.row.intake) || props.row.intake
+  return `${props.row.studentId} · ${props.row.programme}/${intake}`
+})
 
 const g1Bars = computed(() => {
   if (!props.row?.g1Progress) return []
@@ -29,38 +31,6 @@ const g1Bars = computed(() => {
     { key: 'business', current: business, required: required.business },
   ]
 })
-
-const pendingCourse = computed(() => {
-  const schedule = props.row?.schedule || []
-  const slot = schedule[0]
-  if (!slot) return { courseCode: 'COMP3192', courseName: 'Advanced Programming', section: '01', credits: 3 }
-  return {
-    courseCode: slot.course,
-    courseName: slot.course,
-    section: '01',
-    credits: 3,
-  }
-})
-
-async function handleSimulateSubmit() {
-  if (!props.row) return
-  try {
-    await runRegistrationQueue({
-      studentId: props.row.studentId,
-      studentName: props.row.studentName,
-      programme: props.row.programme,
-      intake: props.row.intake,
-      courseCode: pendingCourse.value.courseCode,
-      courseName: pendingCourse.value.courseName,
-      section: pendingCourse.value.section,
-      credits: pendingCourse.value.credits,
-      batchName: '2504 ME Course Registration',
-    }, { showSuccess: false })
-    window.alert(t('courseRegistration.queue.success'))
-  } catch {
-    // cancelled
-  }
-}
 </script>
 
 <template>
@@ -116,9 +86,6 @@ async function handleSimulateSubmit() {
     </template>
 
     <template #footer>
-      <button type="button" class="btn btn-primary" @click="handleSimulateSubmit">
-        {{ t('courseRegistration.queue.simulateSubmit') }}
-      </button>
       <button
         type="button"
         class="btn btn-outline"

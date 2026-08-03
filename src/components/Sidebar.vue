@@ -98,8 +98,9 @@ function isChildActive(item) {
                 <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
               </svg>
             </span>
-            <span class="nav-label">
-              {{ t(item.labelKey) }}
+            <span class="nav-label" :class="{ 'nav-label--stacked': item.labelHintKey }">
+              <span class="nav-label-main">{{ t(item.labelKey) }}</span>
+              <span v-if="item.labelHintKey" class="nav-label-hint">{{ t(item.labelHintKey) }}</span>
               <span v-if="item.audience" class="nav-audience" :class="`nav-audience--${item.audience}`">
                 {{ t(`courseRegistration.audience.${item.audience}`) }}
               </span>
@@ -251,6 +252,22 @@ function isChildActive(item) {
 
 .nav-label {
   flex: 1;
+  min-width: 0;
+}
+
+.nav-label--stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  line-height: 1.25;
+}
+
+.nav-label-hint {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: #9ca3af;
 }
 
 .nav-chevron {

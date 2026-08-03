@@ -18,6 +18,7 @@ export const mediumOfInstructionOptions = ['English', 'Chinese', 'Bilingual']
 export const methodOfLearningOptions = ['Coursework', 'Research', 'Mixed Mode']
 export const advertisementCodeOptions = ['ADV-001', 'ADV-002', 'ADV-003']
 export const accStatusOptions = ['PA', 'FA']
+export { schoolElectiveCategoryOptions, getSchoolElectiveCategoryLabel } from './departments.js'
 export const typeOfApprovalOptions = ['PA', 'FA', 'New Programme']
 
 export const FEE_AMOUNT_PATTERN = /^\d+(\.\d{1,2})?$/
@@ -243,6 +244,7 @@ function buildProgrammeFormData(programme, approvalOverrides = {}, infoOverrides
       methodOfDelivery: 'Lecture',
       modeOfOffer: 'Conventional',
       department: programme.schoolId,
+      schoolElectiveCategory: programme.schoolElectiveCategory || '',
       advertisementCode: 'ADV-001',
       longSemesterWeeks: '18',
       longSemesterCount: '6',
@@ -422,6 +424,7 @@ export function createEmptyProgrammeForm() {
       methodOfDelivery: '',
       modeOfOffer: '',
       department: '',
+      schoolElectiveCategory: '',
       advertisementCode: '',
       longSemesterWeeks: '',
       longSemesterCount: '',
@@ -779,6 +782,23 @@ export const initialProgrammes = [
     ],
   },
 ]
+
+function defaultSchoolElectiveCategory(schoolId) {
+  if (schoolId === 'soi' || schoolId === 'some') return 'science'
+  if (schoolId === 'sbe') return 'arts'
+  return 'business'
+}
+
+for (const programme of initialProgrammes) {
+  const cat = programme.schoolElectiveCategory || defaultSchoolElectiveCategory(programme.schoolId)
+  programme.schoolElectiveCategory = cat
+  for (const version of programme.versions || []) {
+    if (version.formData?.programmeInfo) {
+      version.formData.programmeInfo.schoolElectiveCategory =
+        version.formData.programmeInfo.schoolElectiveCategory || cat
+    }
+  }
+}
 
 let programmeSeq = initialProgrammes.length
 

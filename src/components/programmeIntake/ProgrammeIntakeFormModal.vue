@@ -24,6 +24,7 @@ const emit = defineEmits(['close', 'save'])
 const { t, tr } = useAppI18n()
 
 const startingSemester = ref('')
+const plannedEnrollment = ref('')
 const active = ref('Yes')
 const errors = ref({})
 const versionDetailVisible = ref(false)
@@ -53,6 +54,10 @@ watch(
     if (!props.initialData) return
     errors.value = {}
     startingSemester.value = props.initialData.startingSemester || ''
+    plannedEnrollment.value =
+      props.initialData.plannedEnrollment === 0 || props.initialData.plannedEnrollment
+        ? String(props.initialData.plannedEnrollment)
+        : ''
     active.value = props.initialData.active || 'Yes'
   },
 )
@@ -68,6 +73,8 @@ function buildPayload() {
     schoolId: source.schoolId,
     school: source.school,
     startingSemester: startingSemester.value,
+    plannedEnrollment:
+      plannedEnrollment.value === '' ? '' : Number(plannedEnrollment.value),
     active: active.value,
   }
 }
@@ -164,16 +171,32 @@ function closeVersionDetail() {
 
           <div class="bottom-form">
             <div class="bottom-form-fields">
-              <div class="form-field">
-                <label class="form-label"><span class="required">*</span> {{ tr('Intake:') }}</label>
-                <div class="form-field-control">
-                  <input
-                    type="text"
-                    class="form-input form-input-readonly"
-                    :value="initialData.intake"
-                    readonly
-                    disabled
-                  />
+              <div class="form-field-col">
+                <div class="form-field">
+                  <label class="form-label"><span class="required">*</span> {{ tr('Intake:') }}</label>
+                  <div class="form-field-control">
+                    <input
+                      type="text"
+                      class="form-input form-input-readonly"
+                      :value="initialData.intake"
+                      readonly
+                      disabled
+                    />
+                  </div>
+                </div>
+
+                <div class="form-field">
+                  <label class="form-label"><span class="required">*</span> {{ tr('Planned Enrollment:') }}</label>
+                  <div class="form-field-control">
+                    <input
+                      v-model="plannedEnrollment"
+                      type="number"
+                      class="form-input"
+                      :class="{ error: errors.plannedEnrollment, 'is-empty': plannedEnrollment === '' }"
+                      :placeholder="t('common.pleaseInput')"
+                    />
+                    <p v-if="errors.plannedEnrollment" class="field-error">{{ tr(errors.plannedEnrollment) }}</p>
+                  </div>
                 </div>
               </div>
 
@@ -358,12 +381,26 @@ function closeVersionDetail() {
   margin-bottom: 8px;
 }
 
+.form-field-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-width: 320px;
+}
+
 .form-field {
   display: flex;
   align-items: flex-start;
   gap: 12px;
   flex: 1;
   min-width: 320px;
+}
+
+.form-field-col .form-field {
+  flex: none;
+  min-width: 0;
+  width: 100%;
 }
 
 .form-field .form-label {

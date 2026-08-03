@@ -41,7 +41,7 @@ const selectedTreeFilter = ref(null)
 
 const searchForm = ref(createEmptySearch())
 const appliedSearch = ref(createEmptySearch())
-const searchExpanded = ref(false)
+const searchExpanded = ref(true)
 
 const selectedIds = ref([])
 const currentPage = ref(1)

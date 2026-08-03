@@ -9,6 +9,12 @@ export const courseRegistrationModuleBriefs = {
     featuresKey: 'courseRegistration.briefs.batch.features',
     variant: 'info',
   },
+  'cr-rules': {
+    sourceKey: 'courseRegistration.briefs.rules.source',
+    requirementsKey: 'courseRegistration.briefs.rules.requirements',
+    featuresKey: 'courseRegistration.briefs.rules.features',
+    variant: 'rule',
+  },
   'cr-monitor': {
     sourceKey: 'courseRegistration.briefs.monitor.source',
     requirementsKey: 'courseRegistration.briefs.monitor.requirements',
@@ -27,11 +33,11 @@ export const courseRegistrationModuleBriefs = {
     featuresKey: 'courseRegistration.briefs.approval.features',
     variant: 'rule',
   },
-  'cr-waitlist': {
-    sourceKey: 'courseRegistration.briefs.waitlist.source',
-    requirementsKey: 'courseRegistration.briefs.waitlist.requirements',
-    featuresKey: 'courseRegistration.briefs.waitlist.features',
-    variant: 'warning',
+  'cr-fee-roster': {
+    sourceKey: 'courseRegistration.briefs.feeRoster.source',
+    requirementsKey: 'courseRegistration.briefs.feeRoster.requirements',
+    featuresKey: 'courseRegistration.briefs.feeRoster.features',
+    variant: 'info',
   },
   'cr-result': {
     sourceKey: 'courseRegistration.briefs.result.source',
@@ -39,22 +45,10 @@ export const courseRegistrationModuleBriefs = {
     featuresKey: 'courseRegistration.briefs.result.features',
     variant: 'info',
   },
-  'cr-alert': {
-    sourceKey: 'courseRegistration.briefs.alert.source',
-    requirementsKey: 'courseRegistration.briefs.alert.requirements',
-    featuresKey: 'courseRegistration.briefs.alert.features',
-    variant: 'warning',
-  },
-  'cr-whitelist': {
-    sourceKey: 'courseRegistration.briefs.whitelist.source',
-    requirementsKey: 'courseRegistration.briefs.whitelist.requirements',
-    featuresKey: 'courseRegistration.briefs.whitelist.features',
-    variant: 'info',
-  },
-  'cr-report': {
-    sourceKey: 'courseRegistration.briefs.report.source',
-    requirementsKey: 'courseRegistration.briefs.report.requirements',
-    featuresKey: 'courseRegistration.briefs.report.features',
+  'cr-log': {
+    sourceKey: 'courseRegistration.briefs.log.source',
+    requirementsKey: 'courseRegistration.briefs.log.requirements',
+    featuresKey: 'courseRegistration.briefs.log.features',
     variant: 'info',
   },
   'crs-register': {
@@ -63,23 +57,11 @@ export const courseRegistrationModuleBriefs = {
     featuresKey: 'courseRegistration.briefs.studentRegister.features',
     variant: 'info',
   },
-  'crs-schedule': {
-    sourceKey: 'courseRegistration.briefs.studentSchedule.source',
-    requirementsKey: 'courseRegistration.briefs.studentSchedule.requirements',
-    featuresKey: 'courseRegistration.briefs.studentSchedule.features',
-    variant: 'info',
-  },
   'crs-adddrop': {
     sourceKey: 'courseRegistration.briefs.studentAddDrop.source',
     requirementsKey: 'courseRegistration.briefs.studentAddDrop.requirements',
     featuresKey: 'courseRegistration.briefs.studentAddDrop.features',
     variant: 'rule',
-  },
-  'crs-waitlist': {
-    sourceKey: 'courseRegistration.briefs.studentWaitlist.source',
-    requirementsKey: 'courseRegistration.briefs.studentWaitlist.requirements',
-    featuresKey: 'courseRegistration.briefs.studentWaitlist.features',
-    variant: 'warning',
   },
   'crs-result': {
     sourceKey: 'courseRegistration.briefs.studentResult.source',

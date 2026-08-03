@@ -1,8 +1,12 @@
 <script setup>
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { formatReportTo, formatEstablished } from '../../data/departments.js'
+import {
+  formatReportTo,
+  formatEstablished,
+  getSchoolElectiveCategoryLabel,
+} from '../../data/departments.js'
 
-const { t, tr } = useAppI18n()
+const { t, tr, isZh } = useAppI18n()
 
 defineProps({
   visible: Boolean,
@@ -92,6 +96,10 @@ function handleOverlayClick(event) {
               <div class="detail-item">
                 <span class="detail-label">{{ tr('Email:') }}</span>
                 <span class="detail-value">{{ display(data.email) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">{{ tr('School Elective Category:') }}</span>
+                <span class="detail-value">{{ getSchoolElectiveCategoryLabel(data.schoolElectiveCategory, isZh) }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">{{ tr('Active:') }}</span>

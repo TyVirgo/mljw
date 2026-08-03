@@ -33,7 +33,7 @@ const { t, tr, translatedExportFields } = useListPageI18n(courseApplicationExpor
 
 const applications = courseApplications
 
-const searchExpanded = ref(false)
+const searchExpanded = ref(true)
 const searchForm = ref(createEmptySearch())
 const appliedSearch = ref(createEmptySearch())
 

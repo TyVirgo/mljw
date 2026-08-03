@@ -19,6 +19,8 @@ import {
   methodOfLearningOptions,
   advertisementCodeOptions,
   accStatusOptions,
+  schoolElectiveCategoryOptions,
+  getSchoolElectiveCategoryLabel,
   getDepartmentOptions,
   getProgrammeCurrentFormData,
   createAttachmentId,
@@ -39,7 +41,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'save', 'publish'])
 
-const { t, tr } = useAppI18n()
+const { t, tr, isZh } = useAppI18n()
 const {
   deleteConfirmVisible,
   deleteConfirmMessage,
@@ -256,6 +258,7 @@ function validateStep1() {
     () => requireSelect(info.methodOfDelivery, 'methodOfDelivery', 'Method of Delivery'),
     () => requireSelect(info.modeOfOffer, 'modeOfOffer', 'Mode of Offer'),
     () => requireSelect(info.accStatus, 'accStatus', 'Acc. Status'),
+    () => requireSelect(info.schoolElectiveCategory, 'schoolElectiveCategory', 'School Elective Category'),
     () => optionalNumericMaxDigits(info.longSemesterWeeks, 'longSemesterWeeks', 'No. of weeks (Long Semester)'),
     () => optionalNumericMaxDigits(info.longSemesterCount, 'longSemesterCount', 'No. of semester (Long Semester)'),
     () => optionalNumericMaxDigits(info.shortSemesterWeeks, 'shortSemesterWeeks', 'No. of weeks (Short Semester)'),
@@ -672,6 +675,23 @@ function fieldError(key) {
 
               <div class="pi-row">
                 <div class="pi-field">
+                  <label class="pi-label"><span class="required">*</span> {{ tr('School Elective Category:') }}</label>
+                  <select
+                    v-model="form.programmeInfo.schoolElectiveCategory"
+                    class="pi-input pi-select"
+                    :class="fieldError('schoolElectiveCategory')"
+                  >
+                    <option value="">please select</option>
+                    <option
+                      v-for="opt in schoolElectiveCategoryOptions"
+                      :key="opt.value"
+                      :value="opt.value"
+                    >
+                      {{ isZh ? opt.zh : opt.en }}
+                    </option>
+                  </select>
+                </div>
+                <div class="pi-field">
                   <label class="pi-label">{{ tr('Prog. Commence:') }}</label>
                   <DatePickerEn
                     v-model="form.programmeInfo.progCommence"
@@ -679,6 +699,9 @@ function fieldError(key) {
                     :has-error="!!errors.progCommence"
                   />
                 </div>
+              </div>
+
+              <div class="pi-row">
                 <div class="pi-field">
                   <label class="pi-label">{{ tr('Advertisement Code:') }}</label>
                   <select v-model="form.programmeInfo.advertisementCode" class="pi-input pi-select" :class="fieldError('advertisementCode')">
@@ -686,6 +709,7 @@ function fieldError(key) {
                     <option v-for="opt in advertisementCodeOptions" :key="opt" :value="opt">{{ opt }}</option>
                   </select>
                 </div>
+                <div class="pi-field"></div>
               </div>
 
               <div class="pi-row">

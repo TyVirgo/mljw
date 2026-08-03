@@ -30,7 +30,7 @@ import { formatApplicationSessionField } from '../../data/movementApplicationSes
 import MovementInternationalStudentRemarks from './MovementInternationalStudentRemarks.vue'
 import MovementDocumentsUploadSection from './MovementDocumentsUploadSection.vue'
 import MovementParentConsentSection from './MovementParentConsentSection.vue'
-import { withMovementAttachments } from '../../data/movementAttachments.js'
+import { withMovementAttachments, createEmptyMovementAttachments } from '../../data/movementAttachments.js'
 import { withSyncedLegacyParentFields } from '../../data/movementParentContacts.js'
 import '../../styles/movement-form.css'
 
@@ -116,8 +116,20 @@ function applyStudentProfile(student) {
   form.value = { ...form.value, ...snapshot }
 }
 
+/**
+ * 选择学生：若切换为另一学生则清空附件并提示（马/中/其他均按图三附件，换人后需重传）
+ * @param {object} student 学籍档案
+ */
 function onStudentSelected(student) {
-  applyStudentProfile(student)
+  const prevId = String(form.value.studentId || '').trim()
+  const snapshot = buildStudentSnapshotForWithdrawal(student)
+  const nextId = String(snapshot.studentId || '').trim()
+  const isSwitch = Boolean(prevId && nextId && prevId !== nextId)
+  form.value = { ...form.value, ...snapshot }
+  if (isSwitch) {
+    form.value.attachments = createEmptyMovementAttachments()
+    window.alert(t('withdrawal.messages.attachmentsClearedOnStudentChange'))
+  }
   studentSelectVisible.value = false
 }
 
@@ -388,6 +400,7 @@ function handleClose() {
         <MovementDocumentsUploadSection
           source-key="withdrawal"
           :student-category="applicantCategory"
+          :nationality="form.nationality"
           :attachments="form.attachments"
           :errors="errors"
           @update:attachments="form.attachments = $event"

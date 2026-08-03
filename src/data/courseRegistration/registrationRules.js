@@ -1,7 +1,10 @@
 export const LONG_SEMESTER_CREDIT_MIN = 12
 export const LONG_SEMESTER_CREDIT_MAX = 20
+export const RESUMPTION_CREDIT_MAX = 21
 export const SHORT_SEMESTER_CREDIT_MIN = 4
-export const DEFAULT_BILL_HOURS = 48
+/** @deprecated 已改为选课规则「延迟缴费天数」；保留别名避免旧引用断裂 */
+export const DEFAULT_PAYMENT_GRACE_DAYS = 2
+export const DEFAULT_BILL_HOURS = DEFAULT_PAYMENT_GRACE_DAYS
 
 export function computeCreditsAfterApproval(currentCredits, dropCredits = 0, addCredits = 0) {
   return currentCredits - dropCredits + addCredits

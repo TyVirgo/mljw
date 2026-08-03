@@ -1,0 +1,26 @@
+# 合并来源 — 学籍管理-异动申请（教职工/学生端）
+
+- add-deferment-app
+- add-deferment-period-dates
+- add-deferment-period-field-tooltip
+- add-deferment-resumption-period-date-fields
+- add-movement-declaration-parent-email-notice
+- add-movement-international-remarks-and-documents
+- add-movement-parent-contacts-from-family
+- add-programme-transfer-app
+- add-programme-transfer-office-use-approval
+- add-programme-transfer-status-log-remark
+- add-resumption-app
+- add-withdrawal-app
+- add-withdrawal-final-assessment-field
+- refine-movement-application-default-tab-and-visa-expiry
+- refine-movement-declaration-content
+- refine-movement-parent-contacts-readonly
+- refine-movement-student-info-fields
+- reorder-movement-declaration-and-applicant-notes
+- restructure-movement-application-sections
+- sort-deferment-period-options-desc
+- split-movement-application-teacher-student
+- unify-movement-date-format
+- unify-movement-declaration-section
+- update-movement-application-details

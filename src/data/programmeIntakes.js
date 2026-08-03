@@ -183,6 +183,9 @@ initialProgrammeIntakes.forEach((item, index) => {
   if (!item.startingSemester) {
     item.startingSemester = startingSemesterOptions[index % startingSemesterOptions.length]
   }
+  if (item.plannedEnrollment == null || item.plannedEnrollment === '') {
+    item.plannedEnrollment = 120
+  }
 })
 
 let programmeIntakeSeq = initialProgrammeIntakes.length
@@ -316,6 +319,12 @@ export function validateProgrammeIntakeEditForm(form) {
 
   if (!form.startingSemester) errors.startingSemester = 'Starting Academic Session is required'
 
+  if (form.plannedEnrollment === '' || form.plannedEnrollment === null || form.plannedEnrollment === undefined) {
+    errors.plannedEnrollment = 'Planned Enrollment is required'
+  } else if (Number.isNaN(Number(form.plannedEnrollment))) {
+    errors.plannedEnrollment = 'Planned Enrollment must be a number'
+  }
+
   if (!form.active) {
     errors.active = 'Active is required'
   } else if (!activeOptions.includes(form.active)) {
@@ -347,12 +356,25 @@ export function validateProgrammeIntakeCreateForm(form) {
 
   if (!form.startingSemester) errors.startingSemester = 'Starting Academic Session is required'
 
+  if (form.plannedEnrollment === '' || form.plannedEnrollment === null || form.plannedEnrollment === undefined) {
+    errors.plannedEnrollment = 'Planned Enrollment is required'
+  } else if (Number.isNaN(Number(form.plannedEnrollment))) {
+    errors.plannedEnrollment = 'Planned Enrollment must be a number'
+  }
+
   return errors
 }
 
-export function buildProgrammeIntakeRecords(selectedProgrammes, intake, startingSemester, allItems) {
+export function buildProgrammeIntakeRecords(
+  selectedProgrammes,
+  intake,
+  startingSemester,
+  plannedEnrollment,
+  allItems,
+) {
   const records = []
   const duplicates = []
+  const enrollment = Number(plannedEnrollment)
 
   selectedProgrammes.forEach((programme) => {
     const programmeIntake = suggestProgrammeIntake(intake, programme.programmeCode)
@@ -365,6 +387,7 @@ export function buildProgrammeIntakeRecords(selectedProgrammes, intake, starting
       programmeIntake,
       intake,
       startingSemester,
+      plannedEnrollment: enrollment,
       years: programme.years,
       programmeCode: programme.programmeCode,
       programmeName: programme.programmeName,
@@ -420,6 +443,7 @@ export function buildProgrammeIntakeCopyRecords(sourceRecords, intake, startingS
       programmeIntake,
       intake,
       startingSemester,
+      plannedEnrollment: source.plannedEnrollment ?? 120,
       years: source.years,
       programmeCode: source.programmeCode,
       programmeName: source.programmeName,

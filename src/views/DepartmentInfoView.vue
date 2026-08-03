@@ -14,15 +14,16 @@ import {
   getReportToOptions,
   yesNoOptions,
   normalizeDepartment,
+  getSchoolElectiveCategoryLabel,
 } from '../data/departments.js'
 import { exportDepartmentsToExcel, departmentExportFields } from '../utils/exportDepartmentExcel.js'
 
-const { t, tr } = useAppI18n()
+const { t, tr, isZh } = useAppI18n()
 const translatedExportFields = computed(() => translateExportFields(departmentExportFields))
 
 const departments = ref(initialDepartments.map((item) => normalizeDepartment({ ...item })))
 
-const searchExpanded = ref(false)
+const searchExpanded = ref(true)
 const searchForm = ref(createEmptySearch())
 const appliedSearch = ref(createEmptySearch())
 
@@ -335,6 +336,7 @@ function getRowNumber(index) {
                 <th>{{ tr('Department Name') }}</th>
                 <th>{{ tr('Department Name (Chinese)') }}</th>
                 <th>{{ tr('Category') }}</th>
+                <th>{{ tr('School Elective Category') }}</th>
                 <th>{{ tr('Report to') }}</th>
                 <th>{{ tr('Offering') }}</th>
                 <th>{{ tr('Teaching') }}</th>
@@ -344,7 +346,7 @@ function getRowNumber(index) {
             </thead>
             <tbody>
               <tr v-if="!paginatedDepartments.length">
-                <td colspan="12" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="13" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedDepartments" :key="item.id">
                 <td class="col-check">
@@ -356,6 +358,7 @@ function getRowNumber(index) {
                 <td>{{ tr(item.nameEn) }}</td>
                 <td>{{ item.nameZh }}</td>
                 <td>{{ tr(item.category) }}</td>
+                <td>{{ getSchoolElectiveCategoryLabel(item.schoolElectiveCategory, isZh) }}</td>
                 <td>{{ formatReportTo(item.reportTo) }}</td>
                 <td>{{ tr(item.offering) }}</td>
                 <td>{{ tr(item.teaching) }}</td>

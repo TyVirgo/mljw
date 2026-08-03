@@ -52,11 +52,18 @@ const crumbs = computed(() => {
         <span :class="{ current: index === crumbs.length - 1 }">{{ label }}</span>
       </li>
     </ol>
+    <div v-if="$slots.trailing" class="breadcrumb-trailing">
+      <slot name="trailing" />
+    </div>
   </nav>
 </template>
 
 <style scoped>
 .page-breadcrumb {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   flex-shrink: 0;
   padding: 10px 28px;
   background: #f3f4f6;
@@ -74,6 +81,13 @@ const crumbs = computed(() => {
   font-size: 13px;
   line-height: 1.5;
   color: #9ca3af;
+  min-width: 0;
+}
+
+.breadcrumb-trailing {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
 }
 
 .breadcrumb-item {

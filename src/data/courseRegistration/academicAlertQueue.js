@@ -8,13 +8,42 @@ const alertTypeMap = {
   notRegistered: 'notRegistered',
 }
 
+const HIGH_ALERT_TYPES = ['notRegistered', 'creditBelowMin', 'creditAtMax', 'creditAboveMax']
+
+export function resolveAlertTypesForRow(row) {
+  if (!row) return []
+  if (row.issues?.length) return [...row.issues]
+  if (row.status === 'normal') return []
+  return [alertTypeMap[row.status] || row.status]
+}
+
+export function severityForAlertType(alertType) {
+  return HIGH_ALERT_TYPES.includes(alertType) ? 'high' : 'medium'
+}
+
+/** 监控行 → 预警摘要（一人一行，多类型并列） */
+export function getRowAlertMeta(row) {
+  const alertTypes = resolveAlertTypesForRow(row)
+  if (!alertTypes.length) {
+    return { alertTypes: [], severity: '', recommendation: null, hasProblem: false }
+  }
+  const severity = alertTypes.some((type) => severityForAlertType(type) === 'high')
+    ? 'high'
+    : 'medium'
+  const primaryType =
+    alertTypes.find((type) => severityForAlertType(type) === 'high') || alertTypes[0]
+  return {
+    alertTypes,
+    severity,
+    recommendation: buildRecommendation(primaryType, row),
+    hasProblem: true,
+  }
+}
+
 export function buildAcademicAlerts(monitorRows = registrationMonitorQueue.value) {
   const alerts = []
   for (const row of monitorRows) {
-    if (row.status === 'normal' && !row.issues?.length) continue
-    const alertTypes = row.issues?.length
-      ? row.issues
-      : [alertTypeMap[row.status] || row.status]
+    const alertTypes = resolveAlertTypesForRow(row)
     for (const alertType of alertTypes) {
       alerts.push({
         id: `alert-${row.id}-${alertType}`,
@@ -25,7 +54,7 @@ export function buildAcademicAlerts(monitorRows = registrationMonitorQueue.value
         credits: row.credits,
         creditMax: row.creditMax,
         alertType,
-        severity: ['notRegistered', 'creditBelowMin', 'creditAtMax'].includes(alertType) ? 'high' : 'medium',
+        severity: severityForAlertType(alertType),
         recommendation: buildRecommendation(alertType, row),
         createdAt: row.history?.[0]?.at || '—',
       })
@@ -39,6 +68,7 @@ function buildRecommendation(alertType, row) {
     case 'creditBelowMin':
       return { action: 'add', hint: 'recommendAddCredits' }
     case 'creditAtMax':
+    case 'creditAboveMax':
       return { action: 'drop', hint: 'recommendDropCredits' }
     case 'g1HumanitiesLow':
     case 'g1CategoryShortfall':
@@ -71,6 +101,7 @@ export function filterAcademicAlerts(alerts, filters = {}) {
 export const academicAlertTypeOptions = [
   'creditBelowMin',
   'creditAtMax',
+  'creditAboveMax',
   'g1CategoryShortfall',
   'g1HumanitiesLow',
   'prerequisiteMissing',
@@ -83,4 +114,16 @@ export function getAcademicAlertStats(alerts) {
     high: alerts.filter((a) => a.severity === 'high').length,
     medium: alerts.filter((a) => a.severity === 'medium').length,
   }
+}
+
+/** 按学生行统计高/中（一人算一次严重度） */
+export function getMonitorAlertStats(rows = registrationMonitorQueue.value) {
+  let high = 0
+  let medium = 0
+  for (const row of rows) {
+    const meta = getRowAlertMeta(row)
+    if (meta.severity === 'high') high += 1
+    else if (meta.severity === 'medium') medium += 1
+  }
+  return { high, medium, problem: high + medium }
 }

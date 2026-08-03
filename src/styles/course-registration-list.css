@@ -220,6 +220,13 @@
   min-width: 160px;
 }
 
+.hint-popover--align-end .hint-popover-content {
+  left: auto;
+  right: 0;
+  transform: none;
+  max-width: min(420px, 92vw);
+}
+
 .hint-popover-content p {
   margin: 0 0 8px;
 }

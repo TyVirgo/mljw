@@ -13,6 +13,11 @@ export function parseIntakeBatch(intake) {
   if (compactMatch && VALID_INTAKE_MONTHS.includes(compactMatch[2])) {
     return { year: compactMatch[1], month: compactMatch[2] }
   }
+  // demo 常见 YYMM（如 2409 → 2024/09）
+  const shortMatch = value.match(/^(\d{2})(\d{2})$/)
+  if (shortMatch && VALID_INTAKE_MONTHS.includes(shortMatch[2])) {
+    return { year: `20${shortMatch[1]}`, month: shortMatch[2] }
+  }
   return null
 }
 
@@ -39,7 +44,7 @@ export function getIntakeOptions(records = initialSemesterRecords) {
       options.push(value)
     }
   })
-  return options.sort()
+  return options.sort().reverse()
 }
 
 export const intakeOptions = getIntakeOptions()

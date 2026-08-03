@@ -164,6 +164,30 @@ export function filterMonitorRows(rows, filters = {}) {
       (r) => r.studentId.toLowerCase().includes(kw) || r.studentName.toLowerCase().includes(kw),
     )
   }
+  if (filters.problemsOnly || filters.severity || filters.alertType) {
+    const statusToAlert = {
+      creditLow: 'creditBelowMin',
+      creditHigh: 'creditAtMax',
+      g1CategoryLow: 'g1CategoryShortfall',
+      prerequisiteMissing: 'prerequisiteMissing',
+      notRegistered: 'notRegistered',
+    }
+    const highTypes = ['notRegistered', 'creditBelowMin', 'creditAtMax', 'creditAboveMax']
+    list = list.filter((row) => {
+      const alertTypes = row.issues?.length
+        ? row.issues
+        : row.status === 'normal'
+          ? []
+          : [statusToAlert[row.status] || row.status]
+      if (!alertTypes.length) return false
+      if (filters.alertType && !alertTypes.includes(filters.alertType)) return false
+      if (filters.severity) {
+        const severity = alertTypes.some((t) => highTypes.includes(t)) ? 'high' : 'medium'
+        if (severity !== filters.severity) return false
+      }
+      return true
+    })
+  }
   return list
 }
 

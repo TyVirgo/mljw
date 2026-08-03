@@ -5,7 +5,7 @@ import { getActiveBatch } from '../../data/courseRegistration/registrationBatche
 import { getRoundTimeline } from '../../data/courseRegistration/studentRegistrationContext.js'
 
 const props = defineProps({
-  /** 高亮轮次：preselect | main | supplement | addDrop；空则按批次当前阶段 */
+  /** 高亮轮次：preselect | main | supplement；空则按批次当前阶段 */
   highlightKey: { type: String, default: '' },
   /** 在线选课页：可点击切换轮次 */
   interactive: { type: Boolean, default: false },
@@ -42,46 +42,53 @@ function selectRound(key) {
 function tooltipFor(step) {
   const key = `courseRegistration.student.roundTooltip.${step.key}`
   const text = t(key)
-  return text && text !== key ? text : ''
+  if (!text || text === key) return ''
+  return `${text}${t('common.prototypeOnlySuffix')}`
 }
 </script>
 
 <template>
   <div v-if="steps.length" class="cr-round-timeline" :class="{ 'cr-round-timeline--interactive': interactive }">
-    <div
-      v-for="step in steps"
-      :key="step.key"
-      class="cr-round-step"
-      :class="{
-        active: step.active,
-        'is-clickable': interactive,
-        'cr-round-step--navigate': interactive && step.key === 'addDrop',
-      }"
-      :role="interactive ? 'button' : undefined"
-      :tabindex="interactive ? 0 : undefined"
-      @click="selectRound(step.key)"
-      @keydown.enter.prevent="selectRound(step.key)"
-      @keydown.space.prevent="selectRound(step.key)"
-    >
-      <div class="cr-round-step-head">
-        <span class="cr-round-step-label">{{ t(step.labelKey) }}</span>
-        <span
-          v-if="tooltipFor(step)"
-          class="hint-popover-wrap cr-round-step-hint"
-          @click.stop
-        >
-          <span class="hint-popover-trigger" tabindex="0" role="button" :aria-label="tooltipFor(step)">
-            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <path
-                d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 3a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zm-1.25 3.5a.75.75 0 0 1 1.5 0v3.5a.75.75 0 0 1-1.5 0v-3.5z"
-              />
-            </svg>
+    <template v-for="(step, index) in steps" :key="step.key">
+      <span
+        v-if="index > 0"
+        class="cr-round-arrow"
+        aria-hidden="true"
+      >
+        →
+      </span>
+      <div
+        class="cr-round-step"
+        :class="{
+          active: step.active,
+          'is-clickable': interactive,
+        }"
+        :role="interactive ? 'button' : undefined"
+        :tabindex="interactive ? 0 : undefined"
+        @click="selectRound(step.key)"
+        @keydown.enter.prevent="selectRound(step.key)"
+        @keydown.space.prevent="selectRound(step.key)"
+      >
+        <div class="cr-round-step-head">
+          <span class="cr-round-step-label">{{ t(step.labelKey) }}</span>
+          <span
+            v-if="tooltipFor(step)"
+            class="hint-popover-wrap cr-round-step-hint"
+            @click.stop
+          >
+            <span class="hint-popover-trigger" tabindex="0" role="button" :aria-label="tooltipFor(step)">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 3a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zm-1.25 3.5a.75.75 0 0 1 1.5 0v3.5a.75.75 0 0 1-1.5 0v-3.5z"
+                />
+              </svg>
+            </span>
+            <span class="hint-popover-content hint-popover-content--sm" role="tooltip">{{ tooltipFor(step) }}</span>
           </span>
-          <span class="hint-popover-content hint-popover-content--sm" role="tooltip">{{ tooltipFor(step) }}</span>
-        </span>
+        </div>
+        <span class="cr-round-step-range">{{ step.rangeText }}</span>
       </div>
-      <span class="cr-round-step-range">{{ step.rangeText }}</span>
-    </div>
+    </template>
   </div>
 </template>
 
@@ -108,23 +115,6 @@ function tooltipFor(step) {
 
 .cr-round-timeline--interactive .cr-round-step.is-clickable:hover {
   border-color: #93c5fd;
-}
-
-.cr-round-timeline--interactive .cr-round-step.cr-round-step--navigate::after {
-  content: '→';
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-.cr-round-timeline--interactive .cr-round-step {
-  position: relative;
-}
-
-.cr-round-timeline--interactive .cr-round-step.cr-round-step--navigate:hover::after {
-  color: #2563eb;
 }
 
 .cr-round-timeline--interactive .cr-round-step.is-clickable:focus-visible {

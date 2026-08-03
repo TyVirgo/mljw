@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
 import TablePagination from '../../components/common/TablePagination.vue'
-import ModuleBriefPanel from '../../components/courseRegistration/ModuleBriefPanel.vue'
 import CourseRegistrationCallout from '../../components/courseRegistration/CourseRegistrationCallout.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import '../../styles/course-registration-list.css'
@@ -17,7 +16,7 @@ const { t } = useAppI18n()
 const summary = computed(() => buildReportSummary())
 const activeCard = ref(reportCardIds[0])
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(20)
 
 const cards = computed(() =>
   reportCardIds.map((id) => {
@@ -70,11 +69,9 @@ function handleExport() {
 
 <template>
   <div class="cr-list-page cr-report-page">
-    <ModuleBriefPanel page-id="cr-report" />
-
     <div class="page-card">
       <CourseRegistrationCallout variant="info">
-        <p>{{ t('courseRegistration.report.hint') }}</p>
+        <p>{{ t('courseRegistration.report.hint') }}{{ t('common.prototypeOnlySuffix') }}</p>
       </CourseRegistrationCallout>
 
       <div class="card-grid">

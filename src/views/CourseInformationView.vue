@@ -24,7 +24,7 @@ import { useListPageI18n } from '../composables/useListPageI18n.js'
 
 const { t, tr, translatedExportFields } = useListPageI18n(courseExportFields)
 
-const searchExpanded = ref(false)
+const searchExpanded = ref(true)
 const searchForm = ref(createEmptySearch())
 const appliedSearch = ref(createEmptySearch())
 

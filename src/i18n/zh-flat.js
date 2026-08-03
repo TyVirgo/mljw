@@ -27,6 +27,9 @@ export const zhFlat = {
   'ID or Code already exists.': 'ID 或编码已存在。',
   'Details': '详情',
   'Category': '类别',
+  'School Elective Category': '校选类别',
+  'School Elective Category:': '校选类别：',
+  'School Elective Category is required': '校选类别为必填项',
 
   // Classroom
   'Block': '楼栋',
@@ -159,6 +162,10 @@ export const zhFlat = {
   'Starting Semester:': '起始学期：',
   'Starting Academic Session:': '起始学年学期：',
   'Starting Academic Session is required': '起始学年学期为必填项',
+  'Planned Enrollment': '计划招生人数',
+  'Planned Enrollment:': '计划招生人数：',
+  'Planned Enrollment is required': '计划招生人数为必填项',
+  'Planned Enrollment must be a number': '计划招生人数须为数字',
   'Active:': '启用：',
   'Programme:': '培养方案：',
   'School:': '学院：',

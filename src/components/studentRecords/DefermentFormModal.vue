@@ -24,7 +24,7 @@ import MovementDocumentsUploadSection from './MovementDocumentsUploadSection.vue
 import MovementParentConsentSection from './MovementParentConsentSection.vue'
 import { defermentDeclarationItems } from '../../data/movementDeclarationItems.js'
 import { defermentApplicantNoteKeys } from '../../data/movementApplicantNotes.js'
-import { withMovementAttachments } from '../../data/movementAttachments.js'
+import { withMovementAttachments, createEmptyMovementAttachments } from '../../data/movementAttachments.js'
 import { withSyncedLegacyParentFields } from '../../data/movementParentContacts.js'
 import { getCurrentStudent } from '../../data/mockCurrentStudent.js'
 import { formatApplicationSessionField } from '../../data/movementApplicationSession.js'
@@ -87,8 +87,20 @@ function applyStudentProfile(student) {
   form.value = { ...form.value, ...snapshot }
 }
 
+/**
+ * 选择学生：切换学生时清空附件并提示（马/中/其他附件清单不同）
+ * @param {object} student 学籍档案
+ */
 function onStudentSelected(student) {
-  applyStudentProfile(student)
+  const prevId = String(form.value.studentId || '').trim()
+  const snapshot = buildStudentSnapshotForDeferment(student)
+  const nextId = String(snapshot.studentId || '').trim()
+  const isSwitch = Boolean(prevId && nextId && prevId !== nextId)
+  form.value = { ...form.value, ...snapshot }
+  if (isSwitch) {
+    form.value.attachments = createEmptyMovementAttachments()
+    window.alert(t('deferment.messages.attachmentsClearedOnStudentChange'))
+  }
   studentSelectVisible.value = false
 }
 
@@ -334,6 +346,7 @@ function handleClose() {
         <MovementDocumentsUploadSection
           source-key="deferment"
           :student-category="applicantCategory"
+          :nationality="form.nationality"
           :attachments="form.attachments"
           :errors="errors"
           @update:attachments="form.attachments = $event"

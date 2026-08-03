@@ -15,6 +15,7 @@ export const defaultProgrammeIntakeColumnHeaders = [
   h('schoolFilter', 'create', '学院', 'School', 'Sekolah'),
   h('programmeFilter', 'create', '培养方案', 'Programme', 'Program'),
   h('startingSemester', 'form', '起始学年学期', 'Starting Academic Session', 'Sesi Akademik Permulaan'),
+  h('plannedEnrollment', 'form', '计划招生人数', 'Planned Enrollment', 'Jumlah Pengambilan Dirancang'),
   h('newProgrammeIntake', 'copy', '新专业批次', 'New Programme Intake', 'Kemasukan Program Baharu'),
 ]
 

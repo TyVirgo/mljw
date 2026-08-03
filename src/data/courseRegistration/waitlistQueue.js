@@ -1,4 +1,26 @@
 import { ref } from 'vue'
+import { selectableCourses } from './selectableCourses.js'
+
+function formatSubmittedAt(value) {
+  if (value == null || value === '') return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  const formatDate = (date) =>
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '' : formatDate(value)
+  }
+  const raw = String(value).trim()
+  if (!raw) return ''
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)) return raw
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return raw
+  return formatDate(parsed)
+}
+
+function resolveCourseCredits(courseCode) {
+  const course = selectableCourses.value.find((item) => item.code === courseCode)
+  return course?.credits ?? null
+}
 
 const initialWaitlistCourses = [
   {
@@ -102,6 +124,45 @@ const initialWaitlistCourses = [
     ],
     waitlist: [],
   },
+  {
+    id: 'wl-course-comp220',
+    courseCode: 'COMP220',
+    courseName: 'Discrete Mathematics',
+    section: '01',
+    batchId: 'batch-2504-m1',
+    capacity: 40,
+    enrolled: 40,
+    waitlistCount: 0,
+    status: 'full',
+    registered: [],
+    waitlist: [],
+  },
+  {
+    id: 'wl-course-stat201',
+    courseCode: 'STAT201',
+    courseName: 'Probability & Statistics',
+    section: '01',
+    batchId: 'batch-2504-m1',
+    capacity: 35,
+    enrolled: 35,
+    waitlistCount: 0,
+    status: 'full',
+    registered: [],
+    waitlist: [],
+  },
+  {
+    id: 'wl-course-hum110',
+    courseCode: 'HUM110',
+    courseName: 'Introduction to Humanities',
+    section: '01',
+    batchId: 'batch-2504-m1',
+    capacity: 30,
+    enrolled: 30,
+    waitlistCount: 0,
+    status: 'full',
+    registered: [],
+    waitlist: [],
+  },
 ]
 
 export const waitlistCourses = ref(initialWaitlistCourses.map((c) => ({ ...c, waitlist: [...c.waitlist], registered: [...c.registered] })))
@@ -165,7 +226,7 @@ export function joinStudentWaitlist(courseId, studentFields) {
     intake: studentFields.intake,
     position: course.waitlist.length + 1,
     status: 'Pending',
-    submittedAt: new Date().toLocaleDateString('en-GB'),
+    submittedAt: formatSubmittedAt(new Date()),
   }
   course.waitlist.push(entry)
   course.waitlistCount = course.waitlist.length
@@ -184,9 +245,13 @@ export function listStudentWaitlistEntries(studentId) {
           courseName: course.courseName,
           section: course.section,
           courseStatus: course.status,
+          credits: resolveCourseCredits(course.courseCode),
+          capacity: course.capacity,
+          enrolled: course.enrolled,
+          submittedAtDisplay: formatSubmittedAt(entry.submittedAt),
         })
       }
     }
   }
-  return rows.sort((a, b) => a.position - b.position)
+  return rows.sort((a, b) => String(b.submittedAt || '').localeCompare(String(a.submittedAt || '')))
 }

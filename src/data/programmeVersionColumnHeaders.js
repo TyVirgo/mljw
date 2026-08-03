@@ -10,6 +10,7 @@ export const defaultProgrammeVersionColumnHeaders = [
   h('programmeName', 'listMain', '专业名称', 'Programme Name', 'Nama Program'),
   h('programmeLevel', 'listMain', '培养层次', 'Programme Level', 'Tahap Pengajian'),
   h('years', 'listMain', '学制', 'Years', 'Tempoh Pengajian'),
+  h('schoolElectiveCategory', 'listMain', '校选类别', 'School Elective Category', 'Kategori Elektif Sekolah'),
   // 列表版本明细
   h('mqaCode', 'listNested', 'MQA 编码', 'MQA Code', 'Kod MQA'),
   h('mqaValidityStart', 'listNested', 'MQA 有效期开始', 'MQA Validity Start Date', 'Tarikh Mula Sah MQA'),
@@ -35,6 +36,7 @@ export const defaultProgrammeVersionColumnHeaders = [
   h('modeOfOffer', 'programmeInfo', '开设模式', 'Mode of Offer', 'Mod Tawaran'),
   h('awardingBody', 'programmeInfo', '授予机构', 'Awarding body', 'Badan Penganugerahan'),
   h('department', 'programmeInfo', '院系', 'Department', 'Jabatan'),
+  h('schoolElectiveCategory', 'programmeInfo', '校选类别', 'School Elective Category', 'Kategori Elektif Sekolah'),
   h('progCommence', 'programmeInfo', '开课时间', 'Prog. Commence', 'Tarikh Mula Program'),
   h('advertisementCode', 'programmeInfo', '广告编码', 'Advertisement Code', 'Kod Iklan'),
   h('accStatus', 'programmeInfo', '认证状态', 'Acc. Status', 'Status Akreditasi'),

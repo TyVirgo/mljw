@@ -1,18 +1,14 @@
-/** 选课批次/课程类型：ME · GE · Mandatory（替代原 M1/G1） */
+/** 选课批次/课程类型：ME · GE（选修） */
 
 export const LEGACY_REGISTRATION_TYPE_MAP = {
   M1: 'ME',
   G1: 'GE',
+  Mandatory: 'ME',
 }
 
 export const registrationBatchTypeOptions = [
   { value: 'ME', labelKey: 'courseRegistration.types.ME.label', descKey: 'courseRegistration.types.ME.batchDesc' },
   { value: 'GE', labelKey: 'courseRegistration.types.GE.label', descKey: 'courseRegistration.types.GE.batchDesc' },
-  {
-    value: 'Mandatory',
-    labelKey: 'courseRegistration.types.Mandatory.label',
-    descKey: 'courseRegistration.types.Mandatory.batchDesc',
-  },
 ]
 
 export const courseTypeOptions = [

@@ -3,23 +3,26 @@ import { ref, computed, watch } from 'vue'
 import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import AddDropApprovalDetailDrawer from '../../components/courseRegistration/AddDropApprovalDetailDrawer.vue'
-import ModuleBriefPanel from '../../components/courseRegistration/ModuleBriefPanel.vue'
+import AddDropApprovalModal from '../../components/courseRegistration/AddDropApprovalModal.vue'
 import CourseRegistrationCallout from '../../components/courseRegistration/CourseRegistrationCallout.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   addDropApprovalQueue,
   filterAddDropQueue,
   addDropTypeOptions,
+  decideAddDropApplication,
+  buildAddDropValidation,
 } from '../../data/courseRegistration/addDropApprovalQueue.js'
 import { approvalExportFields } from '../../data/courseRegistration/courseRegistrationExportFields.js'
 import {
   exportCourseRegistrationData,
   formatApprovalExportRow,
 } from '../../utils/exportCourseRegistrationExcel.js'
+import { getAddDropCourseColumnTexts } from '../../utils/addDropCourseDisplay.js'
 import '../../styles/list-page-search.css'
 import '../../styles/course-registration-list.css'
 
-const { t } = useAppI18n()
+const { t, tr } = useAppI18n()
 
 const APPROVAL_TABS = [
   { id: 'pending', labelKey: 'courseRegistration.approval.tabs.pending' },
@@ -30,10 +33,14 @@ const APPROVAL_TABS = [
 const activeTab = ref('pending')
 const searchForm = ref({ programme: '', type: '', keyword: '' })
 const appliedSearch = ref({ programme: '', type: '', keyword: '' })
+const selectedIds = ref([])
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(20)
 const detailApp = ref(null)
+const detailMode = ref('readonly')
 const exportModalVisible = ref(false)
+const approvalModalVisible = ref(false)
+const pendingApprovalIds = ref([])
 
 const tabCounts = computed(() => {
   const counts = { pending: 0, submitted: 0, history: 0 }
@@ -54,19 +61,49 @@ const paginatedRows = computed(() => {
   return rows.value.slice(start, start + pageSize.value)
 })
 
+const showApproveToolbar = computed(() => activeTab.value === 'pending')
+
+const allPageSelected = computed(() => {
+  if (!paginatedRows.value.length) return false
+  return paginatedRows.value.every((row) => selectedIds.value.includes(row.id))
+})
+
+const selectedRows = computed(() =>
+  selectedIds.value
+    .map((id) => addDropApprovalQueue.value.find((row) => row.id === id))
+    .filter((row) => row && row.status === 'Pending'),
+)
+
+const canApproveSelection = computed(
+  () => showApproveToolbar.value && selectedRows.value.length > 0,
+)
+
+const tableColspan = computed(() => (showApproveToolbar.value ? 13 : 12))
+
+const batchShowGenerateBill = computed(() =>
+  pendingApprovalIds.value.some((id) => {
+    const row = addDropApprovalQueue.value.find((r) => r.id === id)
+    if (!row) return false
+    return (row.items || []).some((i) => (i.fee || 0) > 0)
+  }),
+)
+
 watch(activeTab, () => {
   currentPage.value = 1
+  selectedIds.value = []
 })
 
 function handleSearch() {
   appliedSearch.value = { ...searchForm.value }
   currentPage.value = 1
+  selectedIds.value = []
 }
 
 function handleReset() {
   searchForm.value = { programme: '', type: '', keyword: '' }
   appliedSearch.value = { programme: '', type: '', keyword: '' }
   currentPage.value = 1
+  selectedIds.value = []
 }
 
 function typeLabel(type) {
@@ -74,7 +111,13 @@ function typeLabel(type) {
 }
 
 function typeClass(type) {
-  const map = { Add: 'type-add', Drop: 'type-drop', Retake: 'type-retake', Replace: 'type-replace', AddDrop: 'type-mixed' }
+  const map = {
+    Add: 'type-add',
+    Drop: 'type-drop',
+    Retake: 'type-retake',
+    Replace: 'type-replace',
+    AddDrop: 'type-mixed',
+  }
   return map[type] || ''
 }
 
@@ -83,12 +126,67 @@ function billLabel(status) {
   return t(`courseRegistration.approval.bill.${status}`)
 }
 
-function openDetail(row) {
-  detailApp.value = row
+function courseColumns(row) {
+  return getAddDropCourseColumnTexts(row)
 }
 
-function summarizeItems(row) {
-  return row.items.map((i) => `${typeLabel(i.action)} ${i.courseCode}`).join(' · ')
+function resolveDetailMode(tab) {
+  return tab === 'pending' ? 'approve' : 'readonly'
+}
+
+function openDetail(row) {
+  detailApp.value = row
+  detailMode.value = resolveDetailMode(activeTab.value)
+}
+
+function toggleSelectAll(event) {
+  const pageIds = paginatedRows.value.map((row) => row.id)
+  if (event.target.checked) {
+    selectedIds.value = [...new Set([...selectedIds.value, ...pageIds])]
+  } else {
+    selectedIds.value = selectedIds.value.filter((id) => !pageIds.includes(id))
+  }
+}
+
+function toggleSelect(id) {
+  if (selectedIds.value.includes(id)) {
+    selectedIds.value = selectedIds.value.filter((x) => x !== id)
+  } else {
+    selectedIds.value = [...selectedIds.value, id]
+  }
+}
+
+function openBatchApproval() {
+  if (!canApproveSelection.value) {
+    window.alert(tr('Please select one or more applications that can be approved.'))
+    return
+  }
+  pendingApprovalIds.value = selectedRows.value.map((r) => r.id)
+  approvalModalVisible.value = true
+}
+
+function handleBatchApprovalConfirm({ action, comment, generateBill }) {
+  let failed = 0
+  for (const id of pendingApprovalIds.value) {
+    const row = addDropApprovalQueue.value.find((r) => r.id === id)
+    if (!row || row.status !== 'Pending') continue
+    if (action === 'Approved') {
+      const validation = buildAddDropValidation(row)
+      if (!validation.creditOk) {
+        failed += 1
+        continue
+      }
+    }
+    const result = decideAddDropApplication(id, action, comment, { generateBill })
+    if (!result.ok) failed += 1
+  }
+  pendingApprovalIds.value = []
+  approvalModalVisible.value = false
+  selectedIds.value = []
+  if (failed > 0) {
+    window.alert(t('courseRegistration.approval.batchPartialFail', { count: failed }))
+  }
+  if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
 }
 
 function handleExportConfirm({ selectedFields }) {
@@ -108,11 +206,9 @@ function handleExportConfirm({ selectedFields }) {
 
 <template>
   <div class="cr-list-page cr-approval-page">
-    <ModuleBriefPanel page-id="cr-approval" />
-
     <div class="page-card">
       <CourseRegistrationCallout variant="rule">
-        <p>{{ t('courseRegistration.approval.suggestedOrder') }} · {{ t('courseRegistration.approval.retakePriority') }}</p>
+        <p>{{ t('courseRegistration.approval.mainFlowHint') }}</p>
       </CourseRegistrationCallout>
 
       <div class="tab-bar">
@@ -156,6 +252,15 @@ function handleExportConfirm({ selectedFields }) {
       </div>
 
       <div class="toolbar">
+        <button
+          v-if="showApproveToolbar"
+          type="button"
+          class="btn btn-primary"
+          :disabled="!canApproveSelection"
+          @click="openBatchApproval"
+        >
+          {{ t('courseRegistration.approval.approve') }}
+        </button>
         <button type="button" class="btn btn-outline" @click="exportModalVisible = true">
           {{ t('common.export') }}
         </button>
@@ -163,43 +268,59 @@ function handleExportConfirm({ selectedFields }) {
 
       <div class="table-section">
         <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>{{ t('common.serialNo') }}</th>
-              <th>{{ t('courseRegistration.approval.applicationNo') }}</th>
-              <th>{{ t('courseRegistration.monitor.studentId') }}</th>
-              <th>{{ t('courseRegistration.monitor.studentName') }}</th>
-              <th>{{ t('courseRegistration.approval.typeLabel') }}</th>
-              <th>{{ t('courseRegistration.approval.content') }}</th>
-              <th>{{ t('courseRegistration.monitor.credits') }}</th>
-              <th>{{ t('courseRegistration.approval.billLabel') }}</th>
-              <th>{{ t('courseRegistration.approval.submittedAt') }}</th>
-              <th>{{ t('common.actions') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, index) in paginatedRows" :key="row.id">
-              <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
-              <td>{{ row.applicationNo }}</td>
-              <td>{{ row.studentId }}</td>
-              <td>{{ row.studentName }}</td>
-              <td><span class="type-tag" :class="typeClass(row.type)">{{ typeLabel(row.type) }}</span></td>
-              <td class="col-content">{{ summarizeItems(row) }}</td>
-              <td>{{ row.currentCredits }}/{{ row.creditMax }}</td>
-              <td>{{ billLabel(row.billStatus) }}</td>
-              <td>{{ row.submittedAt }}</td>
-              <td>
-                <button type="button" class="link-btn" @click="openDetail(row)">
-                  {{ activeTab === 'pending' ? t('courseRegistration.approval.review') : t('common.details') }}
-                </button>
-              </td>
-            </tr>
-            <tr v-if="!paginatedRows.length">
-              <td colspan="10" class="empty-cell">{{ t('common.noData') }}</td>
-            </tr>
-          </tbody>
-        </table>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th v-if="showApproveToolbar" class="col-check">
+                  <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
+                </th>
+                <th>{{ t('common.serialNo') }}</th>
+                <th>{{ t('courseRegistration.approval.applicationNo') }}</th>
+                <th>{{ t('courseRegistration.monitor.studentId') }}</th>
+                <th>{{ t('courseRegistration.monitor.studentName') }}</th>
+                <th>{{ t('courseRegistration.approval.typeLabel') }}</th>
+                <th>{{ t('courseRegistration.approval.addCourseName') }}</th>
+                <th>{{ t('courseRegistration.approval.dropCourseName') }}</th>
+                <th>{{ t('courseRegistration.approval.retakeCourseName') }}</th>
+                <th>{{ t('courseRegistration.monitor.credits') }}</th>
+                <th>{{ t('courseRegistration.approval.billLabel') }}</th>
+                <th>{{ t('courseRegistration.approval.submittedAt') }}</th>
+                <th>{{ t('common.actions') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, index) in paginatedRows" :key="row.id">
+                <td v-if="showApproveToolbar" class="col-check">
+                  <input
+                    type="checkbox"
+                    :checked="selectedIds.includes(row.id)"
+                    @change="toggleSelect(row.id)"
+                  />
+                </td>
+                <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
+                <td>{{ row.applicationNo }}</td>
+                <td>{{ row.studentId }}</td>
+                <td>{{ row.studentName }}</td>
+                <td>
+                  <span class="type-tag" :class="typeClass(row.type)">{{ typeLabel(row.type) }}</span>
+                </td>
+                <td class="col-course nowrap">{{ courseColumns(row).add }}</td>
+                <td class="col-course nowrap">{{ courseColumns(row).drop }}</td>
+                <td class="col-course nowrap">{{ courseColumns(row).retake }}</td>
+                <td>{{ row.currentCredits }}/{{ row.creditMax }}</td>
+                <td>{{ billLabel(row.billStatus) }}</td>
+                <td>{{ row.submittedAt }}</td>
+                <td>
+                  <button type="button" class="link-btn" @click="openDetail(row)">
+                    {{ t('common.details') }}
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="!paginatedRows.length">
+                <td :colspan="tableColspan" class="empty-cell">{{ t('common.noData') }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <TablePagination
@@ -214,9 +335,18 @@ function handleExportConfirm({ selectedFields }) {
     <AddDropApprovalDetailDrawer
       :visible="!!detailApp"
       :application="detailApp"
-      :readonly="activeTab !== 'pending'"
+      :mode="detailMode"
       @close="detailApp = null"
       @updated="detailApp = null"
+    />
+
+    <AddDropApprovalModal
+      :visible="approvalModalVisible"
+      approval-stage="Academic Coordinator"
+      :target-count="pendingApprovalIds.length"
+      :show-generate-bill="batchShowGenerateBill"
+      @close="approvalModalVisible = false"
+      @confirm="handleBatchApprovalConfirm"
     />
 
     <ExportModal
@@ -229,10 +359,15 @@ function handleExportConfirm({ selectedFields }) {
 </template>
 
 <style scoped>
-.col-content {
-  max-width: 200px;
+.col-check {
+  width: 40px;
+  text-align: center;
+}
+
+.col-course {
+  max-width: 220px;
   font-size: 12px;
-  color: #6b7280;
+  color: #374151;
 }
 
 .type-tag {

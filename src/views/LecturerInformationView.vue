@@ -27,7 +27,7 @@ const lecturers = ref(
   initialLecturers.map((item) => mergeEvaluationOverrides(normalizeLecturer({ ...item }))),
 )
 
-const searchExpanded = ref(false)
+const searchExpanded = ref(true)
 const searchForm = ref(createEmptySearch())
 const appliedSearch = ref(createEmptySearch())
 

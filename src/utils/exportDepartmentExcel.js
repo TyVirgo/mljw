@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 import { formatReportTo } from '../data/departments.js'
+import { getSchoolElectiveCategoryLabel } from '../data/departments.js'
 
 export const departmentExportColumns = [
   { key: 'no', header: 'No.', width: 8 },
@@ -8,6 +9,7 @@ export const departmentExportColumns = [
   { key: 'nameEn', header: 'Department Name', width: 36 },
   { key: 'nameZh', header: 'Department Name (Chinese)', width: 24 },
   { key: 'category', header: 'Category', width: 14 },
+  { key: 'schoolElectiveCategory', header: 'School Elective Category', width: 18 },
   { key: 'reportTo', header: 'Report to', width: 12 },
   { key: 'offering', header: 'Offering', width: 10 },
   { key: 'teaching', header: 'Teaching', width: 10 },
@@ -22,6 +24,7 @@ function formatDepartmentRow(item, index) {
     nameEn: item.nameEn,
     nameZh: item.nameZh,
     category: item.category,
+    schoolElectiveCategory: getSchoolElectiveCategoryLabel(item.schoolElectiveCategory, false),
     reportTo: formatReportTo(item.reportTo),
     offering: item.offering,
     teaching: item.teaching,

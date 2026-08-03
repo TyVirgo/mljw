@@ -23,7 +23,7 @@ const { t, tr, translatedExportFields } = useListPageI18n(classroomExportFields)
 
 const classrooms = ref(initialClassrooms.map((item) => ({ ...item })))
 
-const searchExpanded = ref(false)
+const searchExpanded = ref(true)
 const searchForm = ref(createEmptySearch())
 const appliedSearch = ref(createEmptySearch())
 

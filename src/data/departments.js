@@ -1,5 +1,17 @@
 export const categoryOptions = ['School', 'Department']
 export const yesNoOptions = ['Yes', 'No']
+/** 校选类别：文科 / 理科 / 商科（value 与学科领域枚举隔离） */
+export const schoolElectiveCategoryOptions = [
+  { value: 'arts', en: 'Arts', zh: '文科' },
+  { value: 'science', en: 'Science', zh: '理科' },
+  { value: 'business', en: 'Business', zh: '商科' },
+]
+
+export function getSchoolElectiveCategoryLabel(value, isZh = false) {
+  const opt = schoolElectiveCategoryOptions.find((item) => item.value === value)
+  if (!opt) return value || '—'
+  return isZh ? opt.zh : opt.en
+}
 
 const currentYear = new Date().getFullYear()
 export const yearOptions = Array.from({ length: 41 }, (_, i) => String(currentYear - 30 + i))
@@ -23,8 +35,10 @@ export function normalizeDepartment(item) {
     email: '',
     established: '',
     remarks: '',
+    schoolElectiveCategory: '',
     previousRecords: [],
     ...item,
+    schoolElectiveCategory: item.schoolElectiveCategory || '',
     previousRecords: (item.previousRecords || []).map((row) => ({
       id: row.id ?? previousRecordSeq++,
       yearFrom: row.yearFrom || '',
@@ -51,6 +65,7 @@ export const initialDepartments = [
     offering: 'Yes',
     teaching: 'Yes',
     active: 'Yes',
+    schoolElectiveCategory: 'science',
     remarks: 'Here is the note information...',
     previousRecords: [
       { id: 1, yearFrom: '2023', yearTo: '2024', departmentName: 'School of Electrical Engineering and Artificial Intelligence' },
@@ -68,6 +83,7 @@ export const initialDepartments = [
     offering: 'Yes',
     teaching: 'No',
     active: 'No',
+    schoolElectiveCategory: 'science',
   },
   {
     id: 3,
@@ -80,6 +96,7 @@ export const initialDepartments = [
     offering: 'Yes',
     teaching: 'No',
     active: 'No',
+    schoolElectiveCategory: 'business',
   },
   {
     id: 4,
@@ -92,6 +109,7 @@ export const initialDepartments = [
     offering: 'Yes',
     teaching: 'No',
     active: 'No',
+    schoolElectiveCategory: 'arts',
   },
   {
     id: 5,
@@ -104,6 +122,7 @@ export const initialDepartments = [
     offering: 'Yes',
     teaching: 'No',
     active: 'No',
+    schoolElectiveCategory: 'science',
   },
   {
     id: 6,
@@ -116,6 +135,7 @@ export const initialDepartments = [
     offering: 'Yes',
     teaching: 'No',
     active: 'No',
+    schoolElectiveCategory: 'business',
   },
 ].map(normalizeDepartment)
 

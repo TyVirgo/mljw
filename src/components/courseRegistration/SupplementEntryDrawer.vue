@@ -2,7 +2,8 @@
 import { ref, watch, computed } from 'vue'
 import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { supplementListTypes, updateSupplementEntry } from '../../data/courseRegistration/supplementListQueue.js'
+import { updateSupplementEntry } from '../../data/courseRegistration/supplementListQueue.js'
+import { formatIntakeBatch } from '../../data/intakeSets.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -17,12 +18,9 @@ const form = ref(createEmptyForm())
 
 function createEmptyForm() {
   return {
-    listType: 'supplement',
     canAdd: true,
     canDrop: true,
     canRetake: true,
-    bypassCreditMax: false,
-    bypassPrerequisite: false,
     remark: '',
   }
 }
@@ -32,12 +30,9 @@ watch(
   (entry) => {
     if (entry) {
       form.value = {
-        listType: entry.listType,
         canAdd: entry.canAdd,
         canDrop: entry.canDrop,
         canRetake: entry.canRetake,
-        bypassCreditMax: entry.bypassCreditMax,
-        bypassPrerequisite: entry.bypassPrerequisite,
         remark: entry.remark || '',
       }
     }
@@ -46,44 +41,39 @@ watch(
 )
 
 const title = computed(() => props.entry?.studentName || '')
-const subtitle = computed(() =>
-  props.entry ? `${props.entry.studentId} · ${props.entry.programme}/${props.entry.intake}` : '',
-)
+const subtitle = computed(() => {
+  if (!props.entry) return ''
+  const intake = formatIntakeBatch(props.entry.intake) || props.entry.intake
+  return `${props.entry.studentId} · ${props.entry.programme}/${intake}`
+})
 
 function handleSave() {
   if (!props.entry?.id) return
-  updateSupplementEntry(props.entry.id, { ...form.value })
+  updateSupplementEntry(props.entry.id, { ...form.value, listType: 'supplement' })
   emit('saved')
 }
 </script>
 
 <template>
   <ApplicationDetailDrawer :visible="visible" :title="title" :subtitle="subtitle" @close="emit('close')">
-    <div class="form-grid">
-      <label>{{ t('courseRegistration.supplement.listType') }}</label>
-      <select v-model="form.listType" class="form-input">
-        <option v-for="opt in supplementListTypes" :key="opt" :value="opt">
-          {{ t(`courseRegistration.supplement.types.${opt}`) }}
-        </option>
-      </select>
+    <div class="form-body">
+      <div class="permission-grid">
+        <label class="checkbox-row checkbox-row--inline">
+          <input v-model="form.canAdd" type="checkbox" />
+          {{ t('courseRegistration.supplement.canAdd') }}
+        </label>
+        <label class="checkbox-row checkbox-row--inline">
+          <input v-model="form.canDrop" type="checkbox" />
+          {{ t('courseRegistration.supplement.canDrop') }}
+        </label>
+        <label class="checkbox-row checkbox-row--inline">
+          <input v-model="form.canRetake" type="checkbox" />
+          {{ t('courseRegistration.supplement.canRetake') }}
+        </label>
+      </div>
 
-      <label>{{ t('courseRegistration.supplement.canAdd') }}</label>
-      <input v-model="form.canAdd" type="checkbox" class="checkbox" />
-
-      <label>{{ t('courseRegistration.supplement.canDrop') }}</label>
-      <input v-model="form.canDrop" type="checkbox" class="checkbox" />
-
-      <label>{{ t('courseRegistration.supplement.canRetake') }}</label>
-      <input v-model="form.canRetake" type="checkbox" class="checkbox" />
-
-      <label>{{ t('courseRegistration.supplement.bypassCreditMax') }}</label>
-      <input v-model="form.bypassCreditMax" type="checkbox" class="checkbox" />
-
-      <label>{{ t('courseRegistration.supplement.bypassPrerequisite') }}</label>
-      <input v-model="form.bypassPrerequisite" type="checkbox" class="checkbox" />
-
-      <label>{{ t('courseRegistration.supplement.remark') }}</label>
-      <textarea v-model="form.remark" class="form-textarea" rows="3" />
+      <label class="field-label">{{ t('courseRegistration.supplement.remark') }}</label>
+      <textarea v-model="form.remark" class="form-input" rows="3" />
     </div>
 
     <template #footer>
@@ -94,20 +84,78 @@ function handleSave() {
 </template>
 
 <style scoped>
-.form-grid {
-  display: grid;
-  grid-template-columns: 160px 1fr;
-  gap: 12px;
-  align-items: center;
-  font-size: 13px;
+.form-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.form-input, .form-textarea {
+.permission-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  align-items: center;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.checkbox-row--inline {
+  margin-top: 0;
+}
+
+.field-label {
+  font-size: 13px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.form-input {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
+  font: inherit;
+  box-sizing: border-box;
 }
 
-.checkbox { width: 16px; height: 16px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  box-sizing: border-box;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.btn-default {
+  background: #fff;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+@media (max-width: 720px) {
+  .permission-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

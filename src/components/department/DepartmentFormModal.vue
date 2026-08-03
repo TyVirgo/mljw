@@ -7,6 +7,7 @@ import {
   categoryOptions,
   yesNoOptions,
   yearOptions,
+  schoolElectiveCategoryOptions,
   createEmptyPreviousRecord,
 } from '../../data/departments.js'
 
@@ -19,7 +20,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'save'])
 
-const { t, tr } = useAppI18n()
+const { t, tr, isZh } = useAppI18n()
 const {
   deleteConfirmVisible,
   deleteConfirmMessage,
@@ -51,6 +52,7 @@ function createEmptyForm() {
     officeNo: '',
     email: '',
     established: '',
+    schoolElectiveCategory: '',
     active: 'No',
     teaching: 'No',
     offering: 'Yes',
@@ -77,6 +79,7 @@ watch(
         officeNo: props.initialData.officeNo || '',
         email: props.initialData.email || '',
         established: props.initialData.established || '',
+        schoolElectiveCategory: props.initialData.schoolElectiveCategory || '',
         active: props.initialData.active,
         teaching: props.initialData.teaching,
         offering: props.initialData.offering,
@@ -96,6 +99,9 @@ function validate() {
   if (!form.value.nameEn.trim()) nextErrors.nameEn = 'Department Name is required'
   if (!form.value.nameZh.trim()) nextErrors.nameZh = 'Department Name (Chinese) is required'
   if (!form.value.code.trim()) nextErrors.code = 'Code is required'
+  if (!form.value.schoolElectiveCategory) {
+    nextErrors.schoolElectiveCategory = 'School Elective Category is required'
+  }
   errors.value = nextErrors
   return Object.keys(nextErrors).length === 0
 }
@@ -146,6 +152,7 @@ function buildPayload() {
     officeNo: form.value.officeNo.trim(),
     email: form.value.email.trim(),
     established: form.value.established.trim(),
+    schoolElectiveCategory: form.value.schoolElectiveCategory,
     active: form.value.active,
     teaching: form.value.teaching,
     offering: form.value.offering,
@@ -252,6 +259,24 @@ function handleOverlayClick(event) {
               <div class="form-row">
                 <label class="form-label">{{ tr('Email:') }}</label>
                 <input v-model="form.email" type="text" class="form-input" :placeholder="t('common.pleaseInput')" />
+              </div>
+              <div class="form-row">
+                <label class="form-label"><span class="required">*</span> {{ tr('School Elective Category:') }}</label>
+                <select
+                  v-model="form.schoolElectiveCategory"
+                  class="form-input"
+                  :class="{ error: errors.schoolElectiveCategory }"
+                >
+                  <option value="">{{ t('common.pleaseSelect') }}</option>
+                  <option
+                    v-for="opt in schoolElectiveCategoryOptions"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    {{ isZh ? opt.zh : opt.en }}
+                  </option>
+                </select>
+                <p v-if="errors.schoolElectiveCategory" class="field-error">{{ tr(errors.schoolElectiveCategory) }}</p>
               </div>
               <div class="form-row">
                 <label class="form-label"><span class="required">*</span> {{ tr('Active:') }}</label>

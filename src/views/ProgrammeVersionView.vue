@@ -20,12 +20,14 @@ import {
   buildVersionFromSave,
   mergeVersionFormWithProgramme,
   setProgrammeVersionPublished,
+  getSchoolElectiveCategoryLabel,
 } from '../data/programmeVersions.js'
 import {
   exportProgrammeVersionsToExcel,
   programmeVersionExportFields,
 } from '../utils/exportProgrammeVersionExcel.js'
 import { useListPageI18n } from '../composables/useListPageI18n.js'
+import { useAppI18n } from '../composables/useAppI18n.js'
 import { useColumnHeaderConfig } from '../composables/useColumnHeaderConfig.js'
 import {
   programmeVersionColumnHeaderStore,
@@ -34,6 +36,7 @@ import {
 } from '../data/programmeVersionColumnHeaders.js'
 
 const { t, tr, translatedExportFields } = useListPageI18n(programmeVersionExportFields)
+const { isZh } = useAppI18n()
 const { headerLabel, getEditableRows, save: saveColumnHeaders } = useColumnHeaderConfig(programmeVersionColumnHeaderStore)
 
 const programmes = ref(initialProgrammes.map((item) => ({ ...item, versions: [...item.versions] })))
@@ -337,6 +340,7 @@ function handleCreateSave(formData) {
     name: info.programmeName.trim(),
     level: info.level,
     years: Number(info.years) || info.years,
+    schoolElectiveCategory: info.schoolElectiveCategory || '',
     versions: [buildVersionFromSave(formData)],
   })
   closeProgrammeFormModal()
@@ -352,6 +356,7 @@ function handleEditSave(formData) {
   programme.name = info.programmeName.trim()
   programme.level = info.level
   programme.years = Number(info.years) || info.years
+  programme.schoolElectiveCategory = info.schoolElectiveCategory || ''
 
   programme.versions.forEach((item) => {
     item.isCurrent = false
@@ -641,12 +646,13 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                     <th>{{ headerLabel('programmeName') }}</th>
                     <th>{{ headerLabel('programmeLevel') }}</th>
                     <th>{{ headerLabel('years') }}</th>
+                    <th>{{ headerLabel('schoolElectiveCategory') }}</th>
                     <th>{{ t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="!paginatedProgrammes.length">
-                    <td colspan="8" class="empty-cell">{{ t('common.noData') }}</td>
+                    <td colspan="9" class="empty-cell">{{ t('common.noData') }}</td>
                   </tr>
                   <template v-for="(item, index) in paginatedProgrammes" :key="item.id">
                     <tr :class="{ 'search-result-row': hasActiveSearch }">
@@ -678,6 +684,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                         <span v-else>{{ tr(item.level) }}</span>
                       </td>
                       <td>{{ item.years }}</td>
+                      <td>{{ getSchoolElectiveCategoryLabel(item.schoolElectiveCategory, isZh) }}</td>
                       <td class="actions-cell">
                         <div class="actions-inner">
                           <button type="button" class="link-btn" @click="openProgrammeDetails(item)">{{ tr('ProgrammeDetails') }}</button>
@@ -688,7 +695,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                       </td>
                     </tr>
                     <tr v-if="isProgrammeExpanded(item.id)" class="nested-row">
-                      <td colspan="8" class="nested-cell">
+                      <td colspan="9" class="nested-cell">
                         <table v-if="item.versions.length" class="nested-table">
                           <thead>
                             <tr>

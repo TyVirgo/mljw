@@ -1,0 +1,30 @@
+# 合并来源 — 选课管理-选课批次
+
+- add-batch-local-rules-selectable
+- add-batch-special-student-roster
+- add-batch-student-roster
+- add-course-visible-from-round
+- batch-table-horizontal-scroll
+- differentiate-round-demo-courses
+- enrich-batch-active-demo
+- enrich-batch-scope-demo-data
+- enrich-scope-detail-roster
+- isolate-rounds-and-enrich-sections
+- polish-batch-courses-main-table
+- polish-batch-drawer-tables
+- polish-batch-form-draft-scope-dates
+- polish-batch-manage-students-entry
+- polish-batch-names-and-drop-ui
+- polish-batch-preview-suffix
+- polish-batch-roster-table
+- polish-batch-scope-count-column
+- polish-register-scope-adddrop-ui
+- polish-scope-detail-layout
+- progressive-batch-round-setup
+- refine-batch-adddrop-bill-days
+- refine-batch-elective-round1-scope
+- refine-batch-scope-by-faculty-grade
+- refine-batch-scope-intake
+- remove-batch-courses-empty-import-btn
+- rename-import-from-programme
+- require-scope-round-specific

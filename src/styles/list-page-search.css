@@ -10,7 +10,7 @@
 
 .search-bar .search-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   width: 100%;
@@ -87,6 +87,10 @@
   gap: 8px;
   flex-shrink: 0;
   margin-left: auto;
+  /* 与首行输入控件顶对齐（label+input 同行时略下移对齐输入框） */
+  padding-top: 0;
+  align-self: flex-start;
+  min-height: 32px;
 }
 
 .search-bar .search-actions svg {

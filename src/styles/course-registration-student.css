@@ -27,17 +27,33 @@
 }
 
 .cr-round-timeline {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
   margin-bottom: 16px;
 }
 
 .cr-round-step {
+  flex: 1 1 0;
+  min-width: 0;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
   padding: 10px 12px;
+}
+
+.cr-round-arrow {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  color: #9ca3af;
+  user-select: none;
 }
 
 .cr-round-step.active {
@@ -57,6 +73,81 @@
   margin-top: 4px;
   font-size: 11px;
   color: #9ca3af;
+}
+
+.cr-student-register-context {
+  margin-bottom: 16px;
+}
+
+.cr-student-round-search {
+  margin-bottom: 12px;
+  padding: 0;
+  padding-bottom: 0;
+  background: transparent;
+  border: none;
+  border-bottom: none;
+}
+
+.cr-student-round-search .search-row {
+  margin-bottom: 0;
+  align-items: center;
+}
+
+.cr-student-round-search .search-item {
+  align-items: center;
+  gap: 10px;
+}
+
+.cr-student-round-search .search-item label {
+  color: #6b7280;
+  line-height: 32px;
+}
+
+/* 覆盖 list-page-search 的 180px，宽度由选项文案测量后内联设置 */
+.cr-student-round-search .search-item select.search-select.cr-student-round-select,
+.cr-student-round-search .search-item .search-select.cr-student-round-select,
+.cr-student-round-search .search-item select.search-select.cr-student-batch-select,
+.cr-student-round-search .search-item .search-select.cr-student-batch-select {
+  width: auto;
+  min-width: 240px;
+  max-width: 100%;
+  color: #374151;
+  border-color: #e5e7eb;
+  background: #f9fafb;
+}
+
+.cr-student-round-search .search-item select.search-select.cr-student-round-select:focus,
+.cr-student-round-search .search-item .search-select.cr-student-round-select:focus,
+.cr-student-round-search .search-item select.search-select.cr-student-batch-select:focus,
+.cr-student-round-search .search-item .search-select.cr-student-batch-select:focus {
+  background: #fff;
+  border-color: #2563eb;
+}
+
+.cr-student-type-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #e5e7eb;
+  align-items: center;
+}
+
+.cr-student-type-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.cr-student-type-tab.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+  font-weight: 600;
 }
 
 .cr-student-stat-g1 {
@@ -103,10 +194,41 @@
 }
 
 .cr-student-register-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin-top: 4px;
+  min-width: 0;
+}
+
+.cr-student-cart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px 16px;
+  flex-wrap: nowrap;
+}
+
+.cr-student-cart-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.cr-student-cart-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
+.cr-student-toolbar-message {
+  margin: 0;
 }
 
 .cr-student-panel-header {
@@ -140,17 +262,6 @@
   min-width: 0;
 }
 
-.cr-student-cart-panel {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 16px;
-  background: #fff;
-  align-self: start;
-  position: sticky;
-  top: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-
 .cr-student-cart-meta {
   margin: 0 0 12px;
   font-size: 13px;
@@ -171,6 +282,10 @@
   padding: 12px 0;
   border-bottom: 1px solid #f3f4f6;
   font-size: 13px;
+}
+
+.cr-student-cart-item:last-child {
+  border-bottom: none;
 }
 
 .cr-student-cart-item-body {
@@ -214,16 +329,24 @@
 
 .cr-student-actions .actions-inner {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/** 感叹号 tip 固定槽，无 tip 时留空以对齐提交按钮 */
+.cr-action-tip-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .cr-eligibility-tag {
   cursor: help;
-}
-
-.cr-row-blocked {
-  opacity: 0.72;
 }
 
 .cr-student-empty {
@@ -327,20 +450,28 @@
 
 @media (max-width: 1100px) {
   .cr-round-timeline {
-    grid-template-columns: repeat(2, 1fr);
+    flex-wrap: wrap;
   }
 
-  .cr-student-register-layout {
-    grid-template-columns: 1fr;
+  .cr-round-step {
+    flex: 1 1 calc(50% - 24px);
   }
 
-  .cr-student-cart-panel {
-    position: static;
+  .cr-round-arrow {
+    display: none;
   }
 }
 
 @media (max-width: 720px) {
   .cr-round-timeline {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .cr-round-step {
+    flex: 1 1 auto;
+  }
+
+  .cr-round-arrow {
+    display: none;
   }
 }

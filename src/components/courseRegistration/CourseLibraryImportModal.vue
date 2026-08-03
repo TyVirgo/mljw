@@ -212,11 +212,13 @@ function handleClose() {
         </div>
 
         <div class="modal-footer">
-          <TablePagination
-            v-model="currentPage"
-            v-model:page-size="pageSize"
-            :total="filteredCourses.length"
-          />
+          <div class="footer-pagination">
+            <TablePagination
+              v-model="currentPage"
+              v-model:page-size="pageSize"
+              :total="filteredCourses.length"
+            />
+          </div>
           <div class="footer-actions">
             <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
             <button
@@ -413,16 +415,58 @@ function handleClose() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 12px 24px;
+  gap: 24px;
+  padding: 16px 28px 20px;
   border-top: 1px solid #f0f0f0;
   flex-shrink: 0;
   flex-wrap: wrap;
 }
 
+.footer-pagination {
+  flex: 1;
+  min-width: 0;
+}
+
+.footer-pagination :deep(.table-pagination) {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
 .footer-actions {
   display: flex;
-  gap: 8px;
+  gap: 12px;
+  flex-shrink: 0;
   margin-left: auto;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: #fff;
+  border: 1px solid #2563eb;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-default {
+  background: #fff;
+  color: #374151;
+  border: 1px solid #d9d9d9;
 }
 </style>

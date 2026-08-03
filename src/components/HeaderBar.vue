@@ -1,18 +1,38 @@
 <script setup>
+import { computed } from 'vue'
 import UserProfileMenu from './UserProfileMenu.vue'
 import LanguageSwitcher from './LanguageSwitcher.vue'
 import { useAppI18n } from '../composables/useAppI18n.js'
 
-defineProps({
+const props = defineProps({
   titleKey: {
     type: String,
     default: 'menu.basicData',
+  },
+  /** 当前模块：basicData | studentRecords | courseRegistration */
+  brandModule: {
+    type: String,
+    default: 'basicData',
   },
 })
 
 const { t } = useAppI18n()
 
 const emit = defineEmits(['back-to-portal', 'go-home'])
+
+/** 按模块取品牌主标题，缺省回退全局 brandTitle */
+const brandTitleText = computed(() => {
+  const key = `header.brands.${props.brandModule}.title`
+  const localized = t(key)
+  return localized !== key ? localized : t('header.brandTitle')
+})
+
+/** 按模块取品牌副描述，缺省回退全局 brandSubtitle */
+const brandSubtitleText = computed(() => {
+  const key = `header.brands.${props.brandModule}.subtitle`
+  const localized = t(key)
+  return localized !== key ? localized : t('header.brandSubtitle')
+})
 
 function handleBrandClick() {
   emit('go-home')
@@ -29,8 +49,8 @@ function handleBrandClick() {
         </svg>
       </div>
       <div class="brand-text">
-        <span class="brand-title">{{ t('header.brandTitle') }}</span>
-        <span class="brand-subtitle">{{ t('header.brandSubtitle') }}</span>
+        <span class="brand-title">{{ brandTitleText }}</span>
+        <span class="brand-subtitle">{{ brandSubtitleText }}</span>
       </div>
     </button>
 

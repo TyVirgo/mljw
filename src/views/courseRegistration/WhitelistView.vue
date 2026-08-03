@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import WhitelistDetailDrawer from '../../components/courseRegistration/WhitelistDetailDrawer.vue'
 import WhitelistFormDrawer from '../../components/courseRegistration/WhitelistFormDrawer.vue'
-import ModuleBriefPanel from '../../components/courseRegistration/ModuleBriefPanel.vue'
 import CourseRegistrationCallout from '../../components/courseRegistration/CourseRegistrationCallout.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { whitelistQueue, whitelistTypes, filterWhitelist } from '../../data/courseRegistration/whitelistQueue.js'
@@ -15,7 +14,7 @@ const { t } = useAppI18n()
 const searchForm = ref({ type: '', status: '', keyword: '' })
 const appliedSearch = ref({ type: '', status: '', keyword: '' })
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(20)
 const detailItem = ref(null)
 const formVisible = ref(false)
 
@@ -64,11 +63,9 @@ function openDetail(row) {
 
 <template>
   <div class="cr-list-page cr-whitelist-page">
-    <ModuleBriefPanel page-id="cr-whitelist" />
-
     <div class="page-card">
       <CourseRegistrationCallout variant="info">
-        <p>{{ t('courseRegistration.whitelist.hint') }}</p>
+        <p>{{ t('courseRegistration.whitelist.hint') }}{{ t('common.prototypeOnlySuffix') }}</p>
       </CourseRegistrationCallout>
 
       <div class="search-bar">

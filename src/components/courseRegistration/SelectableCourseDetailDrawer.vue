@@ -4,6 +4,10 @@ import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
 import ExternalDataHint from './ExternalDataHint.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
+import {
+  getCourseById,
+  updateCourseSelectable,
+} from '../../data/courseRegistration/selectableCourses.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -29,8 +33,25 @@ watch(
   },
 )
 
-const title = computed(() => props.course?.name || '')
-const subtitle = computed(() => (props.course ? `${props.course.code} · ${props.course.credits} cr` : ''))
+const liveCourse = computed(() => {
+  if (!props.course?.id) return props.course
+  return getCourseById(props.course.id) || props.course
+})
+
+const title = computed(() => liveCourse.value?.name || '')
+const subtitle = computed(() =>
+  liveCourse.value ? `${liveCourse.value.code} · ${liveCourse.value.credits} cr` : '',
+)
+
+const selectableDraft = computed({
+  get() {
+    return liveCourse.value?.isSelectable !== false ? 'yes' : 'no'
+  },
+  set(value) {
+    if (!liveCourse.value?.id) return
+    updateCourseSelectable(liveCourse.value.id, value === 'yes')
+  },
+})
 </script>
 
 <template>
@@ -53,17 +74,17 @@ const subtitle = computed(() => (props.course ? `${props.course.code} · ${props
       </button>
     </div>
 
-    <template v-if="course">
+    <template v-if="liveCourse">
       <div v-if="activeTab === 'basic'" class="tab-panel">
         <dl class="detail-dl">
           <dt>{{ t('courseRegistration.courses.code') }}</dt>
-          <dd>{{ course.code }} <ExternalDataHint source-key="courseLibrary" /></dd>
+          <dd>{{ liveCourse.code }} <ExternalDataHint source-key="courseLibrary" /></dd>
           <dt>{{ t('courseRegistration.courses.name') }}</dt>
-          <dd>{{ course.name }}</dd>
+          <dd>{{ liveCourse.name }}</dd>
           <dt>{{ t('courseRegistration.courses.credits') }}</dt>
-          <dd>{{ course.credits }}</dd>
+          <dd>{{ liveCourse.credits }}</dd>
           <dt>{{ t('courseRegistration.courses.type') }}</dt>
-          <dd>{{ course ? getRegistrationTypeLabel(course.type, t) : '—' }}</dd>
+          <dd>{{ getRegistrationTypeLabel(liveCourse.type, t) }}</dd>
         </dl>
       </div>
 
@@ -80,7 +101,7 @@ const subtitle = computed(() => (props.course ? `${props.course.code} · ${props
             </tr>
           </thead>
           <tbody>
-            <tr v-for="sec in course.sections" :key="sec.id">
+            <tr v-for="sec in liveCourse.sections" :key="sec.id">
               <td>{{ sec.code }}</td>
               <td>{{ sec.lecturer || '—' }}</td>
               <td>{{ sec.weekRange || '—' }}</td>
@@ -91,7 +112,7 @@ const subtitle = computed(() => (props.course ? `${props.course.code} · ${props
               <td>{{ sec.room || '—' }}</td>
               <td>{{ sec.enrolled }}/{{ sec.capacity }}</td>
             </tr>
-            <tr v-if="!course.sections?.length">
+            <tr v-if="!liveCourse.sections?.length">
               <td colspan="6" class="empty">{{ t('common.noData') }}</td>
             </tr>
           </tbody>
@@ -101,25 +122,32 @@ const subtitle = computed(() => (props.course ? `${props.course.code} · ${props
       <div v-else-if="activeTab === 'quota'" class="tab-panel">
         <dl class="detail-dl">
           <dt>{{ t('courseRegistration.courses.capacity') }}</dt>
-          <dd>{{ course.quota?.total }}</dd>
+          <dd>{{ liveCourse.quota?.total }}</dd>
           <dt>{{ t('courseRegistration.courses.seniorQuota') }}</dt>
-          <dd>{{ course.quota?.senior }}</dd>
+          <dd>{{ liveCourse.quota?.senior }}</dd>
           <dt>{{ t('courseRegistration.courses.freshmanQuota') }}</dt>
-          <dd>{{ course.quota?.freshman }}</dd>
+          <dd>{{ liveCourse.quota?.freshman }}</dd>
           <dt>{{ t('courseRegistration.courses.releaseFreshman') }}</dt>
-          <dd>{{ course.quota?.releaseToFreshman ? t('common.yes') : t('common.no') }}</dd>
+          <dd>{{ liveCourse.quota?.releaseToFreshman ? t('common.yes') : t('common.no') }}</dd>
         </dl>
       </div>
 
       <div v-else class="tab-panel">
         <dl class="detail-dl">
+          <dt>{{ t('courseRegistration.courses.isSelectable') }}</dt>
+          <dd>
+            <select v-model="selectableDraft" class="round-select">
+              <option value="yes">{{ t('courseRegistration.courses.isSelectableYes') }}</option>
+              <option value="no">{{ t('courseRegistration.courses.isSelectableNo') }}</option>
+            </select>
+          </dd>
           <dt>{{ t('courseRegistration.courses.prerequisites') }}</dt>
           <dd>
-            {{ (course.prerequisites || []).join(', ') || '—' }}
+            {{ (liveCourse.prerequisites || []).join(', ') || '—' }}
             <ExternalDataHint source-key="programme" />
           </dd>
           <dt>{{ t('courseRegistration.courses.g1Category') }}</dt>
-          <dd>{{ course.g1Category || '—' }}</dd>
+          <dd>{{ liveCourse.g1Category || '—' }}</dd>
         </dl>
       </div>
     </template>
@@ -160,6 +188,23 @@ const subtitle = computed(() => (props.course ? `${props.course.code} · ${props
 
 .detail-dl dt {
   color: #6b7280;
+}
+
+.round-select {
+  min-width: 180px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.field-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.4;
 }
 
 .mini-table {

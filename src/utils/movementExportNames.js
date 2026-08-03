@@ -18,6 +18,10 @@ export const ATTACHMENT_EXPORT_TYPE_LABEL = {
   consentLetter: 'Consent Letter',
   flightTickets: 'Flight Tickets',
   medicalRecovery: 'Medical Recovery',
+  accommodationCheckOut: 'Accommodation Check Out',
+  medicalRecord: 'Medical Record',
+  visaRelatedDocuments: 'Visa Related Documents',
+  otherDocuments: 'Other Documents',
 }
 
 /** Approved with manual archive number; otherwise NA prefix label */

@@ -2,7 +2,6 @@
 import { ref, computed, watch } from 'vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import SelectableCourseDetailDrawer from '../../components/courseRegistration/SelectableCourseDetailDrawer.vue'
-import ModuleBriefPanel from '../../components/courseRegistration/ModuleBriefPanel.vue'
 import ExternalDataHint from '../../components/courseRegistration/ExternalDataHint.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { coursesBatchFilter } from '../../data/courseRegistration/navigationState.js'
@@ -20,7 +19,7 @@ const { t } = useAppI18n()
 const searchForm = ref({ batchId: '', keyword: '' })
 const appliedSearch = ref({ batchId: '', keyword: '' })
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(20)
 const detailCourse = ref(null)
 const importVisible = ref(false)
 const importCodes = ref('COMP101, MATH201')
@@ -82,8 +81,6 @@ function handleImport() {
 
 <template>
   <div class="cr-list-page cr-courses-page">
-    <ModuleBriefPanel page-id="cr-courses" />
-
     <div class="page-card">
       <div class="search-bar">
         <div class="search-row">

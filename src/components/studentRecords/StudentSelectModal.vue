@@ -12,7 +12,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'confirm'])
 
-const { t } = useAppI18n()
+const { t, tr } = useAppI18n()
 
 const pickedStudentId = ref('')
 const searchDraft = ref('')
@@ -23,10 +23,13 @@ const pageSize = ref(10)
 const normalizedStudents = computed(() =>
   props.students.map((item) => {
     const enrollment = item.enrollment ?? {}
+    const basicInfo = item.basicInfo ?? {}
     return {
-      studentId: item.studentId ?? item.basicInfo?.studentId ?? '',
-      name: item.name ?? item.basicInfo?.fullName ?? '',
-      nameCn: item.nameCn ?? item.basicInfo?.chineseName ?? '',
+      studentId: item.studentId ?? basicInfo.studentId ?? '',
+      name: item.name ?? basicInfo.fullName ?? '',
+      nameCn: item.nameCn ?? basicInfo.chineseName ?? '',
+      // 国籍：学籍 basicInfo，供选择列表展示（中文经 tr 映射）
+      nationality: basicInfo.nationality ?? item.nationality ?? '',
       programme: enrollment.programme ?? item.programme ?? '',
       faculty: enrollment.faculty ?? item.faculty ?? '',
       raw: item,
@@ -34,9 +37,23 @@ const normalizedStudents = computed(() =>
   }),
 )
 
+/**
+ * 单元格展示：空值用 —；有值原样返回（国籍另走 formatNationality）
+ * @param {unknown} value 单元格原始值
+ */
 function displayCell(value) {
   const text = String(value ?? '').trim()
   return text || '—'
+}
+
+/**
+ * 国籍展示：中文界面用 tr 映射国家中文名，英文界面保留英文国名
+ * @param {string} nationality 学籍存储的英文国名
+ */
+function formatNationality(nationality) {
+  const text = String(nationality ?? '').trim()
+  if (!text) return '—'
+  return tr(text)
 }
 
 function matchKeyword(item, keyword) {
@@ -152,13 +169,17 @@ function handleOverlayClick(event) {
                     <th class="col-no">{{ t('common.serialNo') }}</th>
                     <th>{{ t('studentSelect.columns.studentId') }}</th>
                     <th>{{ t('studentSelect.columns.name') }}</th>
+                    <!-- 国籍：置于姓名与专业之间，四类异动共用 -->
+                    <th>{{ t('studentSelect.columns.nationality') }}</th>
                     <th>{{ t('studentSelect.columns.programme') }}</th>
+                    <!-- 专业层次：四类异动共用弹框，策略 B 统一展示「本科」 -->
+                    <th>{{ t('studentSelect.columns.programmeLevel') }}</th>
                     <th>{{ t('studentSelect.columns.faculty') }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="!paginatedStudents.length">
-                    <td colspan="6" class="empty-cell">{{ t('common.noData') }}</td>
+                    <td colspan="8" class="empty-cell">{{ t('common.noData') }}</td>
                   </tr>
                   <tr
                     v-for="(item, index) in paginatedStudents"
@@ -177,8 +198,11 @@ function handleOverlayClick(event) {
                     <td class="col-no">{{ getRowNumber(index) }}</td>
                     <td>{{ displayCell(item.studentId) }}</td>
                     <td>{{ displayCell(item.name) }}</td>
-                    <td class="col-programme" :title="item.programme">{{ displayCell(item.programme) }}</td>
-                    <td class="col-faculty" :title="item.faculty">{{ displayCell(item.faculty) }}</td>
+                    <td>{{ formatNationality(item.nationality) }}</td>
+                    <td class="col-programme">{{ displayCell(item.programme) }}</td>
+                    <!-- 不读 enrollment.programmeLevel，固定展示默认「本科」文案 -->
+                    <td class="col-programme-level">{{ t('studentSelect.defaultProgrammeLevel') }}</td>
+                    <td class="col-faculty">{{ displayCell(item.faculty) }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -326,6 +350,7 @@ function handleOverlayClick(event) {
 .table-wrap {
   flex: 1;
   min-height: 280px;
+  /* 内容超出时出现横向/纵向滚动条，便于看全长专业名等字段 */
   overflow: auto;
   border: 1px solid #f3f4f6;
   border-radius: 4px;
@@ -333,6 +358,8 @@ function handleOverlayClick(event) {
 
 .data-table {
   width: 100%;
+  /* 保证列完整展示时总宽可撑开容器，从而触发横向滚动 */
+  min-width: 1080px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -343,13 +370,14 @@ function handleOverlayClick(event) {
   text-align: left;
   border-bottom: 1px solid #f3f4f6;
   vertical-align: middle;
+  /* 不换行、不截断，避免省略号藏字 */
+  white-space: nowrap;
 }
 
 .data-table th {
   background: #f9fafb;
   color: #6b7280;
   font-weight: 600;
-  white-space: nowrap;
 }
 
 .data-table tbody tr {
@@ -370,22 +398,29 @@ function handleOverlayClick(event) {
 
 .col-no {
   width: 56px;
-  white-space: nowrap;
 }
 
+/* 原 max-width + ellipsis 会阻止表格撑宽，改为不截断以便横向滑动看全
 .col-programme {
   max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+*/
 
+.col-programme-level {
+  white-space: nowrap;
+}
+
+/* 原学院列截断样式同上原因注释保留
 .col-faculty {
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+*/
 
 .empty-cell {
   text-align: center;

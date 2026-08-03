@@ -1,0 +1,25 @@
+# 合并来源 — 选课管理-学生在线选课
+
+- add-register-ge-stats-row
+- add-register-list-sections-column
+- add-student-credit-progress-toolbar
+- collapse-student-cart-to-toolbar
+- default-register-entry-and-queue-ux
+- fix-register-list-ui-polish
+- flatten-register-table-by-section
+- polish-my-courses-table
+- polish-register-capacity-column
+- polish-register-round-capacity-ux
+- polish-section-credit-ux
+- polish-section-picker-credit-visual
+- polish-student-cart-section-style
+- polish-student-register-toolbar
+- queue-result-overlay-gated
+- refine-my-courses-queue-ux
+- refine-queue-history-cart-ux
+- refine-section-picker-credit-banner
+- remove-register-adddrop-timeline-card
+- split-student-register-by-course-type
+- student-round-via-menu
+- sync-register-search-with-table
+- unify-round-direct-register

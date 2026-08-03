@@ -302,3 +302,41 @@ export function buildCourseTimelineNodes(item, workflowStages) {
     parallelGroups: [],
   })
 }
+
+/** 加退课审批：提交 → 教务协调员（单级） */
+export function buildAddDropTimelineNodes(application) {
+  if (!application) return []
+  const logs = Array.isArray(application.approvalLog) ? application.approvalLog : []
+  const normalizedLogs = logs.map((entry) => ({
+    ...entry,
+    dateTime: entry.dateTime || entry.at || '',
+  }))
+
+  return buildApprovalTimelineNodes({
+    workflowStages: ['Academic Coordinator', 'Approved'],
+    approvalLog: [
+      {
+        action: 'Submitted',
+        actor: application.studentName || '',
+        dateTime: application.submittedAt || '',
+        stage: 'Applicant',
+      },
+      ...normalizedLogs.map((entry) => ({
+        ...entry,
+        stage: entry.stage || 'Academic Coordinator',
+      })),
+    ],
+    currentStage: application.status === 'Pending' ? 'Academic Coordinator' : '',
+    status:
+      application.status === 'Pending'
+        ? 'In Progress'
+        : application.status === 'Approved'
+          ? 'Approved'
+          : application.status === 'Rejected'
+            ? 'Rejected'
+            : application.status || '',
+    applicantLabel: application.studentName || '',
+    parallelGroups: [],
+  })
+}
+

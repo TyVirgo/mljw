@@ -5,6 +5,7 @@ import {
   createFormSteps,
   formatCheckTotalDisplay,
   getDepartmentLabel,
+  getSchoolElectiveCategoryLabel,
   localFeeColumns,
   internationalFeeColumns,
 } from '../../data/programmeVersions.js'
@@ -165,6 +166,10 @@ function getFileIconType(fileName) {
           <div class="detail-row">
             <span class="detail-label">Department:</span>
             <span class="detail-value">{{ getDepartmentLabel(info.department) }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">{{ tr('School Elective Category:') }}</span>
+            <span class="detail-value">{{ getSchoolElectiveCategoryLabel(info.schoolElectiveCategory, isZh) }}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Prog. Commence:</span>

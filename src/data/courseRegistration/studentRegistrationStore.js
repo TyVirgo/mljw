@@ -1,8 +1,19 @@
 import { ref, computed } from 'vue'
 import { getCurrentStudent } from '../mockCurrentStudent.js'
 import { getActiveBatch } from './registrationBatches.js'
-import { getCoursesByBatch, getCourseById, sortCoursesForStudentDemo } from './selectableCourses.js'
-import { runRegistrationQueue } from '../../composables/useRegistrationQueue.js'
+import {
+  getCoursesByBatch,
+  getCourseById,
+  selectableCourses,
+  sortCoursesForStudentDemo,
+} from './selectableCourses.js'
+import {
+  runRegistrationQueue,
+  revealQueueOverlay,
+  hideQueueOverlay,
+  isRegistrationQueueWaiting,
+  cancelRegistrationQueue,
+} from '../../composables/useRegistrationQueue.js'
 import { registrationMonitorQueue } from './registrationMonitorQueue.js'
 import { LONG_SEMESTER_CREDIT_MIN, LONG_SEMESTER_CREDIT_MAX } from './registrationRules.js'
 import {
@@ -15,12 +26,135 @@ import {
   getEstimatedWaitlistPosition,
   joinStudentWaitlist,
 } from './waitlistQueue.js'
+import {
+  hasStudentVolunteeredCourse,
+  submitStudentPreselectVolunteer,
+  removeStudentPreselectVolunteer,
+} from './preselectVolunteerConfirm.js'
 
-export const registrationCart = ref([])
+/** 在线选课三轮（预选/正选/补选均为真选课时段，对象与时间窗不同） */
+export const CART_ROUND_KEYS = ['preselect', 'main', 'supplement']
+
+function emptyCartsByRound() {
+  return {
+    preselect: [],
+    main: [],
+    supplement: [],
+  }
+}
+
+export const registrationCartsByRound = ref(emptyCartsByRound())
+
+/** 当前操作的轮次；切换 tab 时由在线选课页同步；默认第一轮 */
+export const activeCartRoundKey = ref('preselect')
+
+/** 一次性请求打开「本轮选课情况」抽屉（跨 overlay / 页面） */
+export const shouldOpenRoundStatusDrawer = ref(false)
+
+export function requestOpenRoundStatusDrawer() {
+  shouldOpenRoundStatusDrawer.value = true
+}
+
+export function normalizeCartRoundKey(roundKey) {
+  return CART_ROUND_KEYS.includes(roundKey) ? roundKey : 'preselect'
+}
+
+export function setActiveCartRound(roundKey) {
+  activeCartRoundKey.value = normalizeCartRoundKey(roundKey)
+}
+
+function getActiveRoundCart() {
+  const key = normalizeCartRoundKey(activeCartRoundKey.value)
+  return registrationCartsByRound.value[key]
+}
+
+function setActiveRoundCart(next) {
+  const key = normalizeCartRoundKey(activeCartRoundKey.value)
+  registrationCartsByRound.value = {
+    ...registrationCartsByRound.value,
+    [key]: next,
+  }
+}
+
+/** 当前轮次选课篮（兼容原单一 cart 用法） */
+export const registrationCart = computed({
+  get() {
+    return getActiveRoundCart()
+  },
+  set(next) {
+    setActiveRoundCart(Array.isArray(next) ? next : [])
+  },
+})
 
 export const studentConfirmedCourses = ref([])
 
 export const studentSchedule = ref([])
+
+/** 当前正在队列中的单课（确认选课后、出队前） */
+export const pendingRegistration = ref(null)
+
+/** 高并发未选上的记录 */
+export const studentFailedRegistrations = ref([])
+
+/** 第一轮志愿队列结束后的「待分配」（不算已选学分） */
+export const studentPendingAssignCourses = ref([])
+
+/** 学生主动取消排队的记录 */
+export const studentCancelledRegistrations = ref([])
+
+export function isCourseOccupied(courseId) {
+  if (!courseId) return false
+  if (pendingRegistration.value?.courseId === courseId) return true
+  if (hasStudentVolunteeredCourse(courseId)) return true
+  if (studentPendingAssignCourses.value.some((item) => item.courseId === courseId)) return true
+  return studentConfirmedCourses.value.some((item) => item.courseId === courseId)
+}
+
+export const myRegistrationList = computed(() => {
+  const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
+  const list = []
+  if (pendingRegistration.value) {
+    list.push({ ...pendingRegistration.value, status: 'queued' })
+  }
+  if (roundKey === 'preselect') {
+    for (const item of studentPendingAssignCourses.value) {
+      list.push({ ...item, status: 'pendingAssign' })
+    }
+    return list
+  }
+  for (const item of studentConfirmedCourses.value) {
+    list.push({ ...item, status: 'success' })
+  }
+  for (const item of studentFailedRegistrations.value) {
+    list.push({ ...item, status: 'failed' })
+  }
+  return list
+})
+
+export const myRegistrationCredits = computed(() =>
+  studentConfirmedCourses.value.reduce((sum, item) => sum + (item.credits || 0), 0),
+)
+
+/** 选课提交成功时刻，展示为 YYYY-MM-DD HH:mm:ss */
+export function formatSelectedAt(value) {
+  if (value == null || value === '') return '—'
+  const pad = (n) => String(n).padStart(2, '0')
+  const formatDate = (date) =>
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '—' : formatDate(value)
+  }
+  const raw = String(value).trim()
+  if (!raw) return '—'
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)) return raw
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return raw
+  return formatDate(parsed)
+}
+
+function nowSelectedAt() {
+  return formatSelectedAt(new Date())
+}
 
 function normalizeIntake(raw) {
   const digits = String(raw || '').replace(/\D/g, '')
@@ -52,8 +186,13 @@ function parseSectionSchedule(time, courseCode) {
 
 function assertEligibleAndNotInCart(course) {
   if (!course) return { ok: false }
+  if (isCourseOccupied(course.id)) {
+    return { ok: false, errorKey: 'courseRegistration.student.cartDuplicate' }
+  }
   const batch = getActiveBatch()
-  const context = buildEligibilityContext(getCurrentStudent(), batch)
+  const context = buildEligibilityContext(getCurrentStudent(), batch, {
+    roundKey: normalizeCartRoundKey(activeCartRoundKey.value),
+  })
   const eligibility = course.eligibility || evaluateCourseEligibility(course, context)
   if (!eligibility.eligible) {
     return {
@@ -62,11 +201,239 @@ function assertEligibleAndNotInCart(course) {
       errorParams: eligibility.primaryReasonParams,
     }
   }
-  if (registrationCart.value.some((item) => item.courseId === course.id)) {
-    return { ok: false, errorKey: 'courseRegistration.student.cartDuplicate' }
-  }
   return { ok: true }
 }
+
+function buildCartCourseItem(course, section) {
+  return {
+    intent: 'register',
+    courseId: course.id,
+    sectionId: section.id,
+    courseCode: course.code,
+    courseName: course.name,
+    sectionCode: section.code,
+    time: section.time,
+    classTime: section.classTime || section.time,
+    weekRange: section.weekRange,
+    room: section.room,
+    lecturer: section.lecturer,
+    credits: course.credits,
+    batchId: course.batchId,
+    type: course.type,
+    isHot: course.isHot,
+  }
+}
+
+/** 单课确认选课：第二/三轮进队列；第一轮提交志愿并进队列，结束后为待分配 */
+export function submitSingleCourseRegistration(course, section) {
+  if (!course || !section) return { ok: false }
+  const gate = assertEligibleAndNotInCart(course)
+  if (!gate.ok) return gate
+
+  const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
+  const studentFields = getStudentProfileFields()
+
+  if (roundKey === 'preselect') {
+    const volunteerResult = submitStudentPreselectVolunteer({
+      course,
+      section,
+      studentFields: {
+        ...studentFields,
+        relativeSemester: 3,
+      },
+    })
+    if (!volunteerResult.ok) return volunteerResult
+
+    const batch = getActiveBatch()
+    const item = buildCartCourseItem(course, section)
+    pendingRegistration.value = item
+
+    const queueContext = {
+      ...studentFields,
+      batchName: batch?.name,
+      academicSession: batch?.academicSession,
+      courses: [item],
+      courseCode: item.courseCode,
+      courseName: item.courseName,
+      credits: item.credits,
+      section: item.sectionCode,
+      time: item.time,
+      room: item.room,
+      lecturer: item.lecturer,
+      resultKind: 'pendingAssign',
+    }
+
+    void runRegistrationQueue(queueContext, {
+      silent: false,
+      showSuccess: true,
+      resultKind: 'pendingAssign',
+      onComplete: () => {
+        pendingRegistration.value = null
+        applyPendingAssignRegistration([item])
+        return { ok: true }
+      },
+    }).catch((err) => {
+      const reason = err?.message || ''
+      if (reason === 'cancelled' || reason === 'superseded') return
+      pendingRegistration.value = null
+    })
+
+    return { ok: true, queued: true, volunteered: true }
+  }
+
+  if (section.enrolled >= section.capacity) {
+    return { ok: false, errorKey: 'courseRegistration.student.sectionFull' }
+  }
+
+  const batch = getActiveBatch()
+  const item = buildCartCourseItem(course, section)
+  pendingRegistration.value = item
+
+  const queueContext = {
+    ...studentFields,
+    batchName: batch?.name,
+    academicSession: batch?.academicSession,
+    courses: [item],
+    courseCode: item.courseCode,
+    courseName: item.courseName,
+    credits: item.credits,
+    section: item.sectionCode,
+    time: item.time,
+    room: item.room,
+    lecturer: item.lecturer,
+  }
+
+  void runRegistrationQueue(queueContext, {
+    silent: false,
+    showSuccess: true,
+    onComplete: () => {
+      const failed = Math.random() < 0.15
+      pendingRegistration.value = null
+      if (failed) {
+        studentFailedRegistrations.value = [
+          {
+            ...item,
+            id: `fail-${item.courseId}-${Date.now()}`,
+            failedAt: nowSelectedAt(),
+          },
+          ...studentFailedRegistrations.value,
+        ]
+        return { ok: false, errorKey: 'courseRegistration.student.registerFailedQueue' }
+      }
+      applyConfirmedRegistration([item])
+      upsertMonitorRow(
+        studentFields,
+        batch,
+        `Registered ${item.courseCode} via online queue`,
+      )
+      return { ok: true }
+    },
+  }).catch((err) => {
+    const reason = err?.message || ''
+    if (reason === 'cancelled' || reason === 'superseded') return
+    pendingRegistration.value = null
+  })
+
+  return { ok: true, queued: true }
+}
+
+function pushCancelledRegistration(item) {
+  if (!item) return
+  studentCancelledRegistrations.value = [
+    {
+      ...item,
+      id: item.id || `cancel-${item.courseId}-${Date.now()}`,
+      cancelledAt: nowSelectedAt(),
+    },
+    ...studentCancelledRegistrations.value,
+  ]
+}
+
+/** 中止排队并记入取消选课（调用方负责确认弹框） */
+export function cancelMyCourseQueue(item) {
+  const pending = pendingRegistration.value
+  const targetId = item?.courseId
+  if (pending && (!targetId || pending.courseId === targetId)) {
+    pendingRegistration.value = null
+    pushCancelledRegistration(pending)
+    if (normalizeCartRoundKey(activeCartRoundKey.value) === 'preselect') {
+      const studentId = getStudentProfileFields().studentId
+      removeStudentPreselectVolunteer(pending.courseId, studentId)
+    }
+    if (isRegistrationQueueWaiting()) {
+      cancelRegistrationQueue()
+    }
+    return { ok: true }
+  }
+  return { ok: false, errorKey: 'courseRegistration.student.unselectNotFound' }
+}
+
+export function hideMyCourseQueueProgress() {
+  hideQueueOverlay()
+}
+
+/** 查看排队进度：若已有静默队列则揭开展示，否则演示进度界面 */
+export function openMyCourseQueueProgress(item) {
+  if (!item) return
+  if (isRegistrationQueueWaiting()) {
+    revealQueueOverlay()
+    return
+  }
+
+  const studentFields = getStudentProfileFields()
+  const batch = getActiveBatch()
+  void runRegistrationQueue(
+    {
+      ...studentFields,
+      batchName: batch?.name,
+      academicSession: batch?.academicSession,
+      courses: [item],
+      courseCode: item.courseCode,
+      courseName: item.courseName,
+      credits: item.credits,
+      section: item.sectionCode,
+      time: item.time || item.classTime,
+      room: item.room,
+      lecturer: item.lecturer,
+    },
+    {
+      silent: false,
+      showSuccess: false,
+      onComplete: () => ({ ok: true }),
+    },
+  ).catch(() => {})
+}
+
+export function dismissFailedRegistration(id) {
+  studentFailedRegistrations.value = studentFailedRegistrations.value.filter((item) => item.id !== id)
+}
+
+export function dismissCancelledRegistration(id) {
+  studentCancelledRegistrations.value = studentCancelledRegistrations.value.filter(
+    (item) => item.id !== id,
+  )
+}
+
+/** 批量退选已成功课程 */
+export function batchUnselectConfirmedCourses(courseIds) {
+  const ids = Array.isArray(courseIds) ? courseIds.filter(Boolean) : []
+  if (!ids.length) {
+    return { ok: false, errorKey: 'courseRegistration.student.batchUnselectEmpty' }
+  }
+  if (!isRegistrationPhaseForUnselect()) {
+    return { ok: false, errorKey: 'courseRegistration.student.unselectNotInPhase' }
+  }
+  let count = 0
+  for (const courseId of ids) {
+    const result = unselectConfirmedCourse(courseId)
+    if (result.ok) count += 1
+  }
+  if (!count) {
+    return { ok: false, errorKey: 'courseRegistration.student.unselectNotFound' }
+  }
+  return { ok: true, count }
+}
+
 
 export function addToCart(course, section) {
   if (!course || !section) return { ok: false }
@@ -75,23 +442,26 @@ export function addToCart(course, section) {
   if (section.enrolled >= section.capacity) {
     return { ok: false, errorKey: 'courseRegistration.student.sectionFull' }
   }
-  registrationCart.value.push({
-    intent: 'register',
-    courseId: course.id,
-    sectionId: section.id,
-    courseCode: course.code,
-    courseName: course.name,
-    credits: course.credits,
-    sectionCode: section.code,
-    time: section.time,
-    classTime: section.classTime || section.time,
-    weekRange: section.weekRange || '',
-    room: section.room,
-    lecturer: section.lecturer,
-    batchId: course.batchId,
-    type: course.type,
-    isHot: course.isHot,
-  })
+  setActiveRoundCart([
+    ...getActiveRoundCart(),
+    {
+      intent: 'register',
+      courseId: course.id,
+      sectionId: section.id,
+      courseCode: course.code,
+      courseName: course.name,
+      credits: course.credits,
+      sectionCode: section.code,
+      time: section.time,
+      classTime: section.classTime || section.time,
+      weekRange: section.weekRange || '',
+      room: section.room,
+      lecturer: section.lecturer,
+      batchId: course.batchId,
+      type: course.type,
+      isHot: course.isHot,
+    },
+  ])
   return { ok: true }
 }
 
@@ -108,23 +478,30 @@ export function addWaitlistToCart(course) {
     return { ok: false, errorKey: 'courseRegistration.student.waitlistDuplicate' }
   }
   const estimatedPosition = getEstimatedWaitlistPosition(wlCourse.id)
-  registrationCart.value.push({
-    intent: 'waitlist',
-    courseId: course.id,
-    waitlistCourseId: wlCourse.id,
-    courseCode: course.code,
-    courseName: course.name,
-    credits: course.credits,
-    estimatedPosition,
-    batchId: course.batchId,
-    type: course.type,
-    isHot: course.isHot,
-  })
+  setActiveRoundCart([
+    ...getActiveRoundCart(),
+    {
+      intent: 'waitlist',
+      courseId: course.id,
+      waitlistCourseId: wlCourse.id,
+      courseCode: course.code,
+      courseName: course.name,
+      credits: course.credits,
+      estimatedPosition,
+      batchId: course.batchId,
+      type: course.type,
+      isHot: course.isHot,
+    },
+  ])
   return { ok: true }
 }
 
 export function removeFromCart(courseId) {
-  registrationCart.value = registrationCart.value.filter((item) => item.courseId !== courseId)
+  setActiveRoundCart(getActiveRoundCart().filter((item) => item.courseId !== courseId))
+}
+
+export function clearActiveRoundCart() {
+  setActiveRoundCart([])
 }
 
 export const cartTotalCredits = computed(() =>
@@ -133,19 +510,47 @@ export const cartTotalCredits = computed(() =>
     .reduce((sum, item) => sum + (item.credits || 0), 0),
 )
 
-function upsertMonitorRow(studentFields, courses, batch) {
-  const newCredits = courses.reduce((sum, item) => sum + (item.credits || 0), 0)
+/** 选课阶段（未开课）：活跃批次可退选；closed 等状态不可退选 */
+export function isRegistrationPhaseForUnselect(batch = getActiveBatch()) {
+  return Boolean(batch && batch.status === 'active')
+}
+
+function adjustSectionEnrolled(courseId, sectionId, sectionCode, delta) {
+  const course = getCourseById(courseId)
+  if (!course?.sections?.length) return
+  const section =
+    (sectionId && course.sections.find((item) => item.id === sectionId)) ||
+    (sectionCode && course.sections.find((item) => item.code === sectionCode)) ||
+    null
+  if (!section) return
+  section.enrolled = Math.max(0, (Number(section.enrolled) || 0) + delta)
+}
+
+function refreshStudentScheduleFromConfirmed() {
+  studentSchedule.value = studentConfirmedCourses.value
+    .map((item) => parseSectionSchedule(item.time || item.classTime, item.courseCode))
+    .filter(Boolean)
+}
+
+function upsertMonitorRow(studentFields, batch, historyAction) {
   const existingIndex = registrationMonitorQueue.value.findIndex(
     (row) => row.studentId === studentFields.studentId,
   )
   const existing = existingIndex >= 0 ? registrationMonitorQueue.value[existingIndex] : null
-  const mergedCourses = [...(studentConfirmedCourses.value)]
+  const mergedCourses = [...studentConfirmedCourses.value]
   const credits = mergedCourses.reduce((sum, item) => sum + (item.credits || 0), 0)
   const schedule = mergedCourses
-    .map((item) => parseSectionSchedule(item.time, item.courseCode))
+    .map((item) => parseSectionSchedule(item.time || item.classTime, item.courseCode))
     .filter(Boolean)
   const creditMin = batch?.creditMin ?? LONG_SEMESTER_CREDIT_MIN
   const creditMax = batch?.creditMax ?? LONG_SEMESTER_CREDIT_MAX
+  const history = [...(existing?.history || [])]
+  if (historyAction) {
+    history.push({
+      at: new Date().toLocaleDateString('en-GB'),
+      action: historyAction,
+    })
+  }
   const base = {
     studentId: studentFields.studentId,
     studentName: studentFields.studentName,
@@ -171,13 +576,7 @@ function upsertMonitorRow(studentFields, courses, batch) {
     },
     schedule,
     issues: credits === 0 ? ['notRegistered'] : credits < creditMin ? ['creditBelowMin'] : [],
-    history: [
-      ...(existing?.history || []),
-      {
-        at: new Date().toLocaleDateString('en-GB'),
-        action: `Registered ${newCredits} credit(s) via online queue`,
-      },
-    ],
+    history,
   }
   if (existingIndex === -1) {
     registrationMonitorQueue.value.unshift({ id: `mon-stu-${studentFields.studentId}`, ...base })
@@ -191,15 +590,134 @@ function upsertMonitorRow(studentFields, courses, batch) {
 
 function applyConfirmedRegistration(courses) {
   const merged = [...studentConfirmedCourses.value]
+  const selectedAt = nowSelectedAt()
+  const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
   for (const course of courses) {
     if (!merged.some((item) => item.courseId === course.courseId)) {
-      merged.push({ ...course })
+      merged.push({
+        ...course,
+        selectedAt: course.selectedAt || selectedAt,
+        sourceType: course.sourceType || 'round',
+        roundKey: course.roundKey || roundKey,
+      })
+      adjustSectionEnrolled(course.courseId, course.sectionId, course.sectionCode, 1)
     }
   }
   studentConfirmedCourses.value = merged
-  studentSchedule.value = merged
-    .map((item) => parseSectionSchedule(item.time, item.courseCode))
-    .filter(Boolean)
+  refreshStudentScheduleFromConfirmed()
+}
+
+/** 第一轮志愿队列结束：写入待分配，不占已选学分、不占教学分组 enrolled */
+function applyPendingAssignRegistration(courses) {
+  const merged = [...studentPendingAssignCourses.value]
+  const selectedAt = nowSelectedAt()
+  for (const course of courses) {
+    if (!merged.some((item) => item.courseId === course.courseId)) {
+      merged.push({
+        ...course,
+        id: course.id || `pending-${course.courseId}-${Date.now()}`,
+        selectedAt: course.selectedAt || selectedAt,
+        sourceType: 'preselect',
+        roundKey: 'preselect',
+      })
+    }
+  }
+  studentPendingAssignCourses.value = merged
+}
+
+function removeConfirmedCourseRecord(removed, historyAction) {
+  studentConfirmedCourses.value = studentConfirmedCourses.value.filter(
+    (item) => item.courseId !== removed.courseId,
+  )
+  adjustSectionEnrolled(removed.courseId, removed.sectionId, removed.sectionCode, -1)
+  refreshStudentScheduleFromConfirmed()
+  const studentFields = getStudentProfileFields()
+  const batch = getActiveBatch()
+  upsertMonitorRow(studentFields, batch, historyAction)
+}
+
+/** 选课阶段退选：从已确认结果移除并释放教学分组名额 */
+export function unselectConfirmedCourse(courseId) {
+  if (!courseId) {
+    return { ok: false, errorKey: 'courseRegistration.student.unselectNotFound' }
+  }
+  if (!isRegistrationPhaseForUnselect()) {
+    return { ok: false, errorKey: 'courseRegistration.student.unselectNotInPhase' }
+  }
+
+  const pending = studentPendingAssignCourses.value.find((item) => item.courseId === courseId)
+  if (pending) {
+    studentPendingAssignCourses.value = studentPendingAssignCourses.value.filter(
+      (item) => item.courseId !== courseId,
+    )
+    const studentId = getStudentProfileFields().studentId
+    removeStudentPreselectVolunteer(courseId, studentId)
+    return { ok: true }
+  }
+
+  const removed = studentConfirmedCourses.value.find((item) => item.courseId === courseId)
+  if (!removed) {
+    return { ok: false, errorKey: 'courseRegistration.student.unselectNotFound' }
+  }
+  removeConfirmedCourseRecord(removed, `Unselected ${removed.courseCode} (released seat)`)
+  return { ok: true }
+}
+
+/** 开课后退课生效：按课号移除已确认结果（不校验选课阶段） */
+export function dropConfirmedCourseByCode(courseCode) {
+  if (!courseCode) {
+    return { ok: false, errorKey: 'courseRegistration.student.unselectNotFound' }
+  }
+  const removed = studentConfirmedCourses.value.find((item) => item.courseCode === courseCode)
+  if (!removed) {
+    return { ok: false, errorKey: 'courseRegistration.student.unselectNotFound' }
+  }
+  removeConfirmedCourseRecord(removed, `Dropped ${removed.courseCode} (post-start)`)
+  return { ok: true }
+}
+
+/**
+ * 加退课审批通过后：将 Add/Retake 项写入当前演示学生已选结果（演示级）
+ */
+export function confirmCoursesFromAddDropItems(items = []) {
+  const addItems = (items || []).filter((item) => item.action === 'Add' || item.action === 'Retake')
+  if (!addItems.length) return { ok: true, count: 0 }
+
+  const courses = []
+  for (const item of addItems) {
+    const course =
+      selectableCourses.value.find((c) => c.code === item.courseCode) ||
+      getCoursesByBatch(getActiveBatch()?.id).find((c) => c.code === item.courseCode)
+    if (!course) continue
+    const section =
+      (item.section && course.sections?.find((s) => s.code === item.section)) ||
+      course.sections?.find((s) => s.enrolled < s.capacity) ||
+      course.sections?.[0]
+    courses.push({
+      courseId: course.id,
+      courseCode: course.code,
+      courseName: course.name,
+      credits: item.credits || course.credits,
+      type: course.type,
+      sectionId: section?.id,
+      sectionCode: item.section || section?.code || '01',
+      time: item.time || section?.time || '',
+      weekRange: section?.weekRange || '',
+      room: section?.room || '',
+      lecturer: section?.lecturer || '',
+      batchId: course.batchId || getActiveBatch()?.id,
+      sourceType: 'addDrop',
+      roundKey: 'addDrop',
+      isRetake: item.action === 'Retake',
+    })
+  }
+  if (!courses.length) return { ok: false, count: 0 }
+  applyConfirmedRegistration(courses)
+  const studentFields = getStudentProfileFields()
+  const batch = getActiveBatch()
+  const codes = courses.map((c) => c.courseCode).join(', ')
+  upsertMonitorRow(studentFields, batch, `Add/Drop approved: ${codes}`)
+  return { ok: true, count: courses.length }
 }
 
 function commitWaitlistItems(waitlistItems, studentFields) {
@@ -214,18 +732,19 @@ function commitWaitlistItems(waitlistItems, studentFields) {
 }
 
 export async function submitRegistrationCart() {
-  if (!registrationCart.value.length) {
+  const cart = getActiveRoundCart()
+  if (!cart.length) {
     return { ok: false, errorKey: 'courseRegistration.student.cartEmpty' }
   }
   const studentFields = getStudentProfileFields()
   const batch = getActiveBatch()
-  const snapshot = [...registrationCart.value]
+  const snapshot = [...cart]
   const waitlistItems = snapshot.filter((item) => item.intent === 'waitlist')
   const courses = snapshot.filter((item) => item.intent !== 'waitlist')
 
   if (!courses.length) {
     const errors = commitWaitlistItems(waitlistItems, studentFields)
-    registrationCart.value = []
+    clearActiveRoundCart()
     if (errors.length) {
       return { ok: false, errorKey: errors[0], waitlistSubmitted: waitlistItems.length - errors.length }
     }
@@ -250,9 +769,14 @@ export async function submitRegistrationCart() {
     await runRegistrationQueue(queueContext, {
       onComplete: () => {
         const wlErrors = commitWaitlistItems(waitlistItems, studentFields)
+        const newCredits = courses.reduce((sum, item) => sum + (item.credits || 0), 0)
         applyConfirmedRegistration(courses)
-        upsertMonitorRow(studentFields, courses, batch)
-        registrationCart.value = []
+        upsertMonitorRow(
+          studentFields,
+          batch,
+          `Registered ${newCredits} credit(s) via online queue`,
+        )
+        clearActiveRoundCart()
         return { ok: !wlErrors.length, errorKey: wlErrors[0] }
       },
     })
@@ -296,10 +820,17 @@ export function getStudentEnrolledCourses(studentId = getStudentProfileFields().
   return []
 }
 
-export function getSelectableCoursesForStudent() {
+export function getSelectableCoursesForStudent(roundKey) {
   const batch = getActiveBatch()
-  const courses = getCoursesByBatch(batch?.id)
-  const context = buildEligibilityContext(getCurrentStudent(), batch)
+  const preferredType = batch?.type === 'GE' ? 'GE' : 'ME'
+  const courses = getCoursesByBatch(batch?.id).filter((course) => course.type === preferredType)
+  const resolvedRound =
+    roundKey != null && roundKey !== ''
+      ? normalizeCartRoundKey(roundKey)
+      : normalizeCartRoundKey(activeCartRoundKey.value)
+  const context = buildEligibilityContext(getCurrentStudent(), batch, {
+    roundKey: resolvedRound,
+  })
   return sortCoursesForStudentDemo(attachEligibilityToCourses(courses, context))
 }
 
@@ -311,5 +842,5 @@ export function getCourseWithFirstOpenSection(courseId) {
 }
 
 export function isCourseInCart(courseId) {
-  return registrationCart.value.some((item) => item.courseId === courseId)
+  return isCourseOccupied(courseId)
 }

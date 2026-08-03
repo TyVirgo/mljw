@@ -2,18 +2,23 @@
 import { computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { useRegistrationQueue } from '../../composables/useRegistrationQueue.js'
+import {
+  cancelMyCourseQueue,
+  requestOpenRoundStatusDrawer,
+} from '../../data/courseRegistration/studentRegistrationStore.js'
 
-const emit = defineEmits(['view-schedule'])
+const emit = defineEmits(['view-round-status'])
 
 const { t } = useAppI18n()
 const {
   queuePhase,
+  queueOverlayVisible,
   queueContext,
   successContext,
   waitSeconds,
   queueSize,
   queuePosition,
-  cancelRegistrationQueue,
+  hideQueueOverlay,
   dismissRegistrationSuccess,
 } = useRegistrationQueue()
 
@@ -34,25 +39,52 @@ const primaryCourse = computed(() => {
 
 const successCourses = computed(() => successContext.value?.registeredCourses || [])
 
+const isPendingAssignResult = computed(
+  () => successContext.value?.resultKind === 'pendingAssign',
+)
+
+const isResultPhase = computed(
+  () => queuePhase.value === 'success' || queuePhase.value === 'failed',
+)
+
 function courseNameLabel(name) {
   if (String(name || '').startsWith('courseRegistration.')) return t(name)
   return name
 }
 
-function handleViewSchedule() {
-  dismissRegistrationSuccess()
-  emit('view-schedule')
+function failDetailText() {
+  const ctx = successContext.value
+  if (!ctx?.errorKey) return t('courseRegistration.student.registerFailedQueue')
+  return t(ctx.errorKey, ctx.errorParams || {})
 }
 
-function handleSuccessClose() {
+function handleViewRoundStatus() {
   dismissRegistrationSuccess()
+  requestOpenRoundStatusDrawer()
+  emit('view-round-status')
+}
+
+function handleResultClose() {
+  dismissRegistrationSuccess()
+}
+
+function handleCloseOverlay() {
+  hideQueueOverlay()
+}
+
+function handleCancelQueue() {
+  if (!window.confirm(t('courseRegistration.queue.cancelQueueConfirm'))) return
+  cancelMyCourseQueue(primaryCourse.value)
 }
 </script>
 
 <template>
   <Teleport to="body">
     <!-- 排队中 -->
-    <div v-if="queuePhase === 'waiting' && queueContext" class="reg-queue-overlay">
+    <div
+      v-if="queueOverlayVisible && queuePhase === 'waiting' && queueContext"
+      class="reg-queue-overlay"
+    >
       <div class="reg-queue-panel">
         <div class="reg-queue-header">
           <div class="reg-queue-header-inner">
@@ -66,7 +98,7 @@ function handleSuccessClose() {
               <p class="reg-queue-title">{{ t('courseRegistration.queue.title') }}</p>
               <p class="reg-queue-subtitle">{{ t('courseRegistration.queue.locking') }}</p>
               <p class="reg-queue-wait">
-                {{ t('courseRegistration.queue.estimatedWait', { seconds: waitSeconds }) }}
+                {{ t('courseRegistration.queue.elapsedWait', { seconds: waitSeconds }) }}
               </p>
             </div>
           </div>
@@ -94,7 +126,6 @@ function handleSuccessClose() {
                   <span class="reg-queue-code">{{ primaryCourse.courseCode }}</span>
                   <span class="reg-queue-name">{{ primaryCourse.courseName }}</span>
                 </div>
-                <span class="reg-queue-credits">{{ primaryCourse.credits }} cr</span>
               </div>
               <dl class="reg-queue-dl">
                 <div><dt>{{ t('courseRegistration.courses.lecturer') }}</dt><dd>{{ primaryCourse.lecturer || '—' }}</dd></div>
@@ -103,13 +134,6 @@ function handleSuccessClose() {
                 <div><dt>{{ t('courseRegistration.courses.credits') }}</dt><dd>{{ primaryCourse.credits }}</dd></div>
               </dl>
             </template>
-            <p v-if="queueContext.batchName" class="reg-queue-batch">
-              {{ t('courseRegistration.batch.name') }}: {{ queueContext.batchName }}
-            </p>
-            <p v-if="queueContext.studentName" class="reg-queue-student">
-              {{ queueContext.studentId }} · {{ queueContext.studentName }}
-              ({{ queueContext.programme }}/{{ queueContext.intake }})
-            </p>
           </div>
 
           <div class="reg-queue-stats">
@@ -129,19 +153,50 @@ function handleSuccessClose() {
           <p class="reg-queue-tip">{{ t('courseRegistration.queue.tip') }}</p>
         </div>
 
-        <button type="button" class="reg-queue-cancel" @click="cancelRegistrationQueue">
-          {{ t('courseRegistration.queue.cancelQueue') }}
-        </button>
+        <div class="reg-queue-footer-actions">
+          <button type="button" class="reg-queue-close" @click="handleCloseOverlay">
+            {{ t('common.close') }}
+          </button>
+          <button type="button" class="reg-queue-cancel" @click="handleCancelQueue">
+            {{ t('courseRegistration.queue.cancelQueue') }}
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- 选课成功 -->
-    <div v-else-if="queuePhase === 'success' && successContext" class="reg-queue-overlay reg-success-overlay">
+    <!-- 选课成功 / 失败（仅队列未关闭时进入） -->
+    <div
+      v-else-if="queueOverlayVisible && isResultPhase && successContext"
+      class="reg-queue-overlay reg-success-overlay"
+      :class="{ 'reg-failed-overlay': queuePhase === 'failed' }"
+    >
       <div class="reg-queue-panel">
         <div class="reg-success-body">
-          <div class="reg-success-icon" aria-hidden="true">✓</div>
-          <h2 class="reg-success-title">{{ t('courseRegistration.queue.successTitle') }}</h2>
-          <p class="reg-success-sub">{{ t('courseRegistration.queue.successSub') }}</p>
+          <div
+            class="reg-success-icon"
+            :class="{ 'reg-failed-icon': queuePhase === 'failed' }"
+            aria-hidden="true"
+          >
+            {{ queuePhase === 'failed' ? '!' : '✓' }}
+          </div>
+          <h2 class="reg-success-title">
+            {{
+              queuePhase === 'failed'
+                ? t('courseRegistration.queue.failTitle')
+                : isPendingAssignResult
+                  ? t('courseRegistration.queue.pendingAssignTitle')
+                  : t('courseRegistration.queue.successTitle')
+            }}
+          </h2>
+          <p class="reg-success-sub">
+            {{
+              queuePhase === 'failed'
+                ? t('courseRegistration.queue.failSub')
+                : isPendingAssignResult
+                  ? t('courseRegistration.queue.pendingAssignSub')
+                  : t('courseRegistration.queue.successSub')
+            }}
+          </p>
 
           <div class="reg-queue-card reg-success-card">
             <ul v-if="successCourses.length > 1" class="reg-queue-course-list">
@@ -165,13 +220,24 @@ function handleSuccessClose() {
                 {{ successCourses[0].time }} · {{ t('courseRegistration.courses.sectionCode') }} {{ successCourses[0].sectionCode }}
               </p>
             </template>
-            <p class="reg-success-added">{{ t('courseRegistration.queue.addedToSemester') }}</p>
+            <p
+              class="reg-success-added"
+              :class="{ 'reg-failed-note': queuePhase === 'failed' }"
+            >
+              {{
+                queuePhase === 'failed'
+                  ? failDetailText()
+                  : isPendingAssignResult
+                    ? t('courseRegistration.queue.pendingAssignAdded')
+                    : t('courseRegistration.queue.addedToSemester')
+              }}
+            </p>
           </div>
 
-          <button type="button" class="reg-success-primary" @click="handleViewSchedule">
-            {{ t('courseRegistration.queue.viewSchedule') }}
+          <button type="button" class="reg-success-primary" @click="handleViewRoundStatus">
+            {{ t('courseRegistration.queue.viewRoundStatus') }}
           </button>
-          <button type="button" class="reg-queue-cancel" @click="handleSuccessClose">
+          <button type="button" class="reg-queue-cancel" @click="handleResultClose">
             {{ t('common.close') }}
           </button>
         </div>
@@ -195,7 +261,7 @@ function handleSuccessClose() {
 }
 
 .reg-queue-panel {
-  width: min(420px, 100%);
+  width: min(520px, 100%);
   max-height: min(90vh, 720px);
   min-height: 0;
   display: flex;
@@ -235,11 +301,17 @@ function handleSuccessClose() {
   height: 22px;
 }
 
+.reg-queue-status {
+  min-width: 0;
+  flex: 1;
+}
+
 .reg-queue-title {
   margin: 0 0 6px;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
 .reg-queue-subtitle {
@@ -416,9 +488,31 @@ function handleSuccessClose() {
   margin: 0;
 }
 
+.reg-queue-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 16px 28px;
+  flex-shrink: 0;
+}
+
+.reg-queue-close {
+  min-width: 88px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #e5e7eb;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
 .reg-queue-cancel {
-  margin: auto auto 32px;
-  padding: 8px 24px;
+  margin: 0;
+  padding: 8px 16px;
   background: none;
   border: none;
   color: #2563eb;
@@ -448,6 +542,15 @@ function handleSuccessClose() {
   align-items: center;
   justify-content: center;
   margin-bottom: 16px;
+}
+
+.reg-failed-icon {
+  background: #dc2626;
+  font-size: 32px;
+}
+
+.reg-failed-note {
+  color: #b91c1c !important;
 }
 
 .reg-success-title {

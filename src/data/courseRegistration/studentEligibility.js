@@ -3,6 +3,7 @@ import { whitelistQueue } from './whitelistQueue.js'
 import { supplementListQueue } from './supplementListQueue.js'
 import { studentConfirmedCourses } from './studentRegistrationStore.js'
 import { registrationMonitorQueue } from './registrationMonitorQueue.js'
+import { intakeToGrade, matchScopeRules } from './batchScopeRules.js'
 
 const BLOCKING_ENROLLMENT_STATUSES = new Set([
   'Deferred',
@@ -42,9 +43,8 @@ function intakeMatches(scopeIntake, studentIntake) {
   return studentIntake === scopeIntake || studentIntake.endsWith(scopeIntake) || scopeIntake.endsWith(studentIntake)
 }
 
-export function matchBatchScope(batch, profileFields, options = {}) {
+function matchLegacyProgrammeIntakeScope(batch, profileFields) {
   if (!batch?.scope?.length) return true
-  if (options.inSupplementList) return true
   return batch.scope.some((entry) => {
     const { programme, intake } = parseScopeEntry(entry)
     const programmeMatch =
@@ -53,6 +53,15 @@ export function matchBatchScope(batch, profileFields, options = {}) {
       programme === profileFields.programme
     return programmeMatch && intakeMatches(intake, profileFields.intake)
   })
+}
+
+export function matchBatchScope(batch, profileFields, options = {}) {
+  if (options.inSupplementList) return true
+  if (Array.isArray(batch?.scopeRules) && batch.scopeRules.length) {
+    return matchScopeRules(batch.scopeRules, profileFields, options.roundKey || '')
+  }
+  if (!batch?.scope?.length) return true
+  return matchLegacyProgrammeIntakeScope(batch, profileFields)
 }
 
 function academicSessionToIntakeKey(session) {
@@ -81,6 +90,18 @@ export function getStudentPassedCourseCodes(studentId, profileFields) {
   return codes
 }
 
+export function getStudentFailedCourseCodes(studentId, profileFields) {
+  const codes = new Set()
+  const monitorRow = registrationMonitorQueue.value.find((row) => row.studentId === studentId)
+  if (monitorRow?.failedCourses?.length) {
+    for (const code of monitorRow.failedCourses) codes.add(code)
+  }
+  if (profileFields?.failedCourses?.length) {
+    for (const code of profileFields.failedCourses) codes.add(code)
+  }
+  return codes
+}
+
 function hasApprovedPrerequisiteException(studentId, courseCode) {
   return whitelistQueue.value.some(
     (item) =>
@@ -95,7 +116,7 @@ function getSupplementEntry(studentId) {
   return supplementListQueue.value.find((item) => item.studentId === studentId) || null
 }
 
-export function buildEligibilityContext(student = getCurrentStudent(), batch = null) {
+export function buildEligibilityContext(student = getCurrentStudent(), batch = null, options = {}) {
   const basic = student?.basicInfo || {}
   const enrollment = student?.enrollment || {}
   const studentId = basic.studentId || ''
@@ -104,6 +125,9 @@ export function buildEligibilityContext(student = getCurrentStudent(), batch = n
     studentName: basic.fullName || basic.chineseName || '',
     programme: enrollment.programmeCode || 'SWE',
     intake: normalizeIntake(enrollment.intake || enrollment.academicSession),
+    faculty: enrollment.faculty || '',
+    grade: intakeToGrade(enrollment.intake || enrollment.academicSession),
+    groupName: enrollment.groupName || enrollment.adminClass || '',
     nationality: basic.nationality || '',
     passedCourses: [],
   }
@@ -122,21 +146,26 @@ export function buildEligibilityContext(student = getCurrentStudent(), batch = n
     enrollmentStatus,
     studentType,
     passedCodes: getStudentPassedCourseCodes(studentId, profileFields),
+    failedCodes: getStudentFailedCourseCodes(studentId, profileFields),
     inSupplementList: Boolean(supplementEntry),
     bypassPrerequisite: Boolean(supplementEntry?.bypassPrerequisite),
     batch,
+    roundKey: options.roundKey || '',
   }
 }
 
 function checkPrerequisites(course, context) {
   const required = course.prerequisites || []
-  if (!required.length) return { ok: true, missing: [] }
-  if (context.bypassPrerequisite) return { ok: true, missing: [], bypassed: true }
+  if (!required.length) return { ok: true, missing: [], failed: [] }
+  if (context.bypassPrerequisite) return { ok: true, missing: [], failed: [], bypassed: true }
   if (hasApprovedPrerequisiteException(context.studentId, course.code)) {
-    return { ok: true, missing: [], bypassed: true }
+    return { ok: true, missing: [], failed: [], bypassed: true }
   }
-  const missing = required.filter((code) => !context.passedCodes.has(code))
-  return { ok: missing.length === 0, missing }
+  const failedCodes = context.failedCodes || new Set()
+  const passedCodes = context.passedCodes || new Set()
+  const failed = required.filter((code) => failedCodes.has(code))
+  const missing = required.filter((code) => !passedCodes.has(code) && !failedCodes.has(code))
+  return { ok: missing.length === 0 && failed.length === 0, missing, failed }
 }
 
 function checkAudience(course, context) {
@@ -191,10 +220,18 @@ export function evaluateCourseEligibility(course, context) {
   const prereq = checkPrerequisites(course, context)
   if (!prereq.ok) {
     eligible = false
-    reasons.push({
-      key: 'courseRegistration.eligibility.prerequisiteMissing',
-      params: { courses: prereq.missing.join(', ') },
-    })
+    if (prereq.failed?.length) {
+      reasons.push({
+        key: 'courseRegistration.eligibility.prerequisiteFailed',
+        params: { courses: prereq.failed.join(', ') },
+      })
+    }
+    if (prereq.missing?.length) {
+      reasons.push({
+        key: 'courseRegistration.eligibility.prerequisiteNotTaken',
+        params: { courses: prereq.missing.join(', ') },
+      })
+    }
   }
 
   return {

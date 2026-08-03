@@ -11,17 +11,26 @@ import {
   normalizeBatchAcademicSession,
   emptyRoundsPicker,
   emptyAddDropWindowPicker,
-  roundsToPicker,
   addDropWindowToPicker,
-  roundsFromPicker,
   addDropWindowFromPicker,
   validateBatchFormBasics,
+  getBatchScheduleMinDates,
+  clearInvalidBatchScheduleAfter,
 } from '../../data/courseRegistration/registrationBatchFormUtils.js'
 import {
   normalizeRegistrationType,
   registrationBatchTypeOptions,
   getBatchTypeFieldTooltip,
 } from '../../data/courseRegistration/registrationTypes.js'
+import {
+  getBatchScopeRules,
+  cloneScopeRules,
+  scopeLabelsFromRules,
+} from '../../data/courseRegistration/batchScopeRules.js'
+import {
+  defaultBatchLocalRules,
+  normalizeBatchLocalRules,
+} from '../../data/courseRegistration/batchLocalRules.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -40,12 +49,10 @@ function createEmptyForm() {
     name: '',
     academicSession: '',
     type: 'ME',
-    scopeText: '',
-    autoImportResumption: true,
+    isSelectable: true,
+    localRules: defaultBatchLocalRules(),
     creditMin: 12,
     creditMax: 20,
-    billHours: 48,
-    dropDeadlineWeek: 5,
     notifyTemplate: 'default-m1',
     rounds: emptyRoundsPicker(),
     addDropWindow: emptyAddDropWindowPicker(),
@@ -61,14 +68,12 @@ watch(
         name: batch.name,
         academicSession: normalizeBatchAcademicSession(batch.academicSession || batch.semester),
         type: normalizeRegistrationType(batch.type),
-        scopeText: (batch.scope || []).join(', '),
-        autoImportResumption: batch.autoImportResumption ?? true,
+        isSelectable: batch.isSelectable !== false,
+        localRules: normalizeBatchLocalRules(batch.localRules),
         creditMin: batch.creditMin ?? 12,
         creditMax: batch.creditMax ?? 20,
-        billHours: batch.billHours ?? 48,
-        dropDeadlineWeek: batch.dropDeadlineWeek ?? 5,
         notifyTemplate: batch.notifyTemplate || 'default-m1',
-        rounds: roundsToPicker(batch.rounds),
+        rounds: emptyRoundsPicker(),
         addDropWindow: addDropWindowToPicker(batch.addDropWindow),
       }
     } else {
@@ -84,49 +89,90 @@ const title = computed(() =>
 
 const typeFieldTooltip = computed(() => getBatchTypeFieldTooltip(t))
 
-const roundsPreview = computed(() => {
-  const rounds = roundsFromPicker(form.value.rounds)
-  const addDropWindow = addDropWindowFromPicker(form.value.addDropWindow)
-  return formatRoundsSummary(rounds, addDropWindow)
-})
+const scheduleMinDates = computed(() => getBatchScheduleMinDates(form.value))
 
 function err(field) {
   return errors.value[field] ? t(errors.value[field]) : ''
 }
 
-function handleSave() {
-  const rounds = roundsFromPicker(form.value.rounds)
+function onAddDropDateChange(index, value) {
+  if (index === 6) form.value.addDropWindow.start = value || ''
+  if (index === 7) form.value.addDropWindow.end = value || ''
+  clearInvalidBatchScheduleAfter(form.value, index)
+}
+
+function emptyRounds() {
+  return {
+    preselect: { start: '', end: '' },
+    main: { start: '', end: '' },
+    supplement: { start: '', end: '' },
+  }
+}
+
+function buildPayload(statusPatch = {}) {
+  const rounds = props.batch?.rounds
+    ? {
+        preselect: {
+          start: props.batch.rounds.preselect?.start || '',
+          end: props.batch.rounds.preselect?.end || '',
+        },
+        main: {
+          start: props.batch.rounds.main?.start || '',
+          end: props.batch.rounds.main?.end || '',
+        },
+        supplement: {
+          start: props.batch.rounds.supplement?.start || '',
+          end: props.batch.rounds.supplement?.end || '',
+        },
+      }
+    : emptyRounds()
   const addDropWindow = addDropWindowFromPicker(form.value.addDropWindow)
-  errors.value = validateBatchFormBasics(form.value)
-  if (Object.keys(errors.value).length) return
+  const scopeRules = props.batch ? cloneScopeRules(getBatchScopeRules(props.batch)) : []
+  const localRules = normalizeBatchLocalRules(form.value.localRules)
 
-  const scope = form.value.scopeText
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-
-  emit('save', {
+  return {
     name: form.value.name.trim(),
     academicSession: form.value.academicSession,
     type: form.value.type,
-    scope,
-    autoImportResumption: form.value.autoImportResumption,
+    isSelectable: form.value.isSelectable !== false,
+    localRules,
+    scopeRules,
+    scope: scopeLabelsFromRules(scopeRules, t),
     creditMin: Number(form.value.creditMin) || 12,
     creditMax: Number(form.value.creditMax) || 20,
-    billHours: Number(form.value.billHours) || 48,
-    dropDeadlineWeek: Number(form.value.dropDeadlineWeek) || 5,
     notifyTemplate: form.value.notifyTemplate,
     rounds,
     addDropWindow,
     roundsSummary: formatRoundsSummary(rounds, addDropWindow),
-  })
+    preselectPriority: {
+      preferSenior: props.batch?.preselectPriority?.preferSenior !== false,
+      minSemestersAbove:
+        Number(props.batch?.preselectPriority?.minSemestersAbove) > 0
+          ? Math.floor(Number(props.batch.preselectPriority.minSemestersAbove))
+          : 1,
+    },
+    volunteerFinalConfirmedAt: props.batch?.volunteerFinalConfirmedAt || null,
+    ...statusPatch,
+  }
+}
+
+function handleSaveDraft() {
+  errors.value = validateBatchFormBasics(form.value)
+  if (Object.keys(errors.value).length) return
+  emit('save', buildPayload({ status: 'draft' }))
+}
+
+function handleSave() {
+  errors.value = validateBatchFormBasics(form.value)
+  if (Object.keys(errors.value).length) return
+  emit('save', buildPayload())
 }
 </script>
 
 <template>
   <ApplicationDetailDrawer :visible="visible" :title="title" @close="emit('close')">
     <CourseRegistrationCallout variant="info">
-      <p>{{ t('courseRegistration.batch.draftHint') }}</p>
+      <p>{{ t('courseRegistration.batch.draftHint') }}{{ t('common.prototypeOnlySuffix') }}</p>
     </CourseRegistrationCallout>
 
     <section class="form-section">
@@ -169,121 +215,94 @@ function handleSave() {
           </select>
           <p v-if="err('type')" class="field-error">{{ err('type') }}</p>
         </div>
+        <div class="form-field">
+          <label class="field-label">
+            <span class="req">*</span> {{ t('courseRegistration.batch.isSelectable') }}
+          </label>
+          <div class="radio-row">
+            <label class="radio-option">
+              <input v-model="form.isSelectable" type="radio" :value="true" />
+              {{ t('common.yes') }}
+            </label>
+            <label class="radio-option">
+              <input v-model="form.isSelectable" type="radio" :value="false" />
+              {{ t('common.no') }}
+            </label>
+          </div>
+          <p class="field-hint">
+            {{ t('courseRegistration.batch.isSelectableHint') }}{{ t('common.prototypeOnlySuffix') }}
+          </p>
+        </div>
       </div>
     </section>
 
     <section class="form-section">
       <h3 class="section-title">
         <span class="step-badge">2</span>
-        {{ t('courseRegistration.batch.sectionTime') }}
+        {{ t('courseRegistration.batch.localRulesTitle') }}
       </h3>
-      <CourseRegistrationCallout variant="rule">
-        <p>{{ t('courseRegistration.batch.roundsRule') }}</p>
-      </CourseRegistrationCallout>
-
-      <div class="round-block">
-        <h4>{{ t('courseRegistration.batch.roundPreselect') }}</h4>
-        <div class="round-fields">
-          <div class="form-field">
-            <label class="field-label">{{ t('courseRegistration.batch.roundStart') }} {{ t('courseRegistration.batch.optionalTag') }}</label>
-            <DatePickerEn v-model="form.rounds.preselect.start" :placeholder="t('common.pleaseSelectDate')" />
-          </div>
-          <div class="form-field">
-            <label class="field-label">{{ t('courseRegistration.batch.roundEnd') }} {{ t('courseRegistration.batch.optionalTag') }}</label>
-            <DatePickerEn v-model="form.rounds.preselect.end" :placeholder="t('common.pleaseSelectDate')" />
-          </div>
-        </div>
+      <div class="local-rules-grid">
+        <label class="checkbox-row checkbox-row--inline">
+          <input v-model="form.localRules.linkPrerequisites" type="checkbox" />
+          {{ t('courseRegistration.batch.ruleLinkPrerequisites') }}
+        </label>
+        <label class="checkbox-row checkbox-row--inline">
+          <input v-model="form.localRules.allowRetakeOnFail" type="checkbox" />
+          {{ t('courseRegistration.batch.ruleAllowRetakeOnFail') }}
+        </label>
+        <label class="checkbox-row checkbox-row--inline local-rule-drop">
+          <input v-model="form.localRules.allowDropSelfSelected" type="checkbox" />
+          <span class="local-rule-drop-text">
+            {{ t('courseRegistration.batch.ruleAllowDropSelfSelectedPrefix') }}
+            <input
+              v-model.number="form.localRules.dropSelfSelectedMaxPerRound"
+              type="number"
+              min="1"
+              class="inline-number"
+              :disabled="!form.localRules.allowDropSelfSelected"
+            />
+            {{ t('courseRegistration.batch.ruleAllowDropSelfSelectedSuffix') }}
+          </span>
+        </label>
+        <label class="checkbox-row checkbox-row--inline">
+          <input v-model="form.localRules.allowExceedCreditMax" type="checkbox" />
+          {{ t('courseRegistration.batch.ruleAllowExceedCreditMax') }}
+        </label>
       </div>
-
-      <div class="round-block">
-        <h4>{{ t('courseRegistration.batch.roundMain') }}</h4>
-        <div class="round-fields">
-          <div class="form-field">
-            <label class="field-label">{{ t('courseRegistration.batch.roundStart') }} {{ t('courseRegistration.batch.optionalTag') }}</label>
-            <DatePickerEn v-model="form.rounds.main.start" :placeholder="t('common.pleaseSelectDate')" />
-          </div>
-          <div class="form-field">
-            <label class="field-label">{{ t('courseRegistration.batch.roundEnd') }} {{ t('courseRegistration.batch.optionalTag') }}</label>
-            <DatePickerEn v-model="form.rounds.main.end" :placeholder="t('common.pleaseSelectDate')" />
-          </div>
-        </div>
-      </div>
-
-      <div class="round-block">
-        <h4>{{ t('courseRegistration.batch.roundSupplement') }}</h4>
-        <div class="round-fields">
-          <div class="form-field">
-            <label class="field-label">{{ t('courseRegistration.batch.roundStart') }} {{ t('courseRegistration.batch.optionalTag') }}</label>
-            <DatePickerEn v-model="form.rounds.supplement.start" :placeholder="t('common.pleaseSelectDate')" />
-          </div>
-          <div class="form-field">
-            <label class="field-label">{{ t('courseRegistration.batch.roundEnd') }} {{ t('courseRegistration.batch.optionalTag') }}</label>
-            <DatePickerEn v-model="form.rounds.supplement.end" :placeholder="t('common.pleaseSelectDate')" />
-          </div>
-        </div>
-      </div>
-
-      <div class="round-block">
-        <h4>{{ t('courseRegistration.batch.addDropWindow') }}</h4>
-        <div class="round-fields">
-          <div class="form-field">
-            <label class="field-label">{{ t('courseRegistration.batch.roundStart') }} {{ t('courseRegistration.batch.optionalTag') }}</label>
-            <DatePickerEn v-model="form.addDropWindow.start" :placeholder="t('common.pleaseSelectDate')" />
-          </div>
-          <div class="form-field">
-            <label class="field-label">{{ t('courseRegistration.batch.roundEnd') }} {{ t('courseRegistration.batch.optionalTag') }}</label>
-            <DatePickerEn v-model="form.addDropWindow.end" :placeholder="t('common.pleaseSelectDate')" />
-          </div>
-        </div>
-      </div>
-
-      <div class="form-field form-field--narrow">
-        <label class="field-label">{{ t('courseRegistration.batch.dropDeadlineWeek') }} {{ t('courseRegistration.batch.optionalTag') }}</label>
-        <input v-model="form.dropDeadlineWeek" type="number" class="form-input" min="1" max="12" />
-      </div>
-
-      <p v-if="roundsPreview" class="rounds-preview">{{ roundsPreview }}</p>
     </section>
 
     <section class="form-section">
       <h3 class="section-title">
         <span class="step-badge">3</span>
-        {{ t('courseRegistration.batch.sectionScope') }}
+        {{ t('courseRegistration.batch.addDropWindow') }}
       </h3>
-      <div class="form-field">
-        <label class="field-label">{{ t('courseRegistration.batch.scope') }} {{ t('courseRegistration.batch.optionalTag') }}</label>
-        <input v-model="form.scopeText" type="text" class="form-input" :placeholder="t('courseRegistration.batch.scopePlaceholder')" />
-        <p class="field-hint">{{ t('courseRegistration.batch.scopePublishHint') }}</p>
-      </div>
-      <label class="checkbox-row">
-        <input v-model="form.autoImportResumption" type="checkbox" />
-        {{ t('courseRegistration.batch.autoResumption') }}
-      </label>
-    </section>
-
-    <section class="form-section">
-      <h3 class="section-title">
-        <span class="step-badge">4</span>
-        {{ t('courseRegistration.batch.sectionCredit') }}
-      </h3>
-      <div class="fields-grid">
-        <div class="form-field">
-          <label class="field-label">{{ t('courseRegistration.batch.creditMin') }} {{ t('courseRegistration.batch.optionalTag') }}</label>
-          <input v-model="form.creditMin" type="number" class="form-input" />
-        </div>
-        <div class="form-field">
-          <label class="field-label">{{ t('courseRegistration.batch.creditMax') }} {{ t('courseRegistration.batch.optionalTag') }}</label>
-          <input v-model="form.creditMax" type="number" class="form-input" />
-        </div>
-        <div class="form-field">
-          <label class="field-label">{{ t('courseRegistration.batch.billHours') }} {{ t('courseRegistration.batch.optionalTag') }}</label>
-          <input v-model="form.billHours" type="number" class="form-input" />
+      <div class="round-card">
+        <div class="round-fields">
+          <div class="form-field">
+            <label class="field-label">{{ t('courseRegistration.batch.roundStart') }}</label>
+            <DatePickerEn
+              :model-value="form.addDropWindow.start"
+              :placeholder="t('common.pleaseSelectDate')"
+              :min-date="scheduleMinDates[6]"
+              @update:model-value="(v) => onAddDropDateChange(6, v)"
+            />
+          </div>
+          <div class="form-field">
+            <label class="field-label">{{ t('courseRegistration.batch.roundEnd') }}</label>
+            <DatePickerEn
+              :model-value="form.addDropWindow.end"
+              :placeholder="t('common.pleaseSelectDate')"
+              :min-date="scheduleMinDates[7]"
+              @update:model-value="(v) => onAddDropDateChange(7, v)"
+            />
+          </div>
         </div>
       </div>
     </section>
 
     <template #footer>
       <button type="button" class="btn btn-default" @click="emit('close')">{{ t('common.cancel') }}</button>
+      <button type="button" class="btn btn-default" @click="handleSaveDraft">{{ t('common.saveDraft') }}</button>
       <button type="button" class="btn btn-primary" @click="handleSave">{{ t('common.save') }}</button>
     </template>
   </ApplicationDetailDrawer>
@@ -342,11 +361,6 @@ function handleSave() {
   min-width: 0;
 }
 
-.form-field--narrow {
-  max-width: 200px;
-  margin-top: 8px;
-}
-
 .field-label {
   font-size: 13px;
   font-weight: 500;
@@ -373,15 +387,12 @@ function handleSave() {
   color: #9ca3af;
 }
 
-.round-block {
-  margin-bottom: 16px;
-}
-
-.round-block h4 {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
+.round-card {
+  margin-bottom: 8px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
 }
 
 .form-input {
@@ -405,14 +416,20 @@ function handleSave() {
   width: 100%;
 }
 
-.rounds-preview {
-  margin: 12px 0 0;
-  padding: 10px 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #64748b;
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 36px;
+}
+
+.radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
 }
 
 .checkbox-row {
@@ -424,9 +441,75 @@ function handleSave() {
   color: #374151;
 }
 
+.checkbox-row--inline {
+  margin-top: 0;
+}
+
+.local-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  align-items: center;
+}
+
+.local-rule-drop {
+  align-items: center;
+}
+
+.local-rule-drop-text {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 2px;
+  line-height: 1.4;
+}
+
+.inline-number {
+  width: 56px;
+  margin: 0 4px;
+  padding: 4px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.inline-number:disabled {
+  opacity: 0.5;
+  background: #f3f4f6;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  box-sizing: border-box;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.btn-default {
+  background: #fff;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
 @media (max-width: 720px) {
   .fields-grid,
-  .round-fields {
+  .round-fields,
+  .local-rules-grid {
     grid-template-columns: 1fr;
   }
 }

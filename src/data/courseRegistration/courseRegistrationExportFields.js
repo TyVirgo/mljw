@@ -25,7 +25,9 @@ export const approvalExportFields = [
   { key: 'studentId', labelKey: 'courseRegistration.monitor.studentId' },
   { key: 'studentName', labelKey: 'courseRegistration.monitor.studentName' },
   { key: 'type', labelKey: 'courseRegistration.approval.typeLabel' },
-  { key: 'content', labelKey: 'courseRegistration.approval.content' },
+  { key: 'addCourseName', labelKey: 'courseRegistration.approval.addCourseName' },
+  { key: 'dropCourseName', labelKey: 'courseRegistration.approval.dropCourseName' },
+  { key: 'retakeCourseName', labelKey: 'courseRegistration.approval.retakeCourseName' },
   { key: 'credits', labelKey: 'courseRegistration.monitor.credits' },
   { key: 'billStatus', labelKey: 'courseRegistration.approval.billLabel' },
   { key: 'submittedAt', labelKey: 'courseRegistration.approval.submittedAt' },
@@ -54,3 +56,72 @@ export const alertExportFields = [
   { key: 'credits', labelKey: 'courseRegistration.monitor.credits' },
   { key: 'createdAt', labelKey: 'courseRegistration.alert.createdAt' },
 ]
+
+export const resultStudentExportFields = [
+  { key: 'studentId', labelKey: 'courseRegistration.monitor.studentId' },
+  { key: 'studentName', labelKey: 'courseRegistration.monitor.studentName' },
+  { key: 'programme', labelKey: 'courseRegistration.monitor.programme' },
+  { key: 'intake', labelKey: 'courseRegistration.monitor.intake' },
+  { key: 'batchName', labelKey: 'courseRegistration.batch.name' },
+  { key: 'courseCode', labelKey: 'courseRegistration.courses.code' },
+  { key: 'courseName', labelKey: 'courseRegistration.courses.name' },
+  { key: 'credits', labelKey: 'courseRegistration.courses.credits' },
+  { key: 'courseType', labelKey: 'courseRegistration.courses.type' },
+  { key: 'sectionCode', labelKey: 'courseRegistration.courses.sectionCode' },
+  { key: 'isRetake', labelKey: 'courseRegistration.student.isRetake' },
+  { key: 'courseSource', labelKey: 'courseRegistration.student.courseSource' },
+]
+
+export const resultCourseExportFields = [
+  { key: 'batchName', labelKey: 'courseRegistration.batch.name' },
+  { key: 'courseCode', labelKey: 'courseRegistration.courses.code' },
+  { key: 'courseName', labelKey: 'courseRegistration.courses.name' },
+  { key: 'credits', labelKey: 'courseRegistration.courses.credits' },
+  { key: 'effectiveCapacity', labelKey: 'courseRegistration.courses.effectiveCapacity' },
+  { key: 'enrolledFreshman', labelKey: 'courseRegistration.courses.enrolledFreshman' },
+  { key: 'enrolledSenior', labelKey: 'courseRegistration.courses.enrolledSenior' },
+]
+
+export const registrationLogExportFields = [
+  { key: 'batchName', labelKey: 'courseRegistration.log.batchName' },
+  { key: 'studentId', labelKey: 'courseRegistration.monitor.studentId' },
+  { key: 'studentName', labelKey: 'courseRegistration.monitor.studentName' },
+  { key: 'course', labelKey: 'courseRegistration.log.course' },
+  { key: 'credits', labelKey: 'courseRegistration.courses.credits' },
+  { key: 'courseType', labelKey: 'courseRegistration.courses.type' },
+  { key: 'sectionCode', labelKey: 'courseRegistration.log.section' },
+  { key: 'operator', labelKey: 'courseRegistration.log.operator' },
+  { key: 'operatedAt', labelKey: 'courseRegistration.log.operatedAt' },
+  { key: 'remark', labelKey: 'courseRegistration.log.remark' },
+  { key: 'queueStatus', labelKey: 'courseRegistration.log.queueStatusLabel' },
+  { key: 'result', labelKey: 'courseRegistration.log.resultLabel' },
+]
+
+export const feeRosterStudentExportFields = [
+  { key: 'studentId', labelKey: 'courseRegistration.monitor.studentId' },
+  { key: 'studentName', labelKey: 'courseRegistration.monitor.studentName' },
+  { key: 'programme', labelKey: 'courseRegistration.monitor.programme' },
+  { key: 'intake', labelKey: 'courseRegistration.monitor.intake' },
+  { key: 'academicSession', labelKey: 'courseRegistration.feeRoster.academicSession' },
+  { key: 'courseCount', labelKey: 'courseRegistration.feeRoster.courseCount' },
+  { key: 'enrolledCredits', labelKey: 'courseRegistration.feeRoster.enrolledCredits' },
+  { key: 'creditMin', labelKey: 'courseRegistration.feeRoster.creditMin' },
+  { key: 'creditMax', labelKey: 'courseRegistration.feeRoster.creditMax' },
+  { key: 'billableCredits', labelKey: 'courseRegistration.feeRoster.billableCredits' },
+  { key: 'outstandingFee', labelKey: 'courseRegistration.feeRoster.outstandingFee' },
+  { key: 'isPaid', labelKey: 'courseRegistration.feeRoster.isPaid' },
+]
+
+export const feeRosterCourseExportFields = [
+  { key: 'studentId', labelKey: 'courseRegistration.monitor.studentId' },
+  { key: 'studentName', labelKey: 'courseRegistration.monitor.studentName' },
+  { key: 'courseCode', labelKey: 'courseRegistration.courses.code' },
+  { key: 'courseName', labelKey: 'courseRegistration.courses.name' },
+  { key: 'courseCredits', labelKey: 'courseRegistration.courses.credits' },
+  { key: 'courseType', labelKey: 'courseRegistration.courses.type' },
+  { key: 'sectionCode', labelKey: 'courseRegistration.courses.sectionCode' },
+  { key: 'courseSource', labelKey: 'courseRegistration.student.courseSource' },
+]
+
+/** @deprecated 使用 feeRosterStudentExportFields */
+export const feeRosterExportFields = feeRosterStudentExportFields

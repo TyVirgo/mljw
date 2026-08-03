@@ -64,7 +64,7 @@ function handleClick() {
     @click="handleClick"
   >
     <div class="section-head">
-      <strong>{{ sectionCodeLabel }} {{ section.code }}</strong>
+      <strong>{{ t('courseRegistration.courses.sectionNameDisplay', { code: section.code }) }}</strong>
       <span>{{ section.enrolled }}/{{ section.capacity }}</span>
     </div>
 

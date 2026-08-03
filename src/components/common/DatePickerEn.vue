@@ -15,6 +15,11 @@ const props = defineProps({
   modelValue: { type: String, default: '' },
   placeholder: { type: String, default: '' },
   hasError: { type: Boolean, default: false },
+  /** DD/MM/YYYY；可选日不得早于此日（含当日） */
+  minDate: { type: String, default: '' },
+  /** DD/MM/YYYY；可选日不得晚于此日（含当日） */
+  maxDate: { type: String, default: '' },
+  disabled: { type: Boolean, default: false },
   mode: {
     type: String,
     default: 'date',
@@ -107,6 +112,27 @@ const selectedMonthYear = computed(() => {
   return { month: Number(mm) - 1, year: Number(yyyy) }
 })
 
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+function isDateDisabled(date) {
+  if (!date || isMonthMode.value) return false
+  const day = startOfDay(date)
+  const min = props.minDate ? parseDdMmYyyy(props.minDate) : null
+  const max = props.maxDate ? parseDdMmYyyy(props.maxDate) : null
+  if (min && day < startOfDay(min)) return true
+  if (max && day > startOfDay(max)) return true
+  return false
+}
+
+function isValueInRange(value) {
+  if (!value || !isValidValue(value)) return false
+  if (isMonthMode.value) return true
+  const parsed = parseValue(value)
+  return parsed ? !isDateDisabled(parsed) : false
+}
+
 function emitValue(value) {
   emit('update:modelValue', value)
 }
@@ -122,7 +148,7 @@ function onBlur() {
     emitValue('')
     return
   }
-  if (isValidValue(trimmed)) {
+  if (isValidValue(trimmed) && isValueInRange(trimmed)) {
     emitValue(trimmed)
     return
   }
@@ -135,11 +161,13 @@ function syncViewDate() {
 }
 
 function openPanel() {
+  if (props.disabled) return
   syncViewDate()
   open.value = true
 }
 
 function togglePanel() {
+  if (props.disabled) return
   if (open.value) {
     open.value = false
     return
@@ -148,6 +176,7 @@ function togglePanel() {
 }
 
 function onInputClick() {
+  if (props.disabled) return
   if (!isMonthMode.value) return
   openPanel()
 }
@@ -169,6 +198,7 @@ function nextPeriod() {
 }
 
 function selectDay(date) {
+  if (isDateDisabled(date)) return
   emitValue(formatDateValue(date))
   open.value = false
 }
@@ -208,6 +238,7 @@ function isCurrentMonth(monthIndex) {
 
 function setToday() {
   const today = new Date()
+  if (isDateDisabled(today)) return
   emitValue(formatDateValue(today))
   viewDate.value = new Date(today.getFullYear(), today.getMonth(), 1)
   open.value = false
@@ -246,21 +277,32 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="rootRef" class="date-picker-en" :class="{ 'has-error': hasError, open, 'mode-month': isMonthMode }">
+  <div
+    ref="rootRef"
+    class="date-picker-en"
+    :class="{ 'has-error': hasError, open, 'mode-month': isMonthMode, 'is-disabled': disabled }"
+  >
     <div class="date-picker-input-wrap" @click="onInputClick">
       <input
         type="text"
         class="date-picker-input"
         :value="draft"
         :placeholder="effectivePlaceholder"
-        :readonly="isMonthMode"
+        :readonly="isMonthMode || disabled"
+        :disabled="disabled"
         inputmode="numeric"
         autocomplete="off"
         @input="onInput"
         @blur="onBlur"
         @focus="draft = modelValue || draft"
       />
-      <button type="button" class="date-picker-trigger" aria-label="Open calendar" @click.stop="togglePanel">
+      <button
+        type="button"
+        class="date-picker-trigger"
+        aria-label="Open calendar"
+        :disabled="disabled"
+        @click.stop="togglePanel"
+      >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="4" width="18" height="18" rx="2" />
           <line x1="16" y1="2" x2="16" y2="6" />
@@ -304,7 +346,9 @@ onBeforeUnmount(() => {
               :class="{
                 selected: isSameDay(cell, selectedDate),
                 today: isToday(cell),
+                disabled: isDateDisabled(cell),
               }"
+              :disabled="isDateDisabled(cell)"
               @click="selectDay(cell)"
             >
               {{ cell.getDate() }}
@@ -325,6 +369,16 @@ onBeforeUnmount(() => {
 .date-picker-en {
   position: relative;
   width: 100%;
+}
+
+.date-picker-en.is-disabled .date-picker-input-wrap {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.date-picker-en.is-disabled .date-picker-input,
+.date-picker-en.is-disabled .date-picker-trigger {
+  cursor: not-allowed;
 }
 
 .date-picker-input-wrap {
@@ -504,6 +558,19 @@ onBeforeUnmount(() => {
 .day-btn:hover {
   background: #eff6ff;
   color: #2563eb;
+}
+
+.day-btn.disabled,
+.day-btn:disabled {
+  color: #d1d5db;
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.day-btn.disabled:hover,
+.day-btn:disabled:hover {
+  background: transparent;
+  color: #d1d5db;
 }
 
 .day-btn.today {

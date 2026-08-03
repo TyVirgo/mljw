@@ -17,8 +17,6 @@ import {
 } from '../../utils/exportCourseRegistrationExcel.js'
 import '../../styles/list-page-search.css'
 import '../../styles/course-registration-list.css'
-import ModuleBriefPanel from '../../components/courseRegistration/ModuleBriefPanel.vue'
-
 const emit = defineEmits(['navigate'])
 
 const { t } = useAppI18n()
@@ -26,7 +24,7 @@ const { t } = useAppI18n()
 const searchForm = ref({ alertType: '', severity: '', programme: '', keyword: '' })
 const appliedSearch = ref({ alertType: '', severity: '', programme: '', keyword: '' })
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(20)
 const exportModalVisible = ref(false)
 
 const allAlerts = computed(() => buildAcademicAlerts())
@@ -102,8 +100,6 @@ function handleExportConfirm({ selectedFields }) {
 
 <template>
   <div class="cr-list-page cr-alert-page">
-    <ModuleBriefPanel page-id="cr-alert" />
-
     <div class="stats-row" style="grid-template-columns: repeat(3, 1fr)">
       <div class="stat-card">
         <span class="stat-value">{{ stats.total }}</span>
