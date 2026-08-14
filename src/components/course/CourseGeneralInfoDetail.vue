@@ -1,8 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { getOfferingLabel, getCourseOwnerLabel } from '../../data/courses.js'
-import { initialDepartments } from '../../data/departments.js'
+import { getCourseOwnerLabel } from '../../data/courses.js'
 
 const props = defineProps({
   data: { type: Object, required: true },
@@ -30,8 +29,12 @@ function display(value) {
           <span class="detail-value">{{ display(data.courseCode) }}</span>
         </div>
         <div class="detail-row">
+          <span class="detail-label">{{ tr('Course Owner:') }}</span>
+          <span class="detail-value">{{ display(courseOwnerText) }}</span>
+        </div>
+        <div class="detail-row">
           <span class="detail-label">{{ tr('Offering Unit:') }}</span>
-          <span class="detail-value">{{ getOfferingLabel(data.offering, initialDepartments) }}</span>
+          <span class="detail-value">{{ display(data.offering) }}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">{{ tr('Course Classification:') }}</span>
@@ -45,10 +48,6 @@ function display(value) {
             {{ data.mediumOfInstruction ? tr(data.mediumOfInstruction) : '--' }}
           </span>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">{{ tr('Pre-requisite / co-requisite:') }}</span>
-          <span class="detail-value">{{ display(data.prerequisite) }}</span>
-        </div>
       </div>
 
       <div class="detail-col detail-col-right">
@@ -57,8 +56,8 @@ function display(value) {
           <span class="detail-value">{{ display(data.courseName) }}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">{{ tr('Course Owner:') }}</span>
-          <span class="detail-value">{{ display(courseOwnerText) }}</span>
+          <span class="detail-label">{{ tr('Affiliated Programme:') }}</span>
+          <span class="detail-value">{{ display(data.affiliatedProgramme) }}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">{{ tr('Credit:') }}</span>
@@ -67,6 +66,10 @@ function display(value) {
         <div class="detail-row">
           <span class="detail-label">{{ tr('Semester Type:') }}</span>
           <span class="detail-value">{{ data.semesterType ? tr(data.semesterType) : '--' }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">{{ tr('Pre-requisite / co-requisite:') }}</span>
+          <span class="detail-value">{{ display(data.prerequisite) }}</span>
         </div>
       </div>
     </div>

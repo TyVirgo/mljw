@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import {
   formatDdMmYyyyInput,
   parseDdMmYyyy,
@@ -30,8 +30,16 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const rootRef = ref(null)
+const panelRef = ref(null)
 const open = ref(false)
 const draft = ref(props.modelValue || '')
+const panelStyle = ref({})
+const placement = ref('bottom')
+
+const PANEL_WIDTH = 280
+const PANEL_GAP = 6
+const PANEL_EST_HEIGHT = 320
+const VIEWPORT_PADDING = 8
 
 const MONTHS = [
   'January',
@@ -155,15 +163,58 @@ function onBlur() {
   draft.value = props.modelValue || ''
 }
 
+function updatePanelPosition() {
+  if (!open.value || !rootRef.value) return
+  const rect = rootRef.value.getBoundingClientRect()
+  const panelHeight = panelRef.value?.offsetHeight || PANEL_EST_HEIGHT
+  const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_PADDING
+  const spaceAbove = rect.top - VIEWPORT_PADDING
+
+  // 下方空间不足时向上展开，避免弹窗内被裁切
+  const openAbove = spaceBelow < panelHeight && spaceAbove > spaceBelow
+  placement.value = openAbove ? 'top' : 'bottom'
+
+  let left = rect.left
+  if (left + PANEL_WIDTH > window.innerWidth - VIEWPORT_PADDING) {
+    left = Math.max(VIEWPORT_PADDING, window.innerWidth - PANEL_WIDTH - VIEWPORT_PADDING)
+  }
+  left = Math.max(VIEWPORT_PADDING, left)
+
+  if (openAbove) {
+    const bottom = window.innerHeight - rect.top + PANEL_GAP
+    panelStyle.value = {
+      top: 'auto',
+      bottom: `${bottom}px`,
+      left: `${left}px`,
+      width: `${PANEL_WIDTH}px`,
+    }
+  } else {
+    let top = rect.bottom + PANEL_GAP
+    if (top + panelHeight > window.innerHeight - VIEWPORT_PADDING) {
+      top = Math.max(VIEWPORT_PADDING, window.innerHeight - panelHeight - VIEWPORT_PADDING)
+    }
+    panelStyle.value = {
+      top: `${top}px`,
+      bottom: 'auto',
+      left: `${left}px`,
+      width: `${PANEL_WIDTH}px`,
+    }
+  }
+}
+
 function syncViewDate() {
   const parsed = parseValue(props.modelValue) || new Date()
   viewDate.value = new Date(parsed.getFullYear(), parsed.getMonth(), 1)
 }
 
-function openPanel() {
+async function openPanel() {
   if (props.disabled) return
   syncViewDate()
   open.value = true
+  await nextTick()
+  updatePanelPosition()
+  await nextTick()
+  updatePanelPosition()
 }
 
 function togglePanel() {
@@ -252,10 +303,10 @@ function clearValue() {
 
 function onDocumentClick(event) {
   if (!open.value) return
-  if (rootRef.value && !rootRef.value.contains(event.target)) {
-    open.value = false
-    if (!isMonthMode.value) onBlur()
-  }
+  if (rootRef.value && rootRef.value.contains(event.target)) return
+  if (panelRef.value && panelRef.value.contains(event.target)) return
+  open.value = false
+  if (!isMonthMode.value) onBlur()
 }
 
 function onKeydown(event) {
@@ -265,14 +316,28 @@ function onKeydown(event) {
   }
 }
 
+function onViewportChange() {
+  if (!open.value) return
+  updatePanelPosition()
+}
+
+watch(open, (isOpen) => {
+  if (!isOpen) return
+  nextTick(() => updatePanelPosition())
+})
+
 onMounted(() => {
   document.addEventListener('click', onDocumentClick)
   document.addEventListener('keydown', onKeydown)
+  window.addEventListener('resize', onViewportChange)
+  window.addEventListener('scroll', onViewportChange, true)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocumentClick)
   document.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('resize', onViewportChange)
+  window.removeEventListener('scroll', onViewportChange, true)
 })
 </script>
 
@@ -312,56 +377,65 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div v-if="open" class="date-picker-panel" @click.stop>
-      <div class="date-picker-header">
-        <button type="button" class="nav-btn" :aria-label="isMonthMode ? 'Previous year' : 'Previous month'" @click="prevPeriod">‹</button>
-        <span class="date-picker-title">{{ panelTitle }}</span>
-        <button type="button" class="nav-btn" :aria-label="isMonthMode ? 'Next year' : 'Next month'" @click="nextPeriod">›</button>
-      </div>
-
-      <div v-if="isMonthMode" class="month-picker-grid">
-        <button
-          v-for="(label, index) in MONTH_ABBR"
-          :key="label"
-          type="button"
-          class="month-btn"
-          :class="{ selected: isSelectedMonth(index), current: isCurrentMonth(index) }"
-          @click="selectMonth(index)"
-        >
-          {{ label }}
-        </button>
-      </div>
-
-      <template v-else>
-        <div class="date-picker-weekdays">
-          <span v-for="day in WEEKDAYS" :key="day">{{ day }}</span>
+    <Teleport to="body">
+      <div
+        v-if="open"
+        ref="panelRef"
+        class="date-picker-panel"
+        :class="`placement-${placement}`"
+        :style="panelStyle"
+        @click.stop
+      >
+        <div class="date-picker-header">
+          <button type="button" class="nav-btn" :aria-label="isMonthMode ? 'Previous year' : 'Previous month'" @click="prevPeriod">‹</button>
+          <span class="date-picker-title">{{ panelTitle }}</span>
+          <button type="button" class="nav-btn" :aria-label="isMonthMode ? 'Next year' : 'Next month'" @click="nextPeriod">›</button>
         </div>
 
-        <div class="date-picker-grid">
-          <span v-for="(cell, index) in calendarDays" :key="index" class="day-cell" :class="{ empty: !cell }">
-            <button
-              v-if="cell"
-              type="button"
-              class="day-btn"
-              :class="{
-                selected: isSameDay(cell, selectedDate),
-                today: isToday(cell),
-                disabled: isDateDisabled(cell),
-              }"
-              :disabled="isDateDisabled(cell)"
-              @click="selectDay(cell)"
-            >
-              {{ cell.getDate() }}
-            </button>
-          </span>
+        <div v-if="isMonthMode" class="month-picker-grid">
+          <button
+            v-for="(label, index) in MONTH_ABBR"
+            :key="label"
+            type="button"
+            class="month-btn"
+            :class="{ selected: isSelectedMonth(index), current: isCurrentMonth(index) }"
+            @click="selectMonth(index)"
+          >
+            {{ label }}
+          </button>
         </div>
-      </template>
 
-      <div v-if="!isMonthMode" class="date-picker-footer">
-        <button type="button" class="footer-btn" @click="clearValue">Clear</button>
-        <button type="button" class="footer-btn primary" @click="setToday">Today</button>
+        <template v-else>
+          <div class="date-picker-weekdays">
+            <span v-for="day in WEEKDAYS" :key="day">{{ day }}</span>
+          </div>
+
+          <div class="date-picker-grid">
+            <span v-for="(cell, index) in calendarDays" :key="index" class="day-cell" :class="{ empty: !cell }">
+              <button
+                v-if="cell"
+                type="button"
+                class="day-btn"
+                :class="{
+                  selected: isSameDay(cell, selectedDate),
+                  today: isToday(cell),
+                  disabled: isDateDisabled(cell),
+                }"
+                :disabled="isDateDisabled(cell)"
+                @click="selectDay(cell)"
+              >
+                {{ cell.getDate() }}
+              </button>
+            </span>
+          </div>
+        </template>
+
+        <div v-if="!isMonthMode" class="date-picker-footer">
+          <button type="button" class="footer-btn" @click="clearValue">Clear</button>
+          <button type="button" class="footer-btn primary" @click="setToday">Today</button>
+        </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -450,16 +524,15 @@ onBeforeUnmount(() => {
 }
 
 .date-picker-panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 50;
+  position: fixed;
+  z-index: 2000;
   width: 280px;
   padding: 12px;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
 }
 
 .date-picker-header {

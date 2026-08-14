@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx'
 import {
   getOfferingLabel,
   getCourseOwnerLabel,
+  getAffiliatedProgrammeLabel,
   formatMethodList,
   computeSLTStats,
   sumOutlineRowSLT,
@@ -22,6 +23,7 @@ export const courseExportColumns = [
   { key: 'courseCode', header: 'Course Code', width: 14 },
   { key: 'courseName', header: 'Course Name', width: 36 },
   { key: 'offering', header: 'Offering Unit', width: 34 },
+  { key: 'affiliatedProgramme', header: 'Affiliated Programme', width: 40 },
   { key: 'courseOwner', header: 'Course Owner', width: 24 },
   { key: 'courseClassification', header: 'Course Classification', width: 22 },
   { key: 'credit', header: 'Credit', width: 10 },
@@ -89,6 +91,7 @@ function formatCourseRow(item, index) {
     courseCode: item.courseCode,
     courseName: item.courseName,
     offering: getOfferingLabel(item.offering, initialDepartments),
+    affiliatedProgramme: getAffiliatedProgrammeLabel(item.affiliatedProgramme),
     courseOwner: item.courseOwnerDisplay || getCourseOwnerLabel(item.courseOwner),
     courseClassification: item.courseClassification,
     credit: item.credit,

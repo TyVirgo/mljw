@@ -18,10 +18,12 @@ import {
   yesNoOptions,
   nationalityOptions,
   foundationOptions,
-  getDepartmentOptions,
+  getAffiliatedProgrammeOptions,
+  getOfferingCodeByProgramme,
   formatAttachmentSize,
   formatUploadTimestamp,
 } from '../../data/lecturers.js'
+import { initialDepartments } from '../../data/departments.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -40,7 +42,7 @@ const fileInputRef = ref(null)
 const saveConfirmVisible = ref(false)
 const cancelConfirmVisible = ref(false)
 
-const departmentOptions = getDepartmentOptions()
+const programmeOptions = getAffiliatedProgrammeOptions()
 const isEditMode = computed(() => props.mode === 'edit')
 const translatedSteps = computed(() => formSteps.map((step) => ({ ...step, label: tr(step.label) })))
 const modalTitle = computed(() => (isEditMode.value ? t('common.edit') : t('common.create')))
@@ -50,6 +52,16 @@ const saveConfirmMessage = computed(() =>
     ? tr('Are you sure you want to save the changes to this lecturer?')
     : tr('Are you sure you want to save this lecturer?'),
 )
+
+function syncDepartmentFromProgramme() {
+  const departmentCode = getOfferingCodeByProgramme(form.value.affiliatedProgramme, initialDepartments)
+  form.value.department = departmentCode || ''
+  if (departmentCode && errors.value.department) {
+    const next = { ...errors.value }
+    delete next.department
+    errors.value = next
+  }
+}
 
 watch(
   () => [props.visible, props.mode, props.initialData],
@@ -86,6 +98,7 @@ function validateStep1() {
     ['degree', form.value.degree, 'Degree'],
     ['staffId', form.value.staffId, 'Staff ID'],
     ['category', form.value.category, 'Category'],
+    ['affiliatedProgramme', form.value.affiliatedProgramme, 'Affiliated Programme'],
     ['department', form.value.department, 'School/Department'],
     ['foundationUndergraduatePostgraduate', form.value.employment.foundationUndergraduatePostgraduate, 'FOU/UG/PG'],
     ['title', form.value.title, 'Title'],
@@ -273,11 +286,25 @@ function handleOverlayClick(event) {
                   </select>
                 </div>
                 <div class="form-item">
-                  <label><span class="req">*</span> {{ tr('School/Department:') }}</label>
-                  <select v-model="form.department" :class="fieldError('department')">
+                  <label><span class="req">*</span> {{ tr('Affiliated Programme:') }}</label>
+                  <select
+                    v-model="form.affiliatedProgramme"
+                    :class="fieldError('affiliatedProgramme')"
+                    @change="syncDepartmentFromProgramme"
+                  >
                     <option value="">{{ tr('please select') }}</option>
-                    <option v-for="opt in departmentOptions" :key="opt" :value="opt">{{ tr(opt) }}</option>
+                    <option v-for="opt in programmeOptions" :key="opt.code" :value="opt.code">{{ opt.code }}</option>
                   </select>
+                </div>
+                <div class="form-item">
+                  <label><span class="req">*</span> {{ tr('School/Department:') }}</label>
+                  <input
+                    :value="form.department"
+                    type="text"
+                    readonly
+                    :class="fieldError('department')"
+                    :placeholder="tr('please select')"
+                  />
                 </div>
                 <div class="form-item">
                   <label><span class="req">*</span> {{ tr('FOU/UG/PG:') }}</label>

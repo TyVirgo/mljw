@@ -1,5 +1,19 @@
 import { initialDepartments } from './departments.js'
 import { semesterTypeOptions } from './semesterInfo.js'
+import {
+  findProgrammeByCode,
+  getDepartmentLabel,
+  initialProgrammes,
+} from './programmeVersions.js'
+
+/** schoolId → 开课单位 code（组织树学院名与开课单位名称不完全一致时的兜底） */
+const SCHOOL_ID_TO_OFFERING_CODE = {
+  sob: 'SOB',
+  soi: 'SOC',
+  some: 'SOE',
+  seem: 'SOB',
+  sbe: 'SOA',
+}
 
 export const COURSE_CODE_PATTERN = /^[A-Za-z0-9]+$/
 export const MAX_COURSE_NAME_LENGTH = 200
@@ -97,12 +111,45 @@ export function getCourseOwnerLabel(ownerId) {
   return owner?.name || ownerId
 }
 
+export function getAffiliatedProgrammeOptions(programmes = initialProgrammes) {
+  return programmes
+    .map((item) => ({
+      code: item.code,
+      name: item.name,
+      schoolId: item.schoolId,
+    }))
+    .sort((a, b) => a.code.localeCompare(b.code))
+}
+
+export function getAffiliatedProgrammeLabel(code, programmes = initialProgrammes) {
+  if (!code) return '--'
+  const programme = programmes.find((item) => item.code === code) || findProgrammeByCode(code)
+  return programme?.name || code
+}
+
+/** 根据专业所属学院推导开课单位 code */
+export function getOfferingCodeByProgramme(programmeCode, departments = initialDepartments) {
+  const programme = findProgrammeByCode(programmeCode)
+  if (!programme?.schoolId) return ''
+
+  const schoolLabel = getDepartmentLabel(programme.schoolId)
+  const options = getOfferingOptions(departments)
+  const byExactName = options.find((item) => item.nameEn === schoolLabel)
+  if (byExactName) return byExactName.code
+
+  const mapped = SCHOOL_ID_TO_OFFERING_CODE[programme.schoolId]
+  if (mapped && options.some((item) => item.code === mapped)) return mapped
+
+  return ''
+}
+
 export const initialCourses = [
   {
     id: 1,
     courseCode: 'PHY101',
     courseName: 'ASEAN Business Essentials',
     offering: 'SOF',
+    affiliatedProgramme: 'IBU',
     courseOwner: 'TML001',
     courseClassification: 'Compulsory',
     credit: 4,
@@ -114,6 +161,7 @@ export const initialCourses = [
     courseCode: 'PHY102',
     courseName: 'Data Science Fundamentals',
     offering: 'CASM',
+    affiliatedProgramme: 'CSN',
     courseOwner: 'LWM002',
     courseClassification: 'Common Core',
     credit: 2,
@@ -125,6 +173,7 @@ export const initialCourses = [
     courseCode: 'CSC201',
     courseName: 'Introduction to Programming',
     offering: 'SOC',
+    affiliatedProgramme: 'SWE',
     courseOwner: 'CSW003',
     courseClassification: 'Major Core',
     credit: 3,
@@ -136,6 +185,7 @@ export const initialCourses = [
     courseCode: 'ECO301',
     courseName: 'Microeconomics',
     offering: 'SOB',
+    affiliatedProgramme: 'IBU',
     courseOwner: 'AKR004',
     courseClassification: 'Major Elective',
     credit: 3,
@@ -147,6 +197,7 @@ export const initialCourses = [
     courseCode: 'IND401',
     courseName: 'Industrial Placement',
     offering: 'SOE',
+    affiliatedProgramme: 'SWE',
     courseOwner: 'WYL005',
     courseClassification: 'Industrial Training',
     credit: 4,
@@ -158,6 +209,7 @@ export const initialCourses = [
     courseCode: 'FYP501',
     courseName: 'Final Year Project',
     offering: 'SOC',
+    affiliatedProgramme: 'CSN',
     courseOwner: 'CSW003',
     courseClassification: 'Final Year Project',
     credit: 6,
@@ -176,8 +228,9 @@ export function createEmptyCourseForm() {
   return {
     courseCode: '',
     courseName: '',
-    offering: '',
     courseOwner: '',
+    affiliatedProgramme: '',
+    offering: '',
     courseClassification: '',
     credit: '',
     mediumOfInstruction: '',
@@ -237,9 +290,13 @@ export function validateCourseForm(form, allCourses, excludeId = null) {
     errors.courseName = `Course Name must be within ${MAX_COURSE_NAME_LENGTH} characters`
   }
 
-  if (!form.offering) errors.offering = 'Offering Unit is required'
-
   if (!form.courseOwner) errors.courseOwner = 'Course Owner is required'
+
+  if (!form.affiliatedProgramme) {
+    errors.affiliatedProgramme = 'Affiliated Programme is required'
+  }
+
+  if (!form.offering) errors.offering = 'Offering Unit is required'
 
   if (!form.courseClassification) {
     errors.courseClassification = 'Course Classification is required'
@@ -322,8 +379,9 @@ export function buildCoursePayload(form) {
   return {
     courseCode: form.courseCode.trim(),
     courseName: form.courseName.trim(),
-    offering: form.offering,
     courseOwner: form.courseOwner,
+    affiliatedProgramme: form.affiliatedProgramme || '',
+    offering: form.offering,
     courseClassification: form.courseClassification,
     credit: Number(String(form.credit).trim()),
     mediumOfInstruction: form.mediumOfInstruction,
@@ -555,8 +613,9 @@ export function courseToWizardForm(course = {}) {
   return {
     courseCode: course.courseCode || '',
     courseName: course.courseName || '',
-    offering: course.offering || '',
     courseOwner: course.courseOwner || '',
+    affiliatedProgramme: course.affiliatedProgramme || '',
+    offering: course.offering || '',
     courseClassification: course.courseClassification || '',
     credit: course.credit ?? '',
     mediumOfInstruction: course.mediumOfInstruction || '',
@@ -592,7 +651,8 @@ export function formatChangeRecordTime(date = new Date()) {
 const CHANGE_LOG_FIELDS = [
   { key: 'courseCode', label: 'Course Code' },
   { key: 'courseName', label: 'Course Name' },
-  { key: 'offering', label: 'Offering Unit', format: (value) => getOfferingLabel(value, initialDepartments) },
+  { key: 'offering', label: 'Offering Unit' },
+  { key: 'affiliatedProgramme', label: 'Affiliated Programme' },
   { key: 'courseOwner', label: 'Course Owner', format: (value) => getCourseOwnerLabel(value) },
   { key: 'courseClassification', label: 'Course Classification' },
   { key: 'credit', label: 'Credit Value' },

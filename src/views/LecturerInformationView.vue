@@ -383,6 +383,7 @@ function getRowNumber(index) {
                 <th class="col-name">{{ tr('Name') }}</th>
                 <th class="col-gender">{{ tr('Gender') }}</th>
                 <th>{{ tr('Category') }}</th>
+                <th>{{ tr('Affiliated Programme') }}</th>
                 <th>{{ tr('Department') }}</th>
                 <th>{{ tr('Academic Qualification (Highest)') }}</th>
                 <th>{{ tr('Title') }}</th>
@@ -395,7 +396,7 @@ function getRowNumber(index) {
             </thead>
             <tbody>
               <tr v-if="!paginatedLecturers.length">
-                <td colspan="14" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="15" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedLecturers" :key="item.id">
                 <td class="col-check">
@@ -414,7 +415,8 @@ function getRowNumber(index) {
                 </td>
                 <td class="col-gender">{{ tr(item.gender) }}</td>
                 <td>{{ tr(item.category) }}</td>
-                <td>{{ tr(item.department) }}</td>
+                <td>{{ item.affiliatedProgramme || '--' }}</td>
+                <td>{{ item.department || '--' }}</td>
                 <td>{{ tr(item.academicQualificationHighest) }}</td>
                 <td>{{ tr(item.title) }}</td>
                 <td>{{ tr(item.academicPosition) }}</td>

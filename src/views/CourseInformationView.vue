@@ -15,7 +15,6 @@ import {
   courseClassificationOptions,
   mediumOfInstructionOptions,
   getOfferingOptions,
-  getOfferingLabel,
 } from '../data/courses.js'
 import { initialDepartments } from '../data/departments.js'
 import { semesterTypeOptions } from '../data/semesterInfo.js'
@@ -408,6 +407,7 @@ function getRowNumber(index) {
                 <th>{{ t('common.serialNo') }}</th>
                 <th>{{ tr('Course Code') }}</th>
                 <th>{{ tr('Course Name') }}</th>
+                <th>{{ tr('Affiliated Programme') }}</th>
                 <th>{{ tr('Offering Unit') }}</th>
                 <th>{{ tr('Course Classification') }}</th>
                 <th>{{ tr('Credit') }}</th>
@@ -416,7 +416,7 @@ function getRowNumber(index) {
             </thead>
             <tbody>
               <tr v-if="!paginatedCourses.length">
-                <td colspan="8" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="9" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedCourses" :key="item.id">
                 <td class="col-check">
@@ -425,7 +425,8 @@ function getRowNumber(index) {
                 <td>{{ getRowNumber(index) }}</td>
                 <td>{{ item.courseCode }}</td>
                 <td>{{ tr(item.courseName) }}</td>
-                <td>{{ tr(getOfferingLabel(item.offering, initialDepartments)) }}</td>
+                <td>{{ item.affiliatedProgramme || '--' }}</td>
+                <td>{{ item.offering || '--' }}</td>
                 <td>{{ tr(item.courseClassification) }}</td>
                 <td>{{ item.credit }}</td>
                 <td class="actions-cell">

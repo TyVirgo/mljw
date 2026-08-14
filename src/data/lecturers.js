@@ -1,4 +1,11 @@
 import { initialDepartments } from './departments.js'
+import {
+  getAffiliatedProgrammeOptions,
+  getOfferingCodeByProgramme,
+  getOfferingOptions,
+} from './courses.js'
+
+export { getAffiliatedProgrammeOptions, getOfferingCodeByProgramme }
 
 export const genderOptions = ['Male', 'Female']
 export const categoryOptions = [
@@ -58,7 +65,9 @@ export function createAttachmentId() {
 }
 
 export function getDepartmentOptions() {
-  return initialDepartments.map((d) => d.nameEn).sort()
+  return getOfferingOptions(initialDepartments)
+    .map((item) => item.code)
+    .sort((a, b) => a.localeCompare(b))
 }
 
 export function formatDateDisplay(value) {
@@ -114,6 +123,7 @@ export function createEmptyLecturerForm() {
     nameMal: '',
     gender: '',
     category: '',
+    affiliatedProgramme: '',
     department: '',
     academicQualificationHighest: '',
     title: '',
@@ -158,6 +168,7 @@ export function normalizeLecturer(item) {
     nameCn: '',
     nameMal: '',
     previousCategory: '',
+    affiliatedProgramme: '',
     hasTeachingRecord,
     personal: {},
     employment,
@@ -167,6 +178,7 @@ export function normalizeLecturer(item) {
     workingExperiences: [],
     cpdByYear: [],
     ...item,
+    affiliatedProgramme: item.affiliatedProgramme || '',
     hasTeachingRecord,
     personal: {
       dateOfBirth: '',
@@ -306,7 +318,8 @@ export const initialLecturers = [
     nameMal: 'Loh Yoong Keong',
     gender: 'Male',
     category: 'Full-time Lecturer',
-    department: 'School of Traditional Chinese Medicine',
+    affiliatedProgramme: 'CHS',
+    department: 'SOB',
     academicQualificationHighest: 'Degree, Foundation',
     title: 'Prof. Dr.',
     academicPosition: 'PROFESSOR',
@@ -343,7 +356,8 @@ export const initialLecturers = [
     name: 'Linda Tan Poh Gaik',
     gender: 'Female',
     category: 'China Seconded Lecturer',
-    department: 'China-ASEAN College of Marine Sciences',
+    affiliatedProgramme: 'CSN',
+    department: 'SOC',
     academicQualificationHighest: 'Degree',
     title: 'Dr.',
     academicPosition: 'SENIOR LECTURER',
@@ -376,7 +390,8 @@ export const initialLecturers = [
     name: 'Chen Wei Ming',
     gender: 'Male',
     category: 'Full-time Lecturer',
-    department: 'School of Artificial Intelligence and Robotics',
+    affiliatedProgramme: 'SWE',
+    department: 'SOC',
     academicQualificationHighest: 'Degree',
     title: 'Assoc. Prof. Dr.',
     academicPosition: 'ASSOCIATE PROFESSOR',
@@ -409,7 +424,8 @@ export const initialLecturers = [
     name: 'Sarah Lim Mei Yee',
     gender: 'Female',
     category: 'Student Teaching Assistant',
-    department: 'School of Arts',
+    affiliatedProgramme: 'JRN',
+    department: 'SOB',
     academicQualificationHighest: 'Foundation',
     title: 'Ms.',
     academicPosition: 'LECTURER',
@@ -443,7 +459,8 @@ export const initialLecturers = [
     name: 'Ahmad bin Hassan',
     gender: 'Male',
     category: 'Part-time Lecturer',
-    department: 'College of Accounting',
+    affiliatedProgramme: 'ACC',
+    department: 'SOB',
     academicQualificationHighest: 'Degree',
     title: 'Mr.',
     academicPosition: 'PART-TIME LECTURER',
@@ -477,7 +494,8 @@ export const initialLecturers = [
     gender: 'Female',
     category: 'Full-time Lecturer',
     previousCategory: 'Student Teaching Assistant',
-    department: 'Department of Clinical Medicine',
+    affiliatedProgramme: 'IBU',
+    department: 'SOB',
     academicQualificationHighest: 'Degree, Foundation',
     title: 'Dr.',
     academicPosition: 'LECTURER',
@@ -515,6 +533,7 @@ export function getLecturerFormData(lecturer) {
     nameMal: lecturer.nameMal || '',
     gender: lecturer.gender,
     category: lecturer.category,
+    affiliatedProgramme: lecturer.affiliatedProgramme || '',
     department: lecturer.department,
     academicQualificationHighest: lecturer.academicQualificationHighest,
     title: lecturer.title,

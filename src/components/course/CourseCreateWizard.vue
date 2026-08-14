@@ -9,7 +9,8 @@ import {
   courseCreateSteps,
   courseClassificationOptions,
   mediumOfInstructionOptions,
-  getOfferingOptions,
+  getAffiliatedProgrammeOptions,
+  getOfferingCodeByProgramme,
   courseOwnerOptions,
   createEmptyCourseForm,
   createEmptySLTData,
@@ -56,7 +57,7 @@ const pendingDeleteCLOIds = ref([])
 const backConfirmVisible = ref(false)
 const saveConfirmVisible = ref(false)
 
-const offeringOptions = computed(() => getOfferingOptions(initialDepartments))
+const programmeOptions = computed(() => getAffiliatedProgrammeOptions())
 const synopsisCount = computed(() => form.value.synopsis.length)
 const referencesCount = computed(() => form.value.references.length)
 const isLastStep = computed(() => currentStep.value === 3)
@@ -66,6 +67,16 @@ const saveConfirmMessage = computed(() =>
     ? tr('Are you sure you want to save the course changes?')
     : tr('Are you sure you want to save the course?'),
 )
+
+function syncOfferingFromProgramme() {
+  const offeringCode = getOfferingCodeByProgramme(form.value.affiliatedProgramme, initialDepartments)
+  form.value.offering = offeringCode || ''
+  if (offeringCode && errors.value.offering) {
+    const next = { ...errors.value }
+    delete next.offering
+    errors.value = next
+  }
+}
 
 function resetWizardState() {
   form.value = createEmptyCourseForm()
@@ -312,11 +323,23 @@ function confirmDeleteCLO() {
               <p v-if="isCopyMode" class="field-hint">{{ tr('Update the Course Code to ensure it is unique before saving.') }}</p>
             </div>
             <div class="field">
-              <label><span class="required">*</span> {{ tr('Offering Unit:') }}</label>
-              <select v-model="form.offering" class="select" :class="{ error: errors.offering, 'is-empty': !form.offering }">
+              <label><span class="required">*</span> {{ tr('Course Owner:') }}</label>
+              <select v-model="form.courseOwner" class="select" :class="{ error: errors.courseOwner, 'is-empty': !form.courseOwner }">
                 <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in offeringOptions" :key="opt.code" :value="opt.code">{{ opt.nameEn }}</option>
+                <option v-for="opt in courseOwnerOptions" :key="opt.id" :value="opt.id">{{ opt.name }}</option>
               </select>
+              <p v-if="errors.courseOwner" class="error-text">{{ tr(errors.courseOwner) }}</p>
+            </div>
+            <div class="field">
+              <label><span class="required">*</span> {{ tr('Offering Unit:') }}</label>
+              <input
+                :value="form.offering"
+                type="text"
+                class="input"
+                :class="{ error: errors.offering, 'is-empty': !form.offering }"
+                readonly
+                :placeholder="t('common.pleaseSelect')"
+              />
               <p v-if="errors.offering" class="error-text">{{ tr(errors.offering) }}</p>
             </div>
             <div class="field">
@@ -359,12 +382,17 @@ function confirmDeleteCLO() {
               <p v-if="errors.courseName" class="error-text">{{ tr(errors.courseName) }}</p>
             </div>
             <div class="field">
-              <label><span class="required">*</span> {{ tr('Course Owner:') }}</label>
-              <select v-model="form.courseOwner" class="select" :class="{ error: errors.courseOwner, 'is-empty': !form.courseOwner }">
+              <label><span class="required">*</span> {{ tr('Affiliated Programme:') }}</label>
+              <select
+                v-model="form.affiliatedProgramme"
+                class="select"
+                :class="{ error: errors.affiliatedProgramme, 'is-empty': !form.affiliatedProgramme }"
+                @change="syncOfferingFromProgramme"
+              >
                 <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in courseOwnerOptions" :key="opt.id" :value="opt.id">{{ opt.name }}</option>
+                <option v-for="opt in programmeOptions" :key="opt.code" :value="opt.code">{{ opt.code }}</option>
               </select>
-              <p v-if="errors.courseOwner" class="error-text">{{ tr(errors.courseOwner) }}</p>
+              <p v-if="errors.affiliatedProgramme" class="error-text">{{ tr(errors.affiliatedProgramme) }}</p>
             </div>
             <div class="field">
               <label><span class="required">*</span> {{ tr('Credit:') }}</label>
@@ -387,14 +415,13 @@ function confirmDeleteCLO() {
               </select>
               <p v-if="errors.semesterType" class="error-text">{{ tr(errors.semesterType) }}</p>
             </div>
-          </div>
-        </div>
-
-        <div class="field field-full">
-          <label>{{ tr('Pre-requisite / co-requisite:') }}</label>
-          <div class="input-with-btn">
-            <input v-model="form.prerequisite" type="text" class="input" readonly :placeholder="t('common.pleaseSelect')" />
-            <button type="button" class="btn btn-outline" @click="openPrerequisiteModal">{{ tr('Choose') }}</button>
+            <div class="field">
+              <label>{{ tr('Pre-requisite / co-requisite:') }}</label>
+              <div class="input-with-btn">
+                <input v-model="form.prerequisite" type="text" class="input" readonly :placeholder="t('common.pleaseSelect')" />
+                <button type="button" class="btn btn-outline" @click="openPrerequisiteModal">{{ tr('Choose') }}</button>
+              </div>
+            </div>
           </div>
         </div>
 

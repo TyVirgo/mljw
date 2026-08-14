@@ -65,8 +65,8 @@ onMounted(() => {
   seedStudentRegistrationDemo()
 })
 
-const appView = ref('course-registration')
-const currentPageId = ref('crs-register')
+const appView = ref('portal')
+const currentPageId = ref('dashboard')
 
 const isStudentRecordsApp = computed(() => appView.value === 'student-records')
 const isCourseRegistrationApp = computed(() => appView.value === 'course-registration')

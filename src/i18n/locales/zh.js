@@ -1411,6 +1411,12 @@ export default {
       addEvent: '新增活动',
       saveSuccess: '校历配置保存成功。',
       exportSuccess: '校历导出成功。',
+      weekSettings: '时段设置',
+      weekSettingsHint: '选择学年学期后，维护该学期教学周起止日期，以及复习周、考试周、学期假等特殊时段。各时段日期不可交叉。',
+      weekSettingsSaveSuccess: '时段设置已保存。',
+      teachingWeekAlignTip:
+        '若开始日期落在周二、周三甚至周五，该日期所在整周仍计为教学周；结束日期同理按整周计入。',
+      extraPeriods: '额外时段',
     },
     course: {
       deleteOne: '确定要删除该课程记录吗？',

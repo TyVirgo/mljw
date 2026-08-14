@@ -136,7 +136,8 @@ function handleOverlayClick(event) {
               <div class="detail-columns">
                 <div class="detail-col detail-col-left">
                   <div class="detail-row"><span class="label">{{ tr('Staff ID:') }}</span><span class="value">{{ data.staffId }}</span></div>
-                  <div class="detail-row"><span class="label">{{ tr('School/Department:') }}</span><span class="value">{{ tr(data.department) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Affiliated Programme:') }}</span><span class="value">{{ display(data.affiliatedProgramme) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('School/Department:') }}</span><span class="value">{{ display(data.department) }}</span></div>
                   <div class="detail-row"><span class="label">{{ tr('Title:') }}</span><span class="value">{{ tr(data.title) }}</span></div>
                   <div class="detail-row"><span class="label">{{ tr('Office Extension:') }}</span><span class="value">{{ display(data.employment?.officeExtension) }}</span></div>
                   <div class="detail-row"><span class="label">{{ tr('Date of Joining:') }}</span><span class="value">{{ formatDateDisplay(data.dateOfJoining) }}</span></div>

@@ -61,7 +61,7 @@ function buildCalendarGridSheet(weeks, weekdayLabels, eventDateMap, tr) {
   const rows = tableRows.map((row) => {
     const record = {
       [yearMonthLabel]: row.showMonthCell ? row.monthKey : '',
-      [teachingWeekLabel]: row.week.teachingWeek,
+      [teachingWeekLabel]: row.week.teachingWeek ?? '',
     }
     row.week.days.forEach((day, index) => {
       record[weekdayLabels[index]] = formatDayCell(day, eventDateMap, tr)

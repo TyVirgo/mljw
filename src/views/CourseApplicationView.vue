@@ -20,7 +20,6 @@ import {
 import {
   courseClassificationOptions,
   getOfferingOptions,
-  getOfferingLabel,
 } from '../data/courses.js'
 import { initialDepartments } from '../data/departments.js'
 import {
@@ -181,8 +180,9 @@ function handleSaveFromWizard(payload) {
   const generalForm = {
     courseCode: payload.courseCode,
     courseName: payload.courseName,
-    offering: payload.offering,
     courseOwner: payload.courseOwner,
+    affiliatedProgramme: payload.affiliatedProgramme || '',
+    offering: payload.offering,
     courseClassification: payload.courseClassification,
     credit: String(payload.credit),
     mediumOfInstruction: payload.mediumOfInstruction,
@@ -413,6 +413,7 @@ function getRowNumber(index) {
                 <th>{{ tr('Approval Stage') }}</th>
                 <th>{{ tr('Course Code') }}</th>
                 <th>{{ tr('Course Name') }}</th>
+                <th>{{ tr('Affiliated Programme') }}</th>
                 <th>{{ tr('Offering Unit') }}</th>
                 <th>{{ tr('Course Classification') }}</th>
                 <th>{{ tr('Credit') }}</th>
@@ -423,7 +424,7 @@ function getRowNumber(index) {
             </thead>
             <tbody>
               <tr v-if="!paginatedApplications.length">
-                <td colspan="12" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="13" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
               <tr v-for="(item, index) in paginatedApplications" :key="item.id">
                 <td class="col-check">
@@ -436,7 +437,8 @@ function getRowNumber(index) {
                 <td>{{ tr(item.approvalStage) }}</td>
                 <td>{{ item.courseCode }}</td>
                 <td>{{ tr(item.courseName) }}</td>
-                <td>{{ tr(getOfferingLabel(item.offering, initialDepartments)) }}</td>
+                <td>{{ item.affiliatedProgramme || '--' }}</td>
+                <td>{{ item.offering || '--' }}</td>
                 <td>{{ tr(item.courseClassification) }}</td>
                 <td>{{ item.credit }}</td>
                 <td>{{ item.applicant }}</td>

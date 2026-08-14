@@ -1439,6 +1439,13 @@ export default {
       addEvent: 'Add event',
       saveSuccess: 'Calendar configuration saved successfully.',
       exportSuccess: 'Calendar exported successfully.',
+      weekSettings: 'Period Settings',
+      weekSettingsHint:
+        'Select an academic session, then configure teaching week start/end dates and extra periods such as revision, examination, and semester break. Periods must not overlap.',
+      weekSettingsSaveSuccess: 'Period settings saved.',
+      teachingWeekAlignTip:
+        'If the start date falls on Tuesday, Wednesday, or even Friday, the entire calendar week still counts as a teaching week. The same whole-week rule applies to the end date.',
+      extraPeriods: 'Extra Periods',
     },
     course: {
       deleteOne: 'Are you sure you want to delete this course record?',

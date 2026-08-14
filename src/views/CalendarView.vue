@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import CalendarEventModal from '../components/calendar/CalendarEventModal.vue'
+import WeekSettingsModal from '../components/calendar/WeekSettingsModal.vue'
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import {
   getSemesterPeriodOptions,
@@ -15,6 +16,14 @@ import {
   getDefaultCalendarConfig,
   validateCalendarSave,
   buildCalendarSavePayload,
+  createEmptyWeekSettings,
+  normalizeWeekSettings,
+  buildWeekSettingsLegendItems,
+  resolveWeekSettingsForSemester,
+  seedDefaultWeekSettingsForAllSemesters,
+  saveWeekSettingsForSemester,
+  weekPeriodDefinitions,
+  teachingWeekPeriodDef,
   MAX_CALENDAR_REMARKS,
   MAX_ATTACHMENT_SIZE,
 } from '../data/calendarInfo.js'
@@ -34,18 +43,20 @@ const {
 
 const semesterOptions = getSemesterPeriodOptions(initialSemesterRecords)
 
-const searchSemesterKey = ref('2025/09')
-const appliedSemesterKey = ref('2025/09')
+const searchSemesterKey = ref('2026/04')
+const appliedSemesterKey = ref('2026/04')
 
 const calendarRemarks = ref('')
 const attachments = ref([])
 const events = ref([])
+const weekSettings = ref(createEmptyWeekSettings())
 
 const selectedDateKey = ref('')
 const hoveredDateKey = ref('')
 const eventModalVisible = ref(false)
 const eventModalMode = ref('create')
 const editingEvent = ref(null)
+const weekSettingsVisible = ref(false)
 const saveMessage = ref('')
 const saveError = ref('')
 
@@ -55,11 +66,25 @@ const appliedSemesterRecord = computed(() =>
   findSemesterRecordByKey(appliedSemesterKey.value, initialSemesterRecords),
 )
 
-const calendarWeeks = computed(() => buildCalendarWeeks(appliedSemesterRecord.value))
+const calendarWeeks = computed(() =>
+  buildCalendarWeeks(appliedSemesterRecord.value, weekSettings.value),
+)
 
 const calendarTableRows = computed(() => buildCalendarTableRows(calendarWeeks.value))
 
 const eventDateMap = computed(() => buildEventDateMap(events.value))
+
+const weekLegendItems = computed(() => buildWeekSettingsLegendItems(weekSettings.value))
+
+const periodStyleMap = computed(() => {
+  const map = {
+    [teachingWeekPeriodDef.key]: teachingWeekPeriodDef,
+  }
+  weekPeriodDefinitions.forEach((def) => {
+    map[def.key] = def
+  })
+  return map
+})
 
 const remarksCount = computed(() => calendarRemarks.value.length)
 
@@ -78,18 +103,32 @@ function cloneConfig(config) {
     calendarRemarks: config.calendarRemarks || '',
     attachments: (config.attachments || []).map((item) => ({ ...item })),
     events: (config.events || []).map((item) => ({ ...item })),
+    weekSettings: normalizeWeekSettings(config.weekSettings),
   }
+}
+
+function hasMeaningfulStoredConfig(stored) {
+  const settings = normalizeWeekSettings(stored.weekSettings)
+  return (
+    stored.events.length > 0 ||
+    !!stored.calendarRemarks ||
+    stored.attachments.length > 0 ||
+    Object.values(settings).some(Boolean)
+  )
+}
+
+function resolveWeekSettings(config, semesterKey) {
+  return resolveWeekSettingsForSemester(semesterKey, config.weekSettings)
 }
 
 function loadDraftForSemester(semesterKey) {
   const stored = loadCalendarConfig(semesterKey)
-  const hasStored =
-    stored.events.length > 0 || stored.calendarRemarks || stored.attachments.length > 0
-  const config = hasStored ? stored : getDefaultCalendarConfig(semesterKey)
+  const config = hasMeaningfulStoredConfig(stored) ? stored : getDefaultCalendarConfig(semesterKey)
   const draft = cloneConfig(config)
   calendarRemarks.value = draft.calendarRemarks
   attachments.value = draft.attachments
   events.value = draft.events
+  weekSettings.value = resolveWeekSettings(draft, semesterKey)
   selectedDateKey.value = ''
   saveMessage.value = ''
   saveError.value = ''
@@ -103,6 +142,13 @@ watch(
   { immediate: true },
 )
 
+onMounted(() => {
+  seedDefaultWeekSettingsForAllSemesters(initialSemesterRecords)
+  if (appliedSemesterKey.value) {
+    loadDraftForSemester(appliedSemesterKey.value)
+  }
+})
+
 function handleSearch() {
   if (!searchSemesterKey.value) {
     saveError.value = tr('Academic Year & Semester is required')
@@ -113,13 +159,40 @@ function handleSearch() {
 }
 
 function handleReset() {
-  searchSemesterKey.value = '2025/09'
-  appliedSemesterKey.value = '2025/09'
-  loadDraftForSemester('2025/09')
+  searchSemesterKey.value = '2026/04'
+  appliedSemesterKey.value = '2026/04'
+  loadDraftForSemester('2026/04')
 }
 
 function getEventsForDate(dateKey) {
   return eventDateMap.value.get(dateKey) || []
+}
+
+function getDayPeriodDef(day) {
+  if (!day || day.isGrayDay || !day.primaryPeriod) return null
+  return periodStyleMap.value[day.primaryPeriod] || null
+}
+
+function getDayBadgeStyle(day) {
+  if (day?.isGrayDay) return undefined
+  const def = getDayPeriodDef(day)
+  if (!def) return undefined
+  if (def.marker === 'square' || def.marker === 'circle-solid') {
+    return { backgroundColor: def.color }
+  }
+  if (def.marker === 'circle-outline') {
+    return { borderColor: def.color }
+  }
+  return undefined
+}
+
+function getDayCellStyle(day) {
+  if (day?.isGrayDay) return { backgroundColor: '#e8e8e8' }
+  const def = getDayPeriodDef(day)
+  if (!day?.inRange || def?.marker !== 'square') return undefined
+  // 教学周保持白色；复习周/考试周等显示对应颜色（含周末）
+  if (def.key === 'teachingWeek') return undefined
+  return { backgroundColor: def.color }
 }
 
 function selectDate(dateKey) {
@@ -159,6 +232,25 @@ function handleEventSave(formData) {
   }
   closeEventModal()
   saveMessage.value = ''
+  saveError.value = ''
+}
+
+function openWeekSettings() {
+  weekSettingsVisible.value = true
+}
+
+function closeWeekSettings() {
+  weekSettingsVisible.value = false
+}
+
+function handleWeekSettingsSave({ semesterKey, weekSettings: nextSettings }) {
+  const normalized = normalizeWeekSettings(nextSettings)
+  saveWeekSettingsForSemester(semesterKey, normalized)
+  if (semesterKey === appliedSemesterKey.value) {
+    weekSettings.value = normalized
+  }
+  weekSettingsVisible.value = false
+  saveMessage.value = t('pages.calendar.weekSettingsSaveSuccess')
   saveError.value = ''
 }
 
@@ -226,6 +318,7 @@ function handleSave() {
     calendarRemarks: calendarRemarks.value,
     attachments: attachments.value,
     events: events.value,
+    weekSettings: weekSettings.value,
   })
 
   const errors = validateCalendarSave(payload)
@@ -323,6 +416,9 @@ function handleExport() {
       <div class="toolbar">
         <button type="button" class="btn btn-primary" @click="handleSave">{{ t('common.save') }}</button>
         <button type="button" class="btn btn-default" @click="handleExport">{{ t('common.export') }}</button>
+        <button type="button" class="btn btn-default" @click="openWeekSettings">
+          {{ t('pages.calendar.weekSettings') }}
+        </button>
         <p v-if="saveMessage" class="save-message success">{{ saveMessage }}</p>
         <p v-if="saveError" class="save-message error">{{ saveError }}</p>
       </div>
@@ -355,15 +451,22 @@ function handleExport() {
                     <span class="month-label">{{ row.monthKey }}</span>
                   </div>
                 </td>
-                <td class="week-cell">{{ row.week.teachingWeek }}</td>
+                <td class="week-cell">{{ row.week.teachingWeek ?? '' }}</td>
                 <td
                   v-for="(day, dayIndex) in row.week.days"
                   :key="`${row.week.id}-${dayIndex}`"
                   class="day-cell"
                   :class="{
-                    'is-selected': day.inRange && selectedDateKey === day.dateKey,
+                    'is-selected': day.inRange && !day.isGrayDay && selectedDateKey === day.dateKey,
                     'is-out-range': !day.inRange,
+                    'is-gray-day': day.isGrayDay,
+                    'has-period-bg':
+                      day.inRange &&
+                      !day.isGrayDay &&
+                      getDayPeriodDef(day)?.marker === 'square' &&
+                      day.primaryPeriod !== 'teachingWeek',
                   }"
+                  :style="getDayCellStyle(day)"
                   @click="handleDayClick(day)"
                   @mouseenter="day.inRange && (hoveredDateKey = day.dateKey)"
                   @mouseleave="hoveredDateKey = ''"
@@ -371,7 +474,18 @@ function handleExport() {
                   <span
                     v-if="day.inRange"
                     class="day-badge"
-                    :class="{ 'has-event': getEventsForDate(day.dateKey).length }"
+                    :class="{
+                      'is-gray': day.isGrayDay,
+                      'has-event': !day.isGrayDay && getEventsForDate(day.dateKey).length,
+                      'marker-circle-outline': getDayPeriodDef(day)?.marker === 'circle-outline',
+                      'marker-circle-solid': getDayPeriodDef(day)?.marker === 'circle-solid',
+                      'marker-square': getDayPeriodDef(day)?.marker === 'square',
+                      'period-teaching': day.primaryPeriod === 'teachingWeek',
+                      'period-revision': day.primaryPeriod === 'revisionWeek',
+                      'period-exam': day.primaryPeriod === 'examinationWeek',
+                      'period-break': day.primaryPeriod === 'semesterBreak',
+                    }"
+                    :style="getDayBadgeStyle(day)"
                     @click.stop="handleDayBadgeClick(day)"
                   >
                     {{ day.day }}
@@ -420,6 +534,17 @@ function handleExport() {
             </tbody>
           </table>
         </div>
+
+        <ul v-if="weekLegendItems.length" class="week-legend">
+          <li v-for="item in weekLegendItems" :key="item.key" class="week-legend-item">
+            <span
+              class="legend-swatch"
+              :class="`marker-${item.marker}`"
+              :style="{ '--swatch-color': item.color }"
+            />
+            <span class="legend-text">{{ tr(item.labelKey) }}: {{ item.text }}</span>
+          </li>
+        </ul>
       </div>
 
       <div class="remark-section">
@@ -472,6 +597,15 @@ function handleExport() {
       :default-date="selectedDateKey"
       @close="closeEventModal"
       @save="handleEventSave"
+    />
+
+    <WeekSettingsModal
+      :visible="weekSettingsVisible"
+      :current-semester-key="appliedSemesterKey"
+      :initial-data="weekSettings"
+      :semester-options="semesterOptions"
+      @close="closeWeekSettings"
+      @save="handleWeekSettingsSave"
     />
 
     <ConfirmDialog
@@ -579,7 +713,13 @@ function handleExport() {
   white-space: nowrap;
 }
 
-.calendar-table th.col-week,
+.calendar-table th.col-month,
+.calendar-table th.col-week {
+  border: 1px solid #d1d5db;
+  background: #f3f4f6;
+  text-align: center;
+}
+
 .calendar-table th.col-day {
   text-align: center;
 }
@@ -607,8 +747,9 @@ function handleExport() {
   font-size: 14px;
   color: #333;
   vertical-align: middle;
-  background: #fff;
-  border-bottom: none !important;
+  background: #fafafa;
+  border: 1px solid #d1d5db !important;
+  box-sizing: border-box;
 }
 
 .month-cell-inner {
@@ -616,8 +757,8 @@ function handleExport() {
   inset: 0;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  padding: 0 20px;
+  justify-content: center;
+  padding: 0 12px;
   box-sizing: border-box;
 }
 
@@ -630,7 +771,18 @@ function handleExport() {
   text-align: center;
   font-size: 14px;
   color: #333;
-  background: #fff;
+  background: #fafafa;
+  border: 1px solid #d1d5db;
+  box-sizing: border-box;
+}
+
+.calendar-table tbody tr.month-group-end td.day-cell {
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.calendar-table tbody tr.month-group-end .month-cell,
+.calendar-table tbody tr.month-group-end .week-cell {
+  border-bottom: 1px solid #d1d5db !important;
 }
 
 .day-cell {
@@ -640,19 +792,27 @@ function handleExport() {
   min-width: 64px;
 }
 
-.day-cell.is-selected {
+.day-cell.is-selected:not(.has-period-bg):not(.is-gray-day) {
   background: #e8f2ff;
 }
 
-.day-cell.is-out-range {
-  background: #fff;
+.day-cell.is-out-range,
+.day-cell.is-gray-day {
+  background: #e8e8e8;
 }
 
 .day-out {
   display: inline-block;
   font-size: 14px;
-  color: #333;
+  color: #9ca3af;
   line-height: 1;
+}
+
+.day-badge.is-gray {
+  color: #9ca3af;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .day-badge {
@@ -666,13 +826,52 @@ function handleExport() {
   color: #333;
   line-height: 1;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
-.day-badge.has-event {
+.day-badge.marker-circle-outline {
+  border-radius: 50%;
+  border: 2px solid #2e7d32;
+  background: #fff;
+}
+
+.day-badge.marker-circle-solid {
+  border-radius: 50%;
+  background: #a5d6a7;
+}
+
+.day-badge.marker-square {
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+.day-badge.period-teaching {
+  background: #ffffff;
+}
+
+.day-badge.period-revision {
+  background: #ce93d8;
+}
+
+.day-badge.period-exam {
+  background: #a5d6a7;
+}
+
+.day-badge.period-break {
+  background: #bdbdbd;
+}
+
+.day-badge.has-event:not(.marker-square):not(.marker-circle-solid):not(.marker-circle-outline) {
   background: #e53935;
   color: #fff;
   font-weight: 500;
   border-radius: 2px;
+  border: none;
+}
+
+.day-badge.marker-square.has-event {
+  box-shadow: inset 0 0 0 2px #e53935;
+  color: #111827;
 }
 
 .add-event-btn {
@@ -739,6 +938,47 @@ function handleExport() {
   text-align: center;
   color: #9ca3af;
   padding: 32px 16px;
+}
+
+.week-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.week-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.legend-swatch {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.legend-swatch.marker-circle-outline {
+  border-radius: 50%;
+  border: 2px solid var(--swatch-color);
+  background: #fff;
+}
+
+.legend-swatch.marker-circle-solid {
+  border-radius: 50%;
+  background: var(--swatch-color);
+}
+
+.legend-swatch.marker-square {
+  border-radius: 2px;
+  background: var(--swatch-color);
+  border: 1px solid #d1d5db;
 }
 
 .remark-section,

@@ -1,8 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { getOfferingLabel, getCourseOwnerLabel, formatMethodList } from '../../data/courses.js'
-import { initialDepartments } from '../../data/departments.js'
+import { getCourseOwnerLabel, formatMethodList } from '../../data/courses.js'
 
 defineProps({
   visible: Boolean,
@@ -54,7 +53,11 @@ function handleOverlayClick(event) {
             </div>
             <div class="detail-item">
               <span class="detail-label">{{ tr('Offering Unit:') }}</span>
-              <span class="detail-value">{{ getOfferingLabel(data.offering, initialDepartments) }}</span>
+              <span class="detail-value">{{ display(data.offering) }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">{{ tr('Affiliated Programme:') }}</span>
+              <span class="detail-value">{{ display(data.affiliatedProgramme) }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">{{ tr('Course Owner:') }}</span>
