@@ -137,18 +137,18 @@ function handleOverlayClick(event) {
                 <div class="detail-col detail-col-left">
                   <div class="detail-row"><span class="label">{{ tr('Staff ID:') }}</span><span class="value">{{ data.staffId }}</span></div>
                   <div class="detail-row"><span class="label">{{ tr('Affiliated Programme:') }}</span><span class="value">{{ display(data.affiliatedProgramme) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('FOU/UG/PG:') }}</span><span class="value">{{ tr(display(data.employment?.foundationUndergraduatePostgraduate)) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Academic Position:') }}</span><span class="value">{{ tr(data.academicPosition) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('XMUM Email:') }}</span><span class="value">{{ display(data.employment?.xmumEmail) }}</span></div>
+                  <div class="detail-row"><span class="label">{{ tr('Employment Status:') }}</span><span class="value">{{ tr(data.employmentStatus) }}</span></div>
+                </div>
+                <div class="detail-col detail-col-right">
+                  <div class="detail-row"><span class="label">{{ tr('Category:') }}</span><span class="value">{{ tr(data.category) }}</span></div>
                   <div class="detail-row"><span class="label">{{ tr('School/Department:') }}</span><span class="value">{{ display(data.department) }}</span></div>
                   <div class="detail-row"><span class="label">{{ tr('Title:') }}</span><span class="value">{{ tr(data.title) }}</span></div>
                   <div class="detail-row"><span class="label">{{ tr('Office Extension:') }}</span><span class="value">{{ display(data.employment?.officeExtension) }}</span></div>
                   <div class="detail-row"><span class="label">{{ tr('Date of Joining:') }}</span><span class="value">{{ formatDateDisplay(data.dateOfJoining) }}</span></div>
                   <div class="detail-row"><span class="label">{{ tr('Currently Teaching:') }}</span><span class="value">{{ tr(data.employment?.currentlyTeaching) }}</span></div>
-                </div>
-                <div class="detail-col detail-col-right">
-                  <div class="detail-row"><span class="label">{{ tr('Category:') }}</span><span class="value">{{ tr(data.category) }}</span></div>
-                  <div class="detail-row"><span class="label">{{ tr('FOU/UG/PG:') }}</span><span class="value">{{ tr(display(data.employment?.foundationUndergraduatePostgraduate)) }}</span></div>
-                  <div class="detail-row"><span class="label">{{ tr('Academic Position:') }}</span><span class="value">{{ tr(data.academicPosition) }}</span></div>
-                  <div class="detail-row"><span class="label">{{ tr('XMUM Email:') }}</span><span class="value">{{ display(data.employment?.xmumEmail) }}</span></div>
-                  <div class="detail-row"><span class="label">{{ tr('Employment Status:') }}</span><span class="value">{{ tr(data.employmentStatus) }}</span></div>
                 </div>
               </div>
             </section>
@@ -421,8 +421,8 @@ function handleOverlayClick(event) {
   gap: 12px 12px;
   align-items: start;
 }
-.detail-col-left { --detail-label-w: 132px; }
-.detail-col-right { --detail-label-w: 168px; }
+.detail-col-left { --detail-label-w: 148px; }
+.detail-col-right { --detail-label-w: 148px; }
 .detail-row {
   display: contents;
 }
