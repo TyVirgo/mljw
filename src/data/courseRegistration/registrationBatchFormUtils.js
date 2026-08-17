@@ -26,31 +26,161 @@ export function normalizeBatchAcademicSession(value) {
   return LEGACY_SEMESTER_MAP[raw] || raw
 }
 
-/** 批次存储格式 25-Aug-2025 → DatePickerEn 格式 25/08/2025 */
+function pad2(n) {
+  return String(n).padStart(2, '0')
+}
+
+function normalizeTimeParts(hh, mm, ss) {
+  const h = Math.min(23, Math.max(0, Number(hh) || 0))
+  const m = Math.min(59, Math.max(0, Number(mm) || 0))
+  const s = Math.min(59, Math.max(0, Number(ss) || 0))
+  return `${pad2(h)}:${pad2(m)}:${pad2(s)}`
+}
+
+/**
+ * 解析批次存储或选择器中的日期时间 → Date（本地）
+ * 支持：DD/MM/YYYY[ HH:mm:ss]、D-Mon-YYYY[ HH:mm[:ss]]、YYYY-MM-DD[ HH:mm[:ss]]
+ */
+export function parseBatchDateTime(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+
+  let m = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/)
+  if (m) {
+    return new Date(
+      Number(m[3]),
+      Number(m[2]) - 1,
+      Number(m[1]),
+      Number(m[4] || 0),
+      Number(m[5] || 0),
+      Number(m[6] || 0),
+      0,
+    )
+  }
+
+  m = raw.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/)
+  if (m) {
+    const monthIdx = MONTH_ABBR.findIndex((item) => item.toLowerCase() === m[2].toLowerCase())
+    if (monthIdx < 0) return null
+    return new Date(
+      Number(m[3]),
+      monthIdx,
+      Number(m[1]),
+      Number(m[4] || 0),
+      Number(m[5] || 0),
+      Number(m[6] || 0),
+      0,
+    )
+  }
+
+  m = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/)
+  if (m) {
+    return new Date(
+      Number(m[1]),
+      Number(m[2]) - 1,
+      Number(m[3]),
+      Number(m[4] || 0),
+      Number(m[5] || 0),
+      Number(m[6] || 0),
+      0,
+    )
+  }
+
+  return null
+}
+
+/**
+ * 距截止剩余天/小时（向下取整；进页算一次时传入固定 now）
+ * @param {string} endRaw 批次日期字符串
+ * @param {Date|number} [now] 基准时间
+ * @returns {{ days: number, hours: number, expired: boolean } | null}
+ */
+export function getRemainingDaysHours(endRaw, now = new Date()) {
+  const end = parseBatchDateTime(endRaw)
+  if (!end || Number.isNaN(end.getTime())) return null
+  const base = now instanceof Date ? now.getTime() : Number(now)
+  if (!Number.isFinite(base)) return null
+  const ms = end.getTime() - base
+  if (ms <= 0) return { days: 0, hours: 0, expired: true }
+  const totalHours = Math.floor(ms / (3600 * 1000))
+  return {
+    days: Math.floor(totalHours / 24),
+    hours: totalHours % 24,
+    expired: false,
+  }
+}
+
+/** DatePickerEn datetime：DD/MM/YYYY HH:mm:ss（无时间则补 00:00:00） */
 export function batchDateToPicker(value) {
   const raw = String(value || '').trim()
   if (!raw) return ''
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) return raw
-  const match = raw.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/)
-  if (!match) return raw
-  const day = match[1].padStart(2, '0')
-  const monthIdx = MONTH_ABBR.findIndex((item) => item.toLowerCase() === match[2].toLowerCase())
-  if (monthIdx < 0) return ''
-  const month = String(monthIdx + 1).padStart(2, '0')
-  return `${day}/${month}/${match[3]}`
+  if (/^\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}:\d{2}:\d{2})?$/.test(raw)) {
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) return `${raw} 00:00:00`
+    const m = raw.match(/^(\d{2}\/\d{2}\/\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
+    if (m) return `${m[1]} ${normalizeTimeParts(m[2], m[3], m[4] || 0)}`
+    return raw
+  }
+  const date = parseBatchDateTime(raw)
+  if (!date || Number.isNaN(date.getTime())) return raw
+  return `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()} ${normalizeTimeParts(
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds(),
+  )}`
 }
 
-/** DatePickerEn 格式 → 批次存储格式 */
+/** DatePickerEn → 批次存储：25-Aug-2025 09:00:00 */
 export function pickerToBatchDate(value) {
   const raw = String(value || '').trim()
   if (!raw) return ''
-  if (/^\d{1,2}-[A-Za-z]{3}-\d{4}$/.test(raw)) return raw
-  const match = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  if (!match) return raw
-  const monthIdx = Number(match[2]) - 1
-  if (monthIdx < 0 || monthIdx > 11) return ''
-  const abbr = MONTH_ABBR[monthIdx]
-  return `${Number(match[1])}-${abbr}-${match[3]}`
+  if (/^\d{1,2}-[A-Za-z]{3}-\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/.test(raw)) {
+    const date = parseBatchDateTime(raw)
+    if (!date) return raw
+    return `${date.getDate()}-${MONTH_ABBR[date.getMonth()]}-${date.getFullYear()} ${normalizeTimeParts(
+      date.getHours(),
+      date.getMinutes(),
+      date.getSeconds(),
+    )}`
+  }
+  const date = parseBatchDateTime(raw)
+  if (!date || Number.isNaN(date.getTime())) return raw
+  return `${date.getDate()}-${MONTH_ABBR[date.getMonth()]}-${date.getFullYear()} ${normalizeTimeParts(
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds(),
+  )}`
+}
+
+/** 展示/流水：统一为 YYYY-MM-DD HH:mm:ss 或保留可读；选课模块列表用与 picker 一致的 DD/MM/YYYY HH:mm:ss */
+export function formatDateTimeDisplay(value) {
+  if (!value) return ''
+  return batchDateToPicker(value) || String(value)
+}
+
+/** 申请/志愿提交时刻：不足秒则补 :00 */
+export function ensureDateTimeWithSeconds(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const date = parseBatchDateTime(raw)
+  if (date && !Number.isNaN(date.getTime())) {
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${normalizeTimeParts(
+      date.getHours(),
+      date.getMinutes(),
+      date.getSeconds(),
+    )}`
+  }
+  if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}$/.test(raw)) return `${raw}:00`
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)) return `${raw.replace('T', ' ')}:00`
+  return raw
+}
+
+export function nowDateTimeWithSeconds() {
+  const d = new Date()
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${normalizeTimeParts(
+    d.getHours(),
+    d.getMinutes(),
+    d.getSeconds(),
+  )}`
 }
 
 export function emptyRoundsPicker() {
@@ -114,28 +244,33 @@ export function validateBatchFormBasics(form) {
     errors.academicSession = 'courseRegistration.batch.academicSessionRequired'
   }
   if (!String(form.type || '').trim()) errors.type = 'courseRegistration.batch.typeRequired'
+  const type = String(form.type || '').trim()
+  if (type === 'ME' && !String(form.programme || '').trim()) {
+    errors.programme = 'courseRegistration.batch.programmeRequired'
+  }
   return errors
 }
 
-/** 解析 DatePickerEn 的 DD/MM/YYYY */
+/** 解析 DatePickerEn 值（日期或日期时间）→ Date */
 export function parsePickerDate(value) {
-  const raw = String(value || '').trim()
-  const match = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  if (!match) return null
-  return new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]))
+  return parseBatchDateTime(value)
 }
 
 export function formatPickerDate(date) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return ''
-  const day = String(date.getDate()).padStart(2, '0')
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  return `${day}/${month}/${date.getFullYear()}`
+  return `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()} ${normalizeTimeParts(
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds(),
+  )}`
 }
 
 export function addDaysToPickerDate(value, days) {
   const date = parsePickerDate(value)
   if (!date) return ''
   date.setDate(date.getDate() + days)
+  // 跨窗最小日起点：下一天 00:00:00
+  date.setHours(0, 0, 0, 0)
   return formatPickerDate(date)
 }
 
@@ -154,8 +289,8 @@ export function getBatchSchedulePickerValues(form) {
 }
 
 /**
- * 各字段最小可选日（DD/MM/YYYY）。
- * 同窗结束 ≥ 开始；跨窗下一段开始 ≥ 上一段结束+1天（上一段结束空则用上一段开始+1）。
+ * 各字段最小可选时刻。
+ * 同窗结束 ≥ 开始；跨窗下一段开始 ≥ 上一段结束的次日 00:00:00。
  */
 export function getBatchScheduleMinDates(form) {
   const values = getBatchSchedulePickerValues(form)
@@ -178,7 +313,6 @@ export function getBatchScheduleMinDates(form) {
       mins[i] = ''
       continue
     }
-    // 奇数下标=各段 end（0-based：1,3,5,7），与 start 同窗含等；偶数下标=下一段 start，须严格晚一天
     mins[i] = i % 2 === 1 ? prev : addDaysToPickerDate(prev, 1)
   }
   return mins
@@ -195,7 +329,6 @@ export function isPickerDateOnOrAfter(value, minValue) {
 
 /** 从 changedIndex 起，清空不满足最小日约束的后续字段 */
 export function clearInvalidBatchScheduleAfter(form, changedIndex) {
-  const mins = getBatchScheduleMinDates(form)
   const setters = [
     (v) => {
       form.rounds.preselect.start = v
@@ -224,7 +357,6 @@ export function clearInvalidBatchScheduleAfter(form, changedIndex) {
   ]
   const values = getBatchSchedulePickerValues(form)
   for (let i = changedIndex + 1; i < 8; i += 1) {
-    // mins 依赖前面值，清空后需重算
     const liveMins = getBatchScheduleMinDates(form)
     if (values[i] && !isPickerDateOnOrAfter(values[i], liveMins[i])) {
       setters[i]('')

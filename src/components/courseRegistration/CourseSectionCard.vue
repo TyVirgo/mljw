@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { displayClassTime, displayWeekRange } from '../../data/courseRegistration/sectionScheduleFields.js'
+import { displayClassTime, displayWeekRange, displayVenue } from '../../data/courseRegistration/sectionScheduleFields.js'
 
 const props = defineProps({
   section: { type: Object, required: true },
@@ -14,7 +14,9 @@ const props = defineProps({
 
 const emit = defineEmits(['select'])
 
-const { t } = useAppI18n()
+const { t, isZh } = useAppI18n()
+
+const timeLocale = computed(() => (isZh.value ? 'zh' : 'en'))
 
 const isFull = computed(() => props.section.enrolled >= props.section.capacity)
 
@@ -34,13 +36,13 @@ const fields = computed(() => [
   {
     key: 'classTime',
     labelKey: 'courseRegistration.courses.classTime',
-    value: displayClassTime(props.section),
+    value: displayClassTime(props.section, timeLocale.value),
     hintKey: 'courseRegistration.courses.classTimeHint',
   },
   {
     key: 'room',
     labelKey: 'courseRegistration.courses.room',
-    value: props.section.room || '—',
+    value: displayVenue(props.section),
     hintKey: '',
   },
 ])
@@ -99,9 +101,9 @@ function handleClick() {
     </div>
 
     <template v-else>
-      <p>{{ displayClassTime(section) }}</p>
+      <p>{{ displayClassTime(section, timeLocale) }}</p>
       <p>
-        {{ displayWeekRange(section) }} · {{ section.room || '—' }} · {{ section.lecturer || '—' }}
+        {{ displayWeekRange(section) }} · {{ displayVenue(section) }} · {{ section.lecturer || '—' }}
       </p>
     </template>
   </button>

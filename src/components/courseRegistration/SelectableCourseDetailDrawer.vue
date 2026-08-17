@@ -7,7 +7,11 @@ import { getRegistrationTypeLabel } from '../../data/courseRegistration/registra
 import {
   getCourseById,
   updateCourseSelectable,
+  getPastAudienceRatioDemo,
+  isYear2OrSem2OnlyCourse,
+  getCourseAudienceCapacity,
 } from '../../data/courseRegistration/selectableCourses.js'
+import { displayVenue } from '../../data/courseRegistration/sectionScheduleFields.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -52,6 +56,10 @@ const selectableDraft = computed({
     updateCourseSelectable(liveCourse.value.id, value === 'yes')
   },
 })
+
+const pastRatioRows = computed(() => getPastAudienceRatioDemo(liveCourse.value))
+const liveAudience = computed(() => getCourseAudienceCapacity(liveCourse.value))
+const year2Only = computed(() => isYear2OrSem2OnlyCourse(liveCourse.value))
 </script>
 
 <template>
@@ -109,7 +117,7 @@ const selectableDraft = computed({
                 {{ sec.classTime || sec.time }}
                 <ExternalDataHint source-key="scheduling" />
               </td>
-              <td>{{ sec.room || '—' }}</td>
+              <td>{{ displayVenue(sec) }}</td>
               <td>{{ sec.enrolled }}/{{ sec.capacity }}</td>
             </tr>
             <tr v-if="!liveCourse.sections?.length">
@@ -126,10 +134,40 @@ const selectableDraft = computed({
           <dt>{{ t('courseRegistration.courses.seniorQuota') }}</dt>
           <dd>{{ liveCourse.quota?.senior }}</dd>
           <dt>{{ t('courseRegistration.courses.freshmanQuota') }}</dt>
-          <dd>{{ liveCourse.quota?.freshman }}</dd>
+          <dd>
+            {{ liveCourse.quota?.freshman }}
+            <span v-if="year2Only" class="inline-tip">{{ t('courseRegistration.courses.year2FreshmanZeroTip') }}</span>
+          </dd>
           <dt>{{ t('courseRegistration.courses.releaseFreshman') }}</dt>
           <dd>{{ liveCourse.quota?.releaseToFreshman ? t('common.yes') : t('common.no') }}</dd>
+          <dt>{{ t('courseRegistration.courses.liveAudienceRatio') }}</dt>
+          <dd>
+            {{ t('courseRegistration.courses.liveAudienceRatioValue', {
+              senior: liveAudience.enrolledSenior,
+              seniorCap: liveAudience.seniorCap,
+              freshman: liveAudience.enrolledFreshman,
+              freshmanCap: liveAudience.freshmanCap,
+            }) }}
+          </dd>
         </dl>
+        <h4 class="sub-title">{{ t('courseRegistration.courses.pastAudienceRatio') }}</h4>
+        <p class="sub-hint">{{ t('courseRegistration.courses.pastAudienceRatioHint') }}</p>
+        <table class="data-table past-ratio-table">
+          <thead>
+            <tr>
+              <th>{{ t('courseRegistration.batch.academicSession') }}</th>
+              <th>{{ t('courseRegistration.courses.seniorPercent') }}</th>
+              <th>{{ t('courseRegistration.courses.freshmanPercent') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in pastRatioRows" :key="row.session">
+              <td>{{ row.session }}</td>
+              <td>{{ row.seniorPercent }}%</td>
+              <td>{{ row.freshmanPercent }}%</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <div v-else class="tab-panel">
@@ -227,5 +265,44 @@ const selectableDraft = computed({
 .empty {
   text-align: center;
   color: #9ca3af;
+}
+
+.sub-title {
+  margin: 20px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.sub-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.inline-tip {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 12px;
+  color: #b45309;
+}
+
+.past-ratio-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.past-ratio-table th,
+.past-ratio-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f3f4f6;
+  text-align: left;
+}
+
+.past-ratio-table th {
+  background: #f9fafb;
+  color: #6b7280;
+  font-weight: 600;
 }
 </style>

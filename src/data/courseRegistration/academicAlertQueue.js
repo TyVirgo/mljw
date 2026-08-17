@@ -64,8 +64,13 @@ export function buildAcademicAlerts(monitorRows = registrationMonitorQueue.value
 }
 
 function buildRecommendation(alertType, row) {
+  const isFreshmanTag =
+    Array.isArray(row?.tags) && row.tags.some((t) => String(t).toLowerCase() === 'freshman')
   switch (alertType) {
     case 'creditBelowMin':
+      if (isFreshmanTag) {
+        return { action: 'suggestSupplement', hint: 'recommendSuggestSupplement' }
+      }
       return { action: 'add', hint: 'recommendAddCredits' }
     case 'creditAtMax':
     case 'creditAboveMax':
@@ -74,6 +79,9 @@ function buildRecommendation(alertType, row) {
     case 'g1CategoryShortfall':
       return { action: 'add', hint: 'recommendG1Humanities' }
     case 'notRegistered':
+      if (isFreshmanTag) {
+        return { action: 'suggestSupplement', hint: 'recommendSuggestSupplement' }
+      }
       return { action: 'supplement', hint: 'recommendSupplement' }
     case 'prerequisiteMissing':
       return { action: 'review', hint: 'recommendPrerequisite' }

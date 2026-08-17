@@ -5,6 +5,7 @@ import CreditProgressRing from './CreditProgressRing.vue'
 import WeekScheduleGrid from './WeekScheduleGrid.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { formatIntakeBatch } from '../../data/intakeSets.js'
+import { getTermGeCategoryBars, getGraduationGeBars } from '../../data/courseRegistration/studentRegistrationContext.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -23,14 +24,21 @@ const subtitle = computed(() => {
   return `${props.row.studentId} · ${props.row.programme}/${intake}`
 })
 
-const g1Bars = computed(() => {
-  if (!props.row?.g1Progress) return []
-  const { humanities, business, required } = props.row.g1Progress
+/** 本学期 GE/ME 学分帽 */
+const termElectiveBars = computed(() => {
+  const row = props.row
+  if (!row?.termElectiveProgress) return []
+  const p = row.termElectiveProgress
   return [
-    { key: 'humanities', current: humanities, required: required.humanities },
-    { key: 'business', current: business, required: required.business },
+    { key: 'ge', current: Number(p.ge) || 0, required: Number(p.geMax) || 12 },
+    { key: 'me', current: Number(p.me) || 0, required: Number(p.meMax) || 16 },
   ]
 })
+
+/** 本学期 ME 文/商/理（主闸；字段名历史保留） */
+const termGeBars = computed(() => (props.row ? getTermGeCategoryBars(props.row) : []))
+/** 毕业累计（次要） */
+const graduationBars = computed(() => (props.row ? getGraduationGeBars(props.row) : []))
 </script>
 
 <template>
@@ -48,17 +56,54 @@ const g1Bars = computed(() => {
         </div>
       </div>
 
-      <div class="section">
-        <h4>{{ t('courseRegistration.monitor.g1Progress') }}</h4>
-        <div v-for="bar in g1Bars" :key="bar.key" class="g1-bar">
+      <div v-if="termElectiveBars.length" class="section">
+        <h4>{{ t('courseRegistration.monitor.termElectiveProgress') }}</h4>
+        <div v-for="bar in termElectiveBars" :key="bar.key" class="g1-bar">
           <span class="g1-label">{{ t(`courseRegistration.monitor.g1.${bar.key}`) }}</span>
           <div class="g1-track">
             <div
               class="g1-fill"
-              :style="{ width: `${Math.min(100, (bar.current / bar.required) * 100)}%` }"
+              :class="{ 'g1-fill--over': bar.required > 0 && bar.current > bar.required }"
+              :style="{
+                width: `${bar.required > 0 ? Math.min(100, (bar.current / bar.required) * 100) : 0}%`,
+              }"
             />
           </div>
           <span class="g1-value">{{ bar.current }}/{{ bar.required }}</span>
+        </div>
+      </div>
+
+      <div v-if="termGeBars.length" class="section">
+        <h4>{{ t('courseRegistration.monitor.termGeCategoryProgress') }}</h4>
+        <div v-for="bar in termGeBars" :key="bar.key" class="g1-bar">
+          <span class="g1-label">{{ t(bar.labelKey) }}</span>
+          <div class="g1-track">
+            <div
+              class="g1-fill"
+              :class="{ 'g1-fill--over': bar.max > 0 && bar.current > bar.max }"
+              :style="{
+                width: `${bar.max > 0 ? Math.min(100, (bar.current / bar.max) * 100) : 0}%`,
+              }"
+            />
+          </div>
+          <span class="g1-value">{{ bar.current }}/{{ bar.max }}</span>
+        </div>
+      </div>
+
+      <div v-if="graduationBars.length" class="section">
+        <h4>{{ t('courseRegistration.monitor.graduationGeProgress') }}</h4>
+        <div v-for="bar in graduationBars" :key="bar.key" class="g1-bar">
+          <span class="g1-label">{{ t(bar.labelKey) }}</span>
+          <div class="g1-track">
+            <div
+              class="g1-fill"
+              :class="{ 'g1-fill--over': bar.max > 0 && bar.current > bar.max }"
+              :style="{
+                width: `${bar.max > 0 ? Math.min(100, (bar.current / bar.max) * 100) : 0}%`,
+              }"
+            />
+          </div>
+          <span class="g1-value">{{ bar.current }}/{{ bar.max }}</span>
         </div>
       </div>
 
@@ -92,7 +137,14 @@ const g1Bars = computed(() => {
         :disabled="inSupplementList"
         @click="emit('add-supplement')"
       >
-        {{ inSupplementList ? t('courseRegistration.supplement.alreadyInList') : t('courseRegistration.monitor.addSupplement') }}
+        {{
+          inSupplementList
+            ? t('courseRegistration.supplement.alreadyInList')
+            : row && Array.isArray(row.tags) && row.tags.some((tag) => String(tag).toLowerCase() === 'freshman') &&
+              (row.status === 'creditLow' || row.status === 'notRegistered')
+              ? t('courseRegistration.monitor.suggestSupplement')
+              : t('courseRegistration.monitor.addSupplement')
+        }}
       </button>
       <button type="button" class="btn btn-primary" @click="emit('close')">{{ t('common.close') }}</button>
     </template>
@@ -144,8 +196,9 @@ const g1Bars = computed(() => {
 }
 
 .g1-label {
-  width: 72px;
+  width: 120px;
   color: #6b7280;
+  flex-shrink: 0;
 }
 
 .g1-track {
@@ -161,9 +214,14 @@ const g1Bars = computed(() => {
   background: #2563eb;
 }
 
+.g1-fill--over {
+  background: #dc2626;
+}
+
 .g1-value {
-  width: 48px;
+  width: 56px;
   text-align: right;
+  flex-shrink: 0;
 }
 
 .issue-list,

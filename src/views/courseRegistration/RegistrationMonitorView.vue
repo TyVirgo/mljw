@@ -19,6 +19,7 @@ import {
   addStudentToSupplementList,
   isStudentInSupplementList,
 } from '../../data/courseRegistration/supplementListQueue.js'
+import { isFreshmanStudent } from '../../data/courseRegistration/studentAudience.js'
 import { monitorExportFields } from '../../data/courseRegistration/courseRegistrationExportFields.js'
 import {
   exportCourseRegistrationData,
@@ -140,13 +141,36 @@ function handleRemind(row) {
 function handleAddSupplement(row) {
   if (!row) return
   const meta = getRowAlertMeta(row)
-  const remark = meta.alertTypes.length
-    ? meta.alertTypes.map(alertTypeLabel).join(', ')
-    : t(`courseRegistration.monitor.status.${row.status}`)
+  const isFreshman =
+    isFreshmanStudent(row.studentId) ||
+    (Array.isArray(row.tags) && row.tags.some((tag) => String(tag).toLowerCase() === 'freshman'))
+  const creditLow =
+    row.status === 'creditLow' ||
+    row.status === 'notRegistered' ||
+    (Number(row.credits) > 0 && Number(row.credits) < Number(row.creditMin || 12))
+
+  if (isFreshman && creditLow && meta.recommendation?.action === 'suggestSupplement') {
+    const ok = window.confirm(
+      t('courseRegistration.monitor.suggestSupplementConfirm', { name: row.studentName }),
+    )
+    if (!ok) return
+  }
+
+  const remarkParts = meta.alertTypes.length
+    ? meta.alertTypes.map(alertTypeLabel)
+    : [t(`courseRegistration.monitor.status.${row.status}`)]
+  if (isFreshman && creditLow) {
+    remarkParts.push(t('courseRegistration.monitor.transferCreditRemark'))
+  }
+
   const result = addStudentToSupplementList(row, {
     listType: 'supplement',
     source: 'registration-monitor',
-    remark,
+    remark: remarkParts.join(', '),
+    // 新生学分不足例外：默认仅开放加课，不自动开退/重修
+    canAdd: true,
+    canDrop: isFreshman && creditLow ? false : true,
+    canRetake: isFreshman && creditLow ? false : true,
   })
   if (!result.ok) {
     window.alert(t(result.errorKey))
@@ -154,6 +178,14 @@ function handleAddSupplement(row) {
   }
   window.alert(t('courseRegistration.supplement.addedSuccess', { name: row.studentName }))
   detailRow.value = null
+}
+
+function supplementActionLabel(row) {
+  const meta = getRowAlertMeta(row)
+  if (meta.recommendation?.action === 'suggestSupplement') {
+    return t('courseRegistration.monitor.suggestSupplement')
+  }
+  return t('courseRegistration.monitor.addSupplement')
 }
 
 function goToSupplementList() {
@@ -359,7 +391,11 @@ function handleExportConfirm({ selectedFields }) {
                     :disabled="isStudentInSupplementList(row.studentId)"
                     @click="handleAddSupplement(row)"
                   >
-                    {{ t('courseRegistration.monitor.addSupplement') }}
+                    {{
+                      isStudentInSupplementList(row.studentId)
+                        ? t('courseRegistration.supplement.alreadyInList')
+                        : supplementActionLabel(row)
+                    }}
                   </button>
                 </td>
               </tr>

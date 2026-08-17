@@ -36,6 +36,11 @@
   color: #374151;
 }
 
+.status-pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
 .status-expired {
   background: #f3e8ff;
   color: #7e22ce;

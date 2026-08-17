@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { formatIntakeBatch } from '../intakeSets.js'
 import { registrationBatches } from './registrationBatches.js'
-import { getBatchScopeRules, matchScopeRule } from './batchScopeRules.js'
+import { getBatchScopeRules, matchScopeRule, resolveEffectiveScopeRulesForRound, deriveGlobalScopeRuleFromProgrammePlan } from './batchScopeRules.js'
 import {
   listAdminAddStudentCandidates,
   filterAdminAddStudentCandidates,
@@ -299,14 +299,15 @@ export function countStudentsForScopeRule(rule) {
 }
 
 /**
- * 按批次 + 选课轮次聚合可选学生（该轮全部规则并集，按学号去重）。
- * 该轮无规则时返回空数组。
+ * 按批次 + 选课轮次聚合可选学生（该轮生效规则并集，按学号去重）。
+ * 该轮无专属规则时回退培养方案全局参与范围。
  * @param {object|null} batch
  * @param {'preselect'|'main'|'supplement'} roundKey
  */
 export function listStudentsForBatchRound(batch, roundKey) {
   if (!batch || !roundKey) return []
-  const rules = getBatchScopeRules(batch).filter((rule) => (rule?.round || '') === roundKey)
+  const roundOverride = getBatchScopeRules(batch).some((rule) => (rule?.round || '') === roundKey)
+  const rules = resolveEffectiveScopeRulesForRound(batch, roundKey)
   if (!rules.length) return []
   const byId = new Map()
   for (const rule of rules) {
@@ -315,8 +316,9 @@ export function listStudentsForBatchRound(batch, roundKey) {
     }
   }
   let rows = [...byId.values()]
-  // Demo：按轮次拉开名单观感（排序/截取），状态不同批次因 scope 差异本身也不同
   rows.sort((a, b) => String(a.studentId).localeCompare(String(b.studentId)))
+  // 仅轮次特例时拉开观感；走全局时三轮名单一致
+  if (!roundOverride) return rows
   if (roundKey === 'main') {
     rows = rows.filter((_, i) => i % 3 !== 2)
   } else if (roundKey === 'supplement') {
@@ -329,18 +331,45 @@ export function listStudentsForBatchRound(batch, roundKey) {
   return rows
 }
 
+/**
+ * 批次全局参与名单（培养方案推导，与轮次无关）。
+ * @param {object|null} batch
+ */
+export function listGlobalBatchParticipants(batch) {
+  if (!batch) return []
+  const rule = deriveGlobalScopeRuleFromProgrammePlan(batch)
+  if (!rule) return []
+  const rows = listStudentsForScopeRule(rule)
+  rows.sort((a, b) => String(a.studentId).localeCompare(String(b.studentId)))
+  return rows
+}
+
+export function countGlobalBatchParticipants(batch) {
+  return listGlobalBatchParticipants(batch).length
+}
+
 const BATCH_ROSTER_ROUNDS = ['preselect', 'main', 'supplement']
 
 /**
- * 可选课人数 = 学生清单三轮 Tab 人数之和（跨轮不去重）。
+ * 可选课人数 = 全局名单 ∪ 三轮可选名单 ∪ 特殊名单（按学号去重）。
+ * 轮次未设范围时回退全局，并集不会把同一人重复累计。
  * @param {object|null} batch
  */
 export function countEligibleStudentsAcrossRounds(batch) {
   if (!batch) return 0
-  return BATCH_ROSTER_ROUNDS.reduce(
-    (sum, roundKey) => sum + listStudentsForBatchRound(batch, roundKey).length,
-    0,
-  )
+  const ids = new Set()
+  for (const row of listGlobalBatchParticipants(batch)) {
+    if (row?.studentId) ids.add(String(row.studentId))
+  }
+  for (const roundKey of BATCH_ROSTER_ROUNDS) {
+    for (const row of listStudentsForBatchRound(batch, roundKey)) {
+      if (row?.studentId) ids.add(String(row.studentId))
+    }
+  }
+  for (const row of listBatchRosterStudents(batch.id, 'special')) {
+    if (row?.studentId) ids.add(String(row.studentId))
+  }
+  return ids.size
 }
 
 export function listBatchRosterStudents(batchId, listType = 'eligible') {

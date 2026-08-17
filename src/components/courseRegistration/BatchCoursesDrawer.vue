@@ -2,22 +2,23 @@
 import { ref, computed, watch } from 'vue'
 import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
 import TablePagination from '../common/TablePagination.vue'
-import CourseLibraryImportModal from './CourseLibraryImportModal.vue'
 import BatchCourseOptionalSettingsModal from './BatchCourseOptionalSettingsModal.vue'
 import BatchCourseCapacitySettingsModal from './BatchCourseCapacitySettingsModal.vue'
+import BatchCourseQuotaAllocateModal from './BatchCourseQuotaAllocateModal.vue'
 import BatchCourseProgrammeScopeModal from './BatchCourseProgrammeScopeModal.vue'
-import CourseSectionsModal from './CourseSectionsModal.vue'
 import ExternalDataHint from './ExternalDataHint.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
 import {
-  getCourseAudienceCapacity,
-  getCourseEnrolledTotal,
+  displayClassTimeVenueLines,
+  displayWeekRange,
+} from '../../data/courseRegistration/sectionScheduleFields.js'
+import {
   getCourseProgrammeScopeCodes,
   getCoursesByBatch,
-  importCoursesFromLibrary,
   selectableCourses,
 } from '../../data/courseRegistration/selectableCourses.js'
+import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 import '../../styles/list-page-search.css'
 
 const props = defineProps({
@@ -27,24 +28,31 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-const { t } = useAppI18n()
+const { t, isZh } = useAppI18n()
 
 const keyword = ref('')
 const appliedKeyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
-const sectionsCourse = ref(null)
-const importVisible = ref(false)
 const optionalSettingsVisible = ref(false)
 const capacitySettingsVisible = ref(false)
+const quotaAllocateVisible = ref(false)
 const programmeScopeVisible = ref(false)
-/** @type {import('vue').Ref<string[]>} */
+/** 勾选的课程分组 id @type {import('vue').Ref<string[]>} */
 const selectedIds = ref([])
 
 const batchId = computed(() => props.batch?.id || '')
 const batchName = computed(() => props.batch?.name || '')
-const batchReadOnly = computed(() => props.batch?.status === 'active')
+const batchReadOnly = computed(
+  () => props.batch?.status === 'active' || props.batch?.status === 'closed',
+)
 const showSelection = computed(() => !batchReadOnly.value)
+
+const batchReadOnlyHint = computed(() =>
+  props.batch?.status === 'closed'
+    ? t('courseRegistration.batch.closedReadOnlyHint')
+    : t('courseRegistration.batch.activeReadOnlyHint'),
+)
 
 const title = computed(() =>
   batchName.value
@@ -64,8 +72,76 @@ const allBatchCourses = computed(() => {
   return getCoursesByBatch(batchId.value)
 })
 
+/** 按课程分组展平后的行 */
+const flattenedRows = computed(() => {
+  const list = []
+  for (const course of allBatchCourses.value) {
+    const sections = course.sections || []
+    if (!sections.length) {
+      list.push({
+        rowKey: `course-${course.id}`,
+        sectionId: `course-${course.id}`,
+        courseId: course.id,
+        course,
+        section: null,
+        code: course.code,
+        name: course.name,
+        credits: course.credits,
+        type: course.type,
+        sectionCode: '—',
+        lecturer: '—',
+        weekRange: '—',
+        enrolled: 0,
+        totalCapacity: Number(course.totalCapacity) || 0,
+        enrolledFreshman: Number(course.enrolledFreshman) || 0,
+        enrolledSenior: Number(course.enrolledSenior) || 0,
+        quota: course.quota || { freshman: 0, senior: 0 },
+        sourceCapacity: course.sourceCapacity,
+        capacityPercent: course.capacityPercent,
+        prerequisites: course.prerequisites,
+        isSelectable: course.isSelectable,
+        audience: course.audience,
+      })
+      continue
+    }
+    for (const section of sections) {
+      const cap = Number(section.capacity) || 0
+      const enrolled =
+        Number.isFinite(Number(section.enrolledFreshman)) &&
+        Number.isFinite(Number(section.enrolledSenior))
+          ? Number(section.enrolledFreshman) + Number(section.enrolledSenior)
+          : Number(section.enrolled) || 0
+      list.push({
+        rowKey: section.id,
+        sectionId: section.id,
+        courseId: course.id,
+        course,
+        section,
+        code: course.code,
+        name: course.name,
+        credits: course.credits,
+        type: course.type,
+        sectionCode: section.code,
+        lecturer: section.lecturer || '—',
+        weekRange: displayWeekRange(section),
+        enrolled,
+        totalCapacity: cap,
+        enrolledFreshman: Number(section.enrolledFreshman) || 0,
+        enrolledSenior: Number(section.enrolledSenior) || 0,
+        quota: section.quota || { freshman: 0, senior: 0 },
+        sourceCapacity: course.sourceCapacity,
+        capacityPercent: course.capacityPercent,
+        prerequisites: course.prerequisites,
+        isSelectable: course.isSelectable,
+        audience: course.audience,
+      })
+    }
+  }
+  return list
+})
+
 const rows = computed(() => {
-  let list = allBatchCourses.value
+  let list = flattenedRows.value
   if (appliedKeyword.value) {
     const kw = appliedKeyword.value.toLowerCase()
     list = list.filter(
@@ -75,20 +151,34 @@ const rows = computed(() => {
   return list
 })
 
-const importedCodes = computed(() => allBatchCourses.value.map((c) => c.code))
 const batchTotal = computed(() => allBatchCourses.value.length)
+const batchSectionTotal = computed(() => flattenedRows.value.length)
 const totalCount = computed(() => rows.value.length)
 const paginatedRows = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   return rows.value.slice(start, start + pageSize.value)
 })
-const selectedCourses = computed(() =>
-  allBatchCourses.value.filter((c) => selectedIds.value.includes(c.id)),
-)
-const pageIds = computed(() => paginatedRows.value.map((r) => r.id))
+
+/** 勾选分组所属课程（去重），供可选/容量/专业范围 */
+const selectedCourses = computed(() => {
+  const idSet = new Set(selectedIds.value)
+  const seen = new Set()
+  const list = []
+  for (const row of flattenedRows.value) {
+    if (!idSet.has(row.sectionId) || seen.has(row.courseId)) continue
+    seen.add(row.courseId)
+    list.push(row.course)
+  }
+  return list
+})
+
+const pageIds = computed(() => paginatedRows.value.map((r) => r.sectionId))
 const allPageSelected = computed(
   () => pageIds.value.length > 0 && pageIds.value.every((id) => selectedIds.value.includes(id)),
 )
+
+const emptyColspan = computed(() => (showSelection.value ? 17 : 16))
+const scheduleLocale = computed(() => (isZh.value ? 'zh' : 'en'))
 
 watch(
   () => [props.visible, props.batch?.id],
@@ -97,10 +187,9 @@ watch(
     keyword.value = ''
     appliedKeyword.value = ''
     currentPage.value = 1
-    sectionsCourse.value = null
-    importVisible.value = false
     optionalSettingsVisible.value = false
     capacitySettingsVisible.value = false
+    quotaAllocateVisible.value = false
     programmeScopeVisible.value = false
     selectedIds.value = []
   },
@@ -117,15 +206,6 @@ function handleReset() {
   currentPage.value = 1
 }
 
-function openSections(row) {
-  sectionsCourse.value = row
-}
-
-function openImport() {
-  if (batchReadOnly.value) return
-  importVisible.value = true
-}
-
 function openOptionalSettings() {
   if (batchReadOnly.value || !selectedIds.value.length) return
   optionalSettingsVisible.value = true
@@ -134,6 +214,11 @@ function openOptionalSettings() {
 function openCapacitySettings() {
   if (batchReadOnly.value || !selectedIds.value.length) return
   capacitySettingsVisible.value = true
+}
+
+function openQuotaAllocate() {
+  if (batchReadOnly.value || !selectedIds.value.length) return
+  quotaAllocateVisible.value = true
 }
 
 function openProgrammeScopeSettings() {
@@ -152,37 +237,24 @@ function prerequisitesLabel(list) {
   return items.length ? items.join(', ') : '—'
 }
 
+function sectionGroupLabel(row) {
+  if (!row.section) return '—'
+  return formatCourseSectionName(row.section, t) || row.sectionCode || '—'
+}
+
 function audienceCapacityLabel(row, audience) {
   if (audience === 'freshman') {
-    const enrolled = Number(row?.enrolledFreshman)
     const cap = Number(row?.quota?.freshman)
-    const safeEnrolled = Number.isFinite(enrolled) ? enrolled : getCourseAudienceCapacity(row).enrolledFreshman
-    const safeCap = Number.isFinite(cap) ? cap : getCourseAudienceCapacity(row).freshmanCap
-    return `${safeEnrolled}/${safeCap}`
+    return Number.isFinite(cap) ? String(cap) : '0'
   }
-  const enrolled = Number(row?.enrolledSenior)
   const cap = Number(row?.quota?.senior)
-  const safeEnrolled = Number.isFinite(enrolled) ? enrolled : getCourseAudienceCapacity(row).enrolledSenior
-  const safeCap = Number.isFinite(cap) ? cap : getCourseAudienceCapacity(row).seniorCap
-  return `${safeEnrolled}/${safeCap}`
+  return Number.isFinite(cap) ? String(cap) : '0'
 }
 
-/** 已选（新老生合计）/ 有效最大容量（随容量设置变化） */
+/** 分组：有效最大容量（仅容量） */
 function effectiveCapacityLabel(row) {
-  const enrolledFresh = Number(row?.enrolledFreshman)
-  const enrolledSenior = Number(row?.enrolledSenior)
-  const enrolled =
-    Number.isFinite(enrolledFresh) && Number.isFinite(enrolledSenior)
-      ? enrolledFresh + enrolledSenior
-      : getCourseEnrolledTotal(row)
   const total = Number(row?.totalCapacity) || 0
-  return `${enrolled}/${total}`
-}
-
-function sourceCapacityLabel(row) {
-  const source = Number(row?.sourceCapacity)
-  if (Number.isFinite(source) && source > 0) return String(source)
-  return String(getCourseAudienceCapacity(row).sourceCapacity || 0)
+  return String(total)
 }
 
 function capacityPercentLabel(row) {
@@ -192,9 +264,14 @@ function capacityPercentLabel(row) {
 }
 
 function programmeScopeLabel(row) {
-  const codes = getCourseProgrammeScopeCodes(row)
+  const codes = getCourseProgrammeScopeCodes(row.course || row)
   if (!codes.length) return t('courseRegistration.courses.programmeScopeUnlimited')
   return codes.join('、')
+}
+
+function classTimeVenueLines(row) {
+  if (!row.section) return []
+  return displayClassTimeVenueLines(row.section, scheduleLocale.value)
 }
 
 function toggleRow(id, checked) {
@@ -213,13 +290,6 @@ function togglePage(checked) {
   }
   const drop = new Set(pageIds.value)
   selectedIds.value = selectedIds.value.filter((id) => !drop.has(id))
-}
-
-function handleImportConfirm(codes) {
-  if (!batchId.value) return
-  importCoursesFromLibrary(batchId.value, codes)
-  importVisible.value = false
-  currentPage.value = 1
 }
 
 function handleOptionalSaved() {
@@ -274,20 +344,11 @@ function handleProgrammeScopeSaved() {
           <div class="toolbar-left">
             <button
               type="button"
-              class="btn btn-primary"
-              :disabled="batchReadOnly"
-              :title="batchReadOnly ? t('courseRegistration.batch.activeReadOnlyHint') : undefined"
-              @click="openImport"
-            >
-              + {{ t('courseRegistration.courses.import') }}
-            </button>
-            <button
-              type="button"
               class="btn btn-default"
               :disabled="batchReadOnly || selectedIds.length === 0"
               :title="
                 batchReadOnly
-                  ? t('courseRegistration.batch.activeReadOnlyHint')
+                  ? batchReadOnlyHint
                   : selectedIds.length === 0
                     ? t('courseRegistration.courses.optionalSettingsNeedSelect')
                     : undefined
@@ -302,7 +363,7 @@ function handleProgrammeScopeSaved() {
               :disabled="batchReadOnly || selectedIds.length === 0"
               :title="
                 batchReadOnly
-                  ? t('courseRegistration.batch.activeReadOnlyHint')
+                  ? batchReadOnlyHint
                   : selectedIds.length === 0
                     ? t('courseRegistration.courses.optionalSettingsNeedSelect')
                     : undefined
@@ -317,7 +378,22 @@ function handleProgrammeScopeSaved() {
               :disabled="batchReadOnly || selectedIds.length === 0"
               :title="
                 batchReadOnly
-                  ? t('courseRegistration.batch.activeReadOnlyHint')
+                  ? batchReadOnlyHint
+                  : selectedIds.length === 0
+                    ? t('courseRegistration.courses.optionalSettingsNeedSelect')
+                    : undefined
+              "
+              @click="openQuotaAllocate"
+            >
+              {{ t('courseRegistration.courses.quotaAllocate') }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-default"
+              :disabled="batchReadOnly || selectedIds.length === 0"
+              :title="
+                batchReadOnly
+                  ? batchReadOnlyHint
                   : selectedIds.length === 0
                     ? t('courseRegistration.courses.optionalSettingsNeedSelect')
                     : undefined
@@ -328,7 +404,12 @@ function handleProgrammeScopeSaved() {
             </button>
           </div>
           <span class="drawer-meta">
-            {{ t('courseRegistration.courses.batchCourseMeta', { count: batchTotal }) }}
+            {{
+              t('courseRegistration.courses.batchCourseMeta', {
+                courseCount: batchTotal,
+                sectionCount: batchSectionTotal,
+              })
+            }}
             <ExternalDataHint source-key="courseLibrary" />
           </span>
         </div>
@@ -349,10 +430,19 @@ function handleProgrammeScopeSaved() {
                   <th class="col-no col-sticky-left col-sticky-no">{{ t('common.serialNo') }}</th>
                   <th class="col-code col-sticky-left col-sticky-code">{{ t('courseRegistration.courses.code') }}</th>
                   <th class="col-name col-sticky-left col-sticky-name">{{ t('courseRegistration.courses.name') }}</th>
+                  <th class="col-section col-sticky-left col-sticky-section">
+                    {{ t('courseRegistration.courses.sectionCode') }}
+                  </th>
                   <th>{{ t('courseRegistration.courses.credits') }}</th>
                   <th>{{ t('courseRegistration.courses.category') }}</th>
-                  <th>{{ t('courseRegistration.courses.sectionCount') }}</th>
-                  <th>
+                  <th>{{ t('courseRegistration.courses.lecturer') }}</th>
+                  <th>{{ t('courseRegistration.courses.weekRange') }}</th>
+                  <th>{{ t('courseRegistration.courses.classTimeVenue') }}</th>
+                  <th>{{ t('courseRegistration.courses.capacityPercentCol') }}</th>
+                  <th>{{ t('courseRegistration.courses.programmeScope') }}</th>
+                  <th>{{ t('courseRegistration.courses.prerequisites') }}</th>
+                  <th>{{ t('courseRegistration.courses.isSelectable') }}</th>
+                  <th class="col-cap col-sticky-right col-sticky-cap-eff">
                     <span
                       class="th-with-tip"
                       :title="t('courseRegistration.courses.effectiveCapacityTip')"
@@ -361,33 +451,30 @@ function handleProgrammeScopeSaved() {
                       <span class="tip-icon" aria-hidden="true">?</span>
                     </span>
                   </th>
-                  <th>{{ t('courseRegistration.courses.enrolledFreshman') }}</th>
-                  <th>{{ t('courseRegistration.courses.enrolledSenior') }}</th>
-                  <th>
+                  <th class="col-cap col-sticky-right col-sticky-cap-fresh">
                     <span
                       class="th-with-tip"
-                      :title="t('courseRegistration.courses.sourceCapacityTip')"
+                      :title="t('courseRegistration.courses.enrolledFreshmanTip')"
                     >
-                      {{ t('courseRegistration.courses.sourceCapacity') }}
+                      {{ t('courseRegistration.courses.enrolledFreshman') }}
                       <span class="tip-icon" aria-hidden="true">?</span>
                     </span>
                   </th>
-                  <th>{{ t('courseRegistration.courses.capacityPercentCol') }}</th>
-                  <th>{{ t('courseRegistration.courses.programmeScope') }}</th>
-                  <th>{{ t('courseRegistration.courses.prerequisites') }}</th>
-                  <th>{{ t('courseRegistration.courses.isSelectable') }}</th>
+                  <th class="col-cap col-sticky-right col-sticky-cap-senior">
+                    {{ t('courseRegistration.courses.enrolledSenior') }}
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 <tr
                   v-for="(row, index) in paginatedRows"
-                  :key="`${row.id}-${row.totalCapacity}-${row.capacityPercent}-${programmeScopeLabel(row)}`"
+                  :key="`${row.rowKey}-${row.totalCapacity}-${row.capacityPercent}`"
                 >
                   <td v-if="showSelection" class="col-check col-sticky-left col-sticky-check">
                     <input
                       type="checkbox"
-                      :checked="selectedIds.includes(row.id)"
-                      @change="toggleRow(row.id, $event.target.checked)"
+                      :checked="selectedIds.includes(row.sectionId)"
+                      @change="toggleRow(row.sectionId, $event.target.checked)"
                     />
                   </td>
                   <td class="col-no col-sticky-left col-sticky-no">
@@ -395,24 +482,41 @@ function handleProgrammeScopeSaved() {
                   </td>
                   <td class="col-code col-sticky-left col-sticky-code">{{ row.code }}</td>
                   <td class="col-name col-sticky-left col-sticky-name">{{ row.name }}</td>
+                  <td class="col-section col-sticky-left col-sticky-section">
+                    {{ sectionGroupLabel(row) }}
+                  </td>
                   <td>{{ row.credits }}</td>
                   <td>{{ getRegistrationTypeLabel(row.type, t) }}</td>
-                  <td>
-                    <button type="button" class="link-btn" @click="openSections(row)">
-                      {{ row.sectionCount }}
-                    </button>
+                  <td>{{ row.lecturer }}</td>
+                  <td>{{ row.weekRange }}</td>
+                  <td class="cr-time-venue">
+                    <template v-if="classTimeVenueLines(row).length">
+                      <div
+                        v-for="(line, li) in classTimeVenueLines(row)"
+                        :key="li"
+                        class="cr-time-venue-line"
+                      >
+                        {{ line }}
+                      </div>
+                    </template>
+                    <template v-else>—</template>
                   </td>
-                  <td>{{ effectiveCapacityLabel(row) }}</td>
-                  <td>{{ audienceCapacityLabel(row, 'freshman') }}</td>
-                  <td>{{ audienceCapacityLabel(row, 'senior') }}</td>
-                  <td>{{ sourceCapacityLabel(row) }}</td>
                   <td>{{ capacityPercentLabel(row) }}</td>
                   <td>{{ programmeScopeLabel(row) }}</td>
                   <td class="col-prereq">{{ prerequisitesLabel(row.prerequisites) }}</td>
                   <td>{{ selectableLabel(row.isSelectable) }}</td>
+                  <td class="col-cap col-sticky-right col-sticky-cap-eff">
+                    {{ effectiveCapacityLabel(row) }}
+                  </td>
+                  <td class="col-cap col-sticky-right col-sticky-cap-fresh">
+                    {{ audienceCapacityLabel(row, 'freshman') }}
+                  </td>
+                  <td class="col-cap col-sticky-right col-sticky-cap-senior">
+                    {{ audienceCapacityLabel(row, 'senior') }}
+                  </td>
                 </tr>
                 <tr v-if="!paginatedRows.length">
-                  <td :colspan="showSelection ? 15 : 14" class="empty-cell">
+                  <td :colspan="emptyColspan" class="empty-cell">
                     <div class="empty-block">
                       <p class="empty-title">
                         {{
@@ -447,20 +551,6 @@ function handleProgrammeScopeSaved() {
     </template>
   </ApplicationDetailDrawer>
 
-  <CourseSectionsModal
-    :visible="!!sectionsCourse"
-    :course="sectionsCourse"
-    @close="sectionsCourse = null"
-  />
-
-  <CourseLibraryImportModal
-    :visible="importVisible"
-    :batch-name="batchName"
-    :imported-codes="importedCodes"
-    @close="importVisible = false"
-    @confirm="handleImportConfirm"
-  />
-
   <BatchCourseOptionalSettingsModal
     :visible="optionalSettingsVisible"
     :courses="selectedCourses"
@@ -472,6 +562,14 @@ function handleProgrammeScopeSaved() {
     :visible="capacitySettingsVisible"
     :courses="selectedCourses"
     @close="capacitySettingsVisible = false"
+    @saved="handleCapacitySaved"
+  />
+
+  <BatchCourseQuotaAllocateModal
+    :visible="quotaAllocateVisible"
+    :section-ids="selectedIds"
+    :courses="selectedCourses"
+    @close="quotaAllocateVisible = false"
     @saved="handleCapacitySaved"
   />
 
@@ -510,9 +608,13 @@ function handleProgrammeScopeSaved() {
 .batch-courses-body .search-bar {
   flex-shrink: 0;
   margin: 0;
-  padding: 12px 16px;
+  padding: 8px 16px;
   border-bottom: 1px solid #e5e7eb;
   background: #fff;
+}
+
+.batch-courses-body .search-bar .search-item {
+  gap: 4px;
 }
 
 .drawer-toolbar {
@@ -521,7 +623,7 @@ function handleProgrammeScopeSaved() {
   justify-content: space-between;
   gap: 12px;
   flex-shrink: 0;
-  padding: 10px 16px;
+  padding: 8px 16px;
   border-bottom: 1px solid #e5e7eb;
   flex-wrap: wrap;
   background: #fff;
@@ -593,12 +695,13 @@ function handleProgrammeScopeSaved() {
   width: max-content;
   min-width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.3;
 }
 
 .data-table th,
 .data-table td {
-  padding: 10px 12px;
+  padding: 2px 4px;
   border-bottom: 1px solid #f3f4f6;
   text-align: left;
   vertical-align: middle;
@@ -610,47 +713,65 @@ function handleProgrammeScopeSaved() {
   top: 0;
   z-index: 1;
   background: #f9fafb;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: #374151;
 }
 
 .col-prereq {
-  font-size: 12px;
+  font-size: 11px;
   color: #6b7280;
 }
 
 .col-check {
-  width: 40px;
-  min-width: 40px;
+  width: 36px;
+  min-width: 36px;
   text-align: center;
 }
 
 .col-no {
-  width: 56px;
-  min-width: 56px;
+  width: 44px;
+  min-width: 44px;
 }
 
 .col-code {
-  min-width: 100px;
+  min-width: 88px;
 }
 
 .col-name {
-  min-width: 180px;
+  min-width: 140px;
 }
 
-.col-sticky-left {
+.col-section {
+  min-width: 88px;
+}
+
+.col-cap {
+  min-width: 72px;
+  width: 72px;
+  text-align: right;
+}
+
+.col-cap.col-sticky-cap-eff {
+  min-width: 88px;
+  width: 88px;
+}
+
+.col-sticky-left,
+.col-sticky-right {
   position: sticky;
   z-index: 2;
   background: #fff;
 }
 
-.data-table thead .col-sticky-left {
+.data-table thead .col-sticky-left,
+.data-table thead .col-sticky-right {
   z-index: 4;
   background: #f9fafb;
 }
 
-.data-table tbody tr:hover .col-sticky-left {
+.data-table tbody tr:hover .col-sticky-left,
+.data-table tbody tr:hover .col-sticky-right {
   background: #fafafa;
 }
 
@@ -659,16 +780,34 @@ function handleProgrammeScopeSaved() {
 }
 
 .col-sticky-no {
-  left: 40px;
+  left: 36px;
 }
 
 .col-sticky-code {
-  left: 96px;
+  left: 80px;
 }
 
 .col-sticky-name {
-  left: 196px;
+  left: 168px;
+}
+
+.col-sticky-section {
+  left: 308px;
   box-shadow: 4px 0 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+/* 右冻结：老生 → 新生 → 有效（自右向左） */
+.col-sticky-cap-senior {
+  right: 0;
+}
+
+.col-sticky-cap-fresh {
+  right: 72px;
+}
+
+.col-sticky-cap-eff {
+  right: 144px;
+  box-shadow: -4px 0 6px -4px rgba(0, 0, 0, 0.1);
 }
 
 /* 进行中隐藏勾选列后，冻结列贴左对齐原勾选位置 */
@@ -677,11 +816,15 @@ function handleProgrammeScopeSaved() {
 }
 
 .data-table.no-selection .col-sticky-code {
-  left: 56px;
+  left: 44px;
 }
 
 .data-table.no-selection .col-sticky-name {
-  left: 156px;
+  left: 132px;
+}
+
+.data-table.no-selection .col-sticky-section {
+  left: 272px;
 }
 
 .empty-cell {
@@ -744,6 +887,16 @@ function handleProgrammeScopeSaved() {
 .btn-default:hover {
   border-color: #9ca3af;
   color: #111827;
+}
+
+.cr-time-venue {
+  min-width: 160px;
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.cr-time-venue-line + .cr-time-venue-line {
+  margin-top: 0;
 }
 
 .link-btn {

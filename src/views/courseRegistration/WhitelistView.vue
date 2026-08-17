@@ -38,11 +38,11 @@ function handleReset() {
 }
 
 function typeLabel(type) {
-  return t(`courseRegistration.whitelist.types.${type}`)
+  return t(`courseRegistration.whitelistBoa.types.${type}`)
 }
 
 function statusLabel(status) {
-  return t(`courseRegistration.whitelist.status.${status}`)
+  return t(`courseRegistration.whitelistBoa.status.${status}`)
 }
 
 function statusClass(status) {
@@ -65,14 +65,14 @@ function openDetail(row) {
   <div class="cr-list-page cr-whitelist-page">
     <div class="page-card">
       <CourseRegistrationCallout variant="info">
-        <p>{{ t('courseRegistration.whitelist.hint') }}{{ t('common.prototypeOnlySuffix') }}</p>
+        <p>{{ t('courseRegistration.whitelistBoa.hint') }}{{ t('common.prototypeOnlySuffix') }}</p>
       </CourseRegistrationCallout>
 
       <div class="search-bar">
         <div class="search-row">
           <div class="search-fields">
             <div class="search-item">
-              <label>{{ t('courseRegistration.whitelist.type') }}</label>
+              <label>{{ t('courseRegistration.whitelistBoa.type') }}</label>
               <select v-model="searchForm.type" class="search-select">
                 <option value="">{{ t('common.all') }}</option>
                 <option v-for="opt in whitelistTypes" :key="opt" :value="opt">{{ typeLabel(opt) }}</option>
@@ -82,11 +82,11 @@ function openDetail(row) {
               <label>{{ t('common.status') }}</label>
               <select v-model="searchForm.status" class="search-select">
                 <option value="">{{ t('common.all') }}</option>
-                <option value="draft">{{ t('courseRegistration.whitelist.status.draft') }}</option>
-                <option value="acReview">{{ t('courseRegistration.whitelist.status.acReview') }}</option>
-                <option value="hopReview">{{ t('courseRegistration.whitelist.status.hopReview') }}</option>
-                <option value="boaApproved">{{ t('courseRegistration.whitelist.status.boaApproved') }}</option>
-                <option value="rejected">{{ t('courseRegistration.whitelist.status.rejected') }}</option>
+                <option value="draft">{{ t('courseRegistration.whitelistBoa.status.draft') }}</option>
+                <option value="acReview">{{ t('courseRegistration.whitelistBoa.status.acReview') }}</option>
+                <option value="hopReview">{{ t('courseRegistration.whitelistBoa.status.hopReview') }}</option>
+                <option value="boaApproved">{{ t('courseRegistration.whitelistBoa.status.boaApproved') }}</option>
+                <option value="rejected">{{ t('courseRegistration.whitelistBoa.status.rejected') }}</option>
               </select>
             </div>
             <div class="search-item">
@@ -103,7 +103,7 @@ function openDetail(row) {
 
       <div class="toolbar">
         <button type="button" class="btn btn-primary" @click="formVisible = true">
-          + {{ t('courseRegistration.whitelist.new') }}
+          + {{ t('courseRegistration.whitelistBoa.new') }}
         </button>
       </div>
 
@@ -115,10 +115,10 @@ function openDetail(row) {
               <th>{{ t('common.serialNo') }}</th>
               <th>{{ t('courseRegistration.monitor.studentId') }}</th>
               <th>{{ t('courseRegistration.monitor.studentName') }}</th>
-              <th>{{ t('courseRegistration.whitelist.type') }}</th>
+              <th>{{ t('courseRegistration.whitelistBoa.type') }}</th>
               <th>{{ t('courseRegistration.courses.code') }}</th>
               <th>{{ t('common.status') }}</th>
-              <th>{{ t('courseRegistration.whitelist.stage') }}</th>
+              <th>{{ t('courseRegistration.whitelistBoa.stage') }}</th>
               <th>{{ t('common.actions') }}</th>
             </tr>
           </thead>
@@ -130,7 +130,7 @@ function openDetail(row) {
               <td>{{ typeLabel(row.type) }}</td>
               <td>{{ row.courseCode }}</td>
               <td><span class="status-tag" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span></td>
-              <td>{{ t(`courseRegistration.whitelist.stages.${row.currentStage}`) }}</td>
+              <td>{{ t(`courseRegistration.whitelistBoa.stages.${row.currentStage}`) }}</td>
               <td>
                 <button type="button" class="link-btn" @click="openDetail(row)">{{ t('common.details') }}</button>
               </td>

@@ -4,6 +4,7 @@ import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
 import ExternalDataHint from './ExternalDataHint.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { getCourseById } from '../../data/courseRegistration/selectableCourses.js'
+import { displayVenue } from '../../data/courseRegistration/sectionScheduleFields.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -55,7 +56,7 @@ const subtitle = computed(() => {
             {{ sec.classTime || sec.time }}
             <ExternalDataHint source-key="scheduling" />
           </td>
-          <td>{{ sec.room || '—' }}</td>
+          <td>{{ displayVenue(sec) }}</td>
           <td>{{ sec.enrolled }}/{{ sec.capacity }}</td>
         </tr>
         <tr v-if="!(liveCourse.sections || []).length">

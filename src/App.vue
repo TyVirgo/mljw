@@ -256,8 +256,8 @@ function openStudentPreviewPortal() {
             <RegistrationLogView v-else-if="isCrLog" />
             <FeeRosterView v-else-if="isCrFeeRoster" />
             <StudentRegisterView v-else-if="isCrsRegister" @navigate="handleCrNavigate" />
-            <StudentAddDropView v-else-if="isCrsAddDrop" />
-            <StudentMyResultView v-else-if="isCrsResult" />
+            <StudentAddDropView v-else-if="isCrsAddDrop" @navigate="handleCrNavigate" />
+            <StudentMyResultView v-else-if="isCrsResult" @navigate="handleCrNavigate" />
             <UnderConstructionView v-else-if="isCrUnderConstruction" @back="handleCrBack" />
           </template>
 

@@ -29,6 +29,11 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /** 覆盖默认 1100，用于压过更高层级弹窗 */
+  zIndex: {
+    type: [Number, String],
+    default: 1100,
+  },
 })
 
 const emit = defineEmits(['confirm', 'cancel'])
@@ -39,6 +44,7 @@ const displayTitle = computed(() => tr(props.title))
 const displayMessage = computed(() => tr(props.message))
 const displayConfirmText = computed(() => tr(props.confirmText))
 const displayCancelText = computed(() => tr(props.cancelText))
+const overlayStyle = computed(() => ({ zIndex: Number(props.zIndex) || 1100 }))
 
 function handleOverlayClick(event) {
   if (event.target === event.currentTarget) {
@@ -49,19 +55,26 @@ function handleOverlayClick(event) {
 
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="confirm-overlay" @click="handleOverlayClick">
+    <div
+      v-if="visible"
+      class="confirm-overlay"
+      :style="overlayStyle"
+      @click="handleOverlayClick"
+    >
       <div class="confirm-panel" :class="{ wide }" role="alertdialog" aria-modal="true">
-        <h3 class="confirm-title">{{ title }}</h3>
-        <p class="confirm-message">{{ message }}</p>
+        <h3 class="confirm-title">{{ displayTitle }}</h3>
+        <p class="confirm-message">{{ displayMessage }}</p>
         <div class="confirm-footer">
-          <button type="button" class="btn btn-default" @click="emit('cancel')">{{ cancelText }}</button>
+          <button type="button" class="btn btn-default" @click="emit('cancel')">
+            {{ displayCancelText }}
+          </button>
           <button
             type="button"
             class="btn"
             :class="confirmVariant === 'primary' ? 'btn-primary' : 'btn-danger'"
             @click="emit('confirm')"
           >
-            {{ confirmText }}
+            {{ displayConfirmText }}
           </button>
         </div>
       </div>
@@ -77,7 +90,6 @@ function handleOverlayClick(event) {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1100;
   padding: 24px;
 }
 

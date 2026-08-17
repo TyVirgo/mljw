@@ -2,7 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { displayClassTime, displayWeekRange } from '../../data/courseRegistration/sectionScheduleFields.js'
+import { displayClassTime, displayWeekRange, displayVenue } from '../../data/courseRegistration/sectionScheduleFields.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -12,7 +12,9 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'confirm'])
 
-const { t } = useAppI18n()
+const { t, isZh } = useAppI18n()
+
+const timeLocale = computed(() => (isZh.value ? 'zh' : 'en'))
 
 const selectedSectionId = ref('')
 
@@ -100,8 +102,8 @@ function handleConfirm() {
             </td>
             <td class="nowrap">{{ section.lecturer || '—' }}</td>
             <td class="nowrap">{{ displayWeekRange(section) }}</td>
-            <td class="nowrap">{{ displayClassTime(section) }}</td>
-            <td class="nowrap">{{ section.room || '—' }}</td>
+            <td class="nowrap">{{ displayClassTime(section, timeLocale) }}</td>
+            <td class="nowrap">{{ displayVenue(section) }}</td>
           </tr>
         </tbody>
       </table>

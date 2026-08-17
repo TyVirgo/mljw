@@ -1,11 +1,12 @@
 import { ref } from 'vue'
 import { enrichSectionScheduleFields } from './sectionScheduleFields.js'
 import { schoolElectiveCategoryOptions } from '../departments.js'
+import { DEMO_HEADCOUNT, splitQuotaByHeadcount } from './audienceRounds.js'
 
-/** 专业选修 demo：未显式配置时按课程 id 稳定轮转文/商/理 */
+/** 校选类别：ME demo 统一一类（模拟按学生过滤）；GE 可混杂 */
 function resolveSchoolElectiveCategory(course) {
-  if (course.type !== 'ME') return course.schoolElectiveCategory || null
   if (course.schoolElectiveCategory) return course.schoolElectiveCategory
+  if (course.type === 'ME') return 'arts'
   const cats = schoolElectiveCategoryOptions.map((o) => o.value)
   const id = String(course.id || course.code || '')
   let h = 0
@@ -84,18 +85,30 @@ const initialCourses = [
         code: '01',
         time: 'Mon 09:00–12:00',
         room: 'A2-1-101',
+        weekRange: '1-5',
         lecturer: 'Dr. Sarah',
         enrolled: 28,
         capacity: 30,
+        meetings: [
+          { time: 'Mon 14:00–16:00', room: 'A3-509', weekRange: '1-5' },
+          { time: 'Tue 10:00–12:00', room: 'A4-105', weekRange: '1-5' },
+          { time: 'Thu 15:00–17:00', room: 'A3-602', weekRange: '1-5' },
+        ],
       },
       {
         id: 'sec-engl201-2',
         code: '02',
-        time: 'Wed 14:00–17:00',
-        room: 'A2-1-102',
+        time: 'Tue 14:00–16:00',
+        room: 'A1-G01',
+        weekRange: '1-5',
         lecturer: 'Dr. Brown',
         enrolled: 20,
         capacity: 30,
+        meetings: [
+          { time: 'Tue 14:00–16:00', room: 'A1-G01', weekRange: '1-5' },
+          { time: 'Wed 09:00–11:00', room: 'A4-G01', weekRange: '1-5' },
+          { time: 'Thu 09:00–11:00', room: 'A3-602', weekRange: '1-5' },
+        ],
       },
       {
         id: 'sec-engl201-3',
@@ -126,7 +139,7 @@ const initialCourses = [
     prerequisites: ['COMP101'],
     g1Category: null,
     sections: [
-      { id: 'sec-1', code: '01', time: 'Mon 10:00–12:00', room: 'D5-3-201', lecturer: 'Dr. Lee', enrolled: 22, capacity: 25 },
+      { id: 'sec-1', code: '01', time: 'Mon 16:00–18:00', room: 'D5-3-201', lecturer: 'Dr. Lee', enrolled: 22, capacity: 25 },
       { id: 'sec-2', code: '02', time: 'Wed 14:00–16:00', room: 'D5-3-202', lecturer: 'Dr. Tan', enrolled: 20, capacity: 25 },
       { id: 'sec-comp201-3', code: '03', time: 'Fri 08:00–10:00', room: 'D5-3-203', lecturer: 'Dr. Yap', enrolled: 20, capacity: 25 },
     ],
@@ -193,7 +206,10 @@ const initialCourses = [
     prerequisites: [],
     g1Category: null,
     sections: [
-      { id: 'sec-5', code: '01', time: 'Thu 14:00–16:00', room: 'D5-2-101', lecturer: 'Dr. Lim', enrolled: 20, capacity: 30 },
+      { id: 'sec-5', code: '01', time: 'Thu 14:00–16:00', room: 'D5-2-101', weekRange: '1-14', lecturer: 'Dr. Lim', enrolled: 20, capacity: 30, meetings: [
+        { time: 'Thu 14:00–16:00', room: 'D5-2-101', weekRange: '1-14' },
+        { time: 'Fri 10:00–12:00', room: 'D5-2-102', weekRange: '1-7' },
+      ] },
       { id: 'sec-6', code: '02', time: 'Fri 10:00–12:00', room: 'D5-2-102', lecturer: 'Dr. Lim', enrolled: 25, capacity: 30 },
       { id: 'sec-comp101-3', code: '03', time: 'Mon 16:00–18:00', room: 'D5-2-103', lecturer: 'Ms. Teo', enrolled: 23, capacity: 30 },
     ],
@@ -875,6 +891,18 @@ function buildActiveBatchDemoCourses(batchId, codePrefix, titles, options = {}) 
           lecturer: lecturers[index % lecturers.length],
           enrolled: enrolled1,
           capacity: perCap,
+          ...(() => {
+            const split = splitQuotaByHeadcount(
+              perCap,
+              DEMO_HEADCOUNT.freshman,
+              DEMO_HEADCOUNT.senior,
+            )
+            return {
+              enrolledFreshman: Math.min(split.freshman, enrolled1),
+              enrolledSenior: Math.max(0, enrolled1 - Math.min(split.freshman, enrolled1)),
+              quota: { total: perCap, freshman: split.freshman, senior: split.senior },
+            }
+          })(),
         },
         {
           id: `sec-${codePrefix.toLowerCase()}-demo-${n}-2`,
@@ -884,21 +912,161 @@ function buildActiveBatchDemoCourses(batchId, codePrefix, titles, options = {}) 
           lecturer: lecturers[(index + 1) % lecturers.length],
           enrolled: enrolled2,
           capacity: perCap,
+          ...(() => {
+            const split = splitQuotaByHeadcount(
+              perCap,
+              DEMO_HEADCOUNT.freshman,
+              DEMO_HEADCOUNT.senior,
+            )
+            return {
+              enrolledFreshman: Math.min(split.freshman, enrolled2),
+              enrolledSenior: Math.max(0, enrolled2 - Math.min(split.freshman, enrolled2)),
+              quota: { total: perCap, freshman: split.freshman, senior: split.senior },
+            }
+          })(),
         },
       ],
-      quota: {
-        total: perCap * 2,
-        senior: perCap,
-        freshman: perCap,
-        releaseToFreshman: true,
-        byIntake: {},
-      },
+      quota: (() => {
+        const split = splitQuotaByHeadcount(
+          perCap,
+          DEMO_HEADCOUNT.freshman,
+          DEMO_HEADCOUNT.senior,
+        )
+        return {
+          total: perCap * 2,
+          senior: split.senior * 2,
+          freshman: split.freshman * 2,
+          releaseToFreshman: true,
+          byIntake: {},
+        }
+      })(),
     }
   })
 }
 
+/**
+ * 按在册新老人数初分公式，为单个分组写入新老容量（合计 = capacity）。
+ * @param {object} sec
+ * @param {object} [course]
+ */
+function applyHeadcountQuotaToSection(sec, course = null) {
+  const cap = Math.max(0, Math.floor(Number(sec?.capacity) || 0))
+  const enrolled = Number(sec?.enrolled) || 0
+  const split = splitQuotaByHeadcount(cap, DEMO_HEADCOUNT.freshman, DEMO_HEADCOUNT.senior)
+  const year2 = course ? isYear2OrSem2OnlyCourse(course) : false
+  const freshmanCap = year2 ? 0 : split.freshman
+  const seniorCap = year2 ? cap : split.senior
+  const splitSum = freshmanCap + seniorCap || 1
+  let enrolledFreshman =
+    sec.enrolledFreshman != null
+      ? Number(sec.enrolledFreshman)
+      : Math.min(freshmanCap, Math.round((enrolled * freshmanCap) / splitSum))
+  let enrolledSenior =
+    sec.enrolledSenior != null
+      ? Number(sec.enrolledSenior)
+      : Math.max(0, enrolled - enrolledFreshman)
+  if (!Number.isFinite(enrolledFreshman)) enrolledFreshman = 0
+  if (!Number.isFinite(enrolledSenior)) enrolledSenior = Math.max(0, enrolled - enrolledFreshman)
+  return {
+    ...sec,
+    enrolledFreshman,
+    enrolledSenior,
+    quota: {
+      ...(sec.quota || {}),
+      total: cap,
+      freshman: freshmanCap,
+      senior: seniorCap,
+    },
+  }
+}
+
+function applyHeadcountQuotaToSections(sections, course = null) {
+  return (sections || []).map((sec) => applyHeadcountQuotaToSection(sec, course))
+}
+
+/**
+ * 按课级新老名额拆到各分组；已有 section.quota 则保留（仅超额压回 capacity）；末行吃差额。
+ */
+function distributeSectionAudience(sections, courseFreshman, courseSenior) {
+  const totalCap = sections.reduce((sum, item) => sum + (Number(item.capacity) || 0), 0) || 1
+  let usedFresh = 0
+  let usedSenior = 0
+  const out = []
+
+  for (let index = 0; index < sections.length; index += 1) {
+    const sec = sections[index]
+    const cap = Number(sec.capacity) || 0
+    const enrolled = Number(sec.enrolled) || 0
+    const isLast = index === sections.length - 1
+    const hasOwn =
+      sec.quota &&
+      (Number.isFinite(Number(sec.quota.freshman)) || Number.isFinite(Number(sec.quota.senior)))
+
+    let freshmanCap
+    let seniorCap
+
+    if (hasOwn) {
+      freshmanCap = Math.max(0, Math.floor(Number(sec.quota.freshman) || 0))
+      seniorCap = Math.max(0, Math.floor(Number(sec.quota.senior) || 0))
+      // 仅当合计超过有效容量时压回；允许合计 < capacity（手改未凑满）
+      if (cap > 0 && freshmanCap + seniorCap > cap) {
+        const sum = freshmanCap + seniorCap || 1
+        seniorCap = Math.round((cap * seniorCap) / sum)
+        freshmanCap = Math.max(0, cap - seniorCap)
+      }
+    } else if (isLast) {
+      freshmanCap = Math.max(0, courseFreshman - usedFresh)
+      seniorCap = Math.max(0, courseSenior - usedSenior)
+      // 末行吃差额；仅当超出本组容量时压回，不强制凑满 capacity
+      if (cap > 0 && freshmanCap + seniorCap > cap) {
+        seniorCap = Math.min(
+          cap,
+          Math.round((cap * courseSenior) / (courseFreshman + courseSenior || 1)),
+        )
+        freshmanCap = Math.max(0, cap - seniorCap)
+      }
+    } else {
+      seniorCap = Math.round((cap * courseSenior) / totalCap)
+      freshmanCap = Math.round((cap * courseFreshman) / totalCap)
+      if (cap > 0 && freshmanCap + seniorCap > cap) {
+        seniorCap = Math.min(cap, seniorCap)
+        freshmanCap = Math.max(0, cap - seniorCap)
+      }
+    }
+
+    usedFresh += freshmanCap
+    usedSenior += seniorCap
+
+    const splitSum = freshmanCap + seniorCap || 1
+    let enrolledFreshman =
+      sec.enrolledFreshman != null
+        ? Number(sec.enrolledFreshman)
+        : Math.min(freshmanCap, Math.round((enrolled * freshmanCap) / splitSum))
+    let enrolledSenior =
+      sec.enrolledSenior != null
+        ? Number(sec.enrolledSenior)
+        : Math.max(0, enrolled - enrolledFreshman)
+    if (!Number.isFinite(enrolledFreshman)) enrolledFreshman = 0
+    if (!Number.isFinite(enrolledSenior)) enrolledSenior = Math.max(0, enrolled - enrolledFreshman)
+
+    out.push({
+      ...sec,
+      enrolledFreshman,
+      enrolledSenior,
+      quota: {
+        ...(sec.quota || {}),
+        total: cap,
+        freshman: freshmanCap,
+        senior: seniorCap,
+      },
+    })
+  }
+
+  return out
+}
+
 function enrichCourse(course) {
-  const sections = (course.sections || []).map((sec) => enrichSectionScheduleFields(sec))
+  let sections = (course.sections || []).map((sec) => enrichSectionScheduleFields(sec))
   const sectionCapacity = sections.reduce((sum, item) => sum + (Number(item.capacity) || 0), 0)
   const sectionEnrolled = sections.reduce((sum, item) => sum + (Number(item.enrolled) || 0), 0)
   // 有分组时以分组容量合计为准（容量设置会同步改分组）；无分组时用课程总容量
@@ -912,12 +1080,31 @@ function enrichCourse(course) {
   let freshman = Number(quotaIn.freshman)
   let senior = Number(quotaIn.senior)
   if (!Number.isFinite(freshman) || !Number.isFinite(senior) || freshman + senior <= 0) {
-    senior = Math.round(totalCapacity * 0.6)
-    freshman = Math.max(0, totalCapacity - senior)
-  } else if (freshman + senior !== totalCapacity && totalCapacity > 0) {
-    const sum = freshman + senior
+    const split = splitQuotaByHeadcount(
+      totalCapacity,
+      DEMO_HEADCOUNT.freshman,
+      DEMO_HEADCOUNT.senior,
+    )
+    senior = split.senior
+    freshman = split.freshman
+  } else if (totalCapacity > 0 && freshman + senior > totalCapacity) {
+    // 仅超额时按比例压回有效容量；允许合计小于有效容量
+    const sum = freshman + senior || 1
     senior = Math.round((totalCapacity * senior) / sum)
     freshman = Math.max(0, totalCapacity - senior)
+  }
+
+  if (sections.length) {
+    const needHeadcount = sections.some((sec) => {
+      const f = Number(sec.quota?.freshman)
+      const s = Number(sec.quota?.senior)
+      return !Number.isFinite(f) || !Number.isFinite(s)
+    })
+    sections = needHeadcount
+      ? applyHeadcountQuotaToSections(sections, course)
+      : distributeSectionAudience(sections, freshman, senior)
+    freshman = sections.reduce((s, sec) => s + (Number(sec.quota?.freshman) || 0), 0)
+    senior = sections.reduce((s, sec) => s + (Number(sec.quota?.senior) || 0), 0)
   }
 
   const sourceCapacity =
@@ -925,13 +1112,14 @@ function enrichCourse(course) {
       ? Number(course.sourceCapacity)
       : totalCapacity || sectionCapacity
 
-  const splitSum = freshman + senior || 1
-  const enrolledFreshman =
-    course.enrolledFreshman != null
+  const enrolledFreshman = sections.length
+    ? sections.reduce((s, sec) => s + (Number(sec.enrolledFreshman) || 0), 0)
+    : course.enrolledFreshman != null
       ? Number(course.enrolledFreshman)
-      : Math.min(freshman, Math.round((enrolled * freshman) / splitSum))
-  const enrolledSenior =
-    course.enrolledSenior != null
+      : Math.min(freshman, Math.round((enrolled * freshman) / (freshman + senior || 1)))
+  const enrolledSenior = sections.length
+    ? sections.reduce((s, sec) => s + (Number(sec.enrolledSenior) || 0), 0)
+    : course.enrolledSenior != null
       ? Number(course.enrolledSenior)
       : Math.max(0, enrolled - enrolledFreshman)
 
@@ -995,6 +1183,191 @@ export function getCourseAudienceCapacity(course) {
   }
 }
 
+/** year2 / sem2 才开放的课：不给新生名额 */
+export function isYear2OrSem2OnlyCourse(course) {
+  if (!course) return false
+  if (course.minStudentSemester != null && Number(course.minStudentSemester) >= 2) return true
+  if (course.year2OrSem2Only) return true
+  const code = String(course.code || '').toUpperCase()
+  // demo：部分进阶课
+  return /^(SWE3|COS3|DSA3|FIN3)/.test(code)
+}
+
+/**
+ * 手调或按比例初分后写回新老名额；year2 课强制 freshman=0
+ * @param {string[]} courseIds
+ * @param {{ senior: number, freshman: number }} quota
+ */
+export function updateCoursesAudienceQuota(courseIds = [], quota = {}) {
+  const idSet = new Set(courseIds)
+  let senior = Math.max(0, Math.floor(Number(quota.senior) || 0))
+  let freshman = Math.max(0, Math.floor(Number(quota.freshman) || 0))
+  let count = 0
+
+  selectableCourses.value = selectableCourses.value.map((course) => {
+    if (!idSet.has(course.id)) return course
+    let nextFresh = isYear2OrSem2OnlyCourse(course) ? 0 : freshman
+    let nextSenior = senior
+    const cap = Math.max(0, Math.floor(Number(course.totalCapacity) || 0))
+    // 仅超额压回；不改 capacity，允许合计 < 有效容量
+    if (cap > 0 && nextFresh + nextSenior > cap) {
+      nextSenior = Math.min(cap, Math.round((cap * nextSenior) / (nextFresh + nextSenior || 1)))
+      nextFresh = isYear2OrSem2OnlyCourse(course) ? 0 : Math.max(0, cap - nextSenior)
+    }
+    const bareSections = (course.sections || []).map((sec) => {
+      const { quota: _q, enrolledFreshman: _ef, enrolledSenior: _es, ...rest } = sec
+      return rest
+    })
+    const sections =
+      bareSections.length > 0
+        ? distributeSectionAudience(bareSections, nextFresh, nextSenior)
+        : bareSections
+    const enrolled = sections.length
+      ? sections.reduce((s, sec) => s + (Number(sec.enrolled) || 0), 0)
+      : getCourseEnrolledTotal(course)
+    const enrolledFreshman = sections.length
+      ? sections.reduce((s, sec) => s + (Number(sec.enrolledFreshman) || 0), 0)
+      : Math.min(nextFresh, Math.round((enrolled * nextFresh) / (nextFresh + nextSenior || 1)))
+    const enrolledSenior = sections.length
+      ? sections.reduce((s, sec) => s + (Number(sec.enrolledSenior) || 0), 0)
+      : Math.max(0, enrolled - enrolledFreshman)
+    const totalCapacity = sections.length
+      ? sections.reduce((s, sec) => s + (Number(sec.capacity) || 0), 0)
+      : cap
+    count += 1
+    return {
+      ...course,
+      totalCapacity,
+      remainingCapacity: Math.max(0, totalCapacity - enrolled),
+      enrolledFreshman,
+      enrolledSenior,
+      sections,
+      sectionCount: sections.length || course.sectionCount,
+      quota: {
+        ...(course.quota || {}),
+        total: totalCapacity,
+        freshman: sections.length
+          ? sections.reduce((s, sec) => s + (Number(sec.quota?.freshman) || 0), 0)
+          : nextFresh,
+        senior: sections.length
+          ? sections.reduce((s, sec) => s + (Number(sec.quota?.senior) || 0), 0)
+          : nextSenior,
+        releaseToFreshman: course.quota?.releaseToFreshman !== false,
+        byIntake: course.quota?.byIntake || {},
+      },
+    }
+  })
+  return count
+}
+
+/**
+ * 按课程分组写回新老名额，并汇总回所属课程。
+ * @param {string[]} sectionIds
+ * @param {{ senior: number, freshman: number }} quota
+ */
+export function updateSectionsAudienceQuota(sectionIds = [], quota = {}) {
+  const idSet = new Set(sectionIds)
+  let senior = Math.max(0, Math.floor(Number(quota.senior) || 0))
+  let freshman = Math.max(0, Math.floor(Number(quota.freshman) || 0))
+  let count = 0
+
+  selectableCourses.value = selectableCourses.value.map((course) => {
+    const year2 = isYear2OrSem2OnlyCourse(course)
+    let touched = false
+    const sections = (course.sections || []).map((sec) => {
+      if (!idSet.has(sec.id)) return sec
+      touched = true
+      count += 1
+      let nextFresh = year2 ? 0 : freshman
+      let nextSenior = senior
+      const secCap = Math.max(0, Math.floor(Number(sec.capacity) || 0))
+      if (secCap > 0 && nextFresh + nextSenior > secCap) {
+        nextSenior = Math.min(secCap, Math.round((secCap * nextSenior) / (nextFresh + nextSenior || 1)))
+        nextFresh = year2 ? 0 : Math.max(0, secCap - nextSenior)
+      }
+      const enrolled = Number(sec.enrolled) || 0
+      const splitSum = nextFresh + nextSenior || 1
+      const enrolledFreshman = Math.min(nextFresh, Math.round((enrolled * nextFresh) / splitSum))
+      const enrolledSenior = Math.max(0, enrolled - enrolledFreshman)
+      return {
+        ...sec,
+        enrolledFreshman,
+        enrolledSenior,
+        quota: {
+          ...(sec.quota || {}),
+          total: secCap,
+          freshman: nextFresh,
+          senior: nextSenior,
+        },
+      }
+    })
+    if (!touched) return course
+
+    const totalCapacity = sections.reduce((s, sec) => s + (Number(sec.capacity) || 0), 0)
+    const enrolled = sections.reduce((s, sec) => s + (Number(sec.enrolled) || 0), 0)
+    const nextFresh = sections.reduce((s, sec) => s + (Number(sec.quota?.freshman) || 0), 0)
+    const nextSenior = sections.reduce((s, sec) => s + (Number(sec.quota?.senior) || 0), 0)
+    const enrolledFreshman = sections.reduce((s, sec) => s + (Number(sec.enrolledFreshman) || 0), 0)
+    const enrolledSenior = sections.reduce((s, sec) => s + (Number(sec.enrolledSenior) || 0), 0)
+
+    return {
+      ...course,
+      sections,
+      sectionCount: sections.length,
+      totalCapacity,
+      remainingCapacity: Math.max(0, totalCapacity - enrolled),
+      enrolledFreshman,
+      enrolledSenior,
+      quota: {
+        ...(course.quota || {}),
+        total: totalCapacity,
+        freshman: nextFresh,
+        senior: nextSenior,
+        releaseToFreshman: course.quota?.releaseToFreshman !== false,
+        byIntake: course.quota?.byIntake || {},
+      },
+    }
+  })
+
+  return count
+}
+
+/**
+ * R3 互释：本池剩余 +（开关开时）对方池剩余
+ * @returns {{ ownRemaining: number, peerRemaining: number, effective: number }}
+ */
+export function getRound3EffectiveRemaining(course, audience, releaseCross = true) {
+  const { freshmanCap, seniorCap, enrolledFreshman, enrolledSenior } = getCourseAudienceCapacity(course)
+  const seniorRem = Math.max(0, seniorCap - enrolledSenior)
+  const freshRem = Math.max(0, freshmanCap - enrolledFreshman)
+  const ownRemaining = audience === 'freshman' ? freshRem : seniorRem
+  const peerRemaining = audience === 'freshman' ? seniorRem : freshRem
+  const allow =
+    releaseCross &&
+    course?.quota?.releaseToFreshman !== false &&
+    course?.quota?.releaseCrossAudienceOnRound3 !== false
+  return {
+    ownRemaining,
+    peerRemaining: allow ? peerRemaining : 0,
+    effective: ownRemaining + (allow ? peerRemaining : 0),
+  }
+}
+
+/** 往期新老占比 demo（课详情） */
+export function getPastAudienceRatioDemo(course) {
+  const code = String(course?.code || 'X')
+  const seed = code.charCodeAt(0) + (code.charCodeAt(code.length - 1) || 0)
+  return [
+    { session: '2025/04', seniorPercent: 70 + (seed % 10), freshmanPercent: 30 - (seed % 10) },
+    { session: '2025/09', seniorPercent: 65 + (seed % 8), freshmanPercent: 35 - (seed % 8) },
+    { session: '2026/02', seniorPercent: 72 + (seed % 5), freshmanPercent: 28 - (seed % 5) },
+  ].map((row) => ({
+    ...row,
+    freshmanPercent: Math.max(0, Math.min(100, row.freshmanPercent)),
+    seniorPercent: Math.max(0, Math.min(100, 100 - Math.max(0, Math.min(100, row.freshmanPercent)))),
+  }))
+}
+
 export function updateCourseSelectable(courseId, isSelectable) {
   const index = selectableCourses.value.findIndex((item) => item.id === courseId)
   if (index === -1) return null
@@ -1040,17 +1413,13 @@ export function updateCoursesCapacityPercent(courseIds = [], percent) {
 
     const enrolled = getCourseEnrolledTotal(course)
     const newTotal = Math.max(enrolled, Math.round((source * p) / 100))
-    const oldFresh = Number(course.quota?.freshman) || 0
-    const oldSenior = Number(course.quota?.senior) || 0
-    const oldSum = oldFresh + oldSenior || source
-    const senior = Math.round((newTotal * oldSenior) / oldSum)
-    const freshman = Math.max(0, newTotal - senior)
 
     const sections = (course.sections || []).map((sec) => {
       const oldCap = Number(sec.capacity) || 0
       const sectionTotal = (course.sections || []).reduce((s, item) => s + (Number(item.capacity) || 0), 0) || 1
       const nextCap = Math.max(Number(sec.enrolled) || 0, Math.round((newTotal * oldCap) / sectionTotal))
-      return { ...sec, capacity: nextCap }
+      const { quota: _q, enrolledFreshman: _ef, enrolledSenior: _es, ...rest } = sec
+      return { ...rest, capacity: nextCap }
     })
     // 修正分组容量合计与 newTotal 的差额
     if (sections.length) {
@@ -1064,9 +1433,34 @@ export function updateCoursesCapacityPercent(courseIds = [], percent) {
       }
     }
 
-    const splitSum = freshman + senior || 1
-    const enrolledFreshman = Math.min(freshman, Math.round((enrolled * freshman) / splitSum))
-    const enrolledSenior = Math.max(0, enrolled - enrolledFreshman)
+    const withAudience = sections.length
+      ? applyHeadcountQuotaToSections(sections, course)
+      : sections
+    const splitCourse = splitQuotaByHeadcount(
+      newTotal,
+      DEMO_HEADCOUNT.freshman,
+      DEMO_HEADCOUNT.senior,
+    )
+    let freshman = withAudience.length
+      ? withAudience.reduce((s, sec) => s + (Number(sec.quota?.freshman) || 0), 0)
+      : isYear2OrSem2OnlyCourse(course)
+        ? 0
+        : splitCourse.freshman
+    let senior = withAudience.length
+      ? withAudience.reduce((s, sec) => s + (Number(sec.quota?.senior) || 0), 0)
+      : isYear2OrSem2OnlyCourse(course)
+        ? newTotal
+        : splitCourse.senior
+    if (isYear2OrSem2OnlyCourse(course) && !withAudience.length) {
+      freshman = 0
+      senior = newTotal
+    }
+    const enrolledFreshman = withAudience.length
+      ? withAudience.reduce((s, sec) => s + (Number(sec.enrolledFreshman) || 0), 0)
+      : Math.min(freshman, Math.round((enrolled * freshman) / (freshman + senior || 1)))
+    const enrolledSenior = withAudience.length
+      ? withAudience.reduce((s, sec) => s + (Number(sec.enrolledSenior) || 0), 0)
+      : Math.max(0, enrolled - enrolledFreshman)
 
     count += 1
     return {
@@ -1077,8 +1471,8 @@ export function updateCoursesCapacityPercent(courseIds = [], percent) {
       remainingCapacity: Math.max(0, newTotal - enrolled),
       enrolledFreshman,
       enrolledSenior,
-      sections,
-      sectionCount: sections.length || course.sectionCount,
+      sections: withAudience,
+      sectionCount: withAudience.length || course.sectionCount,
       quota: {
         ...(course.quota || {}),
         total: newTotal,
@@ -1257,7 +1651,16 @@ export function importCoursesFromLibrary(batchId, codes) {
       prerequisites: [],
       g1Category: null,
       sections: [],
-      quota: { total: 40, senior: 25, freshman: 15, releaseToFreshman: true, byIntake: {} },
+      quota: (() => {
+        const split = splitQuotaByHeadcount(40, DEMO_HEADCOUNT.freshman, DEMO_HEADCOUNT.senior)
+        return {
+          total: 40,
+          senior: split.senior,
+          freshman: split.freshman,
+          releaseToFreshman: true,
+          byIntake: {},
+        }
+      })(),
       isSelectable: true,
     }
     selectableCourses.value.push(enrichCourse(item))

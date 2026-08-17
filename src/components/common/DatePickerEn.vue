@@ -15,15 +15,15 @@ const props = defineProps({
   modelValue: { type: String, default: '' },
   placeholder: { type: String, default: '' },
   hasError: { type: Boolean, default: false },
-  /** DD/MM/YYYY；可选日不得早于此日（含当日） */
+  /** DD/MM/YYYY 或带时间；可选日不得早于此日（含当日） */
   minDate: { type: String, default: '' },
-  /** DD/MM/YYYY；可选日不得晚于此日（含当日） */
+  /** DD/MM/YYYY 或带时间；可选日不得晚于此日（含当日） */
   maxDate: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
   mode: {
     type: String,
     default: 'date',
-    validator: (value) => ['date', 'month'].includes(value),
+    validator: (value) => ['date', 'month', 'datetime'].includes(value),
   },
 })
 
@@ -33,12 +33,16 @@ const rootRef = ref(null)
 const panelRef = ref(null)
 const open = ref(false)
 const draft = ref(props.modelValue || '')
+const timeHour = ref('00')
+const timeMinute = ref('00')
+const timeSecond = ref('00')
+/** datetime：已点选的日历日，确认前暂存 */
+const pendingDay = ref(null)
 const panelStyle = ref({})
 const placement = ref('bottom')
 
-const PANEL_WIDTH = 280
 const PANEL_GAP = 6
-const PANEL_EST_HEIGHT = 320
+const PANEL_EST_HEIGHT = 360
 const VIEWPORT_PADDING = 8
 
 const MONTHS = [
@@ -63,33 +67,131 @@ const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 const viewDate = ref(new Date())
 
 const isMonthMode = computed(() => props.mode === 'month')
+const isDatetimeMode = computed(() => props.mode === 'datetime')
 
-const effectivePlaceholder = computed(
-  () => props.placeholder || (isMonthMode.value ? 'mm/yyyy' : 'dd/mm/yyyy'),
-)
+const effectivePlaceholder = computed(() => {
+  if (props.placeholder) return props.placeholder
+  if (isMonthMode.value) return 'mm/yyyy'
+  if (isDatetimeMode.value) return 'dd/mm/yyyy hh:mm:ss'
+  return 'dd/mm/yyyy'
+})
+
+function pad2(n) {
+  return String(n).padStart(2, '0')
+}
+
+function clampTimePart(value, max) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return 0
+  return Math.min(max, Math.max(0, Math.floor(n)))
+}
+
+function parseDatetimeValue(value) {
+  const raw = String(value || '').trim()
+  const match = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/)
+  if (!match) return null
+  const date = new Date(
+    Number(match[3]),
+    Number(match[2]) - 1,
+    Number(match[1]),
+    Number(match[4] || 0),
+    Number(match[5] || 0),
+    Number(match[6] || 0),
+    0,
+  )
+  if (Number.isNaN(date.getTime())) return null
+  return date
+}
+
+function isValidDatetimeValue(value) {
+  return Boolean(parseDatetimeValue(value))
+}
+
+function formatDatetimeInput(raw) {
+  const digits = String(raw || '').replace(/\D/g, '').slice(0, 14)
+  let out = ''
+  if (digits.length <= 2) out = digits
+  else if (digits.length <= 4) out = `${digits.slice(0, 2)}/${digits.slice(2)}`
+  else if (digits.length <= 8) out = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+  else if (digits.length <= 10) {
+    out = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)} ${digits.slice(8)}`
+  } else if (digits.length <= 12) {
+    out = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)} ${digits.slice(8, 10)}:${digits.slice(10)}`
+  } else {
+    out = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)} ${digits.slice(8, 10)}:${digits.slice(10, 12)}:${digits.slice(12)}`
+  }
+  return out
+}
+
+function formatDateToDatetime(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return ''
+  return `${formatDateToDdMmYyyy(date)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
+}
+
+function composeDatetimeFromParts(dayDate) {
+  if (!dayDate) return ''
+  const h = clampTimePart(timeHour.value, 23)
+  const m = clampTimePart(timeMinute.value, 59)
+  const s = clampTimePart(timeSecond.value, 59)
+  const d = new Date(
+    dayDate.getFullYear(),
+    dayDate.getMonth(),
+    dayDate.getDate(),
+    h,
+    m,
+    s,
+    0,
+  )
+  return formatDateToDatetime(d)
+}
+
+function syncTimeFromValue(value) {
+  const parsed = isDatetimeMode.value ? parseDatetimeValue(value) : null
+  if (!parsed) {
+    timeHour.value = '00'
+    timeMinute.value = '00'
+    timeSecond.value = '00'
+    return
+  }
+  timeHour.value = pad2(parsed.getHours())
+  timeMinute.value = pad2(parsed.getMinutes())
+  timeSecond.value = pad2(parsed.getSeconds())
+}
 
 function parseValue(value) {
-  return isMonthMode.value ? parseMmYyyy(value) : parseDdMmYyyy(value)
+  if (isMonthMode.value) return parseMmYyyy(value)
+  if (isDatetimeMode.value) return parseDatetimeValue(value)
+  return parseDdMmYyyy(value)
 }
 
 function isValidValue(value) {
-  return isMonthMode.value ? isValidMmYyyy(value) : isValidDdMmYyyy(value)
+  if (isMonthMode.value) return isValidMmYyyy(value)
+  if (isDatetimeMode.value) return isValidDatetimeValue(value)
+  return isValidDdMmYyyy(value)
 }
 
 function formatInput(raw) {
-  return isMonthMode.value ? formatMmYyyyInput(raw) : formatDdMmYyyyInput(raw)
+  if (isMonthMode.value) return formatMmYyyyInput(raw)
+  if (isDatetimeMode.value) return formatDatetimeInput(raw)
+  return formatDdMmYyyyInput(raw)
 }
 
 function formatDateValue(date) {
-  return isMonthMode.value ? formatDateToMmYyyy(date) : formatDateToDdMmYyyy(date)
+  if (isMonthMode.value) return formatDateToMmYyyy(date)
+  if (isDatetimeMode.value) return formatDateToDatetime(date)
+  return formatDateToDdMmYyyy(date)
 }
 
 watch(
   () => [props.modelValue, props.mode],
   ([value]) => {
     draft.value = value || ''
+    syncTimeFromValue(value)
     const parsed = parseValue(value)
-    if (parsed) viewDate.value = new Date(parsed.getFullYear(), parsed.getMonth(), 1)
+    if (parsed) {
+      viewDate.value = new Date(parsed.getFullYear(), parsed.getMonth(), 1)
+      if (isDatetimeMode.value) pendingDay.value = parsed
+    }
   },
   { immediate: true },
 )
@@ -112,7 +214,10 @@ const calendarDays = computed(() => {
   return cells
 })
 
-const selectedDate = computed(() => parseValue(props.modelValue))
+const selectedDate = computed(() => {
+  if (isDatetimeMode.value && pendingDay.value) return pendingDay.value
+  return parseValue(props.modelValue)
+})
 
 const selectedMonthYear = computed(() => {
   if (!isMonthMode.value || !isValidMmYyyy(props.modelValue)) return null
@@ -124,11 +229,16 @@ function startOfDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }
 
+function parseBoundDate(value) {
+  if (!value) return null
+  return parseDatetimeValue(value) || parseDdMmYyyy(value)
+}
+
 function isDateDisabled(date) {
   if (!date || isMonthMode.value) return false
   const day = startOfDay(date)
-  const min = props.minDate ? parseDdMmYyyy(props.minDate) : null
-  const max = props.maxDate ? parseDdMmYyyy(props.maxDate) : null
+  const min = props.minDate ? parseBoundDate(props.minDate) : null
+  const max = props.maxDate ? parseBoundDate(props.maxDate) : null
   if (min && day < startOfDay(min)) return true
   if (max && day > startOfDay(max)) return true
   return false
@@ -156,11 +266,27 @@ function onBlur() {
     emitValue('')
     return
   }
+  if (isDatetimeMode.value) {
+    const parsed = parseDatetimeValue(trimmed)
+    if (parsed && isValueInRange(formatDateToDatetime(parsed))) {
+      const normalized = formatDateToDatetime(parsed)
+      draft.value = normalized
+      emitValue(normalized)
+      syncTimeFromValue(normalized)
+      return
+    }
+    draft.value = props.modelValue || ''
+    return
+  }
   if (isValidValue(trimmed) && isValueInRange(trimmed)) {
     emitValue(trimmed)
     return
   }
   draft.value = props.modelValue || ''
+}
+
+function panelWidth() {
+  return isDatetimeMode.value ? 300 : 280
 }
 
 function updatePanelPosition() {
@@ -169,14 +295,13 @@ function updatePanelPosition() {
   const panelHeight = panelRef.value?.offsetHeight || PANEL_EST_HEIGHT
   const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_PADDING
   const spaceAbove = rect.top - VIEWPORT_PADDING
-
-  // 下方空间不足时向上展开，避免弹窗内被裁切
   const openAbove = spaceBelow < panelHeight && spaceAbove > spaceBelow
   placement.value = openAbove ? 'top' : 'bottom'
 
+  const width = panelWidth()
   let left = rect.left
-  if (left + PANEL_WIDTH > window.innerWidth - VIEWPORT_PADDING) {
-    left = Math.max(VIEWPORT_PADDING, window.innerWidth - PANEL_WIDTH - VIEWPORT_PADDING)
+  if (left + width > window.innerWidth - VIEWPORT_PADDING) {
+    left = Math.max(VIEWPORT_PADDING, window.innerWidth - width - VIEWPORT_PADDING)
   }
   left = Math.max(VIEWPORT_PADDING, left)
 
@@ -186,7 +311,7 @@ function updatePanelPosition() {
       top: 'auto',
       bottom: `${bottom}px`,
       left: `${left}px`,
-      width: `${PANEL_WIDTH}px`,
+      width: `${width}px`,
     }
   } else {
     let top = rect.bottom + PANEL_GAP
@@ -197,7 +322,7 @@ function updatePanelPosition() {
       top: `${top}px`,
       bottom: 'auto',
       left: `${left}px`,
-      width: `${PANEL_WIDTH}px`,
+      width: `${width}px`,
     }
   }
 }
@@ -205,6 +330,10 @@ function updatePanelPosition() {
 function syncViewDate() {
   const parsed = parseValue(props.modelValue) || new Date()
   viewDate.value = new Date(parsed.getFullYear(), parsed.getMonth(), 1)
+  if (isDatetimeMode.value) {
+    syncTimeFromValue(props.modelValue)
+    pendingDay.value = parsed
+  }
 }
 
 async function openPanel() {
@@ -250,8 +379,32 @@ function nextPeriod() {
 
 function selectDay(date) {
   if (isDateDisabled(date)) return
+  if (isDatetimeMode.value) {
+    pendingDay.value = date
+    draft.value = composeDatetimeFromParts(date)
+    return
+  }
   emitValue(formatDateValue(date))
   open.value = false
+}
+
+function confirmDatetime() {
+  const day = pendingDay.value || parseDatetimeValue(draft.value) || parseDatetimeValue(props.modelValue)
+  if (!day || isDateDisabled(day)) return
+  const next = composeDatetimeFromParts(day)
+  if (!isValueInRange(next)) return
+  draft.value = next
+  emitValue(next)
+  open.value = false
+}
+
+function onTimePartChange() {
+  timeHour.value = pad2(clampTimePart(timeHour.value, 23))
+  timeMinute.value = pad2(clampTimePart(timeMinute.value, 59))
+  timeSecond.value = pad2(clampTimePart(timeSecond.value, 59))
+  if (pendingDay.value) {
+    draft.value = composeDatetimeFromParts(pendingDay.value)
+  }
 }
 
 function selectMonth(monthIndex) {
@@ -290,6 +443,14 @@ function isCurrentMonth(monthIndex) {
 function setToday() {
   const today = new Date()
   if (isDateDisabled(today)) return
+  if (isDatetimeMode.value) {
+    pendingDay.value = today
+    timeHour.value = pad2(today.getHours())
+    timeMinute.value = pad2(today.getMinutes())
+    timeSecond.value = pad2(today.getSeconds())
+    draft.value = composeDatetimeFromParts(today)
+    return
+  }
   emitValue(formatDateValue(today))
   viewDate.value = new Date(today.getFullYear(), today.getMonth(), 1)
   open.value = false
@@ -297,6 +458,10 @@ function setToday() {
 
 function clearValue() {
   draft.value = ''
+  pendingDay.value = null
+  timeHour.value = '00'
+  timeMinute.value = '00'
+  timeSecond.value = '00'
   emitValue('')
   open.value = false
 }
@@ -345,7 +510,13 @@ onBeforeUnmount(() => {
   <div
     ref="rootRef"
     class="date-picker-en"
-    :class="{ 'has-error': hasError, open, 'mode-month': isMonthMode, 'is-disabled': disabled }"
+    :class="{
+      'has-error': hasError,
+      open,
+      'mode-month': isMonthMode,
+      'mode-datetime': isDatetimeMode,
+      'is-disabled': disabled,
+    }"
   >
     <div class="date-picker-input-wrap" @click="onInputClick">
       <input
@@ -382,7 +553,7 @@ onBeforeUnmount(() => {
         v-if="open"
         ref="panelRef"
         class="date-picker-panel"
-        :class="`placement-${placement}`"
+        :class="[`placement-${placement}`, { 'mode-datetime': isDatetimeMode }]"
         :style="panelStyle"
         @click.stop
       >
@@ -428,11 +599,23 @@ onBeforeUnmount(() => {
               </button>
             </span>
           </div>
+
+          <div v-if="isDatetimeMode" class="time-row">
+            <label class="time-label">Time</label>
+            <div class="time-inputs">
+              <input v-model="timeHour" type="number" min="0" max="23" class="time-input" @change="onTimePartChange" />
+              <span>:</span>
+              <input v-model="timeMinute" type="number" min="0" max="59" class="time-input" @change="onTimePartChange" />
+              <span>:</span>
+              <input v-model="timeSecond" type="number" min="0" max="59" class="time-input" @change="onTimePartChange" />
+            </div>
+          </div>
         </template>
 
         <div v-if="!isMonthMode" class="date-picker-footer">
           <button type="button" class="footer-btn" @click="clearValue">Clear</button>
-          <button type="button" class="footer-btn primary" @click="setToday">Today</button>
+          <button type="button" class="footer-btn" @click="setToday">Today</button>
+          <button v-if="isDatetimeMode" type="button" class="footer-btn primary" @click="confirmDatetime">OK</button>
         </div>
       </div>
     </Teleport>
@@ -471,6 +654,11 @@ onBeforeUnmount(() => {
   color: #111827;
   background: #fff;
   box-sizing: border-box;
+}
+
+.date-picker-en.mode-datetime .date-picker-input {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
 .date-picker-input::placeholder {
@@ -533,6 +721,10 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
   box-sizing: border-box;
+}
+
+.date-picker-panel.mode-datetime {
+  width: 300px;
 }
 
 .date-picker-header {
@@ -658,6 +850,38 @@ onBeforeUnmount(() => {
 .day-btn.selected:hover {
   background: #1d4ed8;
   color: #fff;
+}
+
+.time-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.time-label {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.time-inputs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.time-input {
+  width: 44px;
+  height: 30px;
+  padding: 0 4px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: center;
+  color: #111827;
 }
 
 .date-picker-footer {

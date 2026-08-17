@@ -236,14 +236,14 @@ src/i18n/locales/zh.js / en.js
 
 ## Decisions
 
-1. 主表列：☐ 序号 代码 名称 学分 课程类别 课程分组数 已选/容量 先修课 是否可选。
+1. 主表列（2026-08）：☐ 序号 代码 名称 **课程分组❄** 学分 课程类别 任课教师 起止周 上课时间地点 已选/有效容量 新生 老生 容量设置% …；必须NOT 展示「课程分组数」「源最大容量」。
 2. 课程类别用现有 `type` + `getRegistrationTypeLabel`；列头文案为「课程类别」。
-3. 课程分组数可点 → **ApplicationDetailDrawer** 展示原详情「教学分组」表（非居中弹框）。
-4. 「已选/容量」列头用 `enrolled`；数值为已选人数/总容量（`totalCapacity - remainingCapacity` / `totalCapacity`）。
-5. 不删 `SelectableCourseDetailDrawer`（其它页面仍用）；管理课程抽屉不再打开完整详情。
+3. 一行 = 一个课程分组；勾选键 = `section.id`；新老容量读 section 级 quota / enrolled*；`enrichCourse` 按容量比例派生分组新老名额。
+4. 「已选/容量」按**分组** `enrolled/capacity`；名额分配写 `updateSectionsAudienceQuota`；可选/容量%/专业范围对勾选 section 反查 `courseId` 去重。
+5. 隐藏工具条「添加课程」；不删 `CourseSectionsModal` / `SelectableCourseDetailDrawer`（其它入口可留）；管理课程主表不再点开分组明细。
 6. 配额 Tab、GE 类别等本变更不暴露。
 7. 管理课程副标题：`getRegistrationTypeLabel(batch.type)`，与表内课程类别一致。
-8. 默认分页：`BatchCoursesDrawer`、`BatchScopeRuleRosterDrawer`（选课人员名单）均为 20 条/页。
+8. 默认分页 20 条/页；列表「共 N 条」按展平行数；工具条「本批次已有 X 门课程，包含 Y 课程分组」。
 9. 课程 demo：凡有课的批次补齐至 ≥25 门（主批手工课保留，不足用 `buildActiveBatchDemoCourses` 补）。
 
 ## 来源：polish-batch-drawer-tables

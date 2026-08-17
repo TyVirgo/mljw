@@ -19,10 +19,18 @@ import {
   formatApprovalExportRow,
 } from '../../utils/exportCourseRegistrationExcel.js'
 import { getAddDropCourseColumnTexts } from '../../utils/addDropCourseDisplay.js'
+import {
+  displayClassTimeVenueLines,
+  displayClassTimeVenueFromFields,
+} from '../../data/courseRegistration/sectionScheduleFields.js'
+import { getAddDropApprovalListColumns } from '../../data/courseRegistration/addDropListColumns.js'
+import { addDropStatusBadgeClass } from '../../data/courseRegistration/addDropStatusBadge.js'
+import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 import '../../styles/list-page-search.css'
 import '../../styles/course-registration-list.css'
+import '../../styles/movement-status-badge.css'
 
-const { t, tr } = useAppI18n()
+const { t, tr, isZh } = useAppI18n()
 
 const APPROVAL_TABS = [
   { id: 'pending', labelKey: 'courseRegistration.approval.tabs.pending' },
@@ -78,7 +86,12 @@ const canApproveSelection = computed(
   () => showApproveToolbar.value && selectedRows.value.length > 0,
 )
 
-const tableColspan = computed(() => (showApproveToolbar.value ? 13 : 12))
+const listColumns = computed(() =>
+  getAddDropApprovalListColumns(appliedSearch.value.type || '', {
+    showCheck: showApproveToolbar.value,
+  }),
+)
+const tableColspan = computed(() => listColumns.value.length)
 
 const batchShowGenerateBill = computed(() =>
   pendingApprovalIds.value.some((id) => {
@@ -128,6 +141,144 @@ function billLabel(status) {
 
 function courseColumns(row) {
   return getAddDropCourseColumnTexts(row)
+}
+
+function listSectionCode(row) {
+  if (row.sectionName) return row.sectionName
+  const item = row.items?.[0]
+  if (item?.sectionName) return item.sectionName
+  const code =
+    row.sectionCode || row.addSectionCode || row.dropSectionCode || item?.section || ''
+  return formatCourseSectionName(code, t)
+}
+
+function listWeekRange(row) {
+  return row.weekRange || row.addWeekRange || row.dropWeekRange || row.items?.[0]?.weekRange || '1-18'
+}
+
+function listClassTimeVenueLines(row) {
+  const locale = isZh.value ? 'zh' : 'en'
+  const item = row.items?.[0] || {}
+  const section = {
+    time: item.time || row.time,
+    room: item.room || row.venue || row.addVenue || row.dropVenue,
+    weekRange: item.weekRange || row.weekRange || row.addWeekRange || row.dropWeekRange,
+    meetings: item.meetings || row.meetings,
+  }
+  const lines = displayClassTimeVenueLines(section, locale)
+  if (lines.length) return lines
+  const one = displayClassTimeVenueFromFields(
+    {
+      time: section.time,
+      classTime: row.classTime || row.addClassTime || row.dropClassTime || item.classTime,
+      venue: section.room,
+      weekRange: section.weekRange || '1-18',
+    },
+    locale,
+  )
+  return one && one !== '—' ? [one] : ['—']
+}
+
+function listLecturers(row) {
+  return row.lecturers || row.addLecturers || row.dropLecturers || row.items?.[0]?.lecturer || 'Dr. Sarah'
+}
+
+function listFee(row) {
+  const amount = row.billAmount ?? row.feeEstimate?.total
+  if (amount == null || amount === '') return '—'
+  return Number(amount) || 0
+}
+
+function listExcessCredits(row) {
+  const n =
+    row.excessCredits ??
+    row.billableCredits ??
+    row.feeEstimate?.billableCredits ??
+    (row.feeEstimate?.items || []).reduce((s, i) => s + (Number(i.billableCredits) || 0), 0)
+  if (n == null || n === '') return '—'
+  return Number(n) || 0
+}
+
+function listRetakeType(row) {
+  const key = row.retakeType || ''
+  if (!key) return '—'
+  return t(
+    `courseRegistration.student.retakeType.${
+      key === 'improve_grade' ? 'improveGrade' : key === 'failed' ? 'failed' : 'other'
+    }`,
+  )
+}
+
+function feeWaiverLabel(row) {
+  if (row.type !== 'Drop' && row.type !== 'AddDrop') return '—'
+  if (row.feeWaiver === true) return t('courseRegistration.student.feeWaiverYes')
+  if (row.feeWaiver === false) return t('courseRegistration.student.feeWaiverNo')
+  return '—'
+}
+
+const COLUMN_HEADER_KEYS = {
+  check: '',
+  serial: 'common.serialNo',
+  applicationNo: 'courseRegistration.approval.applicationNo',
+  status: 'courseRegistration.approval.status',
+  type: 'courseRegistration.approval.typeLabel',
+  studentId: 'courseRegistration.monitor.studentId',
+  studentName: 'courseRegistration.monitor.studentName',
+  academicSession: 'courseRegistration.batch.academicSession',
+  addCourse: 'courseRegistration.approval.addCourseName',
+  dropCourse: 'courseRegistration.approval.dropCourseName',
+  retakeCourse: 'courseRegistration.approval.retakeCourseName',
+  section: 'courseRegistration.student.fieldGroupNo',
+  weekRange: 'courseRegistration.student.fieldWeekRange',
+  classTimeVenue: 'courseRegistration.student.fieldClassTimeVenue',
+  classTime: 'courseRegistration.student.fieldClassTime',
+  venue: 'courseRegistration.student.fieldVenue',
+  lecturers: 'courseRegistration.student.fieldLecturers',
+  excessCredits: 'courseRegistration.student.fieldExcessCredits',
+  fee: 'courseRegistration.student.feeEstimateShort',
+  retakeType: 'courseRegistration.student.retakeTypeLabel',
+  feeWaiver: 'courseRegistration.student.feeWaiverLabel',
+  credits: 'courseRegistration.monitor.credits',
+  bill: 'courseRegistration.approval.billLabel',
+  submittedAt: 'courseRegistration.approval.submittedAt',
+  actions: 'common.actions',
+}
+
+function columnHeader(col) {
+  if (col === 'check') return ''
+  return t(COLUMN_HEADER_KEYS[col] || col)
+}
+
+function columnClass(col) {
+  if (col === 'check') return 'col-check sticky-left sticky-check'
+  if (col === 'serial') return 'sticky-left sticky-idx nowrap'
+  if (col === 'applicationNo') return 'sticky-left sticky-no nowrap'
+  if (col === 'actions') return 'sticky-right sticky-actions'
+  if (col === 'addCourse' || col === 'dropCourse' || col === 'retakeCourse') return 'col-course nowrap'
+  return 'nowrap'
+}
+
+function cellText(col, row, index) {
+  if (col === 'serial') return (currentPage.value - 1) * pageSize.value + index + 1
+  if (col === 'applicationNo') return row.applicationNo
+  if (col === 'studentId') return row.studentId
+  if (col === 'studentName') return row.studentName
+  if (col === 'academicSession') return row.academicSession || '—'
+  if (col === 'addCourse') return courseColumns(row).add
+  if (col === 'dropCourse') return courseColumns(row).drop
+  if (col === 'retakeCourse') return courseColumns(row).retake
+  if (col === 'section') return listSectionCode(row)
+  if (col === 'weekRange') return listWeekRange(row)
+  if (col === 'classTimeVenue') return listClassTimeVenueLines(row).join('\n')
+  if (col === 'lecturers') return listLecturers(row)
+  if (col === 'excessCredits') return listExcessCredits(row)
+  if (col === 'fee') return listFee(row)
+  if (col === 'retakeType') return listRetakeType(row)
+  if (col === 'feeWaiver') return feeWaiverLabel(row)
+  if (col === 'credits') return `${row.currentCredits}/${row.creditMax}`
+  if (col === 'bill') return billLabel(row.billStatus)
+  if (col === 'submittedAt') return row.submittedAt
+  return ''
 }
 
 function resolveDetailMode(tab) {
@@ -267,53 +418,67 @@ function handleExportConfirm({ selectedFields }) {
       </div>
 
       <div class="table-section">
-        <div class="table-wrap">
-          <table class="data-table">
+        <div class="table-wrap table-wrap--scroll">
+          <table class="data-table data-table--sticky">
             <thead>
               <tr>
-                <th v-if="showApproveToolbar" class="col-check">
-                  <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
+                <th
+                  v-for="col in listColumns"
+                  :key="col"
+                  class="nowrap"
+                  :class="columnClass(col)"
+                >
+                  <input
+                    v-if="col === 'check'"
+                    type="checkbox"
+                    :checked="allPageSelected"
+                    @change="toggleSelectAll"
+                  />
+                  <template v-else>{{ columnHeader(col) }}</template>
                 </th>
-                <th>{{ t('common.serialNo') }}</th>
-                <th>{{ t('courseRegistration.approval.applicationNo') }}</th>
-                <th>{{ t('courseRegistration.monitor.studentId') }}</th>
-                <th>{{ t('courseRegistration.monitor.studentName') }}</th>
-                <th>{{ t('courseRegistration.approval.typeLabel') }}</th>
-                <th>{{ t('courseRegistration.approval.addCourseName') }}</th>
-                <th>{{ t('courseRegistration.approval.dropCourseName') }}</th>
-                <th>{{ t('courseRegistration.approval.retakeCourseName') }}</th>
-                <th>{{ t('courseRegistration.monitor.credits') }}</th>
-                <th>{{ t('courseRegistration.approval.billLabel') }}</th>
-                <th>{{ t('courseRegistration.approval.submittedAt') }}</th>
-                <th>{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(row, index) in paginatedRows" :key="row.id">
-                <td v-if="showApproveToolbar" class="col-check">
-                  <input
-                    type="checkbox"
-                    :checked="selectedIds.includes(row.id)"
-                    @change="toggleSelect(row.id)"
-                  />
-                </td>
-                <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
-                <td>{{ row.applicationNo }}</td>
-                <td>{{ row.studentId }}</td>
-                <td>{{ row.studentName }}</td>
-                <td>
-                  <span class="type-tag" :class="typeClass(row.type)">{{ typeLabel(row.type) }}</span>
-                </td>
-                <td class="col-course nowrap">{{ courseColumns(row).add }}</td>
-                <td class="col-course nowrap">{{ courseColumns(row).drop }}</td>
-                <td class="col-course nowrap">{{ courseColumns(row).retake }}</td>
-                <td>{{ row.currentCredits }}/{{ row.creditMax }}</td>
-                <td>{{ billLabel(row.billStatus) }}</td>
-                <td>{{ row.submittedAt }}</td>
-                <td>
-                  <button type="button" class="link-btn" @click="openDetail(row)">
-                    {{ t('common.details') }}
-                  </button>
+                <td
+                  v-for="col in listColumns"
+                  :key="col"
+                  :class="columnClass(col)"
+                >
+                  <template v-if="col === 'check'">
+                    <input
+                      type="checkbox"
+                      :checked="selectedIds.includes(row.id)"
+                      @change="toggleSelect(row.id)"
+                    />
+                  </template>
+                  <template v-else-if="col === 'status'">
+                    <span class="status-badge" :class="addDropStatusBadgeClass(row.status)">
+                      {{ t(`courseRegistration.approval.appStatus.${row.status}`) }}
+                    </span>
+                  </template>
+                  <template v-else-if="col === 'type'">
+                    <span class="type-tag" :class="typeClass(row.type)">{{ typeLabel(row.type) }}</span>
+                  </template>
+                  <template v-else-if="col === 'classTimeVenue'">
+                    <div class="cr-time-venue">
+                      <div
+                        v-for="(line, li) in listClassTimeVenueLines(row)"
+                        :key="li"
+                        class="cr-time-venue-line"
+                      >
+                        {{ line }}
+                      </div>
+                    </div>
+                  </template>
+                  <template v-else-if="col === 'actions'">
+                    <button type="button" class="link-btn" @click="openDetail(row)">
+                      {{ t('common.details') }}
+                    </button>
+                  </template>
+                  <template v-else>
+                    {{ cellText(col, row, index) }}
+                  </template>
                 </td>
               </tr>
               <tr v-if="!paginatedRows.length">
@@ -378,9 +543,85 @@ function handleExportConfirm({ selectedFields }) {
   font-weight: 500;
 }
 
+.cr-time-venue {
+  min-width: 200px;
+  max-width: 340px;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.cr-time-venue-line + .cr-time-venue-line {
+  margin-top: 2px;
+}
+
 .type-add { background: #dbeafe; color: #1d4ed8; }
 .type-drop { background: #fee2e2; color: #b91c1c; }
 .type-retake { background: #fef3c7; color: #b45309; }
 .type-replace { background: #e0e7ff; color: #4338ca; }
 .type-mixed { background: #f3e8ff; color: #7c3aed; }
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.table-wrap--scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.data-table--sticky {
+  min-width: 1400px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.data-table--sticky th,
+.data-table--sticky td {
+  background: #fff;
+}
+
+.data-table--sticky thead th {
+  background: #f9fafb;
+  white-space: nowrap;
+}
+
+.sticky-left,
+.sticky-right {
+  position: sticky;
+  z-index: 2;
+}
+
+.sticky-check {
+  left: 0;
+  min-width: 40px;
+}
+
+.sticky-idx {
+  left: 40px;
+  min-width: 48px;
+}
+
+.sticky-no {
+  left: 88px;
+  min-width: 110px;
+}
+
+.sticky-type {
+  left: 198px;
+  min-width: 88px;
+  box-shadow: 4px 0 8px -6px rgba(15, 23, 42, 0.25);
+}
+
+.sticky-actions {
+  right: 0;
+  min-width: 72px;
+  box-shadow: -4px 0 8px -6px rgba(15, 23, 42, 0.25);
+}
+
+thead .sticky-left,
+thead .sticky-right {
+  z-index: 3;
+  background: #f9fafb;
+}
 </style>

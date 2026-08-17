@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { selectableCourses } from './selectableCourses.js'
 import { registrationBatches } from './registrationBatches.js'
 import { getCurrentStudent } from '../mockCurrentStudent.js'
+import { applyWeightedDrawToSectionState } from './preselectWeightedLottery.js'
 
 /**
  * 第一轮志愿名单（按教学分组）
@@ -144,9 +145,16 @@ function seedSectionStates() {
       const sections = course.sections?.length ? course.sections : []
       for (const section of sections) {
         const capacity = Math.max(1, Number(section.capacity) || 20)
-        // 演示绿/黄/红：未满 / 满额～2 倍内 / 超额 1 倍以上（学生提交不受容量限制）
-        // 非主批用较轻人数，避免志愿池爆炸
-        const mode = seed % 3
+        // 演示绿/黄/红：未满 / 满额～2 倍内 / 超额（学生提交不受容量限制）
+        // 主批前几组偏绿，默认进入即可提交且能看到未爆热度；其后覆盖黄/红
+        let mode
+        if (batch.id === VOLUNTEER_PRIMARY_BATCH_ID) {
+          if (seed < 4) mode = 0
+          else if (seed < 7) mode = 1
+          else mode = 2
+        } else {
+          mode = seed % 3
+        }
         let seedCount
         if (batch.id !== VOLUNTEER_PRIMARY_BATCH_ID) {
           seedCount = Math.max(2, Math.min(8, Math.floor(capacity * 0.25) + (seed % 3)))
@@ -436,6 +444,41 @@ export function finalizeVolunteerConfirm(batchId) {
   volunteerFinalConfirmedAt.value = at
   // 原：for (const batch of active) batch.volunteerFinalConfirmedAt = at
   return { ok: true, confirmedAt: at }
+}
+
+/**
+ * 第一轮自动发布主路径：加权抽签裁剪名单后写入最终确认（等同开 R2 闸门）
+ * @param {string} batchId
+ * @param {{ force?: boolean }} [opts] force=true 时忽略发布时间，一键演示
+ */
+export function autoPublishPreselectResults(batchId, opts = {}) {
+  if (!batchId) {
+    return { ok: false, errorKey: 'courseRegistration.result.volunteerBatchRequired' }
+  }
+  const batch = registrationBatches.value.find((b) => b.id === batchId)
+  if (!batch) {
+    return { ok: false, errorKey: 'courseRegistration.result.volunteerBatchRequired' }
+  }
+  if (batch.volunteerFinalConfirmedAt) {
+    return { ok: false, errorKey: 'courseRegistration.result.volunteerAlreadyFinalized' }
+  }
+  if (volunteerSecondRoundStarted.value) {
+    return { ok: false, errorKey: 'courseRegistration.result.volunteerReadonly' }
+  }
+
+  const releaseAt = batch.roundsByAudience?.senior?.resultReleaseAt || ''
+  if (!opts.force && releaseAt) {
+    // 原型：有发布时间但未 force 时仍允许（演示到点）；正式环境再比时钟
+  }
+
+  volunteerCourseStates.value = volunteerCourseStates.value.map((state) => {
+    if (state.batchId !== batchId) return state
+    const course = selectableCourses.value.find((c) => c.id === state.courseId)
+    if (!course) return state
+    return applyWeightedDrawToSectionState(state, course, batch)
+  })
+
+  return finalizeVolunteerConfirm(batchId)
 }
 
 /** 同课任一分组（含草稿）已有该学生 */

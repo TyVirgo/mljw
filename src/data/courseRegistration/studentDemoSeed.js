@@ -1,6 +1,7 @@
 import { registrationMonitorQueue } from './registrationMonitorQueue.js'
 import {
   studentConfirmedCourses,
+  studentRequiredCourses,
   studentSchedule,
   pendingRegistration,
   studentFailedRegistrations,
@@ -11,18 +12,25 @@ import { waitlistCourses } from './waitlistQueue.js'
 import { DEFAULT_MOCK_CURRENT_STUDENT_ID } from '../mockCurrentStudent.js'
 import { LONG_SEMESTER_CREDIT_MIN, LONG_SEMESTER_CREDIT_MAX } from './registrationRules.js'
 import { deriveClassTime } from './sectionScheduleFields.js'
+import {
+  enrichAddDropApplicationSchedule,
+} from './addDropScheduleDemo.js'
+import {
+  seedVolunteerRegisterDemo,
+} from './studentVolunteerSheet.js'
 
 const DEMO_STUDENT_ID = DEFAULT_MOCK_CURRENT_STUDENT_ID
 
 /**
- * 轮次自选成功半池（与「我的选课」成功叙事一致）
- * 在线选课侧对应课号将显示已选；其余半池保持可选
+ * 轮次自选成功半池（学分从简，便于继续选课）
+ * COMP101 4 + IT102 2 = 6 ME
  */
 const DEMO_ROUND_CONFIRMED_COURSES = [
   {
     courseId: 'course-comp101',
     courseCode: 'COMP101',
-    courseName: 'Introduction to Programming',
+    courseName: '程序设计导论',
+    courseNameEn: 'Introduction to Programming',
     credits: 4,
     type: 'ME',
     sectionId: 'sec-5',
@@ -30,41 +38,19 @@ const DEMO_ROUND_CONFIRMED_COURSES = [
     time: 'Thu 14:00–16:00',
     weekRange: '1-14',
     room: 'D5-2-101',
-    lecturer: 'Dr. Lim',
+    lecturer: '林博士',
+    lecturerEn: 'Dr. Lim',
     batchId: 'batch-2504-m1',
-  },
-  {
-    courseId: 'course-comp201',
-    courseCode: 'COMP201',
-    courseName: 'Data Structures',
-    credits: 4,
-    type: 'ME',
-    sectionId: 'sec-2',
-    sectionCode: '02',
-    time: 'Wed 14:00–16:00',
-    weekRange: '1-14',
-    room: 'D5-3-202',
-    lecturer: 'Dr. Tan',
-    batchId: 'batch-2504-m1',
-  },
-  {
-    courseId: 'course-phys101',
-    courseCode: 'PHYS101',
-    courseName: 'Physics I',
-    credits: 4,
-    type: 'ME',
-    sectionId: 'sec-14',
-    sectionCode: '01',
-    time: 'Fri 09:00–11:00',
-    weekRange: '1-18',
-    room: 'S1-2-101',
-    lecturer: 'Dr. Rahman',
-    batchId: 'batch-2504-m1',
+    meetings: [
+      { time: 'Thu 14:00–16:00', room: 'D5-2-101', weekRange: '1-14' },
+      { time: 'Fri 10:00–12:00', room: 'D5-2-201', weekRange: '1-14' },
+    ],
   },
   {
     courseId: 'course-it102',
     courseCode: 'IT102',
-    courseName: 'Digital Literacy Workshop',
+    courseName: '数字素养工作坊',
+    courseNameEn: 'Digital Literacy Workshop',
     credits: 2,
     type: 'ME',
     sectionId: 'sec-it102-1',
@@ -72,24 +58,27 @@ const DEMO_ROUND_CONFIRMED_COURSES = [
     time: 'Mon 09:00–11:00',
     weekRange: '1-7',
     room: 'D5-1-105',
-    lecturer: 'Ms. Ong',
+    lecturer: '王老师',
+    lecturerEn: 'Ms. Ong',
     batchId: 'batch-2504-m1',
+    meetings: [{ time: 'Mon 09:00–11:00', room: 'D5-1-105', weekRange: '1-7' }],
   },
 ].map((item, index) => ({
   ...item,
   classTime: item.classTime || deriveClassTime(item.time),
   selectedAt: `2026-04-10 ${String(9 + index).padStart(2, '0')}:${String((15 + index * 7) % 60).padStart(2, '0')}:${String((8 + index * 11) % 60).padStart(2, '0')}`,
   sourceType: 'round',
-  roundKey: index % 3 === 0 ? 'preselect' : index % 3 === 1 ? 'main' : 'supplement',
-  isRetake: index === 2,
+  roundKey: index === 0 ? 'main' : 'supplement',
+  isRetake: false,
 }))
 
-/** 管理端代选样例（计入选课结果 10 行；与轮次自选一并进确认半池） */
+/** 管理端代选样例：BUS201 3 GE；合计演示约 9 学分 */
 const DEMO_ADMIN_CONFIRMED_COURSES = [
   {
     courseId: 'course-bus201',
     courseCode: 'BUS201',
-    courseName: 'Business Ethics',
+    courseName: '商业伦理',
+    courseNameEn: 'Business Ethics',
     credits: 3,
     type: 'GE',
     sectionId: 'sec-18',
@@ -97,69 +86,11 @@ const DEMO_ADMIN_CONFIRMED_COURSES = [
     time: 'Tue 14:00–17:00',
     weekRange: '1-14',
     room: 'B3-2-101',
-    lecturer: 'Dr. Hassan',
+    lecturer: '哈桑博士',
+    lecturerEn: 'Dr. Hassan',
     batchId: 'batch-2504-m1',
     operatorName: 'AC Lee',
-  },
-  {
-    courseId: 'course-mpu318',
-    courseCode: 'MPU3183',
-    courseName: 'Malaysian Studies',
-    credits: 3,
-    type: 'GE',
-    sectionId: 'sec-4',
-    sectionCode: '01',
-    time: 'Tue 09:00–12:00',
-    weekRange: '1-12',
-    room: '',
-    lecturer: 'Dr. Ahmad',
-    batchId: 'batch-2504-g1',
-    operatorName: 'AC Wong',
-  },
-  {
-    courseId: 'course-ai110',
-    courseCode: 'AI110',
-    courseName: 'Introduction to AI',
-    credits: 3,
-    type: 'ME',
-    sectionId: 'sec-ai110-1',
-    sectionCode: '01',
-    time: 'Mon 10:00–12:00',
-    weekRange: '1-14',
-    room: 'D5-4-101',
-    lecturer: 'Dr. Foo',
-    batchId: 'batch-2504-m1',
-    operatorName: 'AC Lee',
-  },
-  {
-    courseId: 'course-web210',
-    courseCode: 'WEB210',
-    courseName: 'Web Development',
-    credits: 3,
-    type: 'ME',
-    sectionId: 'sec-web210-1',
-    sectionCode: '01',
-    time: 'Tue 14:00–16:00',
-    weekRange: '1-14',
-    room: 'D5-4-201',
-    lecturer: 'Ms. Low',
-    batchId: 'batch-2504-m1',
-    operatorName: 'AC Wong',
-  },
-  {
-    courseId: 'course-db110',
-    courseCode: 'DB110',
-    courseName: 'Intro to Databases',
-    credits: 3,
-    type: 'ME',
-    sectionId: 'sec-db110-1',
-    sectionCode: '01',
-    time: 'Wed 14:00–16:00',
-    weekRange: '1-14',
-    room: 'D5-5-201',
-    lecturer: 'Dr. Ong',
-    batchId: 'batch-2504-m1',
-    operatorName: 'AC Lee',
+    meetings: [{ time: 'Tue 14:00–17:00', room: 'B3-2-101', weekRange: '1-14' }],
   },
 ].map((item, index) => ({
   ...item,
@@ -167,11 +98,62 @@ const DEMO_ADMIN_CONFIRMED_COURSES = [
   selectedAt: `2026-04-11 ${String(10 + index).padStart(2, '0')}:${String((20 + index * 5) % 60).padStart(2, '0')}:${String((12 + index * 9) % 60).padStart(2, '0')}`,
   sourceType: 'admin',
   roundKey: '',
-  isRetake: index === 1,
+  isRetake: false,
 }))
 
-/** 选课结果 / 我的选课成功：4 轮次自选 + 5 管理员添加 = 9 */
+/** 选课结果 / 我的选课：2 轮次自选 + 1 管理员 = 3 门 ≈ 9 学分 */
 const DEMO_CONFIRMED_COURSES = [...DEMO_ROUND_CONFIRMED_COURSES, ...DEMO_ADMIN_CONFIRMED_COURSES]
+
+/**
+ * Demo 必修底图（字段同选修确认课；不进确认半池、不计选修学分帽）
+ * 含周六晚课，验收周末列与 22 点前时段
+ */
+export const DEMO_REQUIRED_COURSES = [
+  {
+    courseId: 'course-math101',
+    courseCode: 'MATH101',
+    courseName: '微积分 I',
+    courseNameEn: 'Calculus I',
+    credits: 4,
+    type: 'CORE',
+    sectionId: 'sec-math101-1',
+    sectionCode: '01',
+    time: 'Wed 09:00–11:00',
+    weekRange: '1-14',
+    room: 'A1-2-201',
+    lecturer: '陈教授',
+    lecturerEn: 'Prof. Chen',
+    batchId: 'batch-2504-m1',
+    classTime: deriveClassTime('Wed 09:00–11:00'),
+    selectedAt: '2026-03-01 08:00:00',
+    sourceType: 'required',
+    roundKey: '',
+    isRetake: false,
+  },
+  {
+    courseId: 'course-phys101',
+    courseCode: 'PHYS101',
+    courseName: '工程物理',
+    courseNameEn: 'Physics for Engineers',
+    credits: 3,
+    type: 'CORE',
+    sectionId: 'sec-phys101-1',
+    sectionCode: '01',
+    time: 'Sat 18:00–20:00',
+    weekRange: '1-14',
+    room: 'A2-1-105',
+    lecturer: '黄博士',
+    lecturerEn: 'Dr. Wong',
+    batchId: 'batch-2504-m1',
+    classTime: deriveClassTime('Sat 18:00–20:00'),
+    selectedAt: '2026-03-01 08:00:00',
+    sourceType: 'required',
+    roundKey: '',
+    isRetake: false,
+  },
+]
+
+const DEMO_CONFIRMED_COUNT = DEMO_CONFIRMED_COURSES.length
 
 /** 演示：排队中（与成功半池互斥课号） */
 const DEMO_QUEUED_COURSE = {
@@ -471,17 +453,252 @@ function buildDemoAddDropApplications(credits, schedule) {
       items: [{ action: 'Drop', courseCode: 'COMP101', credits: 4, section: '01', time: 'Thu 14:00–16:00' }],
       approvalLog: [{ at: '2026-07-04 17:00', actor: 'Student', action: 'Cancelled' }],
     },
-  ]
+    {
+      id: 'adr-xmum-13',
+      applicationNo: 'ADR2509018',
+      ...baseStudent,
+      type: 'Add',
+      status: 'In Review',
+      submittedAt: '2026-07-16 10:00',
+      billStatus: 'pending',
+      billAmount: 1500,
+      reason: 'Add HUM110 GE overload sample',
+      items: [{ action: 'Add', courseCode: 'HUM110', credits: 3, section: '01', time: 'Fri 09:00–12:00', fee: 1500 }],
+      approvalLog: [{ at: '2026-07-16 11:00', actor: 'AC SWE', action: 'In Review' }],
+    },
+    {
+      id: 'adr-xmum-14',
+      applicationNo: 'ADR2509019',
+      ...baseStudent,
+      type: 'Add',
+      status: 'Rejected',
+      submittedAt: '2026-07-03 09:20',
+      billStatus: 'none',
+      billAmount: 0,
+      reason: 'Rejected overload request',
+      items: [{ action: 'Add', courseCode: 'COMP220', credits: 3, section: '01', time: 'Tue 10:00–12:00', fee: 1650 }],
+      approvalLog: [{ at: '2026-07-03 15:00', actor: 'AC SWE', action: 'Rejected', comment: 'Credit max' }],
+    },
+    {
+      id: 'adr-xmum-15',
+      applicationNo: 'ADR2509020',
+      ...baseStudent,
+      type: 'Add',
+      status: 'Cancelled',
+      submittedAt: '2026-07-02 08:10',
+      billStatus: 'cancelled',
+      billAmount: 1600,
+      reason: 'Student cancelled add before payment',
+      items: [{ action: 'Add', courseCode: 'WEB210', credits: 3, section: '01', time: 'Wed 14:00–17:00', fee: 1600 }],
+      approvalLog: [{ at: '2026-07-02 18:00', actor: 'Student', action: 'Cancelled' }],
+    },
+    {
+      id: 'adr-xmum-16',
+      applicationNo: 'ADR2509021',
+      ...baseStudent,
+      type: 'Drop',
+      status: 'In Review',
+      submittedAt: '2026-07-16 14:30',
+      billStatus: 'none',
+      billAmount: 0,
+      dropChannel: 'special',
+      teachingWeek: 7,
+      feeWaiver: true,
+      reason: 'Special drop under review',
+      attachments: [{ name: 'advisor-note.pdf' }],
+      items: [{ action: 'Drop', courseCode: 'ENGL201', credits: 3, section: '01', time: 'Wed 09:00–12:00' }],
+      approvalLog: [{ at: '2026-07-16 15:00', actor: 'AC SWE', action: 'In Review' }],
+    },
+    {
+      id: 'adr-xmum-17',
+      applicationNo: 'ADR2509022',
+      ...baseStudent,
+      type: 'Drop',
+      status: 'Rejected',
+      submittedAt: '2026-07-01 11:00',
+      billStatus: 'none',
+      billAmount: 0,
+      dropChannel: 'special',
+      teachingWeek: 10,
+      feeWaiver: false,
+      reason: 'Second rejected special drop sample',
+      items: [{ action: 'Drop', courseCode: 'STAT201', credits: 3, section: '01', time: 'Mon 14:00–16:00' }],
+      approvalLog: [{ at: '2026-07-01 16:00', actor: 'AC SWE', action: 'Rejected', comment: 'Late evidence' }],
+    },
+    {
+      id: 'adr-xmum-18',
+      applicationNo: 'ADR2509023',
+      ...baseStudent,
+      type: 'Retake',
+      status: 'Approved',
+      submittedAt: '2026-07-05 13:00',
+      billStatus: 'paid',
+      billAmount: 2200,
+      reason: 'Approved retake MATH201',
+      items: [
+        {
+          action: 'Retake',
+          courseCode: 'MATH201',
+          credits: 4,
+          section: '02',
+          time: 'Fri 14:00–16:00',
+          retakeGrade: 'F',
+          fee: 2200,
+        },
+      ],
+      retakeType: 'failed',
+      approvalLog: [{ at: '2026-07-06 09:00', actor: 'AC SWE', action: 'Approved' }],
+    },
+    {
+      id: 'adr-xmum-19',
+      applicationNo: 'ADR2509024',
+      ...baseStudent,
+      type: 'Retake',
+      status: 'Rejected',
+      submittedAt: '2026-07-04 10:40',
+      billStatus: 'none',
+      billAmount: 0,
+      reason: 'Rejected grade-improve retake',
+      items: [
+        {
+          action: 'Retake',
+          courseCode: 'COMP101',
+          credits: 4,
+          section: '01',
+          time: 'Mon 09:00–12:00',
+          retakeGrade: 'C',
+          fee: 2000,
+        },
+      ],
+      retakeType: 'improve_grade',
+      approvalLog: [{ at: '2026-07-04 17:30', actor: 'AC SWE', action: 'Rejected', comment: 'Seat full' }],
+    },
+    {
+      id: 'adr-xmum-20',
+      applicationNo: 'ADR2509025',
+      ...baseStudent,
+      type: 'Retake',
+      status: 'Cancelled',
+      submittedAt: '2026-07-03 12:00',
+      billStatus: 'cancelled',
+      billAmount: 2200,
+      reason: 'Cancelled retake before bill paid',
+      items: [
+        {
+          action: 'Retake',
+          courseCode: 'PHYS101',
+          credits: 4,
+          section: '01',
+          time: 'Tue 14:00–17:00',
+          retakeGrade: 'F',
+          fee: 2200,
+        },
+      ],
+      retakeType: 'failed',
+      approvalLog: [{ at: '2026-07-03 19:00', actor: 'Student', action: 'Cancelled' }],
+    },
+    {
+      id: 'adr-xmum-21',
+      applicationNo: 'ADR2509026',
+      ...baseStudent,
+      type: 'AddDrop',
+      status: 'Rejected',
+      submittedAt: '2026-07-07 09:50',
+      billStatus: 'none',
+      billAmount: 0,
+      dropChannel: 'self',
+      teachingWeek: 3,
+      feeWaiver: false,
+      reason: 'Rejected linked swap',
+      items: [
+        { action: 'Drop', courseCode: 'IT102', credits: 2, section: '01', time: 'Mon 09:00–11:00' },
+        { action: 'Add', courseCode: 'STAT201', credits: 3, section: '01', time: 'Mon 14:00–16:00', fee: 1650 },
+      ],
+      approvalLog: [{ at: '2026-07-07 14:00', actor: 'AC SWE', action: 'Rejected', comment: 'Clash unresolved' }],
+    },
+    {
+      id: 'adr-xmum-22',
+      applicationNo: 'ADR2509027',
+      ...baseStudent,
+      type: 'AddDrop',
+      status: 'Cancelled',
+      submittedAt: '2026-07-06 08:20',
+      billStatus: 'cancelled',
+      billAmount: 1500,
+      dropChannel: 'self',
+      teachingWeek: 2,
+      feeWaiver: true,
+      reason: 'Cancelled linked add/drop',
+      items: [
+        { action: 'Drop', courseCode: 'BUS201', credits: 3, section: '01', time: 'Tue 14:00–17:00' },
+        { action: 'Add', courseCode: 'HUM110', credits: 3, section: '01', time: 'Fri 09:00–12:00', fee: 1500 },
+      ],
+      approvalLog: [{ at: '2026-07-06 20:00', actor: 'Student', action: 'Cancelled' }],
+    },
+    {
+      id: 'adr-xmum-23',
+      applicationNo: 'ADR2509028',
+      ...baseStudent,
+      type: 'Retake',
+      status: 'Pending',
+      submittedAt: '2026-07-17 09:00',
+      billStatus: 'pending',
+      billAmount: 2200,
+      reason: 'Second pending retake sample',
+      items: [
+        {
+          action: 'Retake',
+          courseCode: 'COMP201',
+          credits: 4,
+          section: '01',
+          time: 'Thu 10:00–12:00',
+          retakeGrade: 'F',
+          fee: 2200,
+        },
+      ],
+      retakeType: 'failed',
+      approvalLog: [],
+    },
+  ].map((app, index) => enrichAddDropApplicationSchedule(app, index))
 }
 
 function syncDemoAddDropApplications(credits, schedule) {
   const studentApps = addDropApprovalQueue.value.filter((app) => app.studentId === DEMO_STUDENT_ID)
+  const statusCounts = {}
+  for (const app of studentApps) {
+    statusCounts[app.status] = (statusCounts[app.status] || 0) + 1
+  }
+  const requiredStatuses = ['Pending', 'In Review', 'Approved', 'Rejected', 'Cancelled']
+  const statusCoverageOk = requiredStatuses.every((s) => (statusCounts[s] || 0) >= 2)
+  const typeCoverageOk = ['Add', 'Drop', 'Retake', 'AddDrop'].every((type) =>
+    studentApps.some((app) => app.type === type),
+  )
   const needsReseed =
-    studentApps.length < 10 ||
+    studentApps.length < 16 ||
+    !statusCoverageOk ||
+    !typeCoverageOk ||
     studentApps.some((app) => !app.academicSession) ||
     studentApps.some((app) => app.type === 'Replace') ||
-    studentApps.some((app) => String(app.submittedAt || '').includes('2025-09'))
-  if (!needsReseed) return
+    studentApps.some((app) => String(app.submittedAt || '').includes('2025-09')) ||
+    studentApps.some(
+      (app) =>
+        !app.weekRange ||
+        !app.lecturers ||
+        !app.venue ||
+        !app.classTime ||
+        !app.sectionName ||
+        String(app.classTime).startsWith('Mon') ||
+        String(app.classTime).startsWith('Tue') ||
+        String(app.classTime).startsWith('Wed') ||
+        String(app.classTime).startsWith('Thu') ||
+        String(app.classTime).startsWith('Fri'),
+    )
+  if (!needsReseed) {
+    addDropApprovalQueue.value = addDropApprovalQueue.value.map((app, index) =>
+      app.studentId === DEMO_STUDENT_ID ? enrichAddDropApplicationSchedule(app, index) : app,
+    )
+    return
+  }
   addDropApprovalQueue.value = addDropApprovalQueue.value.filter((app) => app.studentId !== DEMO_STUDENT_ID)
   for (const app of buildDemoAddDropApplications(credits, schedule)) {
     addDropApprovalQueue.value.push(app)
@@ -562,10 +779,22 @@ function syncDemoMonitor(courses) {
     passedCourses: ['MATH101'],
     failedCourses: ['STAT100'],
     cgpa: 3.42,
-    g1Progress: {
-      humanities: 4,
-      business: 3,
-      required: { humanities: 6, business: 6 },
+    termElectiveProgress: {
+      ge: courses.reduce((sum, item) => sum + (item.type === 'GE' ? item.credits || 0 : 0), 0),
+      me: courses.reduce(
+        (sum, item) => sum + (item.type === 'ME' || item.type === 'Mandatory' ? item.credits || 0 : 0),
+        0,
+      ),
+      geMax: 12,
+      /** 演示生 ME 帽放宽，已选约 6，默认可继续提交志愿（未超分） */
+      meMax: 16,
+    },
+    // 文/商/理 = 本学期 ME 细分；要求之和对齐学期 ME 规划
+    termGeCategories: {
+      humanities: 0,
+      business: courses.some((item) => item.courseCode === 'COMP101') ? 4 : 0,
+      science: courses.some((item) => item.courseCode === 'IT102') ? 2 : 0,
+      required: { humanities: 2, business: 4, science: 3 },
     },
     schedule,
     issues,
@@ -587,30 +816,42 @@ function syncDemoMonitor(courses) {
 let seeded = false
 
 export function seedStudentRegistrationDemo() {
-  // 固定 9 条已确认：4 轮次自选 + 5 管理员添加；缺来源字段则重灌
+  // 固定 3 条已确认（约 9 学分）：2 轮次自选 + 1 管理员；缺来源字段则重灌
   const needsReseed =
-    studentConfirmedCourses.value.length !== 9 ||
+    studentConfirmedCourses.value.length !== DEMO_CONFIRMED_COUNT ||
     studentConfirmedCourses.value.some((item) => !item.selectedAt || !item.sourceType) ||
-    !studentConfirmedCourses.value.some((item) => item.courseCode === 'BUS201' && item.sourceType === 'admin')
+    !studentConfirmedCourses.value.some((item) => item.courseCode === 'BUS201' && item.sourceType === 'admin') ||
+    studentConfirmedCourses.value.some(
+      (item) =>
+        item.courseCode === 'COMP101' &&
+        (item.courseName === 'Introduction to Programming' || item.lecturer === 'Dr. Lim'),
+    )
   if (needsReseed) {
     studentConfirmedCourses.value = DEMO_CONFIRMED_COURSES.map((item) => ({ ...item }))
+    studentRequiredCourses.value = DEMO_REQUIRED_COURSES.map((item) => ({ ...item }))
     studentSchedule.value = buildDemoSchedule(studentConfirmedCourses.value)
     syncDemoMonitor(studentConfirmedCourses.value)
+    // 随确认半池缩减一并重置待分配示意
+    studentPendingAssignCourses.value = []
   }
 
-  // 第一轮「本轮选课情况」demo：排队中 + 待分配（不计学分）；不灌失败态
+  if (
+    !studentRequiredCourses.value.length ||
+    studentRequiredCourses.value.some(
+      (item) =>
+        item.courseCode === 'MATH101' &&
+        (item.courseName === 'Calculus I' || item.time?.includes('Fri')),
+    )
+  ) {
+    studentRequiredCourses.value = DEMO_REQUIRED_COURSES.map((item) => ({ ...item }))
+  }
+
+  // 在线选课：待分配未确认，可提交志愿；结果页快照另存，不锁死提交
+  seedVolunteerRegisterDemo()
+
+  // 演示排队中（与志愿错开课号）
   if (!pendingRegistration.value) {
     pendingRegistration.value = { ...DEMO_QUEUED_COURSE }
-  }
-  if (!studentPendingAssignCourses.value.length) {
-    studentPendingAssignCourses.value = DEMO_ROUND_CONFIRMED_COURSES.map((item, index) => ({
-      ...item,
-      id: `pending-demo-${item.courseId}`,
-      classTime: item.classTime || deriveClassTime(item.time),
-      selectedAt: `2026-04-10 ${String(9 + index).padStart(2, '0')}:15:00`,
-      sourceType: 'preselect',
-      roundKey: 'preselect',
-    }))
   }
   if (!studentFailedRegistrations.value.length) {
     studentFailedRegistrations.value = [{ ...DEMO_FAILED_COURSE }]
@@ -622,21 +863,30 @@ export function seedStudentRegistrationDemo() {
   )
   syncDemoWaitlistEntries()
 
+  // 刷新演示生学期 ME 帽与文商理要求（加课弹窗超额 demo；可重复调用）
+  const monitorIdx = registrationMonitorQueue.value.findIndex((r) => r.studentId === DEMO_STUDENT_ID)
+  if (monitorIdx >= 0) {
+    const row = registrationMonitorQueue.value[monitorIdx]
+    registrationMonitorQueue.value[monitorIdx] = {
+      ...row,
+      passedCourses: row.passedCourses?.length ? row.passedCourses : ['MATH101'],
+      failedCourses: row.failedCourses?.length ? row.failedCourses : ['STAT100'],
+      termElectiveProgress: {
+        ...(row.termElectiveProgress || {}),
+        geMax: 12,
+        meMax: 16,
+      },
+      termGeCategories: {
+        humanities: row.termGeCategories?.humanities ?? 0,
+        business: row.termGeCategories?.business ?? 4,
+        science: row.termGeCategories?.science ?? 2,
+        required: { humanities: 2, business: 4, science: 3 },
+      },
+    }
+  } else {
+    syncDemoMonitor(studentConfirmedCourses.value)
+  }
+
   if (seeded) return
   seeded = true
-
-  if (!registrationMonitorQueue.value.some((r) => r.studentId === DEMO_STUDENT_ID)) {
-    syncDemoMonitor(studentConfirmedCourses.value)
-  } else {
-    // 确保已有监控行带上 passedCourses
-    const idx = registrationMonitorQueue.value.findIndex((r) => r.studentId === DEMO_STUDENT_ID)
-    if (idx >= 0) {
-      const row = registrationMonitorQueue.value[idx]
-      registrationMonitorQueue.value[idx] = {
-        ...row,
-        passedCourses: row.passedCourses?.length ? row.passedCourses : ['MATH101'],
-        failedCourses: row.failedCourses?.length ? row.failedCourses : ['STAT100'],
-      }
-    }
-  }
 }

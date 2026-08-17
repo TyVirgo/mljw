@@ -5,6 +5,8 @@ defineProps({
   visible: Boolean,
   title: { type: String, default: '' },
   subtitle: { type: String, default: '' },
+  /** 课表等场景：收紧内边距，减少底部空白与滚动条 */
+  dense: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close'])
@@ -18,7 +20,7 @@ function handleClose() {
 
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="drawer-overlay" @click.self="handleClose">
+    <div v-if="visible" class="drawer-overlay" :class="{ 'is-dense': dense }" @click.self="handleClose">
       <aside class="drawer-panel" role="dialog" aria-modal="true" @click.stop>
         <div class="drawer-header">
           <div>
@@ -96,6 +98,18 @@ function handleClose() {
   flex: 1;
   overflow-y: auto;
   padding: 20px 24px;
+}
+
+.drawer-overlay.is-dense .drawer-header {
+  padding: 10px 20px;
+}
+
+.drawer-overlay.is-dense .drawer-scroll {
+  padding: 10px 16px 8px;
+}
+
+.drawer-overlay.is-dense .drawer-footer {
+  padding: 10px 16px;
 }
 
 .drawer-footer {

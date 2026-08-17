@@ -6,6 +6,7 @@ import {
   getCourseById,
   selectableCourses,
   sortCoursesForStudentDemo,
+  getRound3EffectiveRemaining,
 } from './selectableCourses.js'
 import {
   runRegistrationQueue,
@@ -31,6 +32,22 @@ import {
   submitStudentPreselectVolunteer,
   removeStudentPreselectVolunteer,
 } from './preselectVolunteerConfirm.js'
+import {
+  getRegistrationSemesterIndex,
+  getStudentAudience,
+  getTermCreditCaps,
+  creditCapForCourseType,
+  isGraduateStudent,
+} from './studentAudience.js'
+import { preselectWeightSettings } from './preselectWeightSettings.js'
+import { normalizeRegistrationType } from './registrationTypes.js'
+import { studentPendingAssignCourses } from './studentPendingAssignState.js'
+import {
+  assertVolunteerListEditable,
+  assignNextPreferenceOrder,
+} from './studentVolunteerSheet.js'
+
+export { studentPendingAssignCourses }
 
 /** 在线选课三轮（预选/正选/补选均为真选课时段，对象与时间窗不同） */
 export const CART_ROUND_KEYS = ['preselect', 'main', 'supplement']
@@ -88,6 +105,9 @@ export const registrationCart = computed({
 
 export const studentConfirmedCourses = ref([])
 
+/** Demo 培养方案必修底图（仅课表图层，不进确认半池） */
+export const studentRequiredCourses = ref([])
+
 export const studentSchedule = ref([])
 
 /** 当前正在队列中的单课（确认选课后、出队前） */
@@ -95,9 +115,6 @@ export const pendingRegistration = ref(null)
 
 /** 高并发未选上的记录 */
 export const studentFailedRegistrations = ref([])
-
-/** 第一轮志愿队列结束后的「待分配」（不算已选学分） */
-export const studentPendingAssignCourses = ref([])
 
 /** 学生主动取消排队的记录 */
 export const studentCancelledRegistrations = ref([])
@@ -165,12 +182,88 @@ function normalizeIntake(raw) {
 export function getStudentProfileFields(student = getCurrentStudent()) {
   const basic = student?.basicInfo || {}
   const enrollment = student?.enrollment || {}
+  const studentId = basic.studentId || ''
+  const caps = getTermCreditCaps(studentId)
   return {
-    studentId: basic.studentId || '',
+    studentId,
     studentName: basic.fullName || basic.chineseName || '',
     programme: enrollment.programmeCode || 'SWE',
+    programmeName: enrollment.programme || enrollment.programmeCode || 'SWE',
     intake: normalizeIntake(enrollment.intake || enrollment.academicSession),
+    registrationSemesterIndex: getRegistrationSemesterIndex(studentId),
+    audience: getStudentAudience(studentId),
+    isGraduate: isGraduateStudent(studentId),
+    termCreditCaps: caps,
   }
+}
+
+function sumTermCreditsByType(extraCourse) {
+  const items = [
+    ...studentConfirmedCourses.value.filter((c) => c.intent !== 'waitlist'),
+    ...registrationCart.value.filter((c) => c.intent !== 'waitlist'),
+  ]
+  if (extraCourse) items.push(extraCourse)
+  return items.reduce(
+    (acc, item) => {
+      const kind = normalizeRegistrationType(item.type)
+      const cr = Number(item.credits) || 0
+      if (kind === 'GE') acc.ge += cr
+      else if (kind === 'ME' || kind === 'Mandatory') acc.me += cr
+      else acc.me += cr
+      return acc
+    },
+    { ge: 0, me: 0 },
+  )
+}
+
+/** 本学期 GE/ME 已选（含篮）与上限，供顶栏进度条 */
+export function getTermElectiveCreditProgress(studentId) {
+  const caps = getTermCreditCaps(studentId)
+  const used = sumTermCreditsByType()
+  return {
+    ge: used.ge,
+    me: used.me,
+    geMax: caps.geMax,
+    meMax: caps.meMax,
+  }
+}
+
+function assertTermCreditCap(course) {
+  if (!course) return { ok: true }
+  const caps = getTermCreditCaps()
+  const next = sumTermCreditsByType(course)
+  const kind = normalizeRegistrationType(course.type)
+  const cap = creditCapForCourseType(kind, caps)
+  const used = kind === 'GE' ? next.ge : next.me
+  if (used > cap) {
+    return {
+      ok: false,
+      errorKey: 'courseRegistration.student.termCreditCapExceeded',
+      errorParams: {
+        type: kind,
+        used,
+        max: cap,
+      },
+    }
+  }
+  return { ok: true }
+}
+
+/** 行级选课前校验是否会超类型学期学分帽 */
+export function checkTermCreditCapForCourse(course) {
+  return assertTermCreditCap(course)
+}
+
+function assertRound3AudienceCapacity(course) {
+  const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
+  if (roundKey !== 'supplement' || !course) return { ok: true }
+  const audience = getStudentAudience()
+  const release = preselectWeightSettings.value.releaseCrossAudienceOnRound3 !== false
+  const { effective } = getRound3EffectiveRemaining(course, audience, release)
+  if (effective <= 0) {
+    return { ok: false, errorKey: 'courseRegistration.student.round3PoolExhausted' }
+  }
+  return { ok: true }
 }
 
 function parseSectionSchedule(time, courseCode) {
@@ -201,6 +294,11 @@ function assertEligibleAndNotInCart(course) {
       errorParams: eligibility.primaryReasonParams,
     }
   }
+  const creditGate = assertTermCreditCap(course)
+  if (!creditGate.ok) return creditGate
+  const r3Gate = assertRound3AudienceCapacity(course)
+  if (!r3Gate.ok) return r3Gate
+  // 第一轮谁可进：由 roundsByAudience 时间窗 + 学生受众决定，不再用 preferSenior 硬挡新生
   return { ok: true }
 }
 
@@ -217,6 +315,7 @@ function buildCartCourseItem(course, section) {
     weekRange: section.weekRange,
     room: section.room,
     lecturer: section.lecturer,
+    meetings: section.meetings,
     credits: course.credits,
     batchId: course.batchId,
     type: course.type,
@@ -234,6 +333,9 @@ export function submitSingleCourseRegistration(course, section) {
   const studentFields = getStudentProfileFields()
 
   if (roundKey === 'preselect') {
+    const lockGate = assertVolunteerListEditable()
+    if (!lockGate.ok) return lockGate
+
     const volunteerResult = submitStudentPreselectVolunteer({
       course,
       section,
@@ -457,6 +559,7 @@ export function addToCart(course, section) {
       weekRange: section.weekRange || '',
       room: section.room,
       lecturer: section.lecturer,
+      meetings: section.meetings,
       batchId: course.batchId,
       type: course.type,
       isHot: course.isHot,
@@ -569,10 +672,29 @@ function upsertMonitorRow(studentFields, batch, historyAction) {
             : 'normal',
     tags: existing?.tags || [],
     cgpa: existing?.cgpa ?? 3.35,
+    termElectiveProgress: existing?.termElectiveProgress ?? {
+      ge: 4,
+      me: 6,
+      geMax: 12,
+      meMax: 16,
+    },
+    termGeCategories: existing?.termGeCategories ?? {
+      humanities: 0,
+      business: 4,
+      science: 2,
+      required: { humanities: 6, business: 5, science: 5 },
+    },
+    graduationGeProgress: existing?.graduationGeProgress ?? {
+      humanities: 4,
+      business: 3,
+      science: 2,
+      required: { humanities: 6, business: 6, science: 6 },
+    },
     g1Progress: existing?.g1Progress ?? {
       humanities: 4,
       business: 3,
-      required: { humanities: 6, business: 6 },
+      science: 2,
+      required: { humanities: 6, business: 6, science: 6 },
     },
     schedule,
     issues: credits === 0 ? ['notRegistered'] : credits < creditMin ? ['creditBelowMin'] : [],
@@ -613,13 +735,16 @@ function applyPendingAssignRegistration(courses) {
   const selectedAt = nowSelectedAt()
   for (const course of courses) {
     if (!merged.some((item) => item.courseId === course.courseId)) {
-      merged.push({
+      const next = assignNextPreferenceOrder({
         ...course,
         id: course.id || `pending-${course.courseId}-${Date.now()}`,
         selectedAt: course.selectedAt || selectedAt,
         sourceType: 'preselect',
         roundKey: 'preselect',
       })
+      // assignNextPreferenceOrder 基于当前 ref；循环内先写入再算下一门
+      merged.push(next)
+      studentPendingAssignCourses.value = merged
     }
   }
   studentPendingAssignCourses.value = merged
@@ -647,11 +772,18 @@ export function unselectConfirmedCourse(courseId) {
 
   const pending = studentPendingAssignCourses.value.find((item) => item.courseId === courseId)
   if (pending) {
+    const lockGate = assertVolunteerListEditable()
+    if (!lockGate.ok) return lockGate
     studentPendingAssignCourses.value = studentPendingAssignCourses.value.filter(
       (item) => item.courseId !== courseId,
     )
     const studentId = getStudentProfileFields().studentId
     removeStudentPreselectVolunteer(courseId, studentId)
+    // 撤出后重排序号（仅未锁定时可达）
+    studentPendingAssignCourses.value = studentPendingAssignCourses.value
+      .slice()
+      .sort((a, b) => (Number(a.preferenceOrder) || 0) - (Number(b.preferenceOrder) || 0))
+      .map((item, index) => ({ ...item, preferenceOrder: index + 1 }))
     return { ok: true }
   }
 

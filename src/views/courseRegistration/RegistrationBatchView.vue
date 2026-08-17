@@ -19,6 +19,7 @@ import {
   formatRoundRangeDisplay,
   formatRoundRangeTitle,
 } from '../../data/courseRegistration/registrationBatches.js'
+import { ensureRoundsByAudience } from '../../data/courseRegistration/audienceRounds.js'
 import { countCoursesByBatch } from '../../data/courseRegistration/selectableCourses.js'
 import { countEligibleStudentsAcrossRounds } from '../../data/courseRegistration/batchStudentRoster.js'
 import { batchExportFields } from '../../data/courseRegistration/courseRegistrationExportFields.js'
@@ -47,8 +48,8 @@ const coursesDrawerBatch = ref(null)
 const roundsManageBatch = ref(null)
 const studentListBatch = ref(null)
 /** 打开学生清单时预选轮次 / 外层 Tab */
-const studentListInitialRound = ref('preselect')
-const studentListInitialOuterTab = ref('special')
+const studentListInitialRound = ref('global')
+const studentListInitialOuterTab = ref('eligible')
 const exportModalVisible = ref(false)
 
 const rows = computed(() => {
@@ -144,9 +145,20 @@ function openManageCourses(batch) {
 }
 
 function openStudentList(batch) {
-  studentListInitialOuterTab.value = 'special'
-  studentListInitialRound.value = 'preselect'
+  studentListInitialOuterTab.value = 'eligible'
+  studentListInitialRound.value = 'global'
   studentListBatch.value = batch
+}
+
+function audienceRoundDisplay(batch, audience, roundKey) {
+  const by = ensureRoundsByAudience(batch)
+  const range = by[audience]?.[roundKey]
+  return formatRoundRangeDisplay(range, t)
+}
+
+function audienceRoundTitle(batch, audience, roundKey) {
+  const by = ensureRoundsByAudience(batch)
+  return formatRoundRangeTitle(by[audience]?.[roundKey])
 }
 
 /**
@@ -226,6 +238,7 @@ function handleExportConfirm({ selectedFields }) {
                 <th class="col-sticky-left col-name">{{ t('courseRegistration.batch.name') }}</th>
                 <th>{{ t('courseRegistration.batch.academicSession') }}</th>
                 <th>{{ t('courseRegistration.batch.type') }}</th>
+                <th>{{ t('courseRegistration.batch.programme') }}</th>
                 <th class="col-round">{{ t('courseRegistration.batch.roundColPreselect') }}</th>
                 <th class="col-round">{{ t('courseRegistration.batch.roundColMain') }}</th>
                 <th class="col-round">{{ t('courseRegistration.batch.roundColSupplement') }}</th>
@@ -254,23 +267,45 @@ function handleExportConfirm({ selectedFields }) {
                 </td>
                 <td>{{ row.academicSession || row.semester }}</td>
                 <td>{{ getRegistrationTypeLabel(row.type, t) }}</td>
+                <td>{{ row.type === 'ME' ? row.programme || '—' : '—' }}</td>
                 <td
-                  class="col-round"
-                  :title="formatRoundRangeTitle(row.rounds?.preselect)"
+                  class="col-round col-round-dual"
+                  :title="`${audienceRoundTitle(row, 'freshman', 'preselect')} / ${audienceRoundTitle(row, 'senior', 'preselect')}`"
                 >
-                  {{ formatRoundRangeDisplay(row.rounds?.preselect, t) }}
+                  <div class="round-dual-line">
+                    <span class="round-aud-tag">{{ t('courseRegistration.batch.audienceFreshmanLabel') }}</span>
+                    {{ audienceRoundDisplay(row, 'freshman', 'preselect') }}
+                  </div>
+                  <div class="round-dual-line">
+                    <span class="round-aud-tag">{{ t('courseRegistration.batch.audienceSeniorLabel') }}</span>
+                    {{ audienceRoundDisplay(row, 'senior', 'preselect') }}
+                  </div>
                 </td>
                 <td
-                  class="col-round"
-                  :title="formatRoundRangeTitle(row.rounds?.main)"
+                  class="col-round col-round-dual"
+                  :title="`${audienceRoundTitle(row, 'freshman', 'main')} / ${audienceRoundTitle(row, 'senior', 'main')}`"
                 >
-                  {{ formatRoundRangeDisplay(row.rounds?.main, t) }}
+                  <div class="round-dual-line">
+                    <span class="round-aud-tag">{{ t('courseRegistration.batch.audienceFreshmanLabel') }}</span>
+                    {{ audienceRoundDisplay(row, 'freshman', 'main') }}
+                  </div>
+                  <div class="round-dual-line">
+                    <span class="round-aud-tag">{{ t('courseRegistration.batch.audienceSeniorLabel') }}</span>
+                    {{ audienceRoundDisplay(row, 'senior', 'main') }}
+                  </div>
                 </td>
                 <td
-                  class="col-round"
-                  :title="formatRoundRangeTitle(row.rounds?.supplement)"
+                  class="col-round col-round-dual"
+                  :title="`${audienceRoundTitle(row, 'freshman', 'supplement')} / ${audienceRoundTitle(row, 'senior', 'supplement')}`"
                 >
-                  {{ formatRoundRangeDisplay(row.rounds?.supplement, t) }}
+                  <div class="round-dual-line">
+                    <span class="round-aud-tag">{{ t('courseRegistration.batch.audienceFreshmanLabel') }}</span>
+                    {{ audienceRoundDisplay(row, 'freshman', 'supplement') }}
+                  </div>
+                  <div class="round-dual-line">
+                    <span class="round-aud-tag">{{ t('courseRegistration.batch.audienceSeniorLabel') }}</span>
+                    {{ audienceRoundDisplay(row, 'senior', 'supplement') }}
+                  </div>
                 </td>
                 <td
                   class="col-round"
@@ -324,7 +359,7 @@ function handleExportConfirm({ selectedFields }) {
                 </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="11" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="12" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -390,10 +425,14 @@ function handleExportConfirm({ selectedFields }) {
   white-space: nowrap;
   vertical-align: middle;
   background: #fff;
+  padding: 5px 10px;
+  line-height: 1.35;
 }
 
 .batch-data-table th {
   background: #f9fafb;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .batch-data-table .col-no {
@@ -402,26 +441,48 @@ function handleExportConfirm({ selectedFields }) {
 }
 
 .batch-data-table .col-name {
-  white-space: normal;
-  max-width: 240px;
-  min-width: 180px;
-  width: 220px;
+  white-space: nowrap;
+  max-width: none;
+  min-width: 220px;
+  width: auto;
 }
 
 .batch-data-table .col-name-text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  line-height: 1.4;
-  word-break: break-word;
-  white-space: normal;
+  display: inline;
+  overflow: visible;
+  line-height: 1.35;
+  white-space: nowrap;
+  word-break: normal;
 }
 
-.batch-data-table .col-round {
+.batch-data-table td.col-round {
   font-size: 12px;
   color: #6b7280;
+}
+
+.batch-data-table .col-round-dual {
+  white-space: nowrap;
+  min-width: 260px;
+  vertical-align: middle;
+  line-height: 1.3;
+}
+
+.round-dual-line {
+  line-height: 1.3;
+  margin-bottom: 1px;
+  white-space: nowrap;
+}
+
+.round-dual-line:last-child {
+  margin-bottom: 0;
+}
+
+.round-aud-tag {
+  display: inline;
+  margin-right: 2px;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
 }
 
 .batch-data-table .col-eligible-count {

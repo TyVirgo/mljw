@@ -65,7 +65,7 @@ const crumbs = computed(() => {
   justify-content: space-between;
   gap: 12px;
   flex-shrink: 0;
-  padding: 10px 28px;
+  padding: 6px 28px;
   background: #f3f4f6;
   border-bottom: 1px solid #e5e7eb;
 }

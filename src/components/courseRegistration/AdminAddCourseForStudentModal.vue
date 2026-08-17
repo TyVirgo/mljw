@@ -13,7 +13,7 @@ import {
   getAdminAddStudentFilterOptions,
   filterAdminAddStudentCandidates,
   addAdminStudentRegistrations,
-} from '../../data/courseRegistration/registrationResult.js'
+} from '../../data/courseRegistration/registrationResult.js'  
 import '../../styles/list-page-search.css'
 
 const props = defineProps({

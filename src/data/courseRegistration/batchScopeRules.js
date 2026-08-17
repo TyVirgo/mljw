@@ -399,10 +399,61 @@ export function matchScopeRules(rules, profileFields, roundKey = '') {
   return effective.some((rule) => matchScopeRule(rule, profileFields))
 }
 
+/** 培养方案 demo：按专业带出的默认入学批次维 */
+const PROGRAMME_PLAN_INTAKES = ['2024/09', '2025/04']
+
+/**
+ * 从培养方案推导批次「全局」参与范围（无 round，只读口径）。
+ * ME：学年学期语境下按所属专业 + 默认入学批次；GE 等：学院/专业批次均为全部，保证编辑态非空。
+ * @param {object|null} batch
+ * @returns {object|null}
+ */
+export function deriveGlobalScopeRuleFromProgrammePlan(batch) {
+  if (!batch) return null
+  const session = String(batch.academicSession || batch.semester || '').trim()
+  if (!session) return null
+
+  const type = String(batch.type || '').toUpperCase()
+  if (type === 'ME') {
+    const programme = String(batch.programme || '').trim()
+    if (!programme) return null
+    return normalizeScopeRule({
+      faculties: [resolveProgrammeFaculty(programme)],
+      programmeIntakes: migrateProgrammeIntakesFromLegacy([programme], PROGRAMME_PLAN_INTAKES),
+      programmes: [],
+      intakes: [],
+      groupName: '',
+      round: '',
+    })
+  }
+
+  return normalizeScopeRule({
+    faculties: [SCOPE_DIM_ALL],
+    programmeIntakes: [SCOPE_DIM_ALL],
+    programmes: [],
+    intakes: [],
+    groupName: '',
+    round: '',
+  })
+}
+
+/**
+ * 某轮生效规则：有轮次专属则覆盖；否则回退培养方案全局规则。
+ * @param {object|null} batch
+ * @param {string} roundKey
+ * @returns {object[]}
+ */
+export function resolveEffectiveScopeRulesForRound(batch, roundKey = '') {
+  const roundRules = filterScopeRulesForRound(getBatchScopeRules(batch), roundKey)
+  if (roundRules.length) return roundRules
+  const global = deriveGlobalScopeRuleFromProgrammePlan(batch)
+  return global ? [global] : []
+}
+
 /** 按专业生成三轮各一条（双入学批次多选，便于 demo） */
 export function defaultScopeRulesForProgramme(programme, faculty = '') {
   const resolvedFaculty = resolveProgrammeFaculty(programme, faculty)
-  const programmeIntakes = migrateProgrammeIntakesFromLegacy([programme], ['2024/09', '2025/04'])
+  const programmeIntakes = migrateProgrammeIntakesFromLegacy([programme], PROGRAMME_PLAN_INTAKES)
   return batchScopeRoundOptions.map((opt) => ({
     faculties: [resolvedFaculty],
     programmeIntakes,

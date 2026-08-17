@@ -26,11 +26,18 @@ import {
   getBatchScopeRules,
   cloneScopeRules,
   scopeLabelsFromRules,
+  batchScopeProgrammeOptions,
 } from '../../data/courseRegistration/batchScopeRules.js'
 import {
   defaultBatchLocalRules,
   normalizeBatchLocalRules,
 } from '../../data/courseRegistration/batchLocalRules.js'
+import {
+  resolveBatchTermKind,
+  resolveDropDeadlineWeek,
+} from '../../data/courseRegistration/batchTermKind.js'
+import { countGlobalBatchParticipants } from '../../data/courseRegistration/batchStudentRoster.js'
+import BatchGlobalParticipantRosterDrawer from './BatchGlobalParticipantRosterDrawer.vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -43,16 +50,20 @@ const { t } = useAppI18n()
 
 const form = ref(createEmptyForm())
 const errors = ref({})
+const globalRosterVisible = ref(false)
 
 function createEmptyForm() {
   return {
     name: '',
     academicSession: '',
     type: 'ME',
+    programme: '',
     isSelectable: true,
     localRules: defaultBatchLocalRules(),
     creditMin: 12,
     creditMax: 20,
+    dropDeadlineWeek: 2,
+    termKind: 'long',
     notifyTemplate: 'default-m1',
     rounds: emptyRoundsPicker(),
     addDropWindow: emptyAddDropWindowPicker(),
@@ -68,10 +79,13 @@ watch(
         name: batch.name,
         academicSession: normalizeBatchAcademicSession(batch.academicSession || batch.semester),
         type: normalizeRegistrationType(batch.type),
+        programme: batch.programme || '',
         isSelectable: batch.isSelectable !== false,
         localRules: normalizeBatchLocalRules(batch.localRules),
         creditMin: batch.creditMin ?? 12,
         creditMax: batch.creditMax ?? 20,
+        dropDeadlineWeek: resolveDropDeadlineWeek(batch),
+        termKind: resolveBatchTermKind(batch),
         notifyTemplate: batch.notifyTemplate || 'default-m1',
         rounds: emptyRoundsPicker(),
         addDropWindow: addDropWindowToPicker(batch.addDropWindow),
@@ -87,7 +101,33 @@ const title = computed(() =>
   props.batch ? t('courseRegistration.batch.edit') : t('courseRegistration.batch.new'),
 )
 
+const isEdit = computed(() => !!props.batch)
+
 const typeFieldTooltip = computed(() => getBatchTypeFieldTooltip(t))
+
+const showProgrammeField = computed(() => form.value.type === 'ME')
+
+/** 编辑态用表单当前学期/专业推导全局人数 */
+const globalScopePreviewBatch = computed(() => {
+  if (!props.batch) return null
+  return {
+    ...props.batch,
+    academicSession: form.value.academicSession,
+    type: form.value.type,
+    programme: form.value.type === 'ME' ? form.value.programme : '',
+  }
+})
+
+const globalParticipantCount = computed(() =>
+  countGlobalBatchParticipants(globalScopePreviewBatch.value),
+)
+
+watch(
+  () => form.value.type,
+  (type) => {
+    if (type !== 'ME') form.value.programme = ''
+  },
+)
 
 const scheduleMinDates = computed(() => getBatchScheduleMinDates(form.value))
 
@@ -134,22 +174,22 @@ function buildPayload(statusPatch = {}) {
     name: form.value.name.trim(),
     academicSession: form.value.academicSession,
     type: form.value.type,
+    programme: form.value.type === 'ME' ? String(form.value.programme || '').trim() : '',
     isSelectable: form.value.isSelectable !== false,
     localRules,
     scopeRules,
     scope: scopeLabelsFromRules(scopeRules, t),
     creditMin: Number(form.value.creditMin) || 12,
     creditMax: Number(form.value.creditMax) || 20,
+    dropDeadlineWeek: Number(form.value.dropDeadlineWeek) || resolveDropDeadlineWeek(form.value),
+    termKind: form.value.termKind || resolveBatchTermKind(form.value),
     notifyTemplate: form.value.notifyTemplate,
     rounds,
     addDropWindow,
     roundsSummary: formatRoundsSummary(rounds, addDropWindow),
     preselectPriority: {
-      preferSenior: props.batch?.preselectPriority?.preferSenior !== false,
-      minSemestersAbove:
-        Number(props.batch?.preselectPriority?.minSemestersAbove) > 0
-          ? Math.floor(Number(props.batch.preselectPriority.minSemestersAbove))
-          : 1,
+      preferSenior: false,
+      minSemestersAbove: 1,
     },
     volunteerFinalConfirmedAt: props.batch?.volunteerFinalConfirmedAt || null,
     ...statusPatch,
@@ -215,6 +255,23 @@ function handleSave() {
           </select>
           <p v-if="err('type')" class="field-error">{{ err('type') }}</p>
         </div>
+        <div v-if="showProgrammeField" class="form-field">
+          <label class="field-label">
+            <span class="req">*</span> {{ t('courseRegistration.batch.programme') }}
+          </label>
+          <select
+            v-model="form.programme"
+            class="form-input"
+            :class="{ 'has-error': !!errors.programme, 'is-empty': !form.programme }"
+          >
+            <option value="">{{ t('common.pleaseSelect') }}</option>
+            <option v-for="code in batchScopeProgrammeOptions" :key="code" :value="code">
+              {{ code }}
+            </option>
+          </select>
+          <p class="field-hint">{{ t('courseRegistration.batch.programmeHint') }}</p>
+          <p v-if="err('programme')" class="field-error">{{ err('programme') }}</p>
+        </div>
         <div class="form-field">
           <label class="field-label">
             <span class="req">*</span> {{ t('courseRegistration.batch.isSelectable') }}
@@ -276,13 +333,28 @@ function handleSave() {
         <span class="step-badge">3</span>
         {{ t('courseRegistration.batch.addDropWindow') }}
       </h3>
+      <CourseRegistrationCallout variant="info">
+        <p>{{ t('courseRegistration.batch.addDropWindowVsRoundsTip') }}</p>
+        <p>{{ t('courseRegistration.batch.dropDeadlineWeekTip') }}</p>
+      </CourseRegistrationCallout>
+      <div class="form-field" style="margin-bottom: 12px; max-width: 220px">
+        <label class="field-label">{{ t('courseRegistration.batch.dropDeadlineWeek') }}</label>
+        <input
+          v-model.number="form.dropDeadlineWeek"
+          type="number"
+          min="1"
+          max="16"
+          class="form-input"
+        />
+      </div>
       <div class="round-card">
         <div class="round-fields">
           <div class="form-field">
             <label class="field-label">{{ t('courseRegistration.batch.roundStart') }}</label>
             <DatePickerEn
+              mode="datetime"
               :model-value="form.addDropWindow.start"
-              :placeholder="t('common.pleaseSelectDate')"
+              :placeholder="t('common.pleaseSelectDateTime')"
               :min-date="scheduleMinDates[6]"
               @update:model-value="(v) => onAddDropDateChange(6, v)"
             />
@@ -290,13 +362,33 @@ function handleSave() {
           <div class="form-field">
             <label class="field-label">{{ t('courseRegistration.batch.roundEnd') }}</label>
             <DatePickerEn
+              mode="datetime"
               :model-value="form.addDropWindow.end"
-              :placeholder="t('common.pleaseSelectDate')"
+              :placeholder="t('common.pleaseSelectDateTime')"
               :min-date="scheduleMinDates[7]"
               @update:model-value="(v) => onAddDropDateChange(7, v)"
             />
           </div>
         </div>
+      </div>
+    </section>
+
+    <section v-if="isEdit" class="form-section">
+      <h3 class="section-title">
+        <span class="step-badge">4</span>
+        {{ t('courseRegistration.batch.sectionGlobalScope') }}
+      </h3>
+      <CourseRegistrationCallout variant="info">
+        <p>{{ t('courseRegistration.batch.globalScopeTip') }}</p>
+      </CourseRegistrationCallout>
+      <div class="global-scope-summary">
+        <div class="global-scope-count">
+          <span class="global-scope-label">{{ t('courseRegistration.batch.globalScopeCount') }}</span>
+          <strong>{{ globalParticipantCount }}</strong>
+        </div>
+        <button type="button" class="btn btn-default" @click="globalRosterVisible = true">
+          {{ t('courseRegistration.batch.globalScopeViewList') }}
+        </button>
       </div>
     </section>
 
@@ -306,6 +398,12 @@ function handleSave() {
       <button type="button" class="btn btn-primary" @click="handleSave">{{ t('common.save') }}</button>
     </template>
   </ApplicationDetailDrawer>
+
+  <BatchGlobalParticipantRosterDrawer
+    :visible="globalRosterVisible"
+    :batch="globalScopePreviewBatch"
+    @close="globalRosterVisible = false"
+  />
 </template>
 
 <style scoped>
@@ -450,6 +548,35 @@ function handleSave() {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px 16px;
   align-items: center;
+}
+
+.global-scope-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.global-scope-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.global-scope-count strong {
+  font-size: 18px;
+  color: #111827;
+}
+
+.global-scope-label {
+  color: #6b7280;
 }
 
 .local-rule-drop {

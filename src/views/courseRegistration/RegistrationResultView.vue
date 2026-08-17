@@ -3,7 +3,6 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import ExportModal from '../../components/common/ExportModal.vue'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
-import GeDemandStatsBar from '../../components/courseRegistration/GeDemandStatsBar.vue'
 import CourseRegistrationCallout from '../../components/courseRegistration/CourseRegistrationCallout.vue'
 import PreselectVolunteerRosterDrawer from '../../components/courseRegistration/PreselectVolunteerRosterDrawer.vue'
 import AdminAddCourseForStudentModal from '../../components/courseRegistration/AdminAddCourseForStudentModal.vue'
@@ -63,11 +62,13 @@ const emptyCourseSearch = () => ({
 })
 
 /**
- * 页顶默认批次：优先 active，否则列表首项
+ * 页顶默认批次：优先列表中第一个尚未最终确认的 demo 批次
  * @returns {string}
  */
 function pickDefaultBatchId() {
   const list = registrationBatches.value
+  const unconfirmed = list.find((b) => !b.volunteerFinalConfirmedAt)
+  if (unconfirmed) return unconfirmed.id
   const active = list.find((b) => b.status === 'active')
   return active?.id || list[0]?.id || ''
 }
@@ -274,7 +275,7 @@ function handleReset() {
     volunteerSearchForm.value = emptyCourseSearch()
     volunteerApplied.value = emptyCourseSearch()
   }
-  // 重置搜索条件后仍保留页顶批次过滤
+  // 重置搜索条件后仍保留当前选课批次
   syncBatchToFilters(selectedBatchId.value)
   currentPage.value = 1
   clearSelection()
@@ -344,6 +345,7 @@ function refreshVolunteerTable() {
   volunteerTableTick.value += 1
 }
 
+/** 主路径：最终确认定稿并开第二轮闸门 */
 function requestFinalConfirm() {
   if (volunteerBatchFinalized.value) {
     window.alert(t('courseRegistration.result.volunteerAlreadyFinalized'))
@@ -390,31 +392,6 @@ function handleExportConfirm({ selectedFields }) {
 
 <template>
   <div class="cr-list-page cr-result-page">
-    <!-- 页顶批次：控制三 Tab 数据范围（GE 统计条仍全校汇总） -->
-    <div class="search-bar cr-result-batch-bar">
-      <div class="search-row">
-        <div class="search-fields">
-          <div class="search-item">
-            <label for="cr-result-batch-select">
-              {{ t('courseRegistration.student.batchSelectLabel') }}
-            </label>
-            <select
-              id="cr-result-batch-select"
-              v-model="selectedBatchId"
-              class="search-select cr-result-batch-select"
-              :style="batchSelectWidth ? { width: batchSelectWidth } : undefined"
-            >
-              <option v-for="batch in batchOptions" :key="batch.id" :value="batch.id">
-                {{ batch.name }}
-              </option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <GeDemandStatsBar />
-
     <div class="page-card">
       <div class="tab-bar">
         <button
@@ -469,6 +446,22 @@ function handleExportConfirm({ selectedFields }) {
       <div class="search-bar">
         <div class="search-row">
           <div class="search-fields">
+            <!-- 页级批次：三 Tab 共用，置于搜索区首位；切换即生效 -->
+            <div class="search-item cr-result-batch-item">
+              <label for="cr-result-batch-select">
+                {{ t('courseRegistration.student.batchSelectLabel') }}
+              </label>
+              <select
+                id="cr-result-batch-select"
+                v-model="selectedBatchId"
+                class="search-select cr-result-batch-select"
+                :style="batchSelectWidth ? { width: batchSelectWidth } : undefined"
+              >
+                <option v-for="batch in batchOptions" :key="batch.id" :value="batch.id">
+                  {{ batch.name }}
+                </option>
+              </select>
+            </div>
             <template v-if="activeTab === 'student'">
               <div class="search-item">
                 <label>{{ t('courseRegistration.monitor.studentId') }}</label>
@@ -500,17 +493,6 @@ function handleExportConfirm({ selectedFields }) {
                   @keyup.enter="handleSearch"
                 />
               </div>
-              <!-- 批次改由页顶统一选择，搜索区不再提供独立批次下拉
-              <div class="search-item">
-                <label>{{ t('courseRegistration.batch.name') }}</label>
-                <select v-model="studentSearchForm.batchId" class="search-select">
-                  <option value="">{{ t('common.all') }}</option>
-                  <option v-for="batch in batchOptions" :key="batch.id" :value="batch.id">
-                    {{ batch.name }}
-                  </option>
-                </select>
-              </div>
-              -->
               <div class="search-item">
                 <label>{{ t('courseRegistration.courses.code') }}</label>
                 <input
@@ -523,17 +505,6 @@ function handleExportConfirm({ selectedFields }) {
               </div>
             </template>
             <template v-else-if="activeTab === 'round'">
-              <!-- 批次改由页顶统一选择，搜索区不再提供独立批次下拉
-              <div class="search-item">
-                <label>{{ t('courseRegistration.batch.name') }}</label>
-                <select v-model="roundSearchForm.batchId" class="search-select">
-                  <option value="">{{ t('common.all') }}</option>
-                  <option v-for="batch in batchOptions" :key="batch.id" :value="batch.id">
-                    {{ batch.name }}
-                  </option>
-                </select>
-              </div>
-              -->
               <div class="search-item">
                 <label>{{ t('courseRegistration.courses.code') }}</label>
                 <input
@@ -556,17 +527,6 @@ function handleExportConfirm({ selectedFields }) {
               </div>
             </template>
             <template v-else>
-              <!-- 批次改由页顶统一选择，搜索区不再提供独立批次下拉
-              <div class="search-item">
-                <label>{{ t('courseRegistration.batch.name') }}</label>
-                <select v-model="volunteerSearchForm.batchId" class="search-select">
-                  <option value="">{{ t('common.all') }}</option>
-                  <option v-for="batch in batchOptions" :key="batch.id" :value="batch.id">
-                    {{ batch.name }}
-                  </option>
-                </select>
-              </div>
-              -->
               <div class="search-item">
                 <label>{{ t('courseRegistration.courses.code') }}</label>
                 <input
@@ -821,9 +781,17 @@ function handleExportConfirm({ selectedFields }) {
 
     <ConfirmDialog
       :visible="confirmVisible"
-      :title="confirmMode === 'volunteerFinal' ? t('courseRegistration.result.volunteerFinalConfirm') : t('common.deleteConfirmation')"
+      :title="
+        confirmMode === 'volunteerFinal'
+          ? t('courseRegistration.result.volunteerFinalConfirm')
+          : t('common.deleteConfirmation')
+      "
       :message="confirmMessage"
-      :confirm-text="confirmMode === 'volunteerFinal' ? t('courseRegistration.result.volunteerFinalConfirm') : t('common.delete')"
+      :confirm-text="
+        confirmMode === 'volunteerFinal'
+          ? t('courseRegistration.result.volunteerFinalConfirm')
+          : t('common.delete')
+      "
       :confirm-variant="confirmMode === 'volunteerFinal' ? 'primary' : 'danger'"
       @confirm="handleDialogConfirm"
       @cancel="confirmVisible = false"
@@ -898,13 +866,14 @@ function handleExportConfirm({ selectedFields }) {
   white-space: nowrap;
 }
 
-/* 页顶批次条：与下方卡片/GE 统计间距 */
-.cr-result-batch-bar {
-  margin-bottom: 12px;
+/* 搜索区批次：按最长选项名撑开，避免截断；其余筛选项随 flex-wrap 自适应 */
+.cr-result-batch-item {
+  flex: 0 0 auto;
 }
 
 .cr-result-batch-select {
   max-width: min(100%, 720px);
+  min-width: 200px;
 }
 
 .volunteer-hint-callout {

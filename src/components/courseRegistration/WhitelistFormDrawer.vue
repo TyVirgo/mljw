@@ -47,33 +47,33 @@ function handleSave() {
 <template>
   <ApplicationDetailDrawer
     :visible="visible"
-    :title="t('courseRegistration.whitelist.createTitle')"
+    :title="t('courseRegistration.whitelistBoa.createTitle')"
     @close="emit('close')"
   >
     <div class="form-grid">
-      <label>{{ t('courseRegistration.whitelist.studentId') }}</label>
+      <label>{{ t('courseRegistration.whitelistBoa.studentId') }}</label>
       <input v-model="form.studentId" type="text" class="form-input" />
 
-      <label>{{ t('courseRegistration.whitelist.studentName') }}</label>
+      <label>{{ t('courseRegistration.whitelistBoa.studentName') }}</label>
       <input v-model="form.studentName" type="text" class="form-input" />
 
-      <label>{{ t('courseRegistration.whitelist.programme') }}</label>
+      <label>{{ t('courseRegistration.whitelistBoa.programme') }}</label>
       <input v-model="form.programme" type="text" class="form-input" />
 
-      <label>{{ t('courseRegistration.whitelist.intake') }}</label>
+      <label>{{ t('courseRegistration.whitelistBoa.intake') }}</label>
       <input v-model="form.intake" type="text" class="form-input" />
 
-      <label>{{ t('courseRegistration.whitelist.type') }}</label>
+      <label>{{ t('courseRegistration.whitelistBoa.type') }}</label>
       <select v-model="form.type" class="form-input">
         <option v-for="opt in whitelistTypes" :key="opt" :value="opt">
-          {{ t(`courseRegistration.whitelist.types.${opt}`) }}
+          {{ t(`courseRegistration.whitelistBoa.types.${opt}`) }}
         </option>
       </select>
 
       <label>{{ t('courseRegistration.courses.code') }}</label>
       <input v-model="form.courseCode" type="text" class="form-input" />
 
-      <label>{{ t('courseRegistration.whitelist.reason') }}</label>
+      <label>{{ t('courseRegistration.whitelistBoa.reason') }}</label>
       <textarea v-model="form.reason" class="form-textarea" rows="3" />
     </div>
 

@@ -5,7 +5,7 @@ import CourseRegistrationCallout from './CourseRegistrationCallout.vue'
 import DatePickerEn from '../common/DatePickerEn.vue'
 import BatchScopeRuleModal from './BatchScopeRuleModal.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { formatRoundsSummary } from '../../data/courseRegistration/registrationBatches.js'
+import { formatDualAudienceRoundsSummary } from '../../data/courseRegistration/registrationBatches.js'
 import {
   roundsToPicker,
   addDropWindowToPicker,
@@ -13,6 +13,7 @@ import {
   getBatchScheduleMinDates,
   clearInvalidBatchScheduleAfter,
   pickerToBatchDate,
+  batchDateToPicker,
 } from '../../data/courseRegistration/registrationBatchFormUtils.js'
 import {
   getBatchScopeRules,
@@ -23,6 +24,12 @@ import {
 } from '../../data/courseRegistration/batchScopeRules.js'
 import { countStudentsForScopeRule } from '../../data/courseRegistration/batchStudentRoster.js'
 import { getBatchRoundSetupGates } from '../../data/courseRegistration/batchRoundSetupGates.js'
+import {
+  AUDIENCE_FRESHMAN,
+  AUDIENCE_SENIOR,
+  ensureRoundsByAudience,
+  syncLegacyRoundsFromAudience,
+} from '../../data/courseRegistration/audienceRounds.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -35,10 +42,13 @@ const { t } = useAppI18n()
 
 const form = ref({
   rounds: roundsToPicker(),
+  seniorRounds: roundsToPicker(),
+  freshmanRounds: roundsToPicker(),
+  seniorResultReleaseAt: '',
   scopeRules: [],
   addDropWindow: { start: '', end: '' },
-  preselectPriority: { preferSenior: true, minSemestersAbove: 1 },
 })
+const audienceTab = ref(AUDIENCE_SENIOR)
 const scopeModalVisible = ref(false)
 const scopeModalRound = ref('preselect')
 const editingScopeIndex = ref(null)
@@ -46,7 +56,36 @@ const editingScopeRule = ref(null)
 const preselectExpanded = ref(true)
 const mainExpanded = ref(true)
 const supplementExpanded = ref(true)
-const preselectPriorityExpanded = ref(true)
+
+function loadAudienceIntoForm(audience) {
+  const source =
+    audience === AUDIENCE_FRESHMAN ? form.value.freshmanRounds : form.value.seniorRounds
+  form.value.rounds = {
+    preselect: { ...source.preselect },
+    main: { ...source.main },
+    supplement: { ...source.supplement },
+  }
+}
+
+function persistCurrentAudienceFromForm() {
+  const snapshot = {
+    preselect: { ...form.value.rounds.preselect },
+    main: { ...form.value.rounds.main },
+    supplement: { ...form.value.rounds.supplement },
+  }
+  if (audienceTab.value === AUDIENCE_FRESHMAN) {
+    form.value.freshmanRounds = snapshot
+  } else {
+    form.value.seniorRounds = snapshot
+  }
+}
+
+function switchAudienceTab(next) {
+  if (next === audienceTab.value) return
+  persistCurrentAudienceFromForm()
+  audienceTab.value = next
+  loadAudienceIntoForm(next)
+}
 
 watch(
   () => [props.visible, props.batch],
@@ -58,17 +97,15 @@ watch(
     preselectExpanded.value = true
     mainExpanded.value = true
     supplementExpanded.value = true
-    preselectPriorityExpanded.value = true
+    audienceTab.value = AUDIENCE_SENIOR
+    const by = ensureRoundsByAudience(props.batch)
     form.value = {
-      rounds: roundsToPicker(props.batch.rounds),
+      rounds: roundsToPicker(by.senior),
+      seniorRounds: roundsToPicker(by.senior),
+      freshmanRounds: roundsToPicker(by.freshman),
+      seniorResultReleaseAt: batchDateToPicker(by.senior.resultReleaseAt || ''),
       scopeRules: getBatchScopeRules(props.batch),
       addDropWindow: addDropWindowToPicker(props.batch.addDropWindow),
-      preselectPriority: {
-        preferSenior: props.batch.preselectPriority?.preferSenior !== false,
-        minSemestersAbove: Number(props.batch.preselectPriority?.minSemestersAbove) > 0
-          ? Math.floor(Number(props.batch.preselectPriority.minSemestersAbove))
-          : 1,
-      },
     }
   },
   { immediate: true },
@@ -92,14 +129,6 @@ const roundGates = computed(() => {
       },
     },
   })
-})
-
-const preselectPrioritySummary = computed(() => {
-  if (form.value.preselectPriority?.preferSenior === false) {
-    return t('courseRegistration.batch.preselectPrioritySummaryOff')
-  }
-  const n = Number(form.value.preselectPriority?.minSemestersAbove) || 1
-  return `${t('courseRegistration.batch.preferSeniorPrefix')} ${n} ${t('courseRegistration.batch.preferSeniorSuffix')}`
 })
 
 const preselectScopeRules = computed(() =>
@@ -236,22 +265,53 @@ function onScheduleDateChange(index, value) {
 
 function handleSave() {
   if (!props.batch) return
-  const roundsFromForm = roundsFromPicker(form.value.rounds)
-  const rounds = {
-    preselect: roundsFromForm.preselect,
+  persistCurrentAudienceFromForm()
+  const seniorPicker = form.value.seniorRounds
+  const freshmanPicker = form.value.freshmanRounds
+  const seniorFromForm = roundsFromPicker(seniorPicker)
+  const freshmanFromForm = roundsFromPicker(freshmanPicker)
+
+  const seniorRounds = {
+    preselect: seniorFromForm.preselect,
     main: roundGates.value.main.open
-      ? roundsFromForm.main
+      ? seniorFromForm.main
       : {
-          start: props.batch.rounds?.main?.start || '',
-          end: props.batch.rounds?.main?.end || '',
+          start: props.batch.roundsByAudience?.senior?.main?.start || props.batch.rounds?.main?.start || '',
+          end: props.batch.roundsByAudience?.senior?.main?.end || props.batch.rounds?.main?.end || '',
         },
     supplement: roundGates.value.supplement.open
-      ? roundsFromForm.supplement
+      ? seniorFromForm.supplement
       : {
-          start: props.batch.rounds?.supplement?.start || '',
-          end: props.batch.rounds?.supplement?.end || '',
+          start:
+            props.batch.roundsByAudience?.senior?.supplement?.start ||
+            props.batch.rounds?.supplement?.start ||
+            '',
+          end:
+            props.batch.roundsByAudience?.senior?.supplement?.end ||
+            props.batch.rounds?.supplement?.end ||
+            '',
+        },
+    resultReleaseAt: pickerToBatchDate(String(form.value.seniorResultReleaseAt || '').trim()),
+  }
+
+  const freshmanRounds = {
+    preselect: freshmanFromForm.preselect,
+    main: roundGates.value.main.open
+      ? freshmanFromForm.main
+      : {
+          start: props.batch.roundsByAudience?.freshman?.main?.start || '',
+          end: props.batch.roundsByAudience?.freshman?.main?.end || '',
+        },
+    supplement: roundGates.value.supplement.open
+      ? freshmanFromForm.supplement
+      : {
+          start: props.batch.roundsByAudience?.freshman?.supplement?.start || '',
+          end: props.batch.roundsByAudience?.freshman?.supplement?.end || '',
         },
   }
+
+  const roundsByAudience = { senior: seniorRounds, freshman: freshmanRounds }
+  const rounds = syncLegacyRoundsFromAudience(roundsByAudience)
 
   const fromBatch = getBatchScopeRules(props.batch)
   const fromForm = cloneScopeRules(form.value.scopeRules)
@@ -269,16 +329,15 @@ function handleSave() {
 
   emit('save', {
     rounds,
+    roundsByAudience,
     scopeRules,
     scope: scopeLabelsFromRules(scopeRules, t),
-    roundsSummary: formatRoundsSummary(rounds, addDropWindow),
-    preselectPriority: {
-      preferSenior: Boolean(form.value.preselectPriority?.preferSenior),
-      minSemestersAbove: Math.max(
-        1,
-        Math.floor(Number(form.value.preselectPriority?.minSemestersAbove) || 1),
-      ),
-    },
+    roundsSummary: formatDualAudienceRoundsSummary(
+      { rounds, roundsByAudience, addDropWindow },
+      addDropWindow,
+    ),
+    // 双时间线后不再用 preferSenior 挡新生；保存时关掉旧闸门
+    preselectPriority: { preferSenior: false, minSemestersAbove: 1 },
   })
 }
 </script>
@@ -287,7 +346,31 @@ function handleSave() {
   <ApplicationDetailDrawer :visible="visible" :title="title" @close="emit('close')">
     <CourseRegistrationCallout variant="info">
       <p>{{ t('courseRegistration.batch.manageRoundsHint') }}{{ t('common.prototypeOnlySuffix') }}</p>
+      <p>{{ t('courseRegistration.batch.audienceRoundsHint') }}</p>
     </CourseRegistrationCallout>
+
+    <div class="audience-tabs" role="tablist">
+      <button
+        type="button"
+        role="tab"
+        class="audience-tab"
+        :class="{ active: audienceTab === AUDIENCE_SENIOR }"
+        :aria-selected="audienceTab === AUDIENCE_SENIOR"
+        @click="switchAudienceTab(AUDIENCE_SENIOR)"
+      >
+        {{ t('courseRegistration.batch.audienceSeniorRounds') }}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="audience-tab"
+        :class="{ active: audienceTab === AUDIENCE_FRESHMAN }"
+        :aria-selected="audienceTab === AUDIENCE_FRESHMAN"
+        @click="switchAudienceTab(AUDIENCE_FRESHMAN)"
+      >
+        {{ t('courseRegistration.batch.audienceFreshmanRounds') }}
+      </button>
+    </div>
 
     <!-- 第一轮：始终可编辑 -->
     <section class="form-section round-section">
@@ -313,8 +396,9 @@ function handleSave() {
             <div class="form-field">
               <label class="field-label">{{ t('courseRegistration.batch.roundStart') }}</label>
               <DatePickerEn
+                mode="datetime"
                 :model-value="form.rounds.preselect.start"
-                :placeholder="t('common.pleaseSelectDate')"
+                :placeholder="t('common.pleaseSelectDateTime')"
                 :min-date="scheduleMinDates[0]"
                 @update:model-value="(v) => onScheduleDateChange(0, v)"
               />
@@ -322,48 +406,21 @@ function handleSave() {
             <div class="form-field">
               <label class="field-label">{{ t('courseRegistration.batch.roundEnd') }}</label>
               <DatePickerEn
+                mode="datetime"
                 :model-value="form.rounds.preselect.end"
-                :placeholder="t('common.pleaseSelectDate')"
+                :placeholder="t('common.pleaseSelectDateTime')"
                 :min-date="scheduleMinDates[1]"
                 @update:model-value="(v) => onScheduleDateChange(1, v)"
               />
             </div>
-          </div>
-
-          <div class="preselect-priority-block">
-            <button
-              type="button"
-              class="preselect-priority-toggle"
-              :aria-expanded="preselectPriorityExpanded"
-              @click="preselectPriorityExpanded = !preselectPriorityExpanded"
-            >
-              <span class="preselect-priority-toggle-main">
-                <span class="field-label">{{ t('courseRegistration.batch.preselectPriorityTitle') }}</span>
-                <span v-if="!preselectPriorityExpanded" class="preselect-priority-summary">
-                  {{ preselectPrioritySummary }}
-                </span>
-              </span>
-              <span class="preselect-priority-chevron" :class="{ 'is-expanded': preselectPriorityExpanded }">
-                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-              </span>
-            </button>
-            <div v-show="preselectPriorityExpanded" class="preselect-priority-body">
-              <label class="checkbox-row prefer-senior-row">
-                <input v-model="form.preselectPriority.preferSenior" type="checkbox" />
-                <span class="prefer-senior-text">
-                  {{ t('courseRegistration.batch.preferSeniorPrefix') }}
-                  <input
-                    v-model.number="form.preselectPriority.minSemestersAbove"
-                    type="number"
-                    min="1"
-                    class="inline-number"
-                    :disabled="!form.preselectPriority.preferSenior"
-                  />
-                  {{ t('courseRegistration.batch.preferSeniorSuffix') }}
-                </span>
-              </label>
+            <div v-if="audienceTab === AUDIENCE_SENIOR" class="form-field form-field-full">
+              <label class="field-label">{{ t('courseRegistration.batch.seniorResultReleaseAt') }}</label>
+              <DatePickerEn
+                mode="datetime"
+                :model-value="form.seniorResultReleaseAt"
+                :placeholder="t('courseRegistration.batch.seniorResultReleaseAtPlaceholder')"
+                @update:model-value="(v) => (form.seniorResultReleaseAt = v || '')"
+              />
             </div>
           </div>
 
@@ -448,8 +505,9 @@ function handleSave() {
             <div class="form-field">
               <label class="field-label">{{ t('courseRegistration.batch.roundStart') }}</label>
               <DatePickerEn
+                mode="datetime"
                 :model-value="form.rounds.main.start"
-                :placeholder="t('common.pleaseSelectDate')"
+                :placeholder="t('common.pleaseSelectDateTime')"
                 :min-date="scheduleMinDates[2]"
                 :disabled="!roundGates.main.open"
                 @update:model-value="(v) => onScheduleDateChange(2, v)"
@@ -458,8 +516,9 @@ function handleSave() {
             <div class="form-field">
               <label class="field-label">{{ t('courseRegistration.batch.roundEnd') }}</label>
               <DatePickerEn
+                mode="datetime"
                 :model-value="form.rounds.main.end"
-                :placeholder="t('common.pleaseSelectDate')"
+                :placeholder="t('common.pleaseSelectDateTime')"
                 :min-date="scheduleMinDates[3]"
                 :disabled="!roundGates.main.open"
                 @update:model-value="(v) => onScheduleDateChange(3, v)"
@@ -558,8 +617,9 @@ function handleSave() {
             <div class="form-field">
               <label class="field-label">{{ t('courseRegistration.batch.roundStart') }}</label>
               <DatePickerEn
+                mode="datetime"
                 :model-value="form.rounds.supplement.start"
-                :placeholder="t('common.pleaseSelectDate')"
+                :placeholder="t('common.pleaseSelectDateTime')"
                 :min-date="scheduleMinDates[4]"
                 :disabled="!roundGates.supplement.open"
                 @update:model-value="(v) => onScheduleDateChange(4, v)"
@@ -568,8 +628,9 @@ function handleSave() {
             <div class="form-field">
               <label class="field-label">{{ t('courseRegistration.batch.roundEnd') }}</label>
               <DatePickerEn
+                mode="datetime"
                 :model-value="form.rounds.supplement.end"
-                :placeholder="t('common.pleaseSelectDate')"
+                :placeholder="t('common.pleaseSelectDateTime')"
                 :min-date="scheduleMinDates[5]"
                 :disabled="!roundGates.supplement.open"
                 @update:model-value="(v) => onScheduleDateChange(5, v)"
@@ -657,6 +718,58 @@ function handleSave() {
 </template>
 
 <style scoped>
+.audience-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 16px;
+  padding: 4px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.audience-tab {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: #6b7280;
+  cursor: pointer;
+  border-radius: 6px;
+  line-height: 1.4;
+}
+
+.audience-tab.active {
+  background: #fff;
+  color: #2563eb;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.form-field-full {
+  flex: 1 1 100%;
+  min-width: 100%;
+}
+
+.text-input {
+  width: 100%;
+  max-width: 280px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #111827;
+}
+
+.field-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+
 .form-section {
   margin-bottom: 24px;
 }
@@ -694,21 +807,18 @@ function handleSave() {
   margin-bottom: 4px;
 }
 
-.round-section-chevron,
-.preselect-priority-chevron {
+.round-section-chevron {
   display: inline-flex;
   flex-shrink: 0;
   color: #9ca3af;
   transition: transform 0.15s ease;
 }
 
-.round-section-chevron.is-expanded,
-.preselect-priority-chevron.is-expanded {
+.round-section-chevron.is-expanded {
   transform: rotate(180deg);
 }
 
-.round-section-chevron svg,
-.preselect-priority-chevron svg {
+.round-section-chevron svg {
   width: 16px;
   height: 16px;
 }
@@ -756,82 +866,6 @@ function handleSave() {
 
 .round-card.is-locked {
   opacity: 0.72;
-}
-
-.preselect-priority-block {
-  margin-top: 12px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
-}
-
-.preselect-priority-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-  text-align: left;
-}
-
-.preselect-priority-toggle-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.preselect-priority-summary {
-  font-size: 12px;
-  color: #6b7280;
-  font-weight: 400;
-}
-
-.preselect-priority-body {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #374151;
-}
-
-.prefer-senior-row {
-  align-items: center;
-}
-
-.prefer-senior-text {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0 2px;
-  line-height: 1.4;
-}
-
-.inline-number {
-  width: 56px;
-  margin: 0 4px;
-  padding: 4px 6px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 13px;
-  text-align: center;
-}
-
-.inline-number:disabled {
-  opacity: 0.5;
-  background: #f3f4f6;
 }
 
 .form-field :deep(.date-picker-en) {

@@ -9,27 +9,30 @@ import { useAppI18n } from '../../composables/useAppI18n.js'
 import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
 import {
   listStudentsForBatchRound,
+  listGlobalBatchParticipants,
   listBatchRosterStudents,
   filterBatchRosterStudents,
   formatRosterIntake,
   removeBatchSpecialStudents,
 } from '../../data/courseRegistration/batchStudentRoster.js'
-import { getBatchScopeRules } from '../../data/courseRegistration/batchScopeRules.js'
 import '../../styles/list-page-search.css'
 
-const ROUND_TABS = [
+const ELIGIBLE_INNER_TABS = [
+  { id: 'global', labelKey: 'courseRegistration.batch.rosterTabGlobal' },
   { id: 'preselect', labelKey: 'courseRegistration.batch.roundPreselect' },
   { id: 'main', labelKey: 'courseRegistration.batch.roundMain' },
   { id: 'supplement', labelKey: 'courseRegistration.batch.roundSupplement' },
 ]
 
+const ELIGIBLE_INNER_IDS = ELIGIBLE_INNER_TABS.map((tab) => tab.id)
+
 const props = defineProps({
   visible: Boolean,
   batch: { type: Object, default: null },
   /** 打开时外层 Tab：special | eligible */
-  initialOuterTab: { type: String, default: 'special' },
-  /** 打开时内层轮次 */
-  initialRound: { type: String, default: 'preselect' },
+  initialOuterTab: { type: String, default: 'eligible' },
+  /** 打开时内层：global | preselect | main | supplement */
+  initialRound: { type: String, default: 'global' },
 })
 
 const emit = defineEmits(['close'])
@@ -41,8 +44,8 @@ const searchForm = ref(emptyFilters())
 const appliedSearch = ref(emptyFilters())
 const currentPage = ref(1)
 const pageSize = ref(20)
-const activeOuterTab = ref('special')
-const activeRound = ref('preselect')
+const activeOuterTab = ref('eligible')
+const activeRound = ref('global')
 const selectedIds = ref([])
 const addVisible = ref(false)
 const editVisible = ref(false)
@@ -67,12 +70,23 @@ const subtitle = computed(() => {
 
 const isEligibleTab = computed(() => activeOuterTab.value === 'eligible')
 const isSpecialTab = computed(() => activeOuterTab.value === 'special')
-const batchReadOnly = computed(() => props.batch?.status === 'active')
+const isGlobalInnerTab = computed(() => isEligibleTab.value && activeRound.value === 'global')
+const batchReadOnly = computed(
+  () => props.batch?.status === 'active' || props.batch?.status === 'closed',
+)
+const batchReadOnlyHint = computed(() =>
+  props.batch?.status === 'closed'
+    ? t('courseRegistration.batch.closedReadOnlyHint')
+    : t('courseRegistration.batch.activeReadOnlyHint'),
+)
 const showSpecialSelection = computed(() => isSpecialTab.value && !batchReadOnly.value)
 
-const eligibleRoundRows = computed(() =>
-  listStudentsForBatchRound(props.batch, activeRound.value),
-)
+const eligibleRows = computed(() => {
+  if (activeRound.value === 'global') {
+    return listGlobalBatchParticipants(props.batch)
+  }
+  return listStudentsForBatchRound(props.batch, activeRound.value)
+})
 
 const specialRows = computed(() => {
   void specialRefreshKey.value
@@ -80,13 +94,8 @@ const specialRows = computed(() => {
 })
 
 const allRows = computed(() =>
-  isSpecialTab.value ? specialRows.value : eligibleRoundRows.value,
+  isSpecialTab.value ? specialRows.value : eligibleRows.value,
 )
-
-const hasRoundScope = computed(() => {
-  if (!props.batch || !activeRound.value) return false
-  return getBatchScopeRules(props.batch).some((rule) => (rule?.round || '') === activeRound.value)
-})
 
 const filteredRows = computed(() =>
   filterBatchRosterStudents(allRows.value, appliedSearch.value),
@@ -116,10 +125,10 @@ watch(
     activeOuterTab.value =
       props.initialOuterTab === 'eligible' || props.initialOuterTab === 'special'
         ? props.initialOuterTab
-        : 'special'
-    activeRound.value = ['preselect', 'main', 'supplement'].includes(props.initialRound)
+        : 'eligible'
+    activeRound.value = ELIGIBLE_INNER_IDS.includes(props.initialRound)
       ? props.initialRound
-      : 'preselect'
+      : 'global'
     searchForm.value = emptyFilters()
     appliedSearch.value = emptyFilters()
     currentPage.value = 1
@@ -227,24 +236,24 @@ function onSpecialImported() {
           <button
             type="button"
             class="tab-btn"
-            :class="{ active: isSpecialTab }"
-            @click="activeOuterTab = 'special'"
-          >
-            {{ t('courseRegistration.batch.rosterTabSpecial') }}
-          </button>
-          <button
-            type="button"
-            class="tab-btn"
             :class="{ active: isEligibleTab }"
             @click="activeOuterTab = 'eligible'"
           >
             {{ t('courseRegistration.batch.rosterTabEligible') }}
           </button>
+          <button
+            type="button"
+            class="tab-btn"
+            :class="{ active: isSpecialTab }"
+            @click="activeOuterTab = 'special'"
+          >
+            {{ t('courseRegistration.batch.rosterTabSpecial') }}
+          </button>
         </div>
 
         <div v-if="isEligibleTab" class="tab-bar round-tabs">
           <button
-            v-for="tab in ROUND_TABS"
+            v-for="tab in ELIGIBLE_INNER_TABS"
             :key="tab.id"
             type="button"
             class="tab-btn"
@@ -296,7 +305,7 @@ function onSpecialImported() {
               type="button"
               class="btn btn-primary"
               :disabled="batchReadOnly"
-              :title="batchReadOnly ? t('courseRegistration.batch.activeReadOnlyHint') : undefined"
+              :title="batchReadOnly ? batchReadOnlyHint : undefined"
               @click="addVisible = true"
             >
               {{ t('common.create') }}
@@ -305,7 +314,7 @@ function onSpecialImported() {
               type="button"
               class="btn btn-default"
               :disabled="batchReadOnly"
-              :title="batchReadOnly ? t('courseRegistration.batch.activeReadOnlyHint') : undefined"
+              :title="batchReadOnly ? batchReadOnlyHint : undefined"
               @click="handleDeleteSelected"
             >
               {{ t('common.delete') }}
@@ -314,7 +323,7 @@ function onSpecialImported() {
               type="button"
               class="btn btn-default"
               :disabled="batchReadOnly"
-              :title="batchReadOnly ? t('courseRegistration.batch.activeReadOnlyHint') : undefined"
+              :title="batchReadOnly ? batchReadOnlyHint : undefined"
               @click="openEditSelectable"
             >
               {{ t('courseRegistration.batch.specialSelectable') }}
@@ -323,14 +332,18 @@ function onSpecialImported() {
               type="button"
               class="btn btn-default"
               :disabled="batchReadOnly"
-              :title="batchReadOnly ? t('courseRegistration.batch.activeReadOnlyHint') : undefined"
+              :title="batchReadOnly ? batchReadOnlyHint : undefined"
               @click="importVisible = true"
             >
               {{ t('common.import') }}
             </button>
           </div>
+          <span v-else class="toolbar-spacer" aria-hidden="true" />
           <span class="drawer-meta">
-            <template v-if="isEligibleTab">
+            <template v-if="isGlobalInnerTab">
+              {{ t('courseRegistration.batch.globalScopeRosterMeta', { count: listTotal }) }}
+            </template>
+            <template v-else-if="isEligibleTab">
               {{ t('courseRegistration.batch.scopeRosterMeta', { count: listTotal }) }}
             </template>
             <template v-else>
@@ -359,7 +372,6 @@ function onSpecialImported() {
                   <th>{{ t('courseRegistration.batch.rosterFaculty') }}</th>
                   <template v-if="isSpecialTab">
                     <th>{{ t('courseRegistration.batch.specialSelectable') }}</th>
-                    <th>{{ t('courseRegistration.batch.rosterSourceLabel') }}</th>
                     <th>{{ t('courseRegistration.batch.specialRemark') }}</th>
                   </template>
                 </tr>
@@ -381,20 +393,13 @@ function onSpecialImported() {
                   <td>{{ row.faculty || '—' }}</td>
                   <template v-if="isSpecialTab">
                     <td>{{ selectableLabel(row) }}</td>
-                    <td>{{ t('courseRegistration.batch.rosterSource.special') }}</td>
                     <td>{{ row.remark || '—' }}</td>
                   </template>
                 </tr>
                 <tr v-if="!paginatedRows.length">
-                  <td :colspan="isSpecialTab ? (showSpecialSelection ? 10 : 9) : 6" class="empty-cell">
+                  <td :colspan="isSpecialTab ? (showSpecialSelection ? 9 : 8) : 6" class="empty-cell">
                     <div class="empty-block">
-                      <p class="empty-title">
-                        {{
-                          isEligibleTab && !hasRoundScope
-                            ? t('courseRegistration.batch.scopeRosterNeedScope')
-                            : t('common.noData')
-                        }}
-                      </p>
+                      <p class="empty-title">{{ t('common.noData') }}</p>
                     </div>
                   </td>
                 </tr>
@@ -530,9 +535,14 @@ function onSpecialImported() {
 .scope-rule-roster-body .search-bar {
   flex-shrink: 0;
   margin: 0;
-  padding: 12px 16px;
+  padding: 8px 16px;
   border-bottom: 1px solid #e5e7eb;
   background: #fff;
+}
+
+.scope-rule-roster-body .search-bar :deep(.search-item),
+.scope-rule-roster-body .search-bar .search-item {
+  gap: 4px;
 }
 
 .drawer-toolbar {
@@ -540,23 +550,41 @@ function onSpecialImported() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
   flex-shrink: 0;
-  padding: 10px 16px;
+  padding: 8px 16px;
   border-bottom: 1px solid #e5e7eb;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   background: #fff;
 }
 
 .toolbar-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  margin-left: 0;
+  margin-right: 0;
+  order: 1;
+}
+
+.toolbar-spacer {
+  flex: 1 1 auto;
+  order: 1;
+  min-width: 0;
 }
 
 .drawer-meta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  margin-right: 0;
+  text-align: right;
+  white-space: nowrap;
   font-size: 13px;
   color: #6b7280;
-  margin-left: auto;
+  order: 2;
 }
 
 .table-section {
@@ -589,7 +617,7 @@ function onSpecialImported() {
 
 .data-table th,
 .data-table td {
-  padding: 10px 12px;
+  padding: 4px 10px;
   border-bottom: 1px solid #f3f4f6;
   text-align: left;
   vertical-align: middle;

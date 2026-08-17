@@ -2,7 +2,8 @@ import { batchDateToPicker, parsePickerDate } from './registrationBatchFormUtils
 
 /** 第二轮结束日（含当天结束）是否已过 */
 export function isBatchMainRoundEnded(batch, now = new Date()) {
-  const endRaw = batch?.rounds?.main?.end
+  const by = batch?.roundsByAudience?.senior || batch?.rounds
+  const endRaw = by?.main?.end
   if (!endRaw) return false
   const picker = batchDateToPicker(endRaw)
   const end = parsePickerDate(picker)

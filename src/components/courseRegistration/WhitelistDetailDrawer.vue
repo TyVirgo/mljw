@@ -17,7 +17,7 @@ const liveItem = computed(() => (props.item ? getWhitelistById(props.item.id) ||
 
 const title = computed(() => liveItem.value?.studentName || '')
 const subtitle = computed(() =>
-  liveItem.value ? `${liveItem.value.studentId} · ${t(`courseRegistration.whitelist.types.${liveItem.value.type}`)}` : '',
+  liveItem.value ? `${liveItem.value.studentId} · ${t(`courseRegistration.whitelistBoa.types.${liveItem.value.type}`)}` : '',
 )
 
 const canApprove = computed(() =>
@@ -43,12 +43,12 @@ function handleReject() {
       <dl class="detail-dl">
         <dt>{{ t('courseRegistration.courses.code') }}</dt>
         <dd>{{ liveItem.courseCode }}</dd>
-        <dt>{{ t('courseRegistration.whitelist.reason') }}</dt>
+        <dt>{{ t('courseRegistration.whitelistBoa.reason') }}</dt>
         <dd>{{ liveItem.reason }}</dd>
-        <dt>{{ t('courseRegistration.whitelist.stage') }}</dt>
-        <dd>{{ t(`courseRegistration.whitelist.stages.${liveItem.currentStage}`) }}</dd>
+        <dt>{{ t('courseRegistration.whitelistBoa.stage') }}</dt>
+        <dd>{{ t(`courseRegistration.whitelistBoa.stages.${liveItem.currentStage}`) }}</dd>
         <dt>{{ t('common.status') }}</dt>
-        <dd>{{ t(`courseRegistration.whitelist.status.${liveItem.status}`) }}</dd>
+        <dd>{{ t(`courseRegistration.whitelistBoa.status.${liveItem.status}`) }}</dd>
         <dt>{{ t('courseRegistration.approval.submittedAt') }}</dt>
         <dd>{{ liveItem.submittedAt }}</dd>
       </dl>
@@ -57,21 +57,21 @@ function handleReject() {
         <h4>{{ t('courseRegistration.approval.log') }}</h4>
         <ul>
           <li v-for="(log, i) in liveItem.approvalLog" :key="i">
-            {{ log.at }} — {{ t(`courseRegistration.whitelist.stages.${log.stage}`) }} — {{ log.actor }} — {{ log.action }}
+            {{ log.at }} — {{ t(`courseRegistration.whitelistBoa.stages.${log.stage}`) }} — {{ log.actor }} — {{ log.action }}
           </li>
         </ul>
       </div>
 
       <div class="flow-hint">
-        AC {{ t('courseRegistration.whitelist.stages.acReview') }}
-        → HOP {{ t('courseRegistration.whitelist.stages.hopReview') }}
-        → BOA {{ t('courseRegistration.whitelist.stages.boaApproved') }}
+        AC {{ t('courseRegistration.whitelistBoa.stages.acReview') }}
+        → HOP {{ t('courseRegistration.whitelistBoa.stages.hopReview') }}
+        → BOA {{ t('courseRegistration.whitelistBoa.stages.boaApproved') }}
       </div>
     </template>
 
     <template v-if="canApprove" #footer>
       <button type="button" class="btn btn-default" @click="handleReject">{{ t('courseRegistration.approval.reject') }}</button>
-      <button type="button" class="btn btn-primary" @click="handleApprove">{{ t('courseRegistration.whitelist.advance') }}</button>
+      <button type="button" class="btn btn-primary" @click="handleApprove">{{ t('courseRegistration.whitelistBoa.advance') }}</button>
     </template>
   </ApplicationDetailDrawer>
 </template>

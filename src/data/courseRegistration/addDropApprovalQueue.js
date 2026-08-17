@@ -10,9 +10,16 @@ import {
   getStudentProfileFields,
 } from './studentRegistrationStore.js'
 import { appendFeeRosterFromApproval } from './feeRosterQueue.js'
-import { isStudentInSupplementList } from './supplementListQueue.js'
+import {
+  getSupplementEntry,
+  getSupplementDoorStatus,
+  entryHasActivePermission,
+} from './supplementListQueue.js'
 import { isWithinAddDropApplicationWindow } from './addDropApplicationWindow.js'
 import { getActiveBatch } from './registrationBatches.js'
+import { nowDateTimeWithSeconds } from './registrationBatchFormUtils.js'
+import { isFreshmanStudent } from './studentAudience.js'
+import { enrichAddDropQueueSchedule, enrichAddDropApplicationSchedule } from './addDropScheduleDemo.js'
 
 const initialQueue = [
   {
@@ -24,7 +31,7 @@ const initialQueue = [
     intake: '2409',
     type: 'AddDrop',
     status: 'Pending',
-    submittedAt: '2026-07-10 09:15',
+    submittedAt: '2026-07-10 09:15:00',
     currentCredits: 18,
     creditMax: 20,
     billStatus: 'pending',
@@ -53,7 +60,7 @@ const initialQueue = [
     intake: '2504',
     type: 'Add',
     status: 'Pending',
-    submittedAt: '2026-07-11 14:20',
+    submittedAt: '2026-07-11 14:20:00',
     currentCredits: 8,
     creditMax: 20,
     billStatus: 'pending',
@@ -73,7 +80,7 @@ const initialQueue = [
     intake: '2409',
     type: 'Retake',
     status: 'Pending',
-    submittedAt: '2026-07-11 16:45',
+    submittedAt: '2026-07-11 16:45:00',
     currentCredits: 16,
     creditMax: 20,
     billStatus: 'pending',
@@ -104,7 +111,7 @@ const initialQueue = [
     intake: '2409',
     type: 'Drop',
     status: 'Approved',
-    submittedAt: '2026-07-05 11:00',
+    submittedAt: '2026-07-05 11:00:00',
     currentCredits: 16,
     creditMax: 20,
     billStatus: 'none',
@@ -122,7 +129,7 @@ const initialQueue = [
     intake: '2409',
     type: 'AddDrop',
     status: 'In Review',
-    submittedAt: '2026-07-12 10:00',
+    submittedAt: '2026-07-12 10:00:00',
     currentCredits: 12,
     creditMax: 20,
     billStatus: 'none',
@@ -143,7 +150,7 @@ const initialQueue = [
     intake: '2409',
     type: 'Add',
     status: 'Rejected',
-    submittedAt: '2026-07-04 16:00',
+    submittedAt: '2026-07-04 16:00:00',
     currentCredits: 20,
     creditMax: 20,
     billStatus: 'none',
@@ -161,7 +168,7 @@ const initialQueue = [
     intake: '2504',
     type: 'Retake',
     status: 'Approved',
-    submittedAt: '2026-07-03 14:00',
+    submittedAt: '2026-07-03 14:00:00',
     currentCredits: 14,
     creditMax: 20,
     billStatus: 'paid',
@@ -189,7 +196,7 @@ const initialQueue = [
     intake: '2504',
     type: 'Add',
     status: 'Cancelled',
-    submittedAt: '2026-07-02 11:00',
+    submittedAt: '2026-07-02 11:00:00',
     currentCredits: 0,
     creditMax: 20,
     billStatus: 'cancelled',
@@ -203,7 +210,7 @@ const initialQueue = [
   },
 ]
 
-export const addDropApprovalQueue = ref(initialQueue.map((item) => ({ ...item })))
+export const addDropApprovalQueue = ref(enrichAddDropQueueSchedule(initialQueue.map((item) => ({ ...item }))))
 
 export function classifyAddDropBucket(row, tab) {
   if (tab === 'pending') return row.status === 'Pending' ? 'pending' : null
@@ -373,24 +380,121 @@ export function decideAddDropApplication(id, action, comment = '', options = {})
 
 /** 本期申请类型（不含 Replace） */
 export const addDropTypeOptions = ['Add', 'Drop', 'Retake', 'AddDrop']
+export const ALL_ADD_DROP_ACTIONS = addDropTypeOptions
 
 let studentAdrSeq = 9005
 
-/** 是否允许学生发起申请：窗口内，或已在补注册名单 */
-export function canStudentSubmitAddDrop(studentId, batch = getActiveBatch()) {
-  if (isWithinAddDropApplicationWindow(batch)) {
-    return { ok: true, via: 'window' }
+function actionsFromSupplementEntry(entry, now = new Date()) {
+  if (!entry) return []
+  // 窗外/新生：须补注册门有效；动作看各权限是否有效
+  const doorOk = entryHasActivePermission(entry, 'supplement', now)
+  if (!doorOk) return []
+  const actions = []
+  if (entryHasActivePermission(entry, 'canAdd', now)) actions.push('Add')
+  if (entryHasActivePermission(entry, 'canDrop', now)) actions.push('Drop')
+  if (entryHasActivePermission(entry, 'canRetake', now)) actions.push('Retake')
+  if (actions.includes('Add') && actions.includes('Drop')) actions.push('AddDrop')
+  return actions
+}
+
+/**
+ * 加退课访问闸门（含新生默认禁止、补注册权限与邀请时效）
+ */
+export function getAddDropAccess(studentId, batch = getActiveBatch(), now = new Date()) {
+  const freshman = Boolean(studentId && isFreshmanStudent(studentId))
+  const inWindow = isWithinAddDropApplicationWindow(batch, now)
+  const entry = studentId ? getSupplementEntry(studentId) : null
+
+  if (freshman) {
+    if (!entry) {
+      return {
+        ok: false,
+        freshmanBlocked: true,
+        allowedActions: [],
+        errorKey: 'courseRegistration.student.freshmanAddDropBlocked',
+      }
+    }
+    const door = getSupplementDoorStatus(studentId, now)
+    if (!door.ok) {
+      return {
+        ok: false,
+        via: 'whitelist',
+        allowedActions: [],
+        errorKey: door.errorKey,
+        invite: door,
+        entry,
+      }
+    }
+    const allowedActions = actionsFromSupplementEntry(entry, now)
+    return {
+      ok: allowedActions.length > 0,
+      via: 'whitelist',
+      allowedActions,
+      entry,
+      invite: door,
+      errorKey: allowedActions.length ? undefined : 'courseRegistration.student.freshmanAddDropBlocked',
+    }
   }
-  if (studentId && isStudentInSupplementList(studentId)) {
-    return { ok: true, via: 'supplement' }
+
+  if (inWindow) {
+    return { ok: true, via: 'window', allowedActions: [...ALL_ADD_DROP_ACTIONS] }
   }
-  return { ok: false, errorKey: 'courseRegistration.student.addDropWindowClosedShort' }
+
+  if (entry) {
+    const door = getSupplementDoorStatus(studentId, now)
+    if (!door.ok) {
+      return {
+        ok: false,
+        via: 'whitelist',
+        allowedActions: [],
+        errorKey: door.errorKey,
+        invite: door,
+        entry,
+      }
+    }
+    const allowedActions = actionsFromSupplementEntry(entry, now)
+    return {
+      ok: allowedActions.length > 0,
+      via: 'whitelist',
+      allowedActions,
+      entry,
+      invite: door,
+      errorKey: allowedActions.length
+        ? undefined
+        : 'courseRegistration.student.addDropWindowClosedShort',
+    }
+  }
+
+  return {
+    ok: false,
+    allowedActions: [],
+    errorKey: 'courseRegistration.student.addDropWindowClosedShort',
+  }
+}
+
+/** 是否允许学生发起申请；可选校验具体 action 类型 */
+export function canStudentSubmitAddDrop(studentId, batch = getActiveBatch(), action = null) {
+  const access = getAddDropAccess(studentId, batch)
+  if (!access.ok) return access
+  if (action && !access.allowedActions.includes(action)) {
+    return {
+      ok: false,
+      errorKey: 'courseRegistration.student.addDropActionNotAllowed',
+      allowedActions: access.allowedActions,
+      via: access.via,
+    }
+  }
+  return access
 }
 
 export function submitStudentAddDropApplication(studentFields, items, options = {}) {
   if (!items?.length) return { ok: false, errorKey: 'courseRegistration.student.addDropEmpty' }
 
-  const gate = canStudentSubmitAddDrop(studentFields.studentId, getActiveBatch())
+  const gate = canStudentSubmitAddDrop(
+    studentFields.studentId,
+    getActiveBatch(),
+    options.type || (items.length > 1 ? 'AddDrop' : items[0]?.action),
+  )
   if (!gate.ok) return gate
 
   studentAdrSeq += 1
@@ -409,12 +513,12 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
     intake: studentFields.intake,
     type: options.type || (items.length > 1 ? 'AddDrop' : items[0].action),
     status: autoApproveSelfDrop ? 'Approved' : options.status || 'Pending',
-    submittedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+    submittedAt: nowDateTimeWithSeconds(),
     academicSession: options.academicSession || '',
     currentCredits: options.currentCredits ?? 0,
     creditMax: options.creditMax ?? 20,
     billStatus: 'none',
-    billAmount: 0,
+    billAmount: options.billAmount ?? options.feeEstimate?.total ?? 0,
     items,
     schedule: options.schedule || [],
     dropChannel,
@@ -422,6 +526,41 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
     feeWaiver: options.feeWaiver ?? null,
     attachments: options.attachments || [],
     teachingWeek: options.teachingWeek,
+    contactPhone: options.contactPhone || '',
+    addType: options.addType || '',
+    addNotes: options.addNotes || '',
+    dropReason: options.dropReason || options.reason || '',
+    previouslyTakenCourse: options.previouslyTakenCourse || '',
+    gradeEarned: options.gradeEarned || '',
+    academicSessionTaken: options.academicSessionTaken || '',
+    retakeType: options.retakeType || '',
+    declarationAgreed: Boolean(options.declarationAgreed),
+    courseSnapshots: options.courseSnapshots || null,
+    sectionId: options.sectionId || '',
+    sectionCode: options.sectionCode || '',
+    classTime: options.classTime || '',
+    venue: options.venue || '',
+    lecturers: options.lecturers || '',
+    weekRange: options.weekRange || '',
+    dropSectionCode: options.dropSectionCode || '',
+    dropClassTime: options.dropClassTime || '',
+    dropVenue: options.dropVenue || '',
+    dropLecturers: options.dropLecturers || '',
+    dropWeekRange: options.dropWeekRange || '',
+    addSectionCode: options.addSectionCode || '',
+    addClassTime: options.addClassTime || '',
+    addVenue: options.addVenue || '',
+    addLecturers: options.addLecturers || '',
+    addWeekRange: options.addWeekRange || '',
+    transcriptId: options.transcriptId || '',
+    eligibilitySource: options.eligibilitySource || '',
+    feeEstimate: options.feeEstimate || null,
+    billableCredits: options.billableCredits ?? options.feeEstimate?.billableCredits ?? 0,
+    excessCredits:
+      options.excessCredits ??
+      options.billableCredits ??
+      options.feeEstimate?.billableCredits ??
+      0,
     approvalLog: autoApproveSelfDrop
       ? [
           {
@@ -433,7 +572,8 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
         ]
       : [],
   }
-  addDropApprovalQueue.value.unshift(app)
+  const enriched = enrichAddDropApplicationSchedule(app, studentAdrSeq)
+  addDropApprovalQueue.value.unshift(enriched)
 
   if (autoApproveSelfDrop) {
     for (const item of items) {
@@ -443,7 +583,7 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
     }
   }
 
-  return { ok: true, application: app, autoApproved: autoApproveSelfDrop, via: gate.via }
+  return { ok: true, application: enriched, autoApproved: autoApproveSelfDrop, via: gate.via }
 }
 
 /** 是否已有实质审批动作（自助通过也算已开始，不可再取消） */

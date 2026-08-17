@@ -3,7 +3,7 @@ import { whitelistQueue } from './whitelistQueue.js'
 import { supplementListQueue } from './supplementListQueue.js'
 import { studentConfirmedCourses } from './studentRegistrationStore.js'
 import { registrationMonitorQueue } from './registrationMonitorQueue.js'
-import { intakeToGrade, matchScopeRules } from './batchScopeRules.js'
+import { intakeToGrade, matchScopeRule, resolveEffectiveScopeRulesForRound } from './batchScopeRules.js'
 
 const BLOCKING_ENROLLMENT_STATUSES = new Set([
   'Deferred',
@@ -57,8 +57,9 @@ function matchLegacyProgrammeIntakeScope(batch, profileFields) {
 
 export function matchBatchScope(batch, profileFields, options = {}) {
   if (options.inSupplementList) return true
-  if (Array.isArray(batch?.scopeRules) && batch.scopeRules.length) {
-    return matchScopeRules(batch.scopeRules, profileFields, options.roundKey || '')
+  const effective = resolveEffectiveScopeRulesForRound(batch, options.roundKey || '')
+  if (effective.length) {
+    return effective.some((rule) => matchScopeRule(rule, profileFields))
   }
   if (!batch?.scope?.length) return true
   return matchLegacyProgrammeIntakeScope(batch, profileFields)
@@ -148,7 +149,8 @@ export function buildEligibilityContext(student = getCurrentStudent(), batch = n
     passedCodes: getStudentPassedCourseCodes(studentId, profileFields),
     failedCodes: getStudentFailedCourseCodes(studentId, profileFields),
     inSupplementList: Boolean(supplementEntry),
-    bypassPrerequisite: Boolean(supplementEntry?.bypassPrerequisite),
+    // 在线选课不因白名单免先修；加课申请路径用 hasWhitelistPrerequisiteBypass
+    bypassPrerequisite: false,
     batch,
     roundKey: options.roundKey || '',
   }

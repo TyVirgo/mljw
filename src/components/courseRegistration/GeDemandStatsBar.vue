@@ -6,20 +6,10 @@ import { getGeDemandStats } from '../../data/courseRegistration/studentRegistrat
 const { t } = useAppI18n()
 
 const geDemandStats = computed(() => getGeDemandStats())
-
-const geDemandTotalLabel = computed(() =>
-  t('courseRegistration.student.geDemand.totalPeople', {
-    count: geDemandStats.value.total.toLocaleString(),
-  }),
-)
 </script>
 
 <template>
   <aside class="cr-ge-demand" :aria-label="t('courseRegistration.student.geDemand.title')">
-    <div class="cr-ge-demand-total">
-      <span class="cr-ge-demand-label">{{ t('courseRegistration.student.geDemand.title') }}</span>
-      <span class="cr-ge-demand-value">{{ geDemandTotalLabel }}</span>
-    </div>
     <div class="cr-ge-demand-cats">
       <div
         v-for="cat in geDemandStats.categories"
@@ -41,7 +31,7 @@ const geDemandTotalLabel = computed(() =>
 .cr-ge-demand {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: stretch;
   gap: 12px 16px;
   padding: 10px 14px;
   margin-bottom: 12px;
@@ -51,32 +41,9 @@ const geDemandTotalLabel = computed(() =>
   box-sizing: border-box;
 }
 
-.cr-ge-demand-total {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 7.5rem;
-  flex-shrink: 0;
-}
-
-.cr-ge-demand-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #2563eb;
-  line-height: 1.3;
-}
-
-.cr-ge-demand-value {
-  font-size: 22px;
-  font-weight: 700;
-  color: #1d4ed8;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-}
-
 .cr-ge-demand-cats {
   display: flex;
-  flex: 1 1 200px;
+  flex: 1 1 100%;
   gap: 8px;
   min-width: 0;
 }
@@ -127,11 +94,5 @@ const geDemandTotalLabel = computed(() =>
   font-weight: 700;
   color: #0f172a;
   line-height: 1.2;
-}
-
-@media (max-width: 720px) {
-  .cr-ge-demand-cats {
-    width: 100%;
-  }
 }
 </style>

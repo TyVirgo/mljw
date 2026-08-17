@@ -37,8 +37,8 @@ const initialWaitlistCourses = [
       { studentId: 'COS2409001', studentName: 'Ahmad bin Ali', programme: 'COS', intake: '2409' },
     ],
     waitlist: [
-      { id: 'wl-010', studentId: 'DSA2504002', studentName: 'Lee Wei Ming', programme: 'DSA', intake: '2504', position: 1, status: 'Pending', submittedAt: '01-Sep-2025' },
-      { id: 'wl-011', studentId: 'COS2504015', studentName: 'Tan Mei Ling', programme: 'COS', intake: '2504', position: 2, status: 'Pending', submittedAt: '02-Sep-2025' },
+      { id: 'wl-010', studentId: 'DSA2504002', studentName: 'Lee Wei Ming', programme: 'DSA', intake: '2504', position: 1, status: 'Pending', submittedAt: '01-Sep-2025 09:00:00' },
+      { id: 'wl-011', studentId: 'COS2504015', studentName: 'Tan Mei Ling', programme: 'COS', intake: '2504', position: 2, status: 'Pending', submittedAt: '02-Sep-2025 10:30:00' },
     ],
   },
   {
@@ -53,7 +53,7 @@ const initialWaitlistCourses = [
     status: 'full',
     registered: [],
     waitlist: [
-      { id: 'wl-012', studentId: 'AIT2409010', studentName: 'Siti Nurhaliza', programme: 'AIT', intake: '2409', position: 1, status: 'Pending', submittedAt: '02-Sep-2025' },
+      { id: 'wl-012', studentId: 'AIT2409010', studentName: 'Siti Nurhaliza', programme: 'AIT', intake: '2409', position: 1, status: 'Pending', submittedAt: '02-Sep-2025 11:00:00' },
     ],
   },
   {
@@ -71,9 +71,9 @@ const initialWaitlistCourses = [
       { studentId: 'AIT2409010', studentName: 'Siti Nurhaliza', programme: 'AIT', intake: '2409' },
     ],
     waitlist: [
-      { id: 'wl-001', studentId: 'DSA2504002', studentName: 'Lee Wei Ming', programme: 'DSA', intake: '2504', position: 1, status: 'Pending', submittedAt: '02-Sep-2025' },
-      { id: 'wl-002', studentId: 'COS2504015', studentName: 'Tan Mei Ling', programme: 'COS', intake: '2504', position: 2, status: 'Pending', submittedAt: '02-Sep-2025' },
-      { id: 'wl-003', studentId: 'DSA2409008', studentName: 'Raj Kumar', programme: 'DSA', intake: '2409', position: 3, status: 'Approved', submittedAt: '01-Sep-2025' },
+      { id: 'wl-001', studentId: 'DSA2504002', studentName: 'Lee Wei Ming', programme: 'DSA', intake: '2504', position: 1, status: 'Pending', submittedAt: '02-Sep-2025 09:15:00' },
+      { id: 'wl-002', studentId: 'COS2504015', studentName: 'Tan Mei Ling', programme: 'COS', intake: '2504', position: 2, status: 'Pending', submittedAt: '02-Sep-2025 10:00:00' },
+      { id: 'wl-003', studentId: 'DSA2409008', studentName: 'Raj Kumar', programme: 'DSA', intake: '2409', position: 3, status: 'Approved', submittedAt: '01-Sep-2025 14:00:00' },
     ],
   },
   {
@@ -90,7 +90,7 @@ const initialWaitlistCourses = [
       { studentId: 'COS2409001', studentName: 'Ahmad bin Ali', programme: 'COS', intake: '2409' },
     ],
     waitlist: [
-      { id: 'wl-004', studentId: 'COS2504015', studentName: 'Tan Mei Ling', programme: 'COS', intake: '2504', position: 1, status: 'Pending', submittedAt: '03-Sep-2025' },
+      { id: 'wl-004', studentId: 'COS2504015', studentName: 'Tan Mei Ling', programme: 'COS', intake: '2504', position: 1, status: 'Pending', submittedAt: '03-Sep-2025 08:30:00' },
     ],
   },
   {
@@ -105,8 +105,8 @@ const initialWaitlistCourses = [
     status: 'full',
     registered: [],
     waitlist: [
-      { id: 'wl-005', studentId: 'AIT2409012', studentName: 'Nurul Aina', programme: 'AIT', intake: '2409', position: 1, status: 'Rejected', submittedAt: '28-Aug-2025' },
-      { id: 'wl-006', studentId: 'COS2409018', studentName: 'Lim Jia Hui', programme: 'COS', intake: '2409', position: 2, status: 'Pending', submittedAt: '29-Aug-2025' },
+      { id: 'wl-005', studentId: 'AIT2409012', studentName: 'Nurul Aina', programme: 'AIT', intake: '2409', position: 1, status: 'Rejected', submittedAt: '28-Aug-2025 16:00:00' },
+      { id: 'wl-006', studentId: 'COS2409018', studentName: 'Lim Jia Hui', programme: 'COS', intake: '2409', position: 2, status: 'Pending', submittedAt: '29-Aug-2025 09:45:00' },
     ],
   },
   {

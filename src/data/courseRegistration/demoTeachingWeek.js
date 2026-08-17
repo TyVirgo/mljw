@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { getActiveBatch } from './registrationBatches.js'
+import { resolveDropDeadlineWeek } from './batchTermKind.js'
 
 /**
  * @deprecated 加退课发起闸门已改为申请窗口日期；保留导出以免旧引用断裂。
@@ -8,7 +9,7 @@ import { getActiveBatch } from './registrationBatches.js'
 export const demoTeachingWeek = ref(3)
 
 export function getDropDeadlineWeek(batch = getActiveBatch()) {
-  return Number(batch?.dropDeadlineWeek) || 5
+  return resolveDropDeadlineWeek(batch)
 }
 
 /** @returns {'self' | 'special'} */
