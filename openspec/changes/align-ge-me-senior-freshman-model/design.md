@@ -12,7 +12,7 @@
 **Goals**
 
 - 新老两套可配时间 + 可设名额/初分/统计/互释。
-- 第一轮加权自动出名单（含毕业生、可配 r）。
+- 第一轮按批次配置做容量细分后录取（GE 按日 / ME 按专业×年级；超额才随机）。
 - 学生 GE/ME 学分帽、同课组 R1 互斥、按受众窗口 FCFS。
 - 全程复用现有视觉组件模式。
 
@@ -53,16 +53,50 @@ batch.roundsByAudience = {
 - year2/sem2：课标志 `minStudentSemester >= 2` → 初分/保存时强制 `freshman = 0`。
 - 编辑入口：管理课程工具条「名额分配」弹窗（或扩容量弹窗第二段）+ 详情名额 Tab 可保存。
 - 往期占比：详情 Tab 内静态/demo 表（学期、新老占比），不新菜单。
-- R3 互释：`releaseCrossAudienceOnRound3`（或扩展现有 release 标志）；学生 R3 可选容量 = 本池剩余 + 对方池剩余（mock）。
+- R3「第三轮选课新老生名额互释」：
+  - 校级：规则表 `CR205`（flag，默认开），与其它选课规则同行展示，必须NOT 另起独立卡片。
+  - 批次：`localRules.releaseCrossAudienceOnRound3`（新建默认勾选）；`isReleaseCrossAudienceOnRound3(batch)` 批次有显式字段时优先，否则回退 CR205。
+  - 学生 R3 有效空位 = 本池剩余 +（互释开时）对方池剩余（`getRound3EffectiveRemaining`）。
 
-### 4. 第一轮抽签
+### 4. 第一轮容量细分与录取（批次配置，无校级 r）
 
-- 入池：老生志愿；容量 = 该课/组对应的老生名额（分组维度与现志愿抽屉一致）。
-- 先放入 `isGraduate` 标记学生直至满或名单尽。
-- 其余：按提交日落在 R1 开放第 i 日算 \(W_i = r^{N-i}\)，加权抽样至满额。
-- `r`：规则设置全局默认（GE 用）；`meWeightByProgramme: { [programme]: r }` 表。
-- 发布：到达 `resultReleaseAt` 时自动写入结果（原型可用「执行自动发布」模拟时钟）；成功后等同原最终确认以开 R2 闸门。
-- 同课多组：同一 studentId+courseCode 只保留权重最高/先抽中的一个 section。
+配置挂在批次 `round1Quota`，UI 在**管理轮次 · 老生 · 第一轮**（不在校级规则页）。校级规则页仅保留「第三轮选课新老生名额互释」等，**必须NOT**再提供全局 r / ME 专业 r。
+
+```text
+batch.round1Quota = {
+  decayR: 3,                      // GE：衰减系数，默认 3；Demo 开放天数 N=5
+  meYearShares: {                 // ME：入学年 → 份额（同年 02/04/09 共用）
+    '2024': 5,
+    '2025': 3,
+    '2026': 2,
+  }
+}
+```
+
+专业在批次 `programme` 已绑定，管理轮次 必须NOT 再配专业维。默认按批次 `academicSession` 列举三年（锚点年及前两年），份额默认 5:3:2（较早更高），允许添加入学年。
+
+**共同录取规则（池内）**
+
+- 某细分池申请人数 ≤ 池容量 → 全部录取，不随机。
+- 申请人数 > 池容量 → 在该池内均匀随机抽出容量人数。
+- 毕业生仍可先占硬优先（占完后再对剩余容量做细分）。
+
+**GE**
+
+- \(W_i = r^{N-i}\)（Demo：N=5；r 默认 3）；归一化为每日硬额度 \(q_i\)（整数，尾差补第 1 天）。
+- 管理端只展示公式释义（W_i / r / N / i）与 r 输入、日份额预览；必须NOT 展示 r=2/2.5/3/4 推荐列表。
+- 非毕业生按志愿提交日落池；日内不结转；整轮 R1 未用完的老生席位进入 R2/R3。
+
+**ME**
+
+- 按入学年切分剩余老生容量；同年 Feb/Apr/Sep（02/04/09）共用该年份额。
+- 学生按志愿 `intake` 归入入学年池；未配置年进入兜底剩余池。
+- 各池同样「未超额全录 / 超额随机」。不按日切；不使用校级/专业 r。
+
+**发布**
+
+- 到达 `resultReleaseAt` 自动写入（或演示一键）；成功等同开 R2 闸门。
+- 同课多组：同一 studentId+courseCode 最多中选一个 section。
 
 ### 5. 学分帽
 
@@ -91,7 +125,7 @@ batch.roundsByAudience = {
 |------|------|
 | 批次/轮次 | `registrationBatches.js`、`BatchRoundManageDrawer.vue`、`batchRoundSetupGates.js`、`RegistrationBatchView.vue` |
 | 名额 | `selectableCourses.js`、`BatchCoursesDrawer.vue`、`SelectableCourseDetailDrawer.vue`、新小弹窗（可选） |
-| 规则 | `RegistrationRuleSettingsView.vue` + 规则 data |
-| 第一轮 | `preselectVolunteerConfirm.js`、`RegistrationResultView.vue` |
+| 规则 | `RegistrationRuleSettingsView.vue`（仅互释等）、`preselectWeightSettings.js`、`batchLocalRules.js`、`RegistrationBatchFormDrawer.vue` |
+| 第一轮 | `batchRound1Quota.js`、`BatchRoundManageDrawer.vue`、`preselectWeightedLottery.js`、`preselectVolunteerConfirm.js`、`RegistrationResultView.vue` |
 | 学生 | `studentRegistrationContext.js`、`studentRegistrationStore.js`、`StudentRegisterView.vue` |
 | 指引/i18n | flow guide 文案、`zh.js`/`en.js` |

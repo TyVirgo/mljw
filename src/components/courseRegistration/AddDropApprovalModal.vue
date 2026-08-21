@@ -2,7 +2,6 @@
 import { ref, watch, computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
-import ExternalDataHint from './ExternalDataHint.vue'
 import {
   approvalActionOptions,
   commonApprovalComments,
@@ -175,12 +174,12 @@ function cancelSubmit() {
             </div>
             <div v-if="showBillOption" class="form-row">
               <div class="form-label">{{ t('courseRegistration.approval.billLabel') }}</div>
-              <div class="form-value">
+              <div class="form-value bill-option-value">
                 <label class="checkbox-row">
                   <input v-model="generateBill" type="checkbox" />
                   {{ t('courseRegistration.approval.generateBill') }}
-                  <ExternalDataHint source-key="finance" />
                 </label>
+                <p class="bill-option-hint">{{ t('courseRegistration.approval.generateBillHint') }}</p>
               </div>
             </div>
           </div>
@@ -202,6 +201,7 @@ function cancelSubmit() {
     :message="submitConfirmMessage"
     :confirm-text="t('common.confirm')"
     confirm-variant="primary"
+    :z-index="1500"
     @confirm="confirmSubmit"
     @cancel="cancelSubmit"
   />
@@ -328,6 +328,21 @@ function cancelSubmit() {
   font-size: 13px;
   color: #374151;
   cursor: pointer;
+}
+
+.bill-option-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.bill-option-hint {
+  margin: 0;
+  max-width: 420px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6b7280;
 }
 
 .comments-box {

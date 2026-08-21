@@ -18,8 +18,9 @@ import {
   isVolunteerPageReadonly,
   isVolunteerDraftFull,
   listStudentIdsOnCourse,
-  shuffleVolunteerList,
+  usesSelectedRoster,
 } from '../../data/courseRegistration/preselectVolunteerConfirm.js'
+import { isGraduateStudent } from '../../data/courseRegistration/studentAudience.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -35,13 +36,12 @@ const draftVolunteers = ref([])
 const searchForm = ref({ studentId: '', studentName: '' })
 const appliedSearch = ref({ studentId: '', studentName: '' })
 const currentPage = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(50)
 const saveError = ref('')
 const addModalVisible = ref(false)
 const removeConfirmVisible = ref(false)
 /** 待移出学号列表（单行 1 个，批量多个） */
 const pendingRemoveStudentIds = ref([])
-const shuffleConfirmVisible = ref(false)
 /** 跨页累加勾选的学号 */
 const selectedStudentIds = ref([])
 // 原单行移出：pendingRemoveStudentId
@@ -65,9 +65,16 @@ const isDirty = computed(() =>
 const isFull = computed(() =>
   isVolunteerDraftFull(props.courseId, props.sectionId, draftVolunteers.value),
 )
-const capacityLabel = computed(() => {
-  const cap = sectionState.value?.capacity || 0
-  return `${draftVolunteers.value.length}/${cap}`
+const listCap = computed(() => {
+  const row = sectionState.value
+  if (!row) return 0
+  if (usesSelectedRoster(row)) return Number(row.seniorCapacity) || Number(row.capacity) || 0
+  return Number(row.capacity) || 0
+})
+const capacityLabel = computed(() => `${draftVolunteers.value.length}/${listCap.value}`)
+const emptyColspan = computed(() => {
+  const extra = readonly.value ? 0 : 2
+  return 8 + extra
 })
 
 const filteredVolunteers = computed(() => {
@@ -119,21 +126,28 @@ watch(
     addModalVisible.value = false
     removeConfirmVisible.value = false
     pendingRemoveStudentIds.value = []
-    shuffleConfirmVisible.value = false
     selectedStudentIds.value = []
   },
 )
 
 /**
- * 按完整草稿名单绝对序号判断容量内/外行底色
+ * GE/ME 抽签名单：选上浅绿、未选上无底色
  * @param {string} studentId 学号
  * @returns {''|'row-within-cap'|'row-over-cap'}
  */
 function volunteerRowTone(studentId) {
+  const row = draftVolunteers.value.find((v) => v.studentId === studentId)
+  if (!row) return ''
+  if (usesSelectedRoster(sectionState.value)) return row.selected ? 'row-within-cap' : ''
   const cap = sectionState.value?.capacity || 0
   const idx = draftVolunteers.value.findIndex((v) => v.studentId === studentId)
   if (idx < 0) return ''
   return idx < cap ? 'row-within-cap' : 'row-over-cap'
+}
+
+function graduateYesNo(row) {
+  const yes = row?.isGraduate || isGraduateStudent(row?.studentId)
+  return yes ? t('common.yes') : t('common.no')
 }
 
 function handleSearch() {
@@ -164,8 +178,8 @@ function requestAddStudents() {
   saveError.value = ''
   if (isFull.value) {
     saveError.value = t('courseRegistration.result.volunteerFullHint', {
-      count: sectionState.value?.capacity || 0,
-      cap: sectionState.value?.capacity || 0,
+      count: listCap.value,
+      cap: listCap.value,
     })
     return
   }
@@ -205,24 +219,6 @@ function requestBatchRemove() {
   if (readonly.value || !selectedStudentIds.value.length) return
   pendingRemoveStudentIds.value = [...selectedStudentIds.value]
   removeConfirmVisible.value = true
-}
-
-/**
- * 请求随机排序：先确认（不可逆）
- */
-function requestShuffle() {
-  if (readonly.value) return
-  if (!draftVolunteers.value.length) return
-  saveError.value = ''
-  shuffleConfirmVisible.value = true
-}
-
-/** 确认后对全部志愿洗牌（仅改草稿，须保存才落库） */
-function confirmShuffle() {
-  shuffleConfirmVisible.value = false
-  draftVolunteers.value = shuffleVolunteerList(draftVolunteers.value)
-  currentPage.value = 1
-  saveError.value = ''
 }
 
 /** 确认移出（单行或批量） */
@@ -337,14 +333,6 @@ function handleClose() {
           <button
             type="button"
             class="btn btn-default"
-            :disabled="!draftVolunteers.length"
-            @click="requestShuffle"
-          >
-            {{ t('courseRegistration.result.volunteerShuffle') }}
-          </button>
-          <button
-            type="button"
-            class="btn btn-default"
             :disabled="!hasSelection"
             @click="requestBatchRemove"
           >
@@ -379,6 +367,15 @@ function handleClose() {
                 <th>{{ t('courseRegistration.monitor.intake') }}</th>
                 <th>{{ t('courseRegistration.result.volunteerRelativeSemester') }}</th>
                 <th>{{ t('courseRegistration.result.volunteerSubmittedAt') }}</th>
+                <th>
+                  <span
+                    class="th-with-tip"
+                    :title="t('courseRegistration.result.volunteerIsGraduateTip')"
+                  >
+                    {{ t('courseRegistration.result.volunteerIsGraduate') }}
+                    <span class="tip-icon" aria-hidden="true">?</span>
+                  </span>
+                </th>
                 <th v-if="!readonly">{{ t('common.actions') }}</th>
               </tr>
             </thead>
@@ -402,6 +399,7 @@ function handleClose() {
                 <td>{{ formatIntakeBatch(row.intake) }}</td>
                 <td>{{ row.relativeSemester }}</td>
                 <td>{{ row.submittedAt }}</td>
+                <td>{{ graduateYesNo(row) }}</td>
                 <td v-if="!readonly" class="col-actions">
                   <button type="button" class="link-btn" @click="requestRemove(row.studentId)">
                     {{ t('courseRegistration.result.volunteerRemove') }}
@@ -409,7 +407,7 @@ function handleClose() {
                 </td>
               </tr>
               <tr v-if="!paginatedVolunteers.length">
-                <td :colspan="readonly ? 7 : 9" class="empty-cell">{{ t('common.noData') }}</td>
+                <td :colspan="emptyColspan" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -458,15 +456,6 @@ function handleClose() {
     confirm-variant="danger"
     @confirm="confirmRemove"
     @cancel="cancelRemoveConfirm"
-  />
-
-  <ConfirmDialog
-    :visible="shuffleConfirmVisible"
-    :title="t('courseRegistration.result.volunteerShuffle')"
-    :message="t('courseRegistration.result.volunteerShuffleConfirm')"
-    :confirm-text="t('courseRegistration.result.volunteerShuffle')"
-    @confirm="confirmShuffle"
-    @cancel="shuffleConfirmVisible = false"
   />
 </template>
 
@@ -655,13 +644,33 @@ function handleClose() {
   z-index: 1;
 }
 
-/* 容量内：浅绿；容量外：浅黄（按草稿绝对名次分界） */
+/* GE 选上 / ME 容量内：浅绿；ME 容量外：浅黄；GE 未选上无底色 */
 .row-within-cap td {
   background: #ecfdf5;
 }
 
 .row-over-cap td {
   background: #fffbeb;
+}
+
+.th-with-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #6b7280;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: help;
 }
 
 .col-actions {

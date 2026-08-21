@@ -176,14 +176,13 @@ export function formatRegistrationLogExportRow(row, t) {
     studentId: row.studentId,
     studentName: row.studentName,
     course,
-    credits: row.credits ?? '',
-    courseType: getRegistrationTypeLabel(row.courseType, t) || row.courseType || '',
     sectionCode: row.sectionCode
       ? t('courseRegistration.courses.sectionNameDisplay', { code: row.sectionCode })
       : '',
+    credits: row.credits ?? '',
+    courseType: getRegistrationTypeLabel(row.courseType, t) || row.courseType || '',
     operator,
     operatedAt: row.operatedAt,
-    remark: row.remark,
     queueStatus,
     result: t(getRegistrationLogResultLabelKey(row.result, row.round)),
   }

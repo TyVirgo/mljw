@@ -144,6 +144,19 @@ function openManageCourses(batch) {
   coursesDrawerBatch.value = batch
 }
 
+/**
+ * 打开学生清单（可选学生 + 指定内层 Tab）
+ * @param {{ batch: object, round?: string }} payload
+ */
+function handleOpenStudentListFromRounds({ batch, round }) {
+  drawerVisible.value = false
+  editingBatch.value = null
+  roundsManageBatch.value = null
+  studentListInitialOuterTab.value = 'eligible'
+  studentListInitialRound.value = round || 'preselect'
+  studentListBatch.value = batch
+}
+
 function openStudentList(batch) {
   studentListInitialOuterTab.value = 'eligible'
   studentListInitialRound.value = 'global'
@@ -159,16 +172,6 @@ function audienceRoundDisplay(batch, audience, roundKey) {
 function audienceRoundTitle(batch, audience, roundKey) {
   const by = ensureRoundsByAudience(batch)
   return formatRoundRangeTitle(by[audience]?.[roundKey])
-}
-
-/**
- * 从管理轮次跳转：可选学生 + 指定轮次
- * @param {{ batch: object, round: string }} payload
- */
-function handleOpenStudentListFromRounds({ batch, round }) {
-  studentListInitialOuterTab.value = 'eligible'
-  studentListInitialRound.value = round || 'preselect'
-  studentListBatch.value = batch
 }
 
 function handleExportConfirm({ selectedFields }) {
@@ -379,6 +382,7 @@ function handleExportConfirm({ selectedFields }) {
       :batch="editingBatch"
       @close="drawerVisible = false"
       @save="handleSave"
+      @open-student-list="handleOpenStudentListFromRounds"
     />
 
     <BatchRoundManageDrawer

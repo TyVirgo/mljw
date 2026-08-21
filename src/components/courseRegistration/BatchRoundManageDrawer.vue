@@ -30,6 +30,17 @@ import {
   ensureRoundsByAudience,
   syncLegacyRoundsFromAudience,
 } from '../../data/courseRegistration/audienceRounds.js'
+import {
+  getBatchRound1Quota,
+  normalizeRound1Quota,
+  previewDaySharePercents,
+  DEMO_ROUND1_OPEN_DAYS,
+  DEFAULT_DECAY_R,
+  intakeLabelsForYear,
+  meYearAddOptions,
+  meYearDefaultPool,
+  meYearSharePercentSum,
+} from '../../data/courseRegistration/batchRound1Quota.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -47,6 +58,7 @@ const form = ref({
   seniorResultReleaseAt: '',
   scopeRules: [],
   addDropWindow: { start: '', end: '' },
+  round1Quota: getBatchRound1Quota(null),
 })
 const audienceTab = ref(AUDIENCE_SENIOR)
 const scopeModalVisible = ref(false)
@@ -56,6 +68,8 @@ const editingScopeRule = ref(null)
 const preselectExpanded = ref(true)
 const mainExpanded = ref(true)
 const supplementExpanded = ref(true)
+const meShareError = ref('')
+const roundSaveError = ref('')
 
 function loadAudienceIntoForm(audience) {
   const source =
@@ -98,6 +112,8 @@ watch(
     mainExpanded.value = true
     supplementExpanded.value = true
     audienceTab.value = AUDIENCE_SENIOR
+    meShareError.value = ''
+    roundSaveError.value = ''
     const by = ensureRoundsByAudience(props.batch)
     form.value = {
       rounds: roundsToPicker(by.senior),
@@ -106,10 +122,128 @@ watch(
       seniorResultReleaseAt: batchDateToPicker(by.senior.resultReleaseAt || ''),
       scopeRules: getBatchScopeRules(props.batch),
       addDropWindow: addDropWindowToPicker(props.batch.addDropWindow),
+      round1Quota: getBatchRound1Quota(props.batch),
     }
   },
   { immediate: true },
 )
+
+const isGeBatch = computed(() => String(props.batch?.type || '').toUpperCase() === 'GE')
+const isMeBatch = computed(() => String(props.batch?.type || '').toUpperCase() === 'ME')
+
+/** Demo 展示固定 N=5，与份额预览一致 */
+const round1OpenDays = computed(() => DEMO_ROUND1_OPEN_DAYS)
+
+const daySharePreview = computed(() =>
+  previewDaySharePercents(DEMO_ROUND1_OPEN_DAYS, form.value.round1Quota?.decayR ?? DEFAULT_DECAY_R),
+)
+
+const meYearRows = computed(() => {
+  const map = form.value.round1Quota?.meYearShares || {}
+  return Object.keys(map)
+    .sort()
+    .map((year) => ({
+      year,
+      intakes: intakeLabelsForYear(year).join(' · '),
+      share: map[year] ?? 0,
+    }))
+})
+
+const meYearAddChoices = computed(() =>
+  meYearAddOptions(
+    props.batch?.academicSession,
+    Object.keys(form.value.round1Quota?.meYearShares || {}),
+  ),
+)
+
+const meShareSum = computed(() => meYearSharePercentSum(form.value.round1Quota?.meYearShares))
+
+/**
+ * 某行入学年下拉：默认 6 年池 + 本行当前年；去掉其他行已占用年；新年在前
+ * @param {string} currentYear
+ * @returns {string[]}
+ */
+function meYearSelectOptions(currentYear) {
+  const pool = meYearDefaultPool(props.batch?.academicSession)
+  const taken = new Set(Object.keys(form.value.round1Quota?.meYearShares || {}))
+  taken.delete(String(currentYear || ''))
+  const years = new Set(pool)
+  if (currentYear) years.add(String(currentYear))
+  return [...years]
+    .filter((y) => !taken.has(y))
+    .sort((a, b) => Number(b) - Number(a))
+}
+
+function setDecayR(value) {
+  const n = Number(value)
+  form.value.round1Quota = {
+    ...form.value.round1Quota,
+    decayR: Number.isFinite(n) && n > 0 ? n : DEFAULT_DECAY_R,
+  }
+}
+
+function setMeYearShare(year, event) {
+  const el = event?.target
+  const raw = el ? el.value : event
+  const n = Math.max(0, Number(raw))
+  if (!Number.isFinite(n)) {
+    if (el) el.value = String(form.value.round1Quota.meYearShares?.[year] ?? 0)
+    return
+  }
+  if (n > 100) {
+    meShareError.value = t('courseRegistration.batch.round1MeShareRowMax')
+    if (el) el.value = String(form.value.round1Quota.meYearShares?.[year] ?? 0)
+    return
+  }
+  const next = {
+    ...form.value.round1Quota.meYearShares,
+    [year]: n,
+  }
+  const sum = meYearSharePercentSum(next)
+  if (sum > 100) {
+    meShareError.value = t('courseRegistration.batch.round1MeShareOver', { sum })
+    if (el) el.value = String(form.value.round1Quota.meYearShares?.[year] ?? 0)
+    return
+  }
+  meShareError.value = ''
+  form.value.round1Quota = {
+    ...form.value.round1Quota,
+    meYearShares: next,
+  }
+}
+
+function addMeYearRow() {
+  const year = String(meYearAddChoices.value[0] || '').trim()
+  if (!/^\d{4}$/.test(year)) return
+  if (form.value.round1Quota.meYearShares?.[year] != null) return
+  meShareError.value = ''
+  form.value.round1Quota = {
+    ...form.value.round1Quota,
+    meYearShares: {
+      ...form.value.round1Quota.meYearShares,
+      [year]: 0,
+    },
+  }
+}
+
+function changeMeYear(fromYear, toYear) {
+  const nextYear = String(toYear || '').trim()
+  if (!/^\d{4}$/.test(nextYear) || nextYear === String(fromYear)) return
+  const map = { ...form.value.round1Quota.meYearShares }
+  if (map[nextYear] != null) return
+  const share = map[fromYear]
+  delete map[fromYear]
+  map[nextYear] = share
+  meShareError.value = ''
+  form.value.round1Quota = { ...form.value.round1Quota, meYearShares: map }
+}
+
+function removeMeYearRow(year) {
+  const next = { ...form.value.round1Quota.meYearShares }
+  delete next[year]
+  meShareError.value = ''
+  form.value.round1Quota = { ...form.value.round1Quota, meYearShares: next }
+}
 
 const title = computed(() =>
   t('courseRegistration.batch.manageRoundsTitle', {
@@ -263,9 +397,58 @@ function onScheduleDateChange(index, value) {
   clearInvalidBatchScheduleAfter(form.value, index)
 }
 
+function isEmptyTime(value) {
+  return !String(value || '').trim()
+}
+
 function handleSave() {
   if (!props.batch) return
+  roundSaveError.value = ''
   persistCurrentAudienceFromForm()
+
+  const senior = form.value.seniorRounds
+  const freshman = form.value.freshmanRounds
+  const currentRounds = audienceTab.value === AUDIENCE_FRESHMAN ? freshman : senior
+
+  if (
+    isEmptyTime(senior.preselect.start) ||
+    isEmptyTime(senior.preselect.end) ||
+    isEmptyTime(form.value.seniorResultReleaseAt)
+  ) {
+    roundSaveError.value = t('courseRegistration.batch.roundTimeRequired')
+    return
+  }
+  if (audienceTab.value === AUDIENCE_FRESHMAN && (isEmptyTime(freshman.preselect.start) || isEmptyTime(freshman.preselect.end))) {
+    roundSaveError.value = t('courseRegistration.batch.roundTimeRequired')
+    return
+  }
+  if (isGeBatch.value) {
+    const decay = Number(form.value.round1Quota?.decayR)
+    if (!Number.isFinite(decay) || decay <= 0) {
+      roundSaveError.value = t('courseRegistration.batch.roundDecayRequired')
+      return
+    }
+  }
+  if (roundGates.value.main.open && (isEmptyTime(currentRounds.main.start) || isEmptyTime(currentRounds.main.end))) {
+    roundSaveError.value = t('courseRegistration.batch.roundTimeRequired')
+    return
+  }
+  if (
+    roundGates.value.supplement.open &&
+    (isEmptyTime(currentRounds.supplement.start) || isEmptyTime(currentRounds.supplement.end))
+  ) {
+    roundSaveError.value = t('courseRegistration.batch.roundTimeRequired')
+    return
+  }
+
+  if (isMeBatch.value) {
+    const sum = meShareSum.value
+    if (sum !== 100) {
+      meShareError.value = t('courseRegistration.batch.round1MeShareNeed100', { sum })
+      return
+    }
+  }
+  meShareError.value = ''
   const seniorPicker = form.value.seniorRounds
   const freshmanPicker = form.value.freshmanRounds
   const seniorFromForm = roundsFromPicker(seniorPicker)
@@ -338,6 +521,12 @@ function handleSave() {
     ),
     // 双时间线后不再用 preferSenior 挡新生；保存时关掉旧闸门
     preselectPriority: { preferSenior: false, minSemestersAbove: 1 },
+    round1Quota: normalizeRound1Quota(
+      form.value.round1Quota,
+      props.batch.type,
+      props.batch.programme,
+      props.batch.academicSession,
+    ),
   })
 }
 </script>
@@ -347,6 +536,9 @@ function handleSave() {
     <CourseRegistrationCallout variant="info">
       <p>{{ t('courseRegistration.batch.manageRoundsHint') }}{{ t('common.prototypeOnlySuffix') }}</p>
       <p>{{ t('courseRegistration.batch.audienceRoundsHint') }}</p>
+    </CourseRegistrationCallout>
+    <CourseRegistrationCallout v-if="roundSaveError" variant="warning">
+      <p>{{ roundSaveError }}</p>
     </CourseRegistrationCallout>
 
     <div class="audience-tabs" role="tablist">
@@ -394,7 +586,9 @@ function handleSave() {
         <div class="round-card">
           <div class="round-fields">
             <div class="form-field">
-              <label class="field-label">{{ t('courseRegistration.batch.roundStart') }}</label>
+              <label class="field-label">
+                <span class="req">*</span> {{ t('courseRegistration.batch.roundStart') }}
+              </label>
               <DatePickerEn
                 mode="datetime"
                 :model-value="form.rounds.preselect.start"
@@ -404,7 +598,9 @@ function handleSave() {
               />
             </div>
             <div class="form-field">
-              <label class="field-label">{{ t('courseRegistration.batch.roundEnd') }}</label>
+              <label class="field-label">
+                <span class="req">*</span> {{ t('courseRegistration.batch.roundEnd') }}
+              </label>
               <DatePickerEn
                 mode="datetime"
                 :model-value="form.rounds.preselect.end"
@@ -414,7 +610,9 @@ function handleSave() {
               />
             </div>
             <div v-if="audienceTab === AUDIENCE_SENIOR" class="form-field form-field-full">
-              <label class="field-label">{{ t('courseRegistration.batch.seniorResultReleaseAt') }}</label>
+              <label class="field-label">
+                <span class="req">*</span> {{ t('courseRegistration.batch.seniorResultReleaseAt') }}
+              </label>
               <DatePickerEn
                 mode="datetime"
                 :model-value="form.seniorResultReleaseAt"
@@ -422,6 +620,125 @@ function handleSave() {
                 @update:model-value="(v) => (form.seniorResultReleaseAt = v || '')"
               />
             </div>
+          </div>
+
+          <div
+            v-if="audienceTab === AUDIENCE_SENIOR && (isGeBatch || isMeBatch)"
+            class="round1-quota-block"
+          >
+            <h4 class="round1-quota-title">{{ t('courseRegistration.batch.round1QuotaTitle') }}</h4>
+
+            <template v-if="isGeBatch">
+              <div class="round1-formula">
+                <p class="round1-formula-title">{{ t('courseRegistration.batch.round1FormulaTitle') }}</p>
+                <ul class="round1-formula-defs">
+                  <li>{{ t('courseRegistration.batch.round1FormulaWi') }}</li>
+                  <li>{{ t('courseRegistration.batch.round1FormulaR') }}</li>
+                  <li>{{ t('courseRegistration.batch.round1FormulaN') }}</li>
+                  <li>{{ t('courseRegistration.batch.round1FormulaI') }}</li>
+                </ul>
+              </div>
+              <div class="form-field" style="max-width: 220px">
+                <label class="field-label">
+                  <span class="req">*</span> {{ t('courseRegistration.batch.round1DecayR') }}
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="0.1"
+                  class="inline-number"
+                  :value="form.round1Quota.decayR"
+                  @change="setDecayR($event.target.value)"
+                />
+              </div>
+              <p class="round1-quota-preview">
+                {{
+                  t('courseRegistration.batch.round1DaySharePreview', {
+                    days: round1OpenDays,
+                    shares: daySharePreview.map((p) => `${p}%`).join(' / '),
+                  })
+                }}
+              </p>
+            </template>
+
+            <template v-else-if="isMeBatch">
+              <div class="scope-toolbar round1-me-toolbar">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  :disabled="!meYearAddChoices.length"
+                  @click="addMeYearRow"
+                >
+                  + {{ t('common.create') }}
+                </button>
+                <span class="round1-me-sum">
+                  {{ t('courseRegistration.batch.round1MeShareSum', { sum: meShareSum }) }}
+                </span>
+              </div>
+              <div class="scope-rules-table-wrap">
+                <table class="data-table scope-rules-table">
+                  <thead>
+                    <tr>
+                      <th>{{ t('courseRegistration.batch.round1MeYear') }}</th>
+                      <th>{{ t('courseRegistration.batch.round1MeIntakes') }}</th>
+                      <th>
+                        <span class="req">*</span> {{ t('courseRegistration.batch.round1MeShare') }}
+                      </th>
+                      <th class="col-actions">{{ t('common.actions') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="row in meYearRows" :key="row.year">
+                      <td>
+                        <select
+                          class="me-year-select"
+                          :value="row.year"
+                          @change="changeMeYear(row.year, $event.target.value)"
+                        >
+                          <option
+                            v-for="y in meYearSelectOptions(row.year)"
+                            :key="y"
+                            :value="y"
+                          >
+                            {{ y }}
+                          </option>
+                        </select>
+                      </td>
+                      <td class="me-intakes-cell">{{ row.intakes }}</td>
+                      <td>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="1"
+                          class="inline-number"
+                          :value="row.share"
+                          @change="setMeYearShare(row.year, $event)"
+                        />
+                      </td>
+                      <td class="col-actions">
+                        <button type="button" class="link-btn" @click="removeMeYearRow(row.year)">
+                          {{ t('common.delete') }}
+                        </button>
+                      </td>
+                    </tr>
+                    <tr v-if="!meYearRows.length">
+                      <td colspan="4" class="empty-cell">
+                        {{ t('courseRegistration.batch.round1MeEmpty') }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="round1-quota-hint">
+                {{
+                  t('courseRegistration.batch.round1MeHint', {
+                    programme: props.batch?.programme || '—',
+                  })
+                }}
+              </p>
+              <p v-if="meShareError" class="error-text">{{ meShareError }}</p>
+            </template>
           </div>
 
           <div class="scope-toolbar">
@@ -503,7 +820,9 @@ function handleSave() {
         <div class="round-card" :class="{ 'is-locked': !roundGates.main.open }">
           <div class="round-fields">
             <div class="form-field">
-              <label class="field-label">{{ t('courseRegistration.batch.roundStart') }}</label>
+              <label class="field-label">
+                <span v-if="roundGates.main.open" class="req">*</span> {{ t('courseRegistration.batch.roundStart') }}
+              </label>
               <DatePickerEn
                 mode="datetime"
                 :model-value="form.rounds.main.start"
@@ -514,7 +833,9 @@ function handleSave() {
               />
             </div>
             <div class="form-field">
-              <label class="field-label">{{ t('courseRegistration.batch.roundEnd') }}</label>
+              <label class="field-label">
+                <span v-if="roundGates.main.open" class="req">*</span> {{ t('courseRegistration.batch.roundEnd') }}
+              </label>
               <DatePickerEn
                 mode="datetime"
                 :model-value="form.rounds.main.end"
@@ -615,7 +936,9 @@ function handleSave() {
         <div class="round-card" :class="{ 'is-locked': !roundGates.supplement.open }">
           <div class="round-fields">
             <div class="form-field">
-              <label class="field-label">{{ t('courseRegistration.batch.roundStart') }}</label>
+              <label class="field-label">
+                <span v-if="roundGates.supplement.open" class="req">*</span> {{ t('courseRegistration.batch.roundStart') }}
+              </label>
               <DatePickerEn
                 mode="datetime"
                 :model-value="form.rounds.supplement.start"
@@ -626,7 +949,9 @@ function handleSave() {
               />
             </div>
             <div class="form-field">
-              <label class="field-label">{{ t('courseRegistration.batch.roundEnd') }}</label>
+              <label class="field-label">
+                <span v-if="roundGates.supplement.open" class="req">*</span> {{ t('courseRegistration.batch.roundEnd') }}
+              </label>
               <DatePickerEn
                 mode="datetime"
                 :model-value="form.rounds.supplement.end"
@@ -856,6 +1181,10 @@ function handleSave() {
   color: #374151;
 }
 
+.req {
+  color: #ef4444;
+}
+
 .round-card {
   margin-bottom: 8px;
   padding: 12px 14px;
@@ -987,6 +1316,109 @@ function handleSave() {
 .link-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.round1-quota-block {
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.round1-quota-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.round1-quota-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.round1-formula {
+  margin: 0 0 12px;
+}
+
+.round1-formula-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.round1-formula-defs {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.55;
+}
+
+.round1-quota-preview {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #374151;
+}
+
+.round1-me-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 8px;
+}
+
+.round1-me-sum {
+  font-size: 13px;
+  color: #6b7280;
+  margin-left: auto;
+}
+
+.me-year-select {
+  min-width: 108px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.error-text {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #b91c1c;
+}
+
+.me-prog-input {
+  width: 140px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.me-intakes-cell {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.inline-number {
+  width: 72px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: center;
 }
 
 @media (max-width: 720px) {

@@ -157,7 +157,7 @@
 ## Decisions
 
 1. **全批次有数**：每个 `registrationBatches` 在三 Tab 均至少有若干可演示行；不为「空批靠后」做排序。
-2. **缺课批次**：在 `selectableCourses` 用 `buildActiveBatchDemoCourses` 补 3～4 门轻量课（含分组）。
+2. **缺课批次**：在 `selectableCourses` 用 `buildActiveBatchDemoCourses` 补满约 20 门轻量课（含分组），与管理课程演示口径一致。
 3. **种子粒度**：主批 `batch-2504-m1` 保持较丰富；其它批次每批取前若干门课挂志愿/轮次/学生明细，避免体量过大。
 4. **下拉宽度**：结果页复用在线选课同款文案测量（最长批次名 + 箭头余量）。
 
@@ -197,3 +197,59 @@
 2. **交互**：独立弹窗；一次一名学生（单选）→ 再选当前批次下未满员「课×分组」。
 3. **满员**：分组 `enrolled >= capacity` 视为满员，不可选；提交时再校验。
 4. **落库**：复用 `addAdminStudentRegistrations`，`courseSource = admin`（界面「管理员添加」）。
+
+## 增量：第一轮志愿结果 · GE 按日抽签（2026-08）
+
+## Context
+
+第一轮只消耗分组老生额度。管理端「志愿名单」仍是一张表，不单独做每日阶段名单；GE 按抽签结果排序与上色，ME 保持原名次切分。
+
+## Decisions
+
+1. **Tab / 文案**：`tabVolunteer` →「第一轮志愿结果」；`volunteerCapacityLabel` →「志愿数量/老生容量」。主表分母用分组 `quota.senior`（无则按课级老生额度比例折到分组）。不改学生端在线选课「志愿数量/课程容量」。
+2. **GE 录取**：毕业生先占老生额度（人数少则全录；超额按 `submittedAt` 先到先得）。剩余额度 `allocateDayQuotas`（`W_i = r^(N-i)`，N=批次老生 R1 开放天数，r=批次 `decayR`）。每天只抽当天新提交的非毕业生；日内不结转；落选不参加后续天。整轮未用完老生席位概念上进入 R2 先到先得（本页不改 R2 抢课实现）。
+3. **名单顺序**：选上（毕业生 → Day1…DayN）在前，未选上（超额毕业生 → 按日落选）在后。日内相对顺序用抽签洗牌结果。
+4. **底色**：GE 浅绿=`selected`；未选上无底色（去掉浅黄）。ME 同期改为 `selected` 浅绿 / 未选上无底色（见 ME 入学年抽签增量）。
+5. **毕业生列**：是/否；表头 tooltip「最后一个学期有 GE 的学生视为【毕业生】，第一轮选中的概率 100%」。Demo 沿用 `DEMO_GRADUATE_IDS`，不把名单做成全毕业生。
+6. **运维**：去掉「随机排序」。添加：GE 插入选上区末尾且 `selected=true`，满员=选上人数≥老生额度。移除：不自动把未选上递补为选上。
+7. **文件**：`preselectWeightedLottery.js`（`layoutGeRound1Roster`）、`preselectVolunteerConfirm.js`（GE seed/添加）、`PreselectVolunteerRosterDrawer.vue`、`RegistrationResultView.vue`（列文案已走 i18n）、`zh.js` / `en.js`。
+8. **Demo**：GE 分组志愿人数须明显多于老生额度，且 `submittedAt` 落到 R1 各开放日，便于看见绿/白分界与按日块。抽签使用按分组 key 的 seeded random，刷新稳定。
+
+## 增量：公布时间自动锁定 · 名单分页 · 批次对半（2026-08）
+
+## Decisions
+
+1. **去掉最终确认按钮**。不再手工定稿。内部仍写 `volunteerFinalConfirmedAt` 作为已锁定标记（第二轮闸门兼容）。
+2. **工具行**：展示 `senior.resultReleaseAt`（`dd/mm/yyyy hh:mm:ss`）+「剩余 X 天 Y 小时」；已到点为「已公布」。每个批次必须有公布时间，必须NOT 展示「尚未配置」。Callout 不再重复状态。
+3. **到点锁定**：`now >= resultReleaseAt` 时锁定该批名单（只读仍可打开志愿名单）；按当前已保存名单的选上标记同步学生端 `volunteerSheetsByBatch` / 公示结果（hit/miss）。必须NOT 再次执行抽签。未保存草稿丢弃。
+4. **倒计时**：页内每分钟刷新；未锁定且已到期则自动锁定。未锁定 demo 批（如 BUS GE、COS ME）公布时间放在「今天」之后以便看见倒计时。
+5. **志愿名单抽屉**默认 `pageSize=50`。
+6. **Demo 批次**：将若干草稿 ME 改为 GE，使下拉约一半 GE、一半 ME。
+7. **公布时间必配**：`geBatch` / `meBatch` / `addRegistrationBatch` / `withAudienceRounds` 在缺省时写入 `DEMO_SENIOR_ROUNDS_202604.resultReleaseAt`。已锁定批保留过去时间。
+8. **相对学期**：`countRelativeSemesters(intake, academicSession)` 按 02/04/09 从入学批次累计到当前学年学期（含两端）。志愿 demo 与添加学生均现算，禁止按人写死不同学期。
+
+## 增量：ME 第一轮按入学年抽签（2026-08）
+
+## Context
+
+ME 名单仍按学期排序 + 名次切绿/黄，未使用管理轮次入学年占比。`drawWeightedVolunteers` 会裁掉落选且年际结转。
+
+## Decisions
+
+1. **布局函数** `layoutMeRound1Roster`：保留全部志愿并打 `selected`。毕业生先占老生额度（超额按提交时间）。剩余用 `allocateMeYearQuotas`。同年随机抽满该年额度。该年不足不补给其他年；入学年不在配置表则未选上。
+2. **顺序**：选上毕业生 → 选上非毕业生（学年早→晚）→ 未选上毕业生 → 未选上非毕业生（学年早→晚）。
+3. **底色 / 运维**：与 GE 相同（浅绿/无底色；添加插选上末尾；移出不递补；满员=选上人数≥老生额度；锁定不重抽）。
+4. **Demo**：ME 按 `batch.programme` 收口种子（SWE 仅 SWE）；覆盖默认入学年 2024/2025/2026；少量毕业生。
+5. **文件**：`preselectWeightedLottery.js`、`preselectVolunteerConfirm.js`、`PreselectVolunteerRosterDrawer.vue`、i18n。
+
+## 增量：第一轮志愿结果每批约 25 行（2026-08）
+
+## Context
+
+非主批志愿结果只 seed 前 4 门课（×2 分组 = 8 行）。课库往往已有约 20 门。部分 GE 草稿课仍默认 `type: 'ME'`。
+
+## Decisions
+
+1. **行数**：`VOLUNTEER_SEED_COURSE_LIMIT` 统一为 13 门；两分组则为 26 行。课不足的批次补课名。
+2. **GE 类型**：`buildActiveBatchDemoCourses` 对 GE 批次传 `type: 'GE'`。
+3. **范围**：只加第一轮志愿结果主表行数；轮次/学生 Tab 的 slice 本增量不改。

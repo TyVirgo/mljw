@@ -176,6 +176,21 @@ export function ensureDateTimeWithSeconds(value) {
 
 export function nowDateTimeWithSeconds() {
   const d = new Date()
+  return formatLocalDateTimeWithSeconds(d)
+}
+
+/**
+ * 相对某时刻增加日历天数（用于 CR107 缴费截止）
+ * @param {number} days
+ * @param {Date} [from]
+ */
+export function addDaysToDateTime(days, from = new Date()) {
+  const d = from instanceof Date ? new Date(from.getTime()) : new Date()
+  d.setDate(d.getDate() + (Number(days) || 0))
+  return formatLocalDateTimeWithSeconds(d)
+}
+
+function formatLocalDateTimeWithSeconds(d) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${normalizeTimeParts(
     d.getHours(),
     d.getMinutes(),

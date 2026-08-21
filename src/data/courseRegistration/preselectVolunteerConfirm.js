@@ -2,7 +2,18 @@ import { ref, computed } from 'vue'
 import { selectableCourses } from './selectableCourses.js'
 import { registrationBatches } from './registrationBatches.js'
 import { getCurrentStudent } from '../mockCurrentStudent.js'
-import { applyWeightedDrawToSectionState } from './preselectWeightedLottery.js'
+import { isGraduateStudent } from './studentAudience.js'
+import {
+  applyWeightedDrawToSectionState,
+  layoutGeRound1Roster,
+  layoutMeRound1Roster,
+  getSectionSeniorCapacity,
+  getBatchRound1Window,
+  parseCourseRegTime,
+  seededRandomFromKey,
+} from './preselectWeightedLottery.js'
+import { getBatchRound1Quota, openDaysFromRange, DEFAULT_DECAY_R } from './batchRound1Quota.js'
+import { countRelativeSemesters } from '../intakeSets.js'
 
 /**
  * 第一轮志愿名单（按教学分组）
@@ -18,6 +29,43 @@ function formatSubmittedAt(offsetMinutes) {
   const d = new Date(Date.UTC(2025, 7, 25, 9, 0, 0))
   d.setUTCMinutes(d.getUTCMinutes() + offsetMinutes)
   return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`
+}
+
+function isGeBatch(batch) {
+  return String(batch?.type || '').toUpperCase() === 'GE'
+}
+
+function isMeBatch(batch) {
+  return String(batch?.type || '').toUpperCase() === 'ME'
+}
+
+export function usesSelectedRoster(state) {
+  return Boolean(state?.isGeRound1 || state?.isMeRound1)
+}
+
+function formatAtRoundDay(roundStart, dayIndex, salt) {
+  let startMs = parseCourseRegTime(roundStart)
+  if (!Number.isFinite(startMs)) startMs = Date.parse('01 Sep 2025')
+  const d = new Date(startMs)
+  d.setDate(d.getDate() + Math.max(0, Number(dayIndex) - 1))
+  d.setHours(9, (salt * 7) % 60, (salt * 13) % 60, 0)
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+}
+
+function spreadGeSubmitDays(list, roundStart, nDays) {
+  const n = list.length
+  const days = Math.max(1, nDays)
+  return list.map((v, i) => {
+    let day = 1
+    if (days === 1) day = 1
+    else if (i < n * 0.5) day = 1
+    else if (i < n * 0.8) day = Math.min(2, days)
+    else {
+      const restDays = Math.max(1, days - 2)
+      day = Math.min(days, 3 + (i % restDays))
+    }
+    return { ...v, submittedAt: formatAtRoundDay(roundStart, day, i) }
+  })
 }
 
 function sortVolunteers(list) {
@@ -62,52 +110,120 @@ export function shuffleVolunteerList(list) {
   return arr
 }
 
-const DEMO_POOL = [
-  { studentId: 'SWE2409001', studentName: 'Wei Ming', programme: 'SWE', intake: '2409', relativeSemester: 4 },
-  { studentId: 'SWE2409002', studentName: 'Li Hua', programme: 'SWE', intake: '2409', relativeSemester: 3 },
-  { studentId: 'AIT2409005', studentName: 'Tan Mei Ling', programme: 'AIT', intake: '2409', relativeSemester: 4 },
-  { studentId: 'ACC2409003', studentName: 'Ahmad Faiz', programme: 'ACC', intake: '2409', relativeSemester: 5 },
-  { studentId: 'FIN2409007', studentName: 'Park Ji-ho', programme: 'FIN', intake: '2409', relativeSemester: 6 },
-  { studentId: 'MAT2504001', studentName: 'Chen Yu', programme: 'MAT', intake: '2504', relativeSemester: 2 },
-  { studentId: 'SWE2504002', studentName: 'Nur Aisyah', programme: 'SWE', intake: '2504', relativeSemester: 2 },
-  { studentId: 'AIT2409010', studentName: 'Siti Nurhaliza', programme: 'AIT', intake: '2409', relativeSemester: 4 },
-  { studentId: 'ACC2409008', studentName: 'Chong Kai Xin', programme: 'ACC', intake: '2409', relativeSemester: 3 },
-  { studentId: 'MAT2504003', studentName: 'Raj Kumar', programme: 'MAT', intake: '2504', relativeSemester: 2 },
-  { studentId: 'FIN2409011', studentName: 'Nurul Aina', programme: 'FIN', intake: '2409', relativeSemester: 5 },
-  { studentId: 'SWE2409012', studentName: 'Wong Jia Wei', programme: 'SWE', intake: '2409', relativeSemester: 3 },
-  { studentId: 'BUS2409020', studentName: 'Wong Mei Ling', programme: 'BUS', intake: '2409', relativeSemester: 4 },
-  { studentId: 'COS2409001', studentName: 'Ahmad bin Ali', programme: 'COS', intake: '2409', relativeSemester: 4 },
-  { studentId: 'COS2504015', studentName: 'Tan Mei Ling', programme: 'COS', intake: '2504', relativeSemester: 2 },
-  { studentId: 'DSA2504002', studentName: 'Lee Wei Ming', programme: 'DSA', intake: '2504', relativeSemester: 2 },
-  { studentId: 'ENG2409018', studentName: 'Emily Tan', programme: 'ENG', intake: '2409', relativeSemester: 5 },
-  { studentId: 'CHE2409006', studentName: 'Koh Wei Jie', programme: 'CHE', intake: '2409', relativeSemester: 3 },
-  { studentId: 'PHY2504004', studentName: 'Amira Hassan', programme: 'PHY', intake: '2504', relativeSemester: 2 },
-  { studentId: 'BIO2409014', studentName: 'Daniel Lim', programme: 'BIO', intake: '2409', relativeSemester: 4 },
-  { studentId: 'ACC2504009', studentName: 'Priya Sharma', programme: 'ACC', intake: '2504', relativeSemester: 2 },
-  { studentId: 'FIN2504010', studentName: 'Jason Ong', programme: 'FIN', intake: '2504', relativeSemester: 2 },
-  { studentId: 'SWE2409025', studentName: 'Grace Yap', programme: 'SWE', intake: '2409', relativeSemester: 6 },
-  { studentId: 'AIT2504011', studentName: 'Farid Ismail', programme: 'AIT', intake: '2504', relativeSemester: 2 },
-  { studentId: 'BUS2409030', studentName: 'Nicole Chua', programme: 'BUS', intake: '2409', relativeSemester: 3 },
-  { studentId: 'MAT2409016', studentName: 'Hafiz Rahman', programme: 'MAT', intake: '2409', relativeSemester: 5 },
-  { studentId: 'COS2409022', studentName: 'Sophie Ng', programme: 'COS', intake: '2409', relativeSemester: 4 },
-  { studentId: 'DSA2409008', studentName: 'Marcus Teo', programme: 'DSA', intake: '2409', relativeSemester: 3 },
+function volunteerRelativeSemester(intake, academicSession) {
+  const session = academicSession || '2026/04'
+  return countRelativeSemesters(intake, session) || countRelativeSemesters(intake, '2026/04') || 1
+}
+
+const DEMO_NAMES = [
+  'Wei Ming',
+  'Li Hua',
+  'Tan Mei Ling',
+  'Ahmad Faiz',
+  'Park Ji-ho',
+  'Chen Yu',
+  'Nur Aisyah',
+  'Siti Nurhaliza',
+  'Chong Kai Xin',
+  'Raj Kumar',
+  'Nurul Aina',
+  'Wong Jia Wei',
+  'Wong Mei Ling',
+  'Ahmad bin Ali',
+  'Lee Wei Ming',
+  'Emily Tan',
+  'Koh Wei Jie',
+  'Amira Hassan',
+  'Daniel Lim',
+  'Priya Sharma',
+  'Jason Ong',
+  'Grace Yap',
+  'Farid Ismail',
+  'Nicole Chua',
+  'Hafiz Rahman',
+  'Sophie Ng',
+  'Marcus Teo',
 ]
 
-function pickVolunteers(seed, count) {
+/**
+ * ME demo：按批次专业生成覆盖 2024/2025/2026 入学年的志愿池
+ * @param {string} programme
+ */
+function buildProgrammeVolunteerPool(programme) {
+  const p = String(programme || 'SWE')
+    .replace(/[^A-Za-z]/g, '')
+    .toUpperCase()
+    .slice(0, 3) || 'SWE'
+  const bands = [
+    { intake: '2409', count: 16, graduates: 2 },
+    { intake: '2504', count: 14, graduates: 0 },
+    { intake: '2604', count: 12, graduates: 0 },
+  ]
+  const out = []
+  let seq = 1
+  for (const band of bands) {
+    for (let i = 0; i < band.count; i += 1) {
+      out.push({
+        studentId: `${p}${band.intake}${String(seq).padStart(3, '0')}`,
+        studentName: DEMO_NAMES[(seq - 1) % DEMO_NAMES.length],
+        programme: p,
+        intake: band.intake,
+        isGraduate: i < band.graduates,
+      })
+      seq += 1
+    }
+  }
+  return out
+}
+
+const DEMO_POOL = [
+  { studentId: 'SWE2409001', studentName: 'Wei Ming', programme: 'SWE', intake: '2409' },
+  { studentId: 'SWE2409002', studentName: 'Li Hua', programme: 'SWE', intake: '2409' },
+  { studentId: 'AIT2409005', studentName: 'Tan Mei Ling', programme: 'AIT', intake: '2409' },
+  { studentId: 'ACC2409003', studentName: 'Ahmad Faiz', programme: 'ACC', intake: '2409' },
+  { studentId: 'FIN2409007', studentName: 'Park Ji-ho', programme: 'FIN', intake: '2409' },
+  { studentId: 'MAT2504001', studentName: 'Chen Yu', programme: 'MAT', intake: '2504' },
+  { studentId: 'SWE2504002', studentName: 'Nur Aisyah', programme: 'SWE', intake: '2504' },
+  { studentId: 'AIT2409010', studentName: 'Siti Nurhaliza', programme: 'AIT', intake: '2409' },
+  { studentId: 'ACC2409008', studentName: 'Chong Kai Xin', programme: 'ACC', intake: '2409' },
+  { studentId: 'MAT2504003', studentName: 'Raj Kumar', programme: 'MAT', intake: '2504' },
+  { studentId: 'FIN2409011', studentName: 'Nurul Aina', programme: 'FIN', intake: '2409' },
+  { studentId: 'SWE2409012', studentName: 'Wong Jia Wei', programme: 'SWE', intake: '2409' },
+  { studentId: 'BUS2409020', studentName: 'Wong Mei Ling', programme: 'BUS', intake: '2409' },
+  { studentId: 'COS2409001', studentName: 'Ahmad bin Ali', programme: 'COS', intake: '2409' },
+  { studentId: 'COS2504015', studentName: 'Tan Mei Ling', programme: 'COS', intake: '2504' },
+  { studentId: 'DSA2504002', studentName: 'Lee Wei Ming', programme: 'DSA', intake: '2504' },
+  { studentId: 'ENG2409018', studentName: 'Emily Tan', programme: 'ENG', intake: '2409' },
+  { studentId: 'CHE2409006', studentName: 'Koh Wei Jie', programme: 'CHE', intake: '2409' },
+  { studentId: 'PHY2504004', studentName: 'Amira Hassan', programme: 'PHY', intake: '2504' },
+  { studentId: 'BIO2409014', studentName: 'Daniel Lim', programme: 'BIO', intake: '2409' },
+  { studentId: 'ACC2504009', studentName: 'Priya Sharma', programme: 'ACC', intake: '2504' },
+  { studentId: 'FIN2504010', studentName: 'Jason Ong', programme: 'FIN', intake: '2504' },
+  { studentId: 'SWE2409025', studentName: 'Grace Yap', programme: 'SWE', intake: '2409' },
+  { studentId: 'AIT2504011', studentName: 'Farid Ismail', programme: 'AIT', intake: '2504' },
+  { studentId: 'BUS2409030', studentName: 'Nicole Chua', programme: 'BUS', intake: '2409' },
+  { studentId: 'MAT2409016', studentName: 'Hafiz Rahman', programme: 'MAT', intake: '2409' },
+  { studentId: 'COS2409022', studentName: 'Sophie Ng', programme: 'COS', intake: '2409' },
+  { studentId: 'DSA2409008', studentName: 'Marcus Teo', programme: 'DSA', intake: '2409' },
+]
+
+function pickVolunteers(seed, count, academicSession, opts = {}) {
+  const programme = String(opts.programme || '').trim()
+  const pool = programme ? buildProgrammeVolunteerPool(programme) : DEMO_POOL
   const out = []
   for (let i = 0; i < count; i += 1) {
-    const profile = DEMO_POOL[(seed + i * 3) % DEMO_POOL.length]
-    // 超额演示：超出池大小时学号加后缀保证唯一；姓名保持干净不拼括号序号
-    const overflow = i >= DEMO_POOL.length
+    const idx = programme ? i % pool.length : (seed + i * 3) % pool.length
+    const profile = pool[idx]
+    const overflow = i >= pool.length
     out.push({
       id: `vol-${profile.studentId}-${seed}-${i}`,
       studentId: overflow ? `${profile.studentId}-x${seed}-${i}` : profile.studentId,
-      // 原：overflow ? `${profile.studentName} (${i + 1})` : profile.studentName
       studentName: profile.studentName,
       programme: profile.programme,
       intake: profile.intake,
-      relativeSemester: profile.relativeSemester,
+      relativeSemester: volunteerRelativeSemester(profile.intake, academicSession),
       submittedAt: formatSubmittedAt(seed * 11 + i * 5),
+      isGraduate: Boolean(profile.isGraduate),
     })
   }
   const seen = new Set()
@@ -122,10 +238,8 @@ function sectionStateKey(courseId, sectionId) {
   return `${courseId}::${sectionId}`
 }
 
-/** 主批保留较丰富演示；其它批次每批取前若干门，控制体积 */
-const VOLUNTEER_SEED_COURSE_LIMIT_PRIMARY = 10
-const VOLUNTEER_SEED_COURSE_LIMIT_OTHER = 4
-const VOLUNTEER_PRIMARY_BATCH_ID = 'batch-2504-m1'
+/** 每批取 13 门（两分组约 26 行），保证第一轮志愿结果可翻页 */
+const VOLUNTEER_SEED_COURSE_LIMIT = 13
 
 /**
  * 为全部批次生成第一轮志愿分组状态（每批至少覆盖若干门课）
@@ -135,37 +249,49 @@ function seedSectionStates() {
   const rows = []
   let seed = 0
   for (const batch of registrationBatches.value) {
-    const limit =
-      batch.id === VOLUNTEER_PRIMARY_BATCH_ID
-        ? VOLUNTEER_SEED_COURSE_LIMIT_PRIMARY
-        : VOLUNTEER_SEED_COURSE_LIMIT_OTHER
-    const courses = selectableCourses.value.filter((c) => c.batchId === batch.id).slice(0, limit)
+    const courses = selectableCourses.value
+      .filter((c) => c.batchId === batch.id)
+      .slice(0, VOLUNTEER_SEED_COURSE_LIMIT)
     const batchName = batch.name || ''
     for (const course of courses) {
       const sections = course.sections?.length ? course.sections : []
       for (const section of sections) {
         const capacity = Math.max(1, Number(section.capacity) || 20)
-        // 演示绿/黄/红：未满 / 满额～2 倍内 / 超额（学生提交不受容量限制）
-        // 主批前几组偏绿，默认进入即可提交且能看到未爆热度；其后覆盖黄/红
-        let mode
-        if (batch.id === VOLUNTEER_PRIMARY_BATCH_ID) {
-          if (seed < 4) mode = 0
-          else if (seed < 7) mode = 1
-          else mode = 2
-        } else {
-          mode = seed % 3
-        }
+        const isGe = isGeBatch(batch)
+        const isMe = isMeBatch(batch)
+        const seniorCapacity = getSectionSeniorCapacity(course, section.id, capacity)
         let seedCount
-        if (batch.id !== VOLUNTEER_PRIMARY_BATCH_ID) {
-          seedCount = Math.max(2, Math.min(8, Math.floor(capacity * 0.25) + (seed % 3)))
-        } else if (mode === 0) {
-          seedCount = Math.max(1, Math.floor(capacity * 0.55))
-        } else if (mode === 1) {
-          seedCount = capacity + Math.max(1, Math.floor(capacity * 0.35))
+        if (isGe || isMe) {
+          const cap = seniorCapacity || capacity
+          seedCount = Math.max(cap + 10, Math.floor(cap * 1.7) + (seed % 6))
         } else {
-          seedCount = capacity * 2 + 2 + (seed % 4)
+          seedCount = Math.max(2, Math.min(8, Math.floor(capacity * 0.25) + (seed % 3)))
         }
-        const volunteers = sortVolunteers(pickVolunteers(seed, seedCount))
+        let volunteers = pickVolunteers(seed, seedCount, batch.academicSession, {
+          programme: isMe ? batch.programme || '' : '',
+        })
+        const quota = getBatchRound1Quota(batch)
+        const listCap = Math.min(capacity, seniorCapacity)
+        const rand = seededRandomFromKey(sectionStateKey(course.id, section.id))
+        if (isGe) {
+          const { start, end } = getBatchRound1Window(batch)
+          const nDays = openDaysFromRange(start, end)
+          volunteers = layoutGeRound1Roster(spreadGeSubmitDays(volunteers, start, nDays), {
+            capacity: listCap,
+            nDays,
+            roundStart: start,
+            decayR: quota.decayR ?? DEFAULT_DECAY_R,
+            rand,
+          })
+        } else if (isMe) {
+          volunteers = layoutMeRound1Roster(volunteers, {
+            capacity: listCap,
+            meYearShares: quota.meYearShares,
+            rand,
+          })
+        } else {
+          volunteers = sortVolunteers(volunteers)
+        }
         rows.push({
           key: sectionStateKey(course.id, section.id),
           courseId: course.id,
@@ -178,6 +304,10 @@ function seedSectionStates() {
           batchId: course.batchId,
           batchName,
           capacity,
+          seniorCapacity,
+          isGeRound1: isGe,
+          isMeRound1: isMe,
+          batchType: batch.type || '',
           volunteers,
           pendingDraftVolunteers: null,
           dirty: false,
@@ -262,8 +392,11 @@ export function listVolunteerCourseSummaries(filters = {}) {
       batchName: row.batchName,
       volunteerCount: count,
       capacity: row.capacity,
+      seniorCapacity: row.seniorCapacity ?? row.capacity,
+      isGeRound1: Boolean(row.isGeRound1),
+      isMeRound1: Boolean(row.isMeRound1),
       dirty: Boolean(row.dirty),
-      capacityLabel: `${count}/${row.capacity}`,
+      capacityLabel: `${count}/${row.seniorCapacity ?? row.capacity}`,
     }
   })
 
@@ -321,6 +454,10 @@ export function isVolunteerDraftFull(courseId, sectionId, draftList) {
   const state = getVolunteerSectionState(courseId, sectionId)
   if (!state) return true
   const list = draftList || getDraftVolunteers(courseId, sectionId)
+  if (usesSelectedRoster(state)) {
+    const cap = Number(state.seniorCapacity) || Number(state.capacity) || 0
+    return list.filter((v) => v.selected).length >= cap
+  }
   return list.length >= state.capacity
 }
 
@@ -352,7 +489,9 @@ export function saveVolunteerCourseRoster(courseId, sectionId, draftVolunteers) 
     pendingDraftVolunteers: null,
     dirty: false,
   }
-  return { ok: true, selectedCount: Math.min(list.length, state.capacity) }
+  return { ok: true, selectedCount: usesSelectedRoster(state)
+    ? list.filter((v) => v.selected).length
+    : Math.min(list.length, state.capacity) }
 }
 
 export function stashVolunteerCourseDraft(courseId, sectionId, draftVolunteers) {
@@ -511,12 +650,15 @@ export function buildVolunteerDraftAfterAdd(courseId, sectionId, draftVolunteers
   const draft = cloneVolunteers(draftVolunteers)
   const existing = new Set(draft.map((v) => v.studentId))
   const onCourse = new Set(listStudentIdsOnCourse(courseId, { includeDraft: true }))
-  const remaining = state.capacity - draft.length
+  const lottery = usesSelectedRoster(state)
+  const cap = lottery ? Number(state.seniorCapacity) || Number(state.capacity) || 0 : state.capacity
+  const used = lottery ? draft.filter((v) => v.selected).length : draft.length
+  const remaining = cap - used
   if (remaining <= 0) {
     return {
       ok: false,
       errorKey: 'courseRegistration.result.volunteerFullHint',
-      errorParams: { count: state.capacity, cap: state.capacity },
+      errorParams: { count: cap, cap },
     }
   }
 
@@ -530,26 +672,36 @@ export function buildVolunteerDraftAfterAdd(courseId, sectionId, draftVolunteers
     return {
       ok: false,
       errorKey: 'courseRegistration.result.volunteerAddExceed',
-      errorParams: { remaining, cap: state.capacity },
+      errorParams: { remaining, cap },
     }
   }
 
   const now = new Date()
   const submittedAt = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`
+  let selectedEnd = draft.length
+  if (lottery) {
+    selectedEnd = 0
+    while (selectedEnd < draft.length && draft[selectedEnd].selected) selectedEnd += 1
+  }
+  const batch = registrationBatches.value.find((b) => b.id === state.batchId)
+  const academicSession = batch?.academicSession || ''
   incoming.forEach((profile, i) => {
-    draft.push({
+    const intake = profile.intake || (profile.grade === '2025' ? '2504' : '2409')
+    const row = {
       id: `vol-${profile.studentId}-${sectionId}-${Date.now()}-${i}`,
       studentId: profile.studentId,
       studentName: profile.studentName || profile.studentId,
       programme: profile.programme || '—',
-      intake: profile.intake || (profile.grade === '2025' ? '2504' : '2409'),
-      relativeSemester: Number(profile.relativeSemester) || (profile.grade === '2025' ? 2 : 4),
+      intake,
+      relativeSemester: volunteerRelativeSemester(intake, academicSession),
       submittedAt,
       sectionCode: state.sectionCode,
-    })
+      isGraduate: isGraduateStudent(profile.studentId) || Boolean(profile.isGraduate),
+      ...(lottery ? { selected: true } : {}),
+    }
+    if (lottery) draft.splice(selectedEnd + i, 0, row)
+    else draft.push(row)
   })
-  // 手动添加追加到名单末尾（未满时即容量内末位），不再按学期重排
-  // return { ok: true, draft: sortVolunteers(draft) }
   return { ok: true, draft }
 }
 
@@ -565,8 +717,11 @@ export function submitStudentPreselectVolunteer({ course, section, studentFields
     (c) => c.key === sectionStateKey(course.id, section.id),
   )
   if (index === -1) {
-    const batchName = registrationBatches.value.find((b) => b.id === course.batchId)?.name || ''
+    const batch = registrationBatches.value.find((b) => b.id === course.batchId)
+    const batchName = batch?.name || ''
     const capacity = Math.max(1, Number(section.capacity) || 20)
+    const isGe = isGeBatch(batch)
+    const isMe = isMeBatch(batch)
     volunteerCourseStates.value = [
       ...volunteerCourseStates.value,
       {
@@ -581,6 +736,10 @@ export function submitStudentPreselectVolunteer({ course, section, studentFields
         batchId: course.batchId,
         batchName,
         capacity,
+        seniorCapacity: getSectionSeniorCapacity(course, section.id, capacity),
+        isGeRound1: isGe,
+        isMeRound1: isMe,
+        batchType: batch?.type || '',
         volunteers: [],
         pendingDraftVolunteers: null,
         dirty: false,
@@ -605,20 +764,25 @@ export function submitStudentPreselectVolunteer({ course, section, studentFields
 
   const now = new Date()
   const submittedAt = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`
+  const batchForVolunteer = registrationBatches.value.find((b) => b.id === course.batchId)
   const volunteer = {
     id: `vol-${studentFields.studentId}-${section.id}-${Date.now()}`,
     studentId: studentFields.studentId,
     studentName: studentFields.studentName,
     programme: studentFields.programme,
     intake: studentFields.intake,
-    relativeSemester: Number(studentFields.relativeSemester) || 3,
+    relativeSemester: volunteerRelativeSemester(studentFields.intake, batchForVolunteer?.academicSession),
     submittedAt,
     sectionCode: section.code,
+    isGraduate: isGraduateStudent(studentFields.studentId),
+    ...(usesSelectedRoster(state) ? { selected: false } : {}),
   }
 
   volunteerCourseStates.value[index] = {
     ...state,
-    volunteers: sortVolunteers([...state.volunteers, volunteer]),
+    volunteers: usesSelectedRoster(state)
+      ? [...state.volunteers, volunteer]
+      : sortVolunteers([...state.volunteers, volunteer]),
   }
   studentVolunteerCourseIds.value = [...new Set([...studentVolunteerCourseIds.value, course.id])]
   return { ok: true, volunteered: true }

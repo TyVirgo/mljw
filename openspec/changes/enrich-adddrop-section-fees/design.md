@@ -57,18 +57,36 @@ Notes 写明规则。实现：`addDropEligibleCourses.js`（或等价）按学�
 - 选成绩行 → 回填曾修信息；`F` 默认挂科重修，及格默认刷分（可改）。
 - 再选**本学期**同课号分组。
 
-### 5. 费用
+### 5. 费用（§19：文商理类别超额）
 
 ```
 rates = { arts: 500, science: 550, business: 600 }
 fee = billableCredits × rates[course.feeStream]
 
 重修：billableCredits = 课程学分
-GE/ME 超额加课：billableCredits = max(0, credits − remainingPlanCreditsInBucket)
-计划内补 Drop/休学落下：billableCredits = 0（除非同时触发超额规则）
+GE/ME 加课超额：
+  categoryKey = 校选类别 → humanities|business|science（arts≡humanities）
+  remaining = 本学期该类型（GE 或 ME）下文商理类别「要求 − 已选」
+  billableCredits = max(0, credits − remaining)
+  ※ 不以 GE/ME 总量剩余、不以学期总负荷 creditMax 计超额
+计划内补 Drop/休学落下：仍可按上式计类别超额（资格不豁免类别超额）
 ```
 
-表单声明前展示明细行 + 合计；写入 `feeEstimate` / `billAmount`。
+表单声明前展示明细行 + 合计；写入 `feeEstimate` / `billAmount` / `excessCredits`（与 billableCredits 同源）。
+
+### 5b. 审批超分不拦截（§19）
+
+加课申请允许超分缴费场景。审批通过 MUST NOT 因 `creditsAfter > creditMax`（或类别超额）拒绝；审批人核对超出学分与费用后可同意。选课弹窗/表单仅提示，不硬拦选择与提交。
+
+### 5c. 生成账单 ↔ 缴费名单（§20）
+
+审批「通过」且申请有应收费用时，勾选「生成账单」将：`billStatus=pending`，并 `appendFeeRosterFromApproval` 写入**缴费名单管理**未缴费行（原型演示）。说明文案 MUST 写明该联动；MUST NOT 仅用「财务只读」外部数据 tip 代替业务说明。批量失败提示 MUST NOT 再举例「学分超限」。
+
+### 5d. 退课校选类别与分组只读（§21）
+
+- 已选课 `getStudentEnrolledCourses` / 退课候选 MUST 带出 `type` 与 `schoolElectiveCategory`（缺省走 `resolveSchoolElectiveCategory`），与我的选课历史一致。
+- 退课分节「课程分组」MUST 为只读展示（选课后带出），MUST NOT 再提供分组下拉。
+- 学生加退课列表 toolbar：成功/提示文案与「发起申请」同一行右对齐。
 
 ### 6. 表单字段拆分
 

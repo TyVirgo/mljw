@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
+import CourseRegistrationCallout from './CourseRegistrationCallout.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   myRegistrationList,
@@ -20,6 +21,7 @@ import {
   sortedPendingVolunteers,
 } from '../../data/courseRegistration/studentVolunteerSheet.js'
 import { displayClassTimeVenueLines } from '../../data/courseRegistration/sectionScheduleFields.js'
+import { listPendingVolunteerTimeConflicts } from '../../data/courseRegistration/volunteerPendingConflict.js'
 import '../../styles/course-registration-list.css'
 
 const props = defineProps({
@@ -72,6 +74,22 @@ const volunteerRows = computed(() => {
     status: item.status || 'pendingAssign',
   }))
 })
+
+const volunteerTimeConflicts = computed(() =>
+  listPendingVolunteerTimeConflicts(volunteerRows.value),
+)
+
+const showVolunteerClashCallout = computed(
+  () => props.showVolunteerOrder && volunteerTimeConflicts.value.groups.length > 0,
+)
+
+function volunteerClashPeers(item) {
+  return volunteerTimeConflicts.value.byCourseId[item?.courseId] || []
+}
+
+function formatCourseList(codes) {
+  return (codes || []).filter(Boolean).join(isZh.value ? '、' : ', ')
+}
 
 /** 二三轮：平铺表 */
 const flatRows = computed(() => {
@@ -337,6 +355,19 @@ function isDraggableRow() {
         <h4 v-if="volunteerRows.length" class="cr-cart-section-title">
           {{ t('courseRegistration.student.volunteerSheet.pendingSection') }}
         </h4>
+        <CourseRegistrationCallout v-if="showVolunteerClashCallout" variant="warning">
+          <p>{{ t('courseRegistration.student.volunteerSheet.clashTitle') }}</p>
+          <ul class="cr-vol-clash-list">
+            <li v-for="(group, gi) in volunteerTimeConflicts.groups" :key="gi">
+              {{
+                t('courseRegistration.student.volunteerSheet.clashGroup', {
+                  courses: formatCourseList(group.codes),
+                })
+              }}
+            </li>
+          </ul>
+          <p>{{ t('courseRegistration.student.volunteerSheet.clashHint') }}</p>
+        </CourseRegistrationCallout>
         <div v-if="volunteerRows.length" class="table-wrap">
           <table class="data-table data-table--pref" :class="{ 'is-reorder': reorderMode }">
             <thead>
@@ -370,6 +401,7 @@ function isDraggableRow() {
                 :class="{
                   'is-dragging': reorderMode && dragFromIndex === index,
                   'is-draggable': reorderMode,
+                  'is-time-conflict': volunteerClashPeers(item).length > 0,
                 }"
                 @dragstart="onDragStart(index, $event)"
                 @dragover="onDragOver"
@@ -380,7 +412,33 @@ function isDraggableRow() {
                   <span v-if="reorderMode" class="drag-handle" aria-hidden="true">⋮⋮</span>
                   {{ preferenceLabel(item, index) }}
                 </td>
-                <td class="sticky-left sticky-code nowrap">{{ item.courseCode || '—' }}</td>
+                <td class="sticky-left sticky-code nowrap">
+                  {{ item.courseCode || '—' }}
+                  <span
+                    v-if="volunteerClashPeers(item).length"
+                    class="hint-popover-wrap cr-vol-clash-mark"
+                  >
+                    <span
+                      class="hint-popover-trigger cr-vol-clash-icon"
+                      tabindex="0"
+                      role="img"
+                      :aria-label="
+                        t('courseRegistration.student.volunteerSheet.clashRowTip', {
+                          courses: formatCourseList(volunteerClashPeers(item)),
+                        })
+                      "
+                    >
+                      !
+                    </span>
+                    <span class="hint-popover-content hint-popover-content--sm" role="tooltip">
+                      {{
+                        t('courseRegistration.student.volunteerSheet.clashRowTip', {
+                          courses: formatCourseList(volunteerClashPeers(item)),
+                        })
+                      }}
+                    </span>
+                  </span>
+                </td>
                 <td class="sticky-left sticky-name nowrap">{{ item.courseName || '—' }}</td>
                 <td class="nowrap">{{ groupName(item) }}</td>
                 <td class="col-credits nowrap">{{ item.credits ?? '—' }}</td>
@@ -789,6 +847,38 @@ th.sticky-right {
   right: 0;
   min-width: 72px;
   width: 72px;
+}
+
+.data-table.data-table--pref tbody tr.is-time-conflict > td {
+  background: #fffbeb;
+}
+
+.cr-vol-clash-list {
+  margin: 6px 0;
+  padding-left: 1.2em;
+}
+
+.cr-vol-clash-list li {
+  margin: 2px 0;
+}
+
+.cr-vol-clash-mark {
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.cr-vol-clash-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #d97706;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 /* 排队/平铺：操作可能多按钮，略收但仍够用 */

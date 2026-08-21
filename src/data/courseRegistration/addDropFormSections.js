@@ -3,6 +3,7 @@
  */
 
 import { deriveClassTime, displayClassTimeVenue, getSectionMeetings } from './sectionScheduleFields.js'
+import { getPreviousAcademicSession } from '../intakeSets.js'
 
 export const ADD_COURSE_TYPE_OPTIONS = [
   { value: 'overload', labelKey: 'courseRegistration.student.addType.overload' },
@@ -104,7 +105,8 @@ export function clearHiddenSectionFields(form, action) {
     attachmentName: '',
     previouslyTakenCourse: '',
     gradeEarned: '',
-    academicSessionTaken: '',
+    academicSessionTaken:
+      action === 'Retake' ? getPreviousAcademicSession(form.academicSession) : '',
     retakeType: '',
     transcriptId: '',
     eligibilitySource: '',
@@ -115,7 +117,7 @@ export function clearHiddenSectionFields(form, action) {
 }
 
 export function createEmptyAddDropSectionForm(overrides = {}) {
-  return {
+  const next = {
     academicSession: '',
     action: 'Add',
     courseId: '',
@@ -140,6 +142,10 @@ export function createEmptyAddDropSectionForm(overrides = {}) {
     declarationAgreed: false,
     ...overrides,
   }
+  if (next.action === 'Retake' && !String(next.academicSessionTaken || '').trim()) {
+    next.academicSessionTaken = getPreviousAcademicSession(next.academicSession)
+  }
+  return next
 }
 
 /**
@@ -317,8 +323,8 @@ export function validateAddDropSectionForm(form) {
   }
 
   if (showIV) {
-    if (!String(form.previouslyTakenCourse || '').trim()) {
-      return { ok: false, errorKey: 'courseRegistration.student.previouslyTakenRequired' }
+    if (!form.courseId) {
+      return { ok: false, errorKey: 'courseRegistration.student.addDropSelectCourse' }
     }
     if (!form.gradeEarned) {
       return { ok: false, errorKey: 'courseRegistration.student.gradeEarnedRequired' }
@@ -329,11 +335,16 @@ export function validateAddDropSectionForm(form) {
     if (!form.retakeType) {
       return { ok: false, errorKey: 'courseRegistration.student.retakeTypeRequired' }
     }
-    if (!form.courseId) {
-      return { ok: false, errorKey: 'courseRegistration.student.addDropSelectCourse' }
-    }
     if (!hasSection(form, '')) {
       return { ok: false, errorKey: 'courseRegistration.student.sectionRequired' }
+    }
+    const timeVenue = String(form.classTimeVenue || form.classTime || '').replace(/[—–-]/g, '').trim()
+    if (!timeVenue) {
+      return { ok: false, errorKey: 'courseRegistration.student.classTimeVenueRequired' }
+    }
+    const lecturers = String(form.lecturers || '').trim()
+    if (!lecturers || lecturers === '—') {
+      return { ok: false, errorKey: 'courseRegistration.student.lecturersRequired' }
     }
   }
 

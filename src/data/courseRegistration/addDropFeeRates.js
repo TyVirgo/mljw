@@ -23,14 +23,48 @@ export function resolveFeeStream(course = {}) {
   if (school === 'business') return 'business'
   if (school === 'science') return 'science'
 
+  // ME 未标注时与选课列表一致：默认文科
+  if (String(course.type || '').toUpperCase() === 'ME') return 'arts'
+
   return 'science'
+}
+
+/** 收费科类 → 本学期文商理进度字段 */
+export function feeStreamToTermCategoryKey(feeStream) {
+  if (feeStream === 'arts') return 'humanities'
+  if (feeStream === 'business') return 'business'
+  return 'science'
+}
+
+/** 课程 → 本学期文商理类别键 */
+export function resolveTermCategoryKey(course = {}) {
+  return feeStreamToTermCategoryKey(resolveFeeStream(course))
+}
+
+/**
+ * @param {object} planRemaining
+ * @param {'GE'|'ME'} type
+ * @param {string} categoryKey humanities|business|science
+ */
+function remainingForTypeCategory(planRemaining, type, categoryKey) {
+  const bucket = type === 'GE' ? planRemaining?.geCategory : planRemaining?.meCategory
+  if (bucket && categoryKey != null && bucket[categoryKey] != null && bucket[categoryKey] !== '') {
+    return Math.max(0, Number(bucket[categoryKey]) || 0)
+  }
+  const fallback = type === 'GE' ? planRemaining?.geRemaining : planRemaining?.meRemaining
+  return Math.max(0, Number(fallback) || 0)
 }
 
 /**
  * @param {object} opts
  * @param {'Add'|'Drop'|'Retake'|'AddDrop'} opts.action
  * @param {object} opts.course
- * @param {{ geRemaining?: number, meRemaining?: number }} [opts.planRemaining]
+ * @param {{
+ *   geRemaining?: number,
+ *   meRemaining?: number,
+ *   geCategory?: { humanities?: number, business?: number, science?: number },
+ *   meCategory?: { humanities?: number, business?: number, science?: number },
+ * }} [opts.planRemaining]
  * @param {string} [opts.eligibilitySource] prior_drop | deferment_gap
  */
 export function estimateCourseFee({
@@ -52,6 +86,7 @@ export function estimateCourseFee({
   const feeStream = resolveFeeStream(course)
   const rate = CREDIT_FEE_RATES[feeStream] || CREDIT_FEE_RATES.science
   const credits = Number(course.credits) || 0
+  const categoryKey = resolveTermCategoryKey(course)
   let billableCredits = 0
   let reason = 'none'
 
@@ -61,13 +96,13 @@ export function estimateCourseFee({
   } else if (action === 'Add' || action === 'AddDrop') {
     const type = String(course.type || '').toUpperCase()
     if (type === 'GE') {
-      const rem = Math.max(0, Number(planRemaining.geRemaining) || 0)
+      const rem = remainingForTypeCategory(planRemaining, 'GE', categoryKey)
       billableCredits = Math.max(0, credits - rem)
-      reason = billableCredits > 0 ? 'ge_excess' : 'plan_covered'
+      reason = billableCredits > 0 ? 'ge_category_excess' : 'plan_covered'
     } else if (type === 'ME') {
-      const rem = Math.max(0, Number(planRemaining.meRemaining) || 0)
+      const rem = remainingForTypeCategory(planRemaining, 'ME', categoryKey)
       billableCredits = Math.max(0, credits - rem)
-      reason = billableCredits > 0 ? 'me_excess' : 'plan_covered'
+      reason = billableCredits > 0 ? 'me_category_excess' : 'plan_covered'
     } else if (eligibilitySource === 'prior_drop' || eligibilitySource === 'deferment_gap') {
       billableCredits = 0
       reason = 'plan_covered'
@@ -81,6 +116,7 @@ export function estimateCourseFee({
     billableCredits,
     rate,
     feeStream,
+    categoryKey,
     amount: billableCredits * rate,
     reason,
     credits,
@@ -103,4 +139,12 @@ export function sumFeeEstimates(lines = []) {
     total: items.reduce((sum, l) => sum + l.amount, 0),
     billableCredits: all.reduce((sum, l) => sum + (Number(l.billableCredits) || 0), 0),
   }
+}
+
+/** 加退课金额展示：数值 + RMB；空值「—」 */
+export function formatAmountRmb(amount) {
+  if (amount == null || amount === '') return '—'
+  const n = Number(amount)
+  if (!Number.isFinite(n)) return '—'
+  return `${n} RMB`
 }

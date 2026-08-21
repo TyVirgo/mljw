@@ -11,7 +11,7 @@ import {
   filterAddDropQueue,
   addDropTypeOptions,
   decideAddDropApplication,
-  buildAddDropValidation,
+  addDropApplicationHasBillableFee,
 } from '../../data/courseRegistration/addDropApprovalQueue.js'
 import { approvalExportFields } from '../../data/courseRegistration/courseRegistrationExportFields.js'
 import {
@@ -23,9 +23,10 @@ import {
   displayClassTimeVenueLines,
   displayClassTimeVenueFromFields,
 } from '../../data/courseRegistration/sectionScheduleFields.js'
-import { getAddDropApprovalListColumns } from '../../data/courseRegistration/addDropListColumns.js'
+import { getAddDropApprovalListColumns, isShieldedAddDropType } from '../../data/courseRegistration/addDropListColumns.js'
 import { addDropStatusBadgeClass } from '../../data/courseRegistration/addDropStatusBadge.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
+import { formatAmountRmb } from '../../data/courseRegistration/addDropFeeRates.js'
 import '../../styles/list-page-search.css'
 import '../../styles/course-registration-list.css'
 import '../../styles/movement-status-badge.css'
@@ -53,6 +54,7 @@ const pendingApprovalIds = ref([])
 const tabCounts = computed(() => {
   const counts = { pending: 0, submitted: 0, history: 0 }
   for (const row of addDropApprovalQueue.value) {
+    if (isShieldedAddDropType(row.type)) continue
     if (row.status === 'Pending') counts.pending += 1
     else if (row.status === 'In Review') counts.submitted += 1
     else if (['Approved', 'Rejected', 'Cancelled'].includes(row.status)) counts.history += 1
@@ -79,7 +81,7 @@ const allPageSelected = computed(() => {
 const selectedRows = computed(() =>
   selectedIds.value
     .map((id) => addDropApprovalQueue.value.find((row) => row.id === id))
-    .filter((row) => row && row.status === 'Pending'),
+    .filter((row) => row && row.status === 'Pending' && !isShieldedAddDropType(row.type)),
 )
 
 const canApproveSelection = computed(
@@ -96,8 +98,7 @@ const tableColspan = computed(() => listColumns.value.length)
 const batchShowGenerateBill = computed(() =>
   pendingApprovalIds.value.some((id) => {
     const row = addDropApprovalQueue.value.find((r) => r.id === id)
-    if (!row) return false
-    return (row.items || []).some((i) => (i.fee || 0) > 0)
+    return addDropApplicationHasBillableFee(row)
   }),
 )
 
@@ -186,7 +187,7 @@ function listLecturers(row) {
 function listFee(row) {
   const amount = row.billAmount ?? row.feeEstimate?.total
   if (amount == null || amount === '') return '—'
-  return Number(amount) || 0
+  return formatAmountRmb(amount)
 }
 
 function listExcessCredits(row) {
@@ -253,6 +254,8 @@ function columnClass(col) {
   if (col === 'check') return 'col-check sticky-left sticky-check'
   if (col === 'serial') return 'sticky-left sticky-idx nowrap'
   if (col === 'applicationNo') return 'sticky-left sticky-no nowrap'
+  if (col === 'status') return 'col-status nowrap'
+  if (col === 'classTimeVenue') return 'col-time-venue'
   if (col === 'actions') return 'sticky-right sticky-actions'
   if (col === 'addCourse' || col === 'dropCourse' || col === 'retakeCourse') return 'col-course nowrap'
   return 'nowrap'
@@ -321,13 +324,6 @@ function handleBatchApprovalConfirm({ action, comment, generateBill }) {
   for (const id of pendingApprovalIds.value) {
     const row = addDropApprovalQueue.value.find((r) => r.id === id)
     if (!row || row.status !== 'Pending') continue
-    if (action === 'Approved') {
-      const validation = buildAddDropValidation(row)
-      if (!validation.creditOk) {
-        failed += 1
-        continue
-      }
-    }
     const result = decideAddDropApplication(id, action, comment, { generateBill })
     if (!result.ok) failed += 1
   }
@@ -419,7 +415,10 @@ function handleExportConfirm({ selectedFields }) {
 
       <div class="table-section">
         <div class="table-wrap table-wrap--scroll">
-          <table class="data-table data-table--sticky">
+          <table
+            class="data-table data-table--sticky"
+            :class="{ 'data-table--with-check': showApproveToolbar }"
+          >
             <thead>
               <tr>
                 <th
@@ -544,15 +543,26 @@ function handleExportConfirm({ selectedFields }) {
 }
 
 .cr-time-venue {
-  min-width: 200px;
-  max-width: 340px;
+  min-width: 220px;
   font-size: 12px;
   line-height: 1.35;
   white-space: normal;
 }
 
+.cr-time-venue-line {
+  white-space: nowrap;
+}
+
 .cr-time-venue-line + .cr-time-venue-line {
   margin-top: 2px;
+}
+
+.col-time-venue {
+  white-space: normal;
+}
+
+.col-status {
+  min-width: 108px;
 }
 
 .type-add { background: #dbeafe; color: #1d4ed8; }
@@ -598,13 +608,21 @@ function handleExportConfirm({ selectedFields }) {
 }
 
 .sticky-idx {
-  left: 40px;
+  left: 0;
   min-width: 48px;
 }
 
 .sticky-no {
+  left: 48px;
+  min-width: 128px;
+}
+
+.data-table--with-check .sticky-idx {
+  left: 40px;
+}
+
+.data-table--with-check .sticky-no {
   left: 88px;
-  min-width: 110px;
 }
 
 .sticky-type {

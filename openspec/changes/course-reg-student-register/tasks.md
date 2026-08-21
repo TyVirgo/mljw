@@ -241,6 +241,14 @@
 - [x] 2.6 轮次下拉宽度按最长文案自适应，不截断
 ```
 
+### polish-list-context-batch-round-labels
+
+```
+## 1. 实现
+
+- [x] 1.1 列表顶栏批次/轮次下拉左侧可见标签（复用 typeEntry.batchLabel / roundLabel）
+```
+
 ### sync-register-search-with-table
 
 ```

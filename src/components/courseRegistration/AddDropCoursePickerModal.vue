@@ -22,6 +22,7 @@ import {
 } from '../../data/courseRegistration/sectionScheduleFields.js'
 import { getSectionMeetingsConflictInfo } from '../../data/courseRegistration/addDropSectionConflict.js'
 import { estimateCourseFee } from '../../data/courseRegistration/addDropFeeRates.js'
+import { resolveSchoolElectiveCategory } from '../../data/courseRegistration/selectableCourses.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -33,8 +34,10 @@ const props = defineProps({
   scheduleBaseline: { type: Array, default: () => [] },
   /** 本学期学分胶囊 [{ key, labelKey, current, max }] */
   creditBars: { type: Array, default: () => [] },
-  /** 文商理短标签胶囊（可选） */
+  /** 文商理短标签胶囊（可选；无 creditGroups 时跟在 creditBars 后） */
   categoryBars: { type: Array, default: () => [] },
+  /** 方案 B：[{ key, total, categories }] */
+  creditGroups: { type: Array, default: () => [] },
   /** { geRemaining, meRemaining } 供超额计费 */
   planRemaining: { type: Object, default: () => ({}) },
 })
@@ -53,7 +56,7 @@ const schoolElectiveApplied = ref('')
 const typeApplied = ref('')
 const pickedRowKey = ref('')
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(20)
 const excessConfirmVisible = ref(false)
 const pendingConfirmPayload = ref(null)
 
@@ -62,8 +65,25 @@ const showAddEligibilityTip = computed(
   () => props.action === 'Add' || props.action === 'AddDrop',
 )
 const showCreditProgress = computed(
-  () => (props.action === 'Add' || props.action === 'AddDrop') && props.creditBars.length > 0,
+  () =>
+    (props.action === 'Add' || props.action === 'AddDrop' || props.action === 'Retake') &&
+    (props.creditGroups.length > 0 || props.creditBars.length > 0),
 )
+
+const creditDisplayGroups = computed(() => {
+  if (props.creditGroups.length) {
+    return props.creditGroups.filter((g) => g?.total)
+  }
+  if (!props.creditBars.length) return []
+  return [
+    {
+      key: 'legacy',
+      total: null,
+      totals: props.creditBars,
+      categories: props.categoryBars,
+    },
+  ]
+})
 const scheduleLocale = computed(() => (isZh.value ? 'zh' : 'en'))
 
 const CATEGORY_SHORT_KEYS = {
@@ -92,7 +112,8 @@ function sectionRowsForCourse(course) {
       name: course.name,
       credits: course.credits,
       type: course.type,
-      schoolElectiveCategory: course.schoolElectiveCategory || '',
+      schoolElectiveCategory:
+        course.schoolElectiveCategory || resolveSchoolElectiveCategory(course) || '',
       fromEnrolled: course.fromEnrolled,
       remainingCapacity: Number(section.capacity || 0) - Number(section.enrolled || 0),
     }))
@@ -118,7 +139,8 @@ function sectionRowsForCourse(course) {
       name: course.name,
       credits: course.credits,
       type: course.type,
-      schoolElectiveCategory: course.schoolElectiveCategory || '',
+      schoolElectiveCategory:
+        course.schoolElectiveCategory || resolveSchoolElectiveCategory(course) || '',
       fromEnrolled: course.fromEnrolled,
       remainingCapacity: Number(course.remainingCapacity),
     },
@@ -225,7 +247,7 @@ watch(
     schoolElectiveApplied.value = ''
     typeApplied.value = ''
     currentPage.value = 1
-    pageSize.value = 10
+    pageSize.value = 20
     excessConfirmVisible.value = false
     pendingConfirmPayload.value = null
     if (props.selectedSectionId) {
@@ -294,7 +316,11 @@ function typeLabel(item) {
 }
 
 function schoolElectiveLabel(row) {
-  const value = row.schoolElectiveCategory || row.course?.schoolElectiveCategory || ''
+  const course = row.course || row
+  const value =
+    row.schoolElectiveCategory ||
+    course.schoolElectiveCategory ||
+    resolveSchoolElectiveCategory(course)
   return getSchoolElectiveCategoryLabel(value, isZh.value)
 }
 
@@ -472,19 +498,26 @@ function handleClose() {
               {{ t('courseRegistration.student.typeEntry.credits') }}
             </span>
             <div class="picker-credit-capsules">
-              <span
-                v-for="bar in creditBars"
-                :key="bar.key"
-                class="cr-credit-capsule"
-                :class="creditCapsuleTone(bar)"
-              >
-                {{ t(bar.labelKey) }} {{ bar.current }}/{{ bar.max }}
-              </span>
-              <template v-if="categoryBars.length">
-                <span class="picker-credit-sep" aria-hidden="true">|</span>
+              <template v-for="(group, gi) in creditDisplayGroups" :key="group.key || gi">
+                <span v-if="gi > 0" class="picker-credit-sep" aria-hidden="true">|</span>
                 <span
-                  v-for="bar in categoryBars"
+                  v-if="group.total"
+                  class="cr-credit-capsule"
+                  :class="creditCapsuleTone(group.total)"
+                >
+                  {{ t(group.total.labelKey) }} {{ group.total.current }}/{{ group.total.max }}
+                </span>
+                <span
+                  v-for="bar in group.totals || []"
                   :key="bar.key"
+                  class="cr-credit-capsule"
+                  :class="creditCapsuleTone(bar)"
+                >
+                  {{ t(bar.labelKey) }} {{ bar.current }}/{{ bar.max }}
+                </span>
+                <span
+                  v-for="bar in group.categories || []"
+                  :key="`${group.key}-${bar.key}`"
                   class="cr-credit-capsule"
                   :class="creditCapsuleTone(bar)"
                 >
@@ -517,7 +550,7 @@ function handleClose() {
                   <th>{{ t('courseRegistration.courses.lecturer') }}</th>
                   <th>{{ t('courseRegistration.courses.weekRange') }}</th>
                   <th>{{ t('courseRegistration.courses.classTimeVenue') }}</th>
-                  <th>{{ t('common.status') }}</th>
+                  <th class="sticky-status">{{ t('common.status') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -560,7 +593,7 @@ function handleClose() {
                     </template>
                     <template v-else>—</template>
                   </td>
-                  <td>
+                  <td class="sticky-status">
                     <span class="seat-status" :class="seatStatusClass(row)">
                       {{ seatStatusLabel(row) }}
                     </span>
@@ -806,7 +839,8 @@ function handleClose() {
 .data-table {
   width: max-content;
   min-width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 13px;
 }
 
@@ -853,14 +887,14 @@ function handleClose() {
 }
 
 .cr-time-venue {
-  min-width: 160px;
-  max-width: 280px;
+  min-width: 200px;
   line-height: 1.2;
   white-space: normal !important;
 }
 
 .cr-time-venue-line {
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .cr-time-venue-line + .cr-time-venue-line {
@@ -880,6 +914,29 @@ function handleClose() {
 .seat-status.full,
 .seat-status.conflict {
   color: #b91c1c;
+}
+
+.sticky-status {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  min-width: 96px;
+  background: #fff;
+  box-shadow: -4px 0 8px -6px rgba(15, 23, 42, 0.25);
+}
+
+thead .sticky-status {
+  z-index: 3;
+  background: #f9fafb;
+}
+
+.data-table tbody tr:hover .sticky-status,
+.data-table tbody tr.selected .sticky-status {
+  background: #eff6ff;
+}
+
+.data-table tbody tr.disabled .sticky-status {
+  background: #f9fafb;
 }
 
 .modal-footer {

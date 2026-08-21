@@ -2,7 +2,7 @@
  * 将 vite build 完整产物（dist/）复制到 gitcode 日期目录，供 SourceTree 提交后云端静态访问。
  * 从 dist/ 整包复制，不覆盖项目根目录，本地 npm start 不受影响。
  * 用法: node scripts/deploy-to-gitcode.mjs [目标目录]
- * 默认: D:/gitcode/Academic System/20260803
+ * 默认: D:/gitcode/Academic System/20260817
  */
 import fs from 'fs'
 import path from 'path'
@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
 const distDir = path.join(root, 'dist')
 
-const defaultTarget = 'D:/gitcode/Academic System/20260803'
+const defaultTarget = 'D:/gitcode/Academic System/20260817'
 const targetDir = path.resolve(process.argv[2] || defaultTarget)
 const cloudPath = `/high/Academic System/${path.basename(targetDir)}/`
 

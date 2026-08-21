@@ -87,12 +87,11 @@ export const registrationLogExportFields = [
   { key: 'studentId', labelKey: 'courseRegistration.monitor.studentId' },
   { key: 'studentName', labelKey: 'courseRegistration.monitor.studentName' },
   { key: 'course', labelKey: 'courseRegistration.log.course' },
+  { key: 'sectionCode', labelKey: 'courseRegistration.log.section' },
   { key: 'credits', labelKey: 'courseRegistration.courses.credits' },
   { key: 'courseType', labelKey: 'courseRegistration.courses.type' },
-  { key: 'sectionCode', labelKey: 'courseRegistration.log.section' },
   { key: 'operator', labelKey: 'courseRegistration.log.operator' },
   { key: 'operatedAt', labelKey: 'courseRegistration.log.operatedAt' },
-  { key: 'remark', labelKey: 'courseRegistration.log.remark' },
   { key: 'queueStatus', labelKey: 'courseRegistration.log.queueStatusLabel' },
   { key: 'result', labelKey: 'courseRegistration.log.resultLabel' },
 ]

@@ -3,6 +3,7 @@
  */
 
 import { getCurrentStudentId } from '../mockCurrentStudent.js'
+import { getPreviousAcademicSession } from '../intakeSets.js'
 
 const TRANSCRIPT_BY_STUDENT = {
   XMUM2309001: [
@@ -58,4 +59,39 @@ export function defaultRetakeTypeFromGrade(grade) {
   const g = String(grade || '').toUpperCase()
   if (!g || g === 'F' || g === 'M') return 'failed'
   return 'improve_grade'
+}
+
+/**
+ * 按本学期重修课匹配往期成绩单（一门多记录时取学年学期最新的一条）
+ * @param {string} courseId
+ * @param {string} [studentId]
+ */
+export function findTranscriptForRetakeCourse(courseId, studentId = getCurrentStudentId()) {
+  if (!courseId) return null
+  const hits = getStudentTranscript(studentId).filter((row) => row.retakeCourseId === courseId)
+  if (!hits.length) return null
+  return hits
+    .slice()
+    .sort((a, b) => String(b.academicSession || '').localeCompare(String(a.academicSession || '')))[0]
+}
+
+/**
+ * 选本学期重修课后回填曾修字段：成绩来自成绩单，学年学期为申请学期的上一学期
+ * @param {object|null} course
+ * @param {string} academicSession
+ * @param {string} [studentId]
+ */
+export function retakeHistoryFromCourse(course, academicSession, studentId = getCurrentStudentId()) {
+  const row = findTranscriptForRetakeCourse(course?.id, studentId)
+  return {
+    transcriptId: row?.id || '',
+    previouslyTakenCourse: row
+      ? `${row.courseCode} ${row.courseName}`
+      : course
+        ? `${course.code || ''} ${course.name || ''}`.trim()
+        : '',
+    gradeEarned: row?.grade || '',
+    academicSessionTaken: getPreviousAcademicSession(academicSession),
+    retakeType: row ? defaultRetakeTypeFromGrade(row.grade) : '',
+  }
 }

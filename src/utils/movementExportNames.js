@@ -19,6 +19,7 @@ export const ATTACHMENT_EXPORT_TYPE_LABEL = {
   flightTickets: 'Flight Tickets',
   medicalRecovery: 'Medical Recovery',
   accommodationCheckOut: 'Accommodation Check Out',
+  chinaIdFrontBack: 'China ID Card Front and Back',
   medicalRecord: 'Medical Record',
   visaRelatedDocuments: 'Visa Related Documents',
   otherDocuments: 'Other Documents',

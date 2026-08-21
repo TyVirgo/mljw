@@ -37,20 +37,18 @@ import {
   resolveDropDeadlineWeek,
 } from '../../data/courseRegistration/batchTermKind.js'
 import { countGlobalBatchParticipants } from '../../data/courseRegistration/batchStudentRoster.js'
-import BatchGlobalParticipantRosterDrawer from './BatchGlobalParticipantRosterDrawer.vue'
 
 const props = defineProps({
   visible: Boolean,
   batch: { type: Object, default: null },
 })
 
-const emit = defineEmits(['close', 'save'])
+const emit = defineEmits(['close', 'save', 'open-student-list'])
 
 const { t } = useAppI18n()
 
 const form = ref(createEmptyForm())
 const errors = ref({})
-const globalRosterVisible = ref(false)
 
 function createEmptyForm() {
   return {
@@ -121,6 +119,15 @@ const globalScopePreviewBatch = computed(() => {
 const globalParticipantCount = computed(() =>
   countGlobalBatchParticipants(globalScopePreviewBatch.value),
 )
+
+/** 跳转批次学生清单 · 全局选课名单（不另开清单抽屉） */
+function openGlobalStudentList() {
+  if (!props.batch) return
+  emit('open-student-list', {
+    batch: globalScopePreviewBatch.value || props.batch,
+    round: 'global',
+  })
+}
 
 watch(
   () => form.value.type,
@@ -325,6 +332,10 @@ function handleSave() {
           <input v-model="form.localRules.allowExceedCreditMax" type="checkbox" />
           {{ t('courseRegistration.batch.ruleAllowExceedCreditMax') }}
         </label>
+        <label class="checkbox-row checkbox-row--inline">
+          <input v-model="form.localRules.releaseCrossAudienceOnRound3" type="checkbox" />
+          {{ t('courseRegistration.batch.ruleReleaseCrossAudienceOnRound3') }}
+        </label>
       </div>
     </section>
 
@@ -335,18 +346,7 @@ function handleSave() {
       </h3>
       <CourseRegistrationCallout variant="info">
         <p>{{ t('courseRegistration.batch.addDropWindowVsRoundsTip') }}</p>
-        <p>{{ t('courseRegistration.batch.dropDeadlineWeekTip') }}</p>
       </CourseRegistrationCallout>
-      <div class="form-field" style="margin-bottom: 12px; max-width: 220px">
-        <label class="field-label">{{ t('courseRegistration.batch.dropDeadlineWeek') }}</label>
-        <input
-          v-model.number="form.dropDeadlineWeek"
-          type="number"
-          min="1"
-          max="16"
-          class="form-input"
-        />
-      </div>
       <div class="round-card">
         <div class="round-fields">
           <div class="form-field">
@@ -386,7 +386,7 @@ function handleSave() {
           <span class="global-scope-label">{{ t('courseRegistration.batch.globalScopeCount') }}</span>
           <strong>{{ globalParticipantCount }}</strong>
         </div>
-        <button type="button" class="btn btn-default" @click="globalRosterVisible = true">
+        <button type="button" class="btn btn-default" @click="openGlobalStudentList">
           {{ t('courseRegistration.batch.globalScopeViewList') }}
         </button>
       </div>
@@ -398,12 +398,6 @@ function handleSave() {
       <button type="button" class="btn btn-primary" @click="handleSave">{{ t('common.save') }}</button>
     </template>
   </ApplicationDetailDrawer>
-
-  <BatchGlobalParticipantRosterDrawer
-    :visible="globalRosterVisible"
-    :batch="globalScopePreviewBatch"
-    @close="globalRosterVisible = false"
-  />
 </template>
 
 <style scoped>

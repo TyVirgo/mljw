@@ -1,10 +1,15 @@
 /** 学生端加退重修申请列表：按类型的主表列配置 */
 
-/** 学生端可见 Tab */
-export const ADD_DROP_TYPE_TABS = ['Add', 'Drop', 'Retake', 'AddDrop']
+/** 学生端可见 Tab（加退关联先屏蔽） */
+export const ADD_DROP_TYPE_TABS = ['Add', 'Drop', 'Retake']
 
-/** 含重修的完整类型（与学生 Tab 一致；审批筛选项等可复用） */
+/** 含重修与加退关联的完整类型（内部/历史数据仍可能出现 AddDrop） */
 export const ADD_DROP_ALL_TYPES = ['Add', 'Drop', 'Retake', 'AddDrop']
+
+/** 当前阶段不在列表/筛选中展示的类型 */
+export function isShieldedAddDropType(type) {
+  return type === 'AddDrop'
+}
 
 /**
  * @typedef {'serial'|'applicationNo'|'status'|'type'|'studentId'|'studentName'|'academicSession'|'addCourse'|'dropCourse'|'retakeCourse'|'section'|'weekRange'|'classTime'|'venue'|'classTimeVenue'|'lecturers'|'excessCredits'|'fee'|'retakeType'|'feeWaiver'|'credits'|'bill'|'submittedAt'|'actions'} AddDropListColumnId
@@ -107,7 +112,7 @@ export function getAddDropApprovalListColumns(type = '', opts = {}) {
     middle = [...APPROVAL_WIDE_MIDDLE]
   }
 
-  return [...prefix, ...middle, 'credits', 'bill', 'submittedAt', 'actions']
+  return [...prefix, ...middle, 'bill', 'submittedAt', 'actions']
 }
 
 export function getAddDropListColumns(type) {

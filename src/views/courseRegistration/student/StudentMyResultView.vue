@@ -24,6 +24,10 @@ import {
 import {
   displayClassTimeVenueLines,
 } from '../../../data/courseRegistration/sectionScheduleFields.js'
+import {
+  resolveSchoolElectiveCategory,
+} from '../../../data/courseRegistration/selectableCourses.js'
+import { getSchoolElectiveCategoryLabel } from '../../../data/departments.js'
 import StudentSchedulePreviewPanel from '../../../components/courseRegistration/StudentSchedulePreviewPanel.vue'
 import ApplicationDetailDrawer from '../../../components/common/ApplicationDetailDrawer.vue'
 import { buildPreviewSchedule } from '../../../data/courseRegistration/studentSchedulePreview.js'
@@ -277,6 +281,12 @@ const allCourseRows = computed(() => {
         courseId: item.courseId,
         code: item.courseCode,
         name: item.courseName,
+        schoolElectiveCategory: resolveSchoolElectiveCategory({
+          type: item.type,
+          code: item.courseCode,
+          id: item.courseId || item.courseCode,
+          schoolElectiveCategory: item.schoolElectiveCategory,
+        }),
         academicSession: academicSession || '—',
         section: item.sectionCode || '—',
         lecturer: item.lecturer || '—',
@@ -300,6 +310,7 @@ const allCourseRows = computed(() => {
     courseId: '',
     code: code.trim(),
     name: code.trim(),
+    schoolElectiveCategory: '',
     academicSession: '—',
     section: '—',
     lecturer: '—',
@@ -700,6 +711,7 @@ function formatSectionName(code) {
                 <th class="col-sticky-left col-batch-name">{{ t('courseRegistration.batch.name') }}</th>
                 <th class="col-sticky-left col-code">{{ t('courseRegistration.courses.code') }}</th>
                 <th class="col-sticky-left col-name">{{ t('courseRegistration.courses.name') }}</th>
+                <th>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</th>
                 <th>{{ t('courseRegistration.batch.academicSession') }}</th>
                 <th>{{ t('courseRegistration.courses.credits') }}</th>
                 <th>{{ t('courseRegistration.courses.sectionCode') }}</th>
@@ -747,6 +759,7 @@ function formatSectionName(code) {
                 </td>
                 <td class="col-sticky-left col-code">{{ row.code }}</td>
                 <td class="col-sticky-left col-name">{{ row.name }}</td>
+                <td>{{ getSchoolElectiveCategoryLabel(row.schoolElectiveCategory, isZh) }}</td>
                 <td>{{ row.academicSession }}</td>
                 <td>{{ row.credits }}</td>
                 <td>{{ formatSectionName(row.section) }}</td>
@@ -770,7 +783,7 @@ function formatSectionName(code) {
                 <td>{{ row.operatorName }}</td>
               </tr>
               <tr v-if="!courseRows.length">
-                <td colspan="14" class="empty-cell">
+                <td colspan="15" class="empty-cell">
                   {{
                     allCourseRows.length
                       ? t('courseRegistration.student.resultSearchEmpty')

@@ -75,18 +75,28 @@ function setAttachment(key, value) {
 function onFileChange(key, event) {
   const file = event.target.files?.[0]
   if (!file) {
-    pendingLocalFiles.value = { ...pendingLocalFiles.value, [key]: null }
-    setAttachment(key, null)
+    clearSingleAttachment(key)
     return
   }
   const result = validateMovementAttachmentFile(file)
   if (!result.valid) {
-    pendingLocalFiles.value = { ...pendingLocalFiles.value, [key]: null }
-    setAttachment(key, null)
+    clearSingleAttachment(key)
+    window.alert(t(result.errorKey || 'movementDocuments.errors.invalidFormat'))
     return
   }
   pendingLocalFiles.value = { ...pendingLocalFiles.value, [key]: file }
   setAttachment(key, result.meta)
+}
+
+/**
+ * 清空单文件槽位（含 input value，便于再次选同一文件）
+ * @param {string} key 槽位键
+ */
+function clearSingleAttachment(key) {
+  pendingLocalFiles.value = { ...pendingLocalFiles.value, [key]: null }
+  setAttachment(key, null)
+  const input = fileInputRefs.value[key]
+  if (input) input.value = ''
 }
 
 /**
@@ -99,21 +109,32 @@ function onMultiFileChange(index, event) {
   const file = event.target.files?.[0]
   const list = normalizeOtherDocuments(normalizedAttachments.value.otherDocuments)
   if (!file) {
-    pendingLocalFiles.value = { ...pendingLocalFiles.value, [pendingKey]: null }
-    list[index] = null
-    setAttachment('otherDocuments', list)
+    clearMultiAttachment(index)
     return
   }
   const result = validateMovementAttachmentFile(file)
   if (!result.valid) {
-    pendingLocalFiles.value = { ...pendingLocalFiles.value, [pendingKey]: null }
-    list[index] = null
-    setAttachment('otherDocuments', list)
+    clearMultiAttachment(index)
+    window.alert(t(result.errorKey || 'movementDocuments.errors.invalidFormat'))
     return
   }
   pendingLocalFiles.value = { ...pendingLocalFiles.value, [pendingKey]: file }
   list[index] = result.meta
   setAttachment('otherDocuments', list)
+}
+
+/**
+ * 清空 otherDocuments 某一行的已选文件（不删行）
+ * @param {number} index 行下标
+ */
+function clearMultiAttachment(index) {
+  const pendingKey = `otherDocuments:${index}`
+  pendingLocalFiles.value = { ...pendingLocalFiles.value, [pendingKey]: null }
+  const list = normalizeOtherDocuments(normalizedAttachments.value.otherDocuments)
+  list[index] = null
+  setAttachment('otherDocuments', list)
+  const input = fileInputRefs.value[pendingKey]
+  if (input) input.value = ''
 }
 
 /** Other Documents 增加一行空上传 */
@@ -216,7 +237,22 @@ function multiPendingFile(index) {
             :show-file-icon="false"
           />
           <span v-else class="file-name">{{ t('movementDocuments.noFileSelected') }}</span>
-          <!-- 第 2 行及以后：关闭小按钮 -->
+          <button
+            v-if="slot?.fileName"
+            type="button"
+            class="btn-clear-file"
+            :aria-label="t('movementDocuments.removeFile')"
+            :title="t('movementDocuments.removeFile')"
+            @click="clearMultiAttachment(index)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <line x1="10" y1="11" x2="10" y2="17" />
+              <line x1="14" y1="11" x2="14" y2="17" />
+            </svg>
+          </button>
+          <!-- 第 2 行及以后：关闭小按钮（删整行） -->
           <button
             v-if="index > 0"
             type="button"
@@ -231,7 +267,7 @@ function multiPendingFile(index) {
             :ref="(el) => setFileInputRef(`otherDocuments:${index}`, el)"
             type="file"
             class="hidden-file"
-            accept=".pdf,.jpg,.jpeg,.png,.docx"
+            accept=".pdf,.doc,.docx"
             @change="onMultiFileChange(index, $event)"
           />
         </div>
@@ -256,11 +292,26 @@ function multiPendingFile(index) {
             :show-file-icon="false"
           />
           <span v-else class="file-name">{{ t('movementDocuments.noFileSelected') }}</span>
+          <button
+            v-if="normalizedAttachments[field.key]?.fileName"
+            type="button"
+            class="btn-clear-file"
+            :aria-label="t('movementDocuments.removeFile')"
+            :title="t('movementDocuments.removeFile')"
+            @click="clearSingleAttachment(field.key)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <line x1="10" y1="11" x2="10" y2="17" />
+              <line x1="14" y1="11" x2="14" y2="17" />
+            </svg>
+          </button>
           <input
             :ref="(el) => setFileInputRef(field.key, el)"
             type="file"
             class="hidden-file"
-            accept=".pdf,.jpg,.jpeg,.png,.docx"
+            accept=".pdf,.doc,.docx"
             @change="onFileChange(field.key, $event)"
           />
         </div>
@@ -349,6 +400,33 @@ function multiPendingFile(index) {
 
 .file-row--multi {
   margin-top: 10px;
+}
+
+/* 已上传文件的删除按钮 */
+.btn-clear-file {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.btn-clear-file svg {
+  width: 14px;
+  height: 14px;
+}
+
+.btn-clear-file:hover {
+  color: #ef4444;
+  border-color: #fca5a5;
+  background: #fef2f2;
 }
 
 /* Other Documents 第 2 行起的关闭小按钮 */

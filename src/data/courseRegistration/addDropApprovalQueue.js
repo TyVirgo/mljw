@@ -8,8 +8,11 @@ import {
   confirmCoursesFromAddDropItems,
   dropConfirmedCourseByCode,
   getStudentProfileFields,
+  holdAddDropSectionSeat,
+  releaseAddDropSectionSeat,
 } from './studentRegistrationStore.js'
 import { appendFeeRosterFromApproval } from './feeRosterQueue.js'
+import { getPaymentGraceDays } from './registrationRuleSettings.js'
 import {
   getSupplementEntry,
   getSupplementDoorStatus,
@@ -17,9 +20,10 @@ import {
 } from './supplementListQueue.js'
 import { isWithinAddDropApplicationWindow } from './addDropApplicationWindow.js'
 import { getActiveBatch } from './registrationBatches.js'
-import { nowDateTimeWithSeconds } from './registrationBatchFormUtils.js'
+import { addDaysToDateTime, nowDateTimeWithSeconds } from './registrationBatchFormUtils.js'
 import { isFreshmanStudent } from './studentAudience.js'
 import { enrichAddDropQueueSchedule, enrichAddDropApplicationSchedule } from './addDropScheduleDemo.js'
+import { ADD_DROP_TYPE_TABS, isShieldedAddDropType } from './addDropListColumns.js'
 
 const initialQueue = [
   {
@@ -32,7 +36,7 @@ const initialQueue = [
     type: 'AddDrop',
     status: 'Pending',
     submittedAt: '2026-07-10 09:15:00',
-    currentCredits: 18,
+    currentCredits: 22,
     creditMax: 20,
     billStatus: 'pending',
     billAmount: 480,
@@ -220,7 +224,7 @@ export function classifyAddDropBucket(row, tab) {
 }
 
 export function filterAddDropQueue(rows, tab, filters = {}) {
-  let list = rows.filter((row) => classifyAddDropBucket(row, tab))
+  let list = rows.filter((row) => !isShieldedAddDropType(row.type) && classifyAddDropBucket(row, tab))
   if (filters.programme) {
     list = list.filter((r) => r.programme.toLowerCase().includes(filters.programme.toLowerCase()))
   }
@@ -251,6 +255,7 @@ export function buildAddDropValidation(application) {
     .filter((i) => ['Add', 'Retake'].includes(i.action))
     .reduce((sum, i) => sum + i.credits, 0)
   const creditsAfter = computeCreditsAfterApproval(application.currentCredits, dropCredits, addCredits)
+  // 仅作展示/核对；超分不拦截审批（见 approveAddDropApplication）
   const creditOk = creditsAfter <= application.creditMax
   const addItem = application.items.find((i) => ['Add', 'Retake'].includes(i.action))
   let conflict = false
@@ -280,12 +285,29 @@ export function buildAddDropValidation(application) {
   }
 }
 
+/** 审批应收金额：items.fee → billAmount → feeEstimate.total */
+export function resolveAddDropBillAmount(app) {
+  if (!app) return 0
+  const fromItems = (app.items || []).reduce((sum, i) => sum + (Number(i.fee) || 0), 0)
+  if (fromItems > 0) return fromItems
+  const fromBill = Number(app.billAmount)
+  if (Number.isFinite(fromBill) && fromBill > 0) return fromBill
+  const fromEst = Number(app.feeEstimate?.total)
+  if (Number.isFinite(fromEst) && fromEst > 0) return fromEst
+  return 0
+}
+
+export function addDropApplicationHasBillableFee(app) {
+  if (resolveAddDropBillAmount(app) > 0) return true
+  const excess = Number(app?.excessCredits ?? app?.billableCredits ?? app?.feeEstimate?.billableCredits)
+  return Number.isFinite(excess) && excess > 0
+}
+
 export function approveAddDropApplication(id, comment = '', generateBill = true) {
   const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
   const app = addDropApprovalQueue.value[index]
-  const validation = buildAddDropValidation(app)
-  if (!validation.creditOk) return { ok: false, errorKey: 'courseRegistration.approval.creditExceeded' }
+  // 超分为加课常态：不因学分超限拦截，仅核对信息后可通过
   const patch = {
     status: 'Approved',
     approvalLog: [
@@ -299,25 +321,34 @@ export function approveAddDropApplication(id, comment = '', generateBill = true)
       },
     ],
   }
-  const fee = app.items.reduce((sum, i) => sum + (i.fee || 0), 0)
+  const fee = resolveAddDropBillAmount(app)
   if (generateBill && fee > 0) {
+    const graceDays = getPaymentGraceDays()
     patch.billStatus = 'pending'
     patch.billAmount = fee
+    patch.paymentGraceDays = graceDays
+    patch.paymentDueAt = addDaysToDateTime(graceDays)
   }
   addDropApprovalQueue.value[index] = { ...app, ...patch }
 
-  const currentId = getStudentProfileFields().studentId
-  if (app.studentId === currentId) {
-    for (const item of app.items || []) {
-      if (item.action === 'Drop' && item.courseCode) {
-        dropConfirmedCourseByCode(item.courseCode)
+  // 写回选课 / 缴费名单失败不回滚已通过状态（原型侧写）
+  try {
+    const currentId = getStudentProfileFields().studentId
+    if (app.studentId === currentId) {
+      for (const item of app.items || []) {
+        if (item.action === 'Drop' && item.courseCode) {
+          dropConfirmedCourseByCode(item.courseCode)
+        }
       }
+      confirmCoursesFromAddDropItems(app.items || [], {
+        seatAlreadyHeld: Boolean((app.seatHolds || []).length),
+      })
     }
-    confirmCoursesFromAddDropItems(app.items || [])
-  }
-
-  if (generateBill && fee > 0) {
-    appendFeeRosterFromApproval({ ...app, ...patch })
+    if (generateBill && fee > 0) {
+      appendFeeRosterFromApproval({ ...app, ...patch })
+    }
+  } catch {
+    /* demo：侧写异常不影响审批通过 */
   }
 
   return { ok: true }
@@ -327,9 +358,13 @@ export function rejectAddDropApplication(id, comment = '') {
   const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
   const app = addDropApprovalQueue.value[index]
+  if (app.status === 'Pending') {
+    releaseSeatsForApplication(app)
+  }
   addDropApprovalQueue.value[index] = {
     ...app,
     status: 'Rejected',
+    seatHolds: [],
     approvalLog: [
       ...app.approvalLog,
       {
@@ -378,8 +413,8 @@ export function decideAddDropApplication(id, action, comment = '', options = {})
   return { ok: false, errorKey: 'courseRegistration.approval.invalidAction' }
 }
 
-/** 本期申请类型（不含 Replace） */
-export const addDropTypeOptions = ['Add', 'Drop', 'Retake', 'AddDrop']
+/** 本期申请类型（加退关联先屏蔽） */
+export const addDropTypeOptions = [...ADD_DROP_TYPE_TABS]
 export const ALL_ADD_DROP_ACTIONS = addDropTypeOptions
 
 let studentAdrSeq = 9005
@@ -393,7 +428,6 @@ function actionsFromSupplementEntry(entry, now = new Date()) {
   if (entryHasActivePermission(entry, 'canAdd', now)) actions.push('Add')
   if (entryHasActivePermission(entry, 'canDrop', now)) actions.push('Drop')
   if (entryHasActivePermission(entry, 'canRetake', now)) actions.push('Retake')
-  if (actions.includes('Add') && actions.includes('Drop')) actions.push('AddDrop')
   return actions
 }
 
@@ -476,7 +510,7 @@ export function getAddDropAccess(studentId, batch = getActiveBatch(), now = new 
 export function canStudentSubmitAddDrop(studentId, batch = getActiveBatch(), action = null) {
   const access = getAddDropAccess(studentId, batch)
   if (!access.ok) return access
-  if (action && !access.allowedActions.includes(action)) {
+  if (action && (isShieldedAddDropType(action) || !access.allowedActions.includes(action))) {
     return {
       ok: false,
       errorKey: 'courseRegistration.student.addDropActionNotAllowed',
@@ -485,6 +519,30 @@ export function canStudentSubmitAddDrop(studentId, batch = getActiveBatch(), act
     }
   }
   return access
+}
+
+function holdSeatsForAddDropItems(items = []) {
+  const holds = []
+  for (const item of items) {
+    if (item.action !== 'Add' && item.action !== 'Retake') continue
+    const result = holdAddDropSectionSeat({
+      courseId: item.courseId,
+      courseCode: item.courseCode,
+      sectionId: item.sectionId,
+      sectionCode: item.section || item.sectionCode,
+    })
+    if (!result.ok) {
+      for (const hold of holds) releaseAddDropSectionSeat(hold)
+      return result
+    }
+    holds.push(result.hold)
+  }
+  return { ok: true, holds }
+}
+
+function releaseSeatsForApplication(app) {
+  const holds = app?.seatHolds || []
+  for (const hold of holds) releaseAddDropSectionSeat(hold)
 }
 
 export function submitStudentAddDropApplication(studentFields, items, options = {}) {
@@ -496,6 +554,9 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
     options.type || (items.length > 1 ? 'AddDrop' : items[0]?.action),
   )
   if (!gate.ok) return gate
+
+  const seatResult = holdSeatsForAddDropItems(items)
+  if (!seatResult.ok) return seatResult
 
   studentAdrSeq += 1
   const dropChannel = options.dropChannel || null
@@ -561,6 +622,9 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
       options.billableCredits ??
       options.feeEstimate?.billableCredits ??
       0,
+    seatHolds: seatResult.holds || [],
+    paymentDueAt: '',
+    paymentGraceDays: getPaymentGraceDays(),
     approvalLog: autoApproveSelfDrop
       ? [
           {
@@ -607,10 +671,12 @@ export function cancelStudentAddDropApplication(id, actor = 'Student') {
   if (!canCancelAddDropApplication(app)) {
     return { ok: false, errorKey: 'courseRegistration.student.cancelNotAllowed' }
   }
+  releaseSeatsForApplication(app)
   const at = new Date().toISOString().slice(0, 16).replace('T', ' ')
   addDropApprovalQueue.value[index] = {
     ...app,
     status: 'Cancelled',
+    seatHolds: [],
     approvalLog: [
       ...(app.approvalLog || []),
       {

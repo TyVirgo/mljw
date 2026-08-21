@@ -701,7 +701,7 @@ function handleProgrammeScopeSaved() {
 
 .data-table th,
 .data-table td {
-  padding: 2px 4px;
+  padding: 6px 8px;
   border-bottom: 1px solid #f3f4f6;
   text-align: left;
   vertical-align: middle;
@@ -891,12 +891,12 @@ function handleProgrammeScopeSaved() {
 
 .cr-time-venue {
   min-width: 160px;
-  line-height: 1.3;
+  line-height: 1.4;
   white-space: normal;
 }
 
 .cr-time-venue-line + .cr-time-venue-line {
-  margin-top: 0;
+  margin-top: 2px;
 }
 
 .link-btn {

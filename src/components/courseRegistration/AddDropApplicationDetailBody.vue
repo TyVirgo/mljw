@@ -4,13 +4,15 @@ import { useAppI18n } from '../../composables/useAppI18n.js'
 import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
 import { downloadAttachmentMock } from '../../utils/attachmentPreview.js'
 import {
-  formatAddDropCourseText,
   getAddDropCourseColumnTexts,
+  resolveAddDropCourseParts,
 } from '../../utils/addDropCourseDisplay.js'
 import { getVisibleAddDropSections, buildAddDropSectionBars } from '../../data/courseRegistration/addDropFormSections.js'
+import { getAddDropDeclarationExtraKey } from '../../data/courseRegistration/addDropListColumns.js'
 import { addDropStatusBadgeClass } from '../../data/courseRegistration/addDropStatusBadge.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 import { displayClassTimeVenueFromFields } from '../../data/courseRegistration/sectionScheduleFields.js'
+import { formatAmountRmb } from '../../data/courseRegistration/addDropFeeRates.js'
 import '../../styles/movement-status-badge.css'
 
 const props = defineProps({
@@ -64,6 +66,7 @@ const app = computed(() => props.application)
 const courseCols = computed(() => getAddDropCourseColumnTexts(app.value))
 const sections = computed(() => getVisibleAddDropSections(app.value?.type || 'Add'))
 const sectionBars = computed(() => buildAddDropSectionBars(app.value?.type || 'Add', t))
+const declarationExtraKey = computed(() => getAddDropDeclarationExtraKey(app.value?.type || 'Add'))
 
 const attachmentFile = computed(() => {
   const file = app.value?.attachments?.[0]
@@ -140,9 +143,34 @@ function itemByAction(action) {
   return (app.value?.items || []).find((i) => i.action === action) || null
 }
 
-function courseText(item) {
-  if (!item) return ''
-  return formatAddDropCourseText(item)
+function courseParts(kind) {
+  const action = kind === 'drop' ? 'Drop' : kind === 'retake' ? 'Retake' : 'Add'
+  const item = itemByAction(action)
+  const snap = snapFor(kind)
+  const parts = resolveAddDropCourseParts(item, snap)
+  if (!parts.name && !parts.code) {
+    const cols = courseCols.value
+    const combined = kind === 'drop' ? cols.drop : kind === 'retake' ? cols.retake : cols.add
+    if (combined && combined !== '—') {
+      const [code, ...rest] = String(combined).split(' ')
+      return { code: code || '', name: rest.join(' ') || combined }
+    }
+  }
+  return parts
+}
+
+function academicSessionText() {
+  const v = String(app.value?.academicSession || '').trim()
+  return v && v !== '—' ? v : '2026/04'
+}
+
+function contactPhoneText() {
+  const v = String(app.value?.contactPhone || '').trim()
+  return v && v !== '—' ? v : '0123456789'
+}
+
+function feeAmountText() {
+  return formatAmountRmb(app.value?.billAmount ?? app.value?.feeEstimate?.total ?? 0)
 }
 
 function exportAttachment() {
@@ -162,7 +190,7 @@ function exportAttachment() {
         </div>
         <div class="field-item">
           <div class="field-label">{{ t('courseRegistration.batch.academicSession') }}</div>
-          <div class="field-value">{{ app.academicSession || '—' }}</div>
+          <div class="field-value">{{ academicSessionText() }}</div>
         </div>
         <div class="field-item">
           <div class="field-label">{{ t('courseRegistration.approval.typeLabel') }}</div>
@@ -209,7 +237,7 @@ function exportAttachment() {
         </div>
         <div class="field-item">
           <div class="field-label">{{ t('courseRegistration.student.contactPhone') }}</div>
-          <div class="field-value">{{ dash(app.contactPhone) }}</div>
+          <div class="field-value">{{ contactPhoneText() }}</div>
         </div>
       </div>
     </section>
@@ -217,17 +245,13 @@ function exportAttachment() {
     <section v-if="sections.showIII" class="detail-section">
       <div class="section-bar">{{ sectionBars.drop }}</div>
       <div class="field-grid">
-        <div class="field-item field-item--full">
-          <div class="field-label">{{ t('courseRegistration.approval.dropCourseName') }}</div>
-          <div class="field-value">
-            {{
-              dash(
-                snapFor('drop')?.label ||
-                  courseText(itemByAction('Drop')) ||
-                  courseCols.drop,
-              )
-            }}
-          </div>
+        <div class="field-item">
+          <div class="field-label">{{ t('courseRegistration.student.fieldCourseName') }}</div>
+          <div class="field-value">{{ dash(courseParts('drop').name) }}</div>
+        </div>
+        <div class="field-item">
+          <div class="field-label">{{ t('courseRegistration.student.fieldCourseCode') }}</div>
+          <div class="field-value">{{ dash(courseParts('drop').code) }}</div>
         </div>
         <div class="field-item">
           <div class="field-label">{{ t('courseRegistration.student.fieldGroupNo') }}</div>
@@ -281,17 +305,13 @@ function exportAttachment() {
     <section v-if="sections.showII" class="detail-section">
       <div class="section-bar">{{ sectionBars.add }}</div>
       <div class="field-grid">
-        <div class="field-item field-item--full">
-          <div class="field-label">{{ t('courseRegistration.approval.addCourseName') }}</div>
-          <div class="field-value">
-            {{
-              dash(
-                snapFor('add')?.label ||
-                  courseText(itemByAction('Add')) ||
-                  courseCols.add,
-              )
-            }}
-          </div>
+        <div class="field-item">
+          <div class="field-label">{{ t('courseRegistration.student.fieldCourseName') }}</div>
+          <div class="field-value">{{ dash(courseParts('add').name) }}</div>
+        </div>
+        <div class="field-item">
+          <div class="field-label">{{ t('courseRegistration.student.fieldCourseCode') }}</div>
+          <div class="field-value">{{ dash(courseParts('add').code) }}</div>
         </div>
         <div class="field-item">
           <div class="field-label">{{ t('courseRegistration.student.fieldGroupNo') }}</div>
@@ -352,10 +372,6 @@ function exportAttachment() {
           <div class="field-label">{{ t('courseRegistration.student.fieldExcessCredits') }}</div>
           <div class="field-value">{{ dash(excessCreditsDisplay) }}</div>
         </div>
-        <div class="field-item">
-          <div class="field-label">{{ t('courseRegistration.student.feeEstimateShort') }}</div>
-          <div class="field-value">{{ dash(app.billAmount ?? app.feeEstimate?.total) }}</div>
-        </div>
         <div v-if="app.addNotes" class="field-item field-item--full">
           <div class="field-label">{{ t('courseRegistration.student.addNotesLabel') }}</div>
           <div class="field-value">{{ dash(app.addNotes) }}</div>
@@ -366,9 +382,13 @@ function exportAttachment() {
     <section v-if="sections.showIV" class="detail-section">
       <div class="section-bar">{{ sectionBars.retake }}</div>
       <div class="field-grid">
-        <div class="field-item field-item--full">
-          <div class="field-label">{{ t('courseRegistration.student.previouslyTakenCourse') }}</div>
-          <div class="field-value">{{ dash(app.previouslyTakenCourse) }}</div>
+        <div class="field-item">
+          <div class="field-label">{{ t('courseRegistration.student.fieldCourseName') }}</div>
+          <div class="field-value">{{ dash(courseParts('retake').name) }}</div>
+        </div>
+        <div class="field-item">
+          <div class="field-label">{{ t('courseRegistration.student.fieldCourseCode') }}</div>
+          <div class="field-value">{{ dash(courseParts('retake').code) }}</div>
         </div>
         <div class="field-item">
           <div class="field-label">{{ t('courseRegistration.student.gradeEarned') }}</div>
@@ -383,18 +403,6 @@ function exportAttachment() {
         <div class="field-item">
           <div class="field-label">{{ t('courseRegistration.student.retakeTypeLabel') }}</div>
           <div class="field-value">{{ retakeTypeLabel(app.retakeType) }}</div>
-        </div>
-        <div class="field-item field-item--full">
-          <div class="field-label">{{ t('courseRegistration.approval.retakeCourseName') }}</div>
-          <div class="field-value">
-            {{
-              dash(
-                snapFor('retake')?.label ||
-                  courseText(itemByAction('Retake')) ||
-                  courseCols.retake,
-              )
-            }}
-          </div>
         </div>
         <div class="field-item">
           <div class="field-label">{{ t('courseRegistration.student.fieldGroupNo') }}</div>
@@ -447,10 +455,6 @@ function exportAttachment() {
           <div class="field-label">{{ t('courseRegistration.student.fieldExcessCredits') }}</div>
           <div class="field-value">{{ dash(excessCreditsDisplay) }}</div>
         </div>
-        <div class="field-item">
-          <div class="field-label">{{ t('courseRegistration.student.feeEstimateShort') }}</div>
-          <div class="field-value">{{ dash(app.billAmount ?? app.feeEstimate?.total) }}</div>
-        </div>
       </div>
     </section>
 
@@ -462,24 +466,24 @@ function exportAttachment() {
       <div class="field-grid field-grid--single">
         <div class="field-item">
           <div class="field-label">{{ t('courseRegistration.student.feeEstimateTotal') }}</div>
-          <div class="field-value">{{ dash(app.billAmount ?? app.feeEstimate?.total) }}</div>
+          <div class="field-value">{{ feeAmountText() }}</div>
+        </div>
+        <div v-if="app.paymentDueAt" class="field-item">
+          <div class="field-label">{{ t('courseRegistration.student.paymentDueAt') }}</div>
+          <div class="field-value">{{ app.paymentDueAt }}</div>
         </div>
       </div>
     </section>
 
     <section class="detail-section">
       <div class="section-bar">{{ sectionBars.declaration }}</div>
-      <div class="field-grid field-grid--single">
-        <div class="field-item">
-          <div class="field-label">{{ t('courseRegistration.student.declarationAgree') }}</div>
-          <div class="field-value">
-            {{
-              app.declarationAgreed
-                ? t('courseRegistration.student.declarationAgreedYes')
-                : '—'
-            }}
-          </div>
-        </div>
+      <div class="declaration-box">
+        <p class="declaration-extra">{{ t(declarationExtraKey) }}</p>
+        <p class="declaration-text">{{ t('courseRegistration.student.declarationText') }}</p>
+        <label class="checkbox-row">
+          <input type="checkbox" :checked="app.declarationAgreed !== false" disabled />
+          <span>{{ t('courseRegistration.student.declarationAgree') }}</span>
+        </label>
       </div>
     </section>
 
@@ -571,6 +575,46 @@ function exportAttachment() {
 
 .field-value--pre {
   white-space: pre-line;
+}
+
+.declaration-box {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.declaration-text {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #111827;
+  line-height: 1.5;
+}
+
+.declaration-extra {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #92400e;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #111827;
+  flex-wrap: nowrap;
+}
+
+.checkbox-row input {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.checkbox-row span {
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .attachment-panel {

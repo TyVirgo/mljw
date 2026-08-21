@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import ExportModal from '../../components/common/ExportModal.vue'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
@@ -24,11 +24,16 @@ import {
 import {
   volunteerCourseStates,
   listVolunteerCourseSummaries,
-  finalizeVolunteerConfirm,
   isVolunteerBatchReadonly,
   isVolunteerBatchFinalized,
   getVolunteerBatchFinalizedAt,
 } from '../../data/courseRegistration/preselectVolunteerConfirm.js'
+import {
+  formatResultReleaseDisplay,
+  getBatchReleaseCountdown,
+  autoLockVolunteerBatchAtRelease,
+  tickAutoLockVolunteerBatchesAtRelease,
+} from '../../data/courseRegistration/preselectReleaseSync.js'
 import {
   resultStudentExportFields,
   resultCourseExportFields,
@@ -40,6 +45,7 @@ import {
   formatResultStudentExportRow,
   formatResultCourseExportRow,
 } from '../../utils/exportCourseRegistrationExcel.js'
+import { getResultReleaseAt } from '../../data/courseRegistration/studentVolunteerSheet.js'
 import '../../styles/list-page-search.css'
 import '../../styles/course-registration-list.css'
 
@@ -114,6 +120,9 @@ const volunteerDrawerVisible = ref(false)
 const volunteerCourseId = ref('')
 const volunteerSectionId = ref('')
 const volunteerTableTick = ref(0)
+/** 每分钟刷新公布倒计时 */
+const releaseCountdownTick = ref(0)
+let releaseCountdownTimer = null
 
 const studentRows = computed(() => adminStudentRegistrationResults.value)
 
@@ -187,6 +196,12 @@ watch(
 
 onMounted(() => {
   measureBatchSelectWidth()
+  tickReleaseCountdown()
+  releaseCountdownTimer = window.setInterval(tickReleaseCountdown, 60_000)
+})
+
+onUnmounted(() => {
+  if (releaseCountdownTimer) window.clearInterval(releaseCountdownTimer)
 })
 
 const exportFields = computed(() =>
@@ -213,16 +228,43 @@ const volunteerBatchFinalized = computed(() => {
   return isVolunteerBatchFinalized(selectedBatchId.value)
 })
 
-/** 有/无最终确认的状态文案 */
+/** 有/无最终确认的状态文案（工具行展示） */
 const volunteerConfirmStatusLabel = computed(() => {
   void volunteerBatchTick.value
+  void releaseCountdownTick.value
   const at = getVolunteerBatchFinalizedAt(selectedBatchId.value)
-  if (!at) return t('courseRegistration.result.volunteerNotConfirmed')
-  return t('courseRegistration.result.volunteerConfirmedAt', {
-    at: String(at).slice(0, 19).replace('T', ' '),
+  if (at) {
+    return t('courseRegistration.result.volunteerConfirmedAt', {
+      at: String(at).slice(0, 19).replace('T', ' '),
+    })
+  }
+  const batch = registrationBatches.value.find((b) => b.id === selectedBatchId.value)
+  const raw = getResultReleaseAt(batch)
+  if (!raw) return t('courseRegistration.result.volunteerReleasePending')
+  const countdown = getBatchReleaseCountdown(selectedBatchId.value)
+  const displayAt = formatResultReleaseDisplay(raw)
+  if (countdown.released) {
+    return t('courseRegistration.result.volunteerReleasePublished', { at: displayAt })
+  }
+  return t('courseRegistration.result.volunteerReleaseRemaining', {
+    at: displayAt,
+    days: countdown.days,
+    hours: countdown.hours,
   })
 })
-// 原全局 volunteerConfirmedLabel / isVolunteerPageReadonly
+
+function runReleaseAutoLock(batchId = selectedBatchId.value) {
+  const result = autoLockVolunteerBatchAtRelease(batchId)
+  if (result.ok && !result.already) {
+    refreshVolunteerTable()
+  }
+}
+
+function tickReleaseCountdown() {
+  releaseCountdownTick.value += 1
+  tickAutoLockVolunteerBatchesAtRelease()
+  runReleaseAutoLock()
+}
 
 const hasSelection = computed(() => selectedIds.value.length > 0)
 const allPageSelected = computed(() => {
@@ -246,6 +288,7 @@ watch(selectedBatchId, (id) => {
   syncBatchToFilters(id)
   currentPage.value = 1
   clearSelection()
+  runReleaseAutoLock(id)
 })
 
 function clearSelection() {
@@ -331,11 +374,6 @@ function roundLabel(key) {
 }
 
 function openVolunteerRoster(row) {
-  // 本批已定稿：禁用入口，不可再进抽屉调整
-  if (isVolunteerBatchReadonly(row.batchId || selectedBatchId.value)) {
-    window.alert(t('courseRegistration.result.volunteerRosterLocked'))
-    return
-  }
   volunteerCourseId.value = row.courseId || ''
   volunteerSectionId.value = row.sectionId || ''
   volunteerDrawerVisible.value = true
@@ -345,33 +383,7 @@ function refreshVolunteerTable() {
   volunteerTableTick.value += 1
 }
 
-/** 主路径：最终确认定稿并开第二轮闸门 */
-function requestFinalConfirm() {
-  if (volunteerBatchFinalized.value) {
-    window.alert(t('courseRegistration.result.volunteerAlreadyFinalized'))
-    return
-  }
-  if (volunteerReadonly.value) {
-    window.alert(t('courseRegistration.result.volunteerReadonly'))
-    return
-  }
-  confirmMode.value = 'volunteerFinal'
-  confirmMessage.value = t('courseRegistration.result.volunteerFinalConfirmMessage')
-  confirmVisible.value = true
-}
-
 function handleDialogConfirm() {
-  if (confirmMode.value === 'volunteerFinal') {
-    const result = finalizeVolunteerConfirm(selectedBatchId.value)
-    confirmVisible.value = false
-    if (!result.ok) {
-      window.alert(t(result.errorKey, result.errorParams || {}))
-      return
-    }
-    refreshVolunteerTable()
-    window.alert(t('courseRegistration.result.volunteerFinalSuccess'))
-    return
-  }
   confirmBatchDelete()
 }
 
@@ -435,12 +447,6 @@ function handleExportConfirm({ selectedFields }) {
 
       <CourseRegistrationCallout v-if="activeTab === 'volunteer'" variant="info" class="volunteer-hint-callout">
         {{ t('courseRegistration.result.volunteerHint') }}
-        <span
-          class="volunteer-confirm-status"
-          :class="volunteerBatchFinalized ? 'is-confirmed' : 'is-pending'"
-        >
-          {{ volunteerConfirmStatusLabel }}
-        </span>
       </CourseRegistrationCallout>
 
       <div class="search-bar">
@@ -583,14 +589,6 @@ function handleExportConfirm({ selectedFields }) {
 
       <div v-if="showVolunteerToolbar" class="toolbar result-toolbar">
         <div class="toolbar-left">
-          <button
-            type="button"
-            class="btn btn-primary"
-            :disabled="volunteerReadonly || volunteerBatchFinalized"
-            @click="requestFinalConfirm"
-          >
-            {{ t('courseRegistration.result.volunteerFinalConfirm') }}
-          </button>
           <span
             class="volunteer-confirm-status toolbar-status"
             :class="volunteerBatchFinalized ? 'is-confirmed' : 'is-pending'"
@@ -686,11 +684,13 @@ function handleExportConfirm({ selectedFields }) {
                   <button
                     type="button"
                     class="link-btn"
-                    :class="{ 'is-disabled': volunteerReadonly }"
-                    :disabled="volunteerReadonly"
                     @click="openVolunteerRoster(row)"
                   >
-                    {{ t('courseRegistration.result.volunteerRosterAction') }}
+                    {{
+                      volunteerReadonly
+                        ? t('courseRegistration.result.volunteerRosterViewAction')
+                        : t('courseRegistration.result.volunteerRosterAction')
+                    }}
                   </button>
                 </td>
               </tr>
@@ -781,18 +781,10 @@ function handleExportConfirm({ selectedFields }) {
 
     <ConfirmDialog
       :visible="confirmVisible"
-      :title="
-        confirmMode === 'volunteerFinal'
-          ? t('courseRegistration.result.volunteerFinalConfirm')
-          : t('common.deleteConfirmation')
-      "
+      :title="t('common.deleteConfirmation')"
       :message="confirmMessage"
-      :confirm-text="
-        confirmMode === 'volunteerFinal'
-          ? t('courseRegistration.result.volunteerFinalConfirm')
-          : t('common.delete')
-      "
-      :confirm-variant="confirmMode === 'volunteerFinal' ? 'primary' : 'danger'"
+      :confirm-text="t('common.delete')"
+      confirm-variant="danger"
       @confirm="handleDialogConfirm"
       @cancel="confirmVisible = false"
     />
@@ -895,7 +887,7 @@ function handleExportConfirm({ selectedFields }) {
 }
 
 .toolbar-status {
-  margin-left: 12px;
+  margin-left: 0;
 }
 
 .link-btn.is-disabled,

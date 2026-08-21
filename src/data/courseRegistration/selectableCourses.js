@@ -3,8 +3,8 @@ import { enrichSectionScheduleFields } from './sectionScheduleFields.js'
 import { schoolElectiveCategoryOptions } from '../departments.js'
 import { DEMO_HEADCOUNT, splitQuotaByHeadcount } from './audienceRounds.js'
 
-/** 校选类别：ME demo 统一一类（模拟按学生过滤）；GE 可混杂 */
-function resolveSchoolElectiveCategory(course) {
+/** 校选类别：ME demo 默认文科；GE 可混杂文商理 */
+export function resolveSchoolElectiveCategory(course) {
   if (course.schoolElectiveCategory) return course.schoolElectiveCategory
   if (course.type === 'ME') return 'arts'
   const cats = schoolElectiveCategoryOptions.map((o) => o.value)
@@ -12,6 +12,24 @@ function resolveSchoolElectiveCategory(course) {
   let h = 0
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
   return cats[h % cats.length]
+}
+
+/** 演示生默认文科；未标注时按文科 */
+export function getDefaultStudentSchoolElectiveCategory() {
+  return 'arts'
+}
+
+/**
+ * ME 仅展示与学生科类一致的课；GE / 其它类型不过滤。
+ * @param {object} course
+ * @param {string} [studentCategory]
+ */
+export function courseMatchesStudentSchoolElective(course, studentCategory) {
+  if (!course) return false
+  const type = String(course.type || '').toUpperCase()
+  if (type !== 'ME') return true
+  const studentCat = studentCategory || getDefaultStudentSchoolElectiveCategory()
+  return resolveSchoolElectiveCategory(course) === studentCat
 }
 
 /**
@@ -79,6 +97,7 @@ const initialCourses = [
     quotaSummary: 'Total 90 · GE Humanities',
     prerequisites: ['COMP101'],
     g1Category: 'Humanities',
+    schoolElectiveCategory: 'arts',
     sections: [
       {
         id: 'sec-16',
@@ -141,7 +160,7 @@ const initialCourses = [
     sections: [
       { id: 'sec-1', code: '01', time: 'Mon 16:00–18:00', room: 'D5-3-201', lecturer: 'Dr. Lee', enrolled: 22, capacity: 25 },
       { id: 'sec-2', code: '02', time: 'Wed 14:00–16:00', room: 'D5-3-202', lecturer: 'Dr. Tan', enrolled: 20, capacity: 25 },
-      { id: 'sec-comp201-3', code: '03', time: 'Fri 08:00–10:00', room: 'D5-3-203', lecturer: 'Dr. Yap', enrolled: 20, capacity: 25 },
+      { id: 'sec-comp201-3', code: '03', time: 'Fri 10:00–12:00', room: 'D5-3-203', lecturer: 'Dr. Yap', enrolled: 20, capacity: 25 },
     ],
     quota: { total: 75, senior: 45, freshman: 30, releaseToFreshman: true, byIntake: { '2409': 20, '2504': 25, '2509': 30 } },
   },
@@ -182,6 +201,7 @@ const initialCourses = [
     quotaSummary: 'Total 80 · GE Business',
     prerequisites: [],
     g1Category: 'Business',
+    schoolElectiveCategory: 'business',
     sections: [
       { id: 'sec-18', code: '01', time: 'Tue 14:00–17:00', room: 'B3-2-101', lecturer: 'Dr. Hassan', enrolled: 28, capacity: 40 },
       { id: 'sec-bus201-2', code: '02', time: 'Thu 09:00–12:00', room: 'B3-2-102', lecturer: 'Dr. Lim', enrolled: 28, capacity: 40 },
@@ -465,6 +485,7 @@ const initialCourses = [
     quotaSummary: 'Total 90',
     prerequisites: [],
     g1Category: 'Humanities',
+    schoolElectiveCategory: 'science',
     sections: [
       { id: 'sec-ge201-1', code: '01', time: 'Mon 16:00–18:00', room: 'A2-3-101', lecturer: 'Dr. Ng', enrolled: 25, capacity: 45 },
       { id: 'sec-ge201-2', code: '02', time: 'Fri 16:00–18:00', room: 'A2-3-102', lecturer: 'Ms. Tay', enrolled: 25, capacity: 45 },
@@ -530,11 +551,12 @@ const initialCourses = [
     quotaSummary: 'Total 70 · GE Humanities',
     prerequisites: [],
     g1Category: 'Humanities',
+    schoolElectiveCategory: 'arts',
     sections: [
       {
         id: 'sec-hum110-1',
         code: '01',
-        time: 'Wed 09:00–12:00',
+        time: 'Wed 14:00–17:00',
         room: 'A2-2-201',
         lecturer: 'Dr. Lim',
         enrolled: 25,
@@ -543,7 +565,7 @@ const initialCourses = [
       {
         id: 'sec-hum110-2',
         code: '02',
-        time: 'Thu 14:00–17:00',
+        time: 'Fri 16:00–18:00',
         room: 'A2-2-202',
         lecturer: 'Dr. Park',
         enrolled: 15,
@@ -552,6 +574,82 @@ const initialCourses = [
     ],
     quota: { total: 70, senior: 40, freshman: 30, releaseToFreshman: true, byIntake: {} },
     isSelectable: false,
+  },
+  {
+    id: 'course-sci110',
+    batchId: 'batch-2504-g1',
+    code: 'SCI110',
+    name: 'Scientific Reasoning',
+    credits: 3,
+    type: 'GE',
+    isHot: false,
+    rating: 4,
+    sectionCount: 2,
+    totalCapacity: 70,
+    remainingCapacity: 28,
+    quotaSummary: 'Total 70 · GE Science',
+    prerequisites: [],
+    g1Category: 'Science',
+    schoolElectiveCategory: 'science',
+    sections: [
+      {
+        id: 'sec-sci110-1',
+        code: '01',
+        time: 'Mon 16:00–18:00',
+        room: 'S1-1-101',
+        lecturer: 'Dr. Ong',
+        enrolled: 22,
+        capacity: 35,
+      },
+      {
+        id: 'sec-sci110-2',
+        code: '02',
+        time: 'Wed 16:00–18:00',
+        room: 'S1-1-102',
+        lecturer: 'Dr. Teo',
+        enrolled: 20,
+        capacity: 35,
+      },
+    ],
+    quota: { total: 70, senior: 40, freshman: 30, releaseToFreshman: true, byIntake: {} },
+  },
+  {
+    id: 'course-fin110',
+    batchId: 'batch-2504-g2',
+    code: 'FIN110',
+    name: 'Personal Finance Literacy',
+    credits: 3,
+    type: 'GE',
+    isHot: false,
+    rating: 4,
+    sectionCount: 2,
+    totalCapacity: 70,
+    remainingCapacity: 30,
+    quotaSummary: 'Total 70 · GE Business',
+    prerequisites: [],
+    g1Category: 'Business',
+    schoolElectiveCategory: 'business',
+    sections: [
+      {
+        id: 'sec-fin110-1',
+        code: '01',
+        time: 'Tue 09:00–12:00',
+        room: 'B3-1-101',
+        lecturer: 'Dr. Lim',
+        enrolled: 20,
+        capacity: 35,
+      },
+      {
+        id: 'sec-fin110-2',
+        code: '02',
+        time: 'Thu 09:00–12:00',
+        room: 'B3-1-102',
+        lecturer: 'Ms. Tan',
+        enrolled: 20,
+        capacity: 35,
+      },
+    ],
+    quota: { total: 70, senior: 40, freshman: 30, releaseToFreshman: true, byIntake: {} },
   },
   // —— 专业限制 ——
   {
@@ -688,6 +786,11 @@ const initialCourses = [
       'Organizational Behavior',
       'Intro to Accounting',
       'Digital Commerce Basics',
+      'Business Ethics',
+      'Supply Chain Basics',
+      'Intro to Economics',
+      'Workplace Communication',
+      'Data for Business',
     ],
     { type: 'GE', codeStart: 301 },
   ),
@@ -701,6 +804,12 @@ const initialCourses = [
       'National Language Appreciation',
       'Constitutional Literacy',
       'Social Responsibility',
+      'Malay Language Communication',
+      'Ethnic Relations',
+      'Volunteerism and Leadership',
+      'Sustainable Development Intro',
+      'Malaysian Legal System',
+      'Appreciation of Ethics and Civilisation',
     ],
     { type: 'GE', codeStart: 401 },
   ),
@@ -788,66 +897,226 @@ const initialCourses = [
     'Zero Trust Fundamentals',
     'Cyber Law Awareness',
   ]),
-  // —— 选课结果页：其余批次轻量课表，保证切换批次三 Tab 均有数据 ——
-  ...buildActiveBatchDemoCourses('batch-me-chs-junior', 'CHSJ', [
+  // —— 草稿/已结束等轻量挂课：统一 20 门（约 40 分组行），供管理课程与结果页切换 ——
+  ...buildActiveBatchDemoCourses('batch-ge-hum-junior', 'CHSJ', [
     'Intro to Health Sciences',
     'Basic Anatomy',
     'Community Health',
     'Study Skills for CHS',
-  ], { codeStart: 101 }),
+    'Health Communication',
+    'Nutrition Fundamentals',
+    'First Aid Practice',
+    'Epidemiology Basics',
+    'Patient Care Intro',
+    'Medical Terminology',
+    'Public Health Literacy',
+    'Biostatistics Intro',
+    'Health Ethics Seminar',
+    'Clinical Observation',
+    'Wellness Coaching',
+    'Health Systems Overview',
+    'Maternal and Child Health',
+    'Occupational Health',
+    'Health Promotion Lab',
+    'CHS Capstone Prep',
+  ], { type: 'GE', codeStart: 101 }),
   ...buildActiveBatchDemoCourses('batch-me-chs-senior-i', 'CHS1', [
     'Clinical Practice I',
     'Pathophysiology',
     'Health Informatics',
     'Evidence-Based Care',
+    'Advanced Assessment',
+    'Pharmacology Basics',
+    'Care Coordination',
+    'Chronic Disease Management',
+    'Mental Health Nursing',
+    'Infection Control',
+    'Clinical Documentation',
+    'Interprofessional Practice',
+    'Health Quality Metrics',
+    'Geriatric Care',
+    'Rehabilitation Intro',
+    'Clinical Simulation Lab',
+    'Health Policy Briefing',
+    'Case Conference Skills',
+    'Research Literacy in CHS',
+    'CHS Senior Seminar I',
   ], { codeStart: 201 }),
   ...buildActiveBatchDemoCourses('batch-me-chs-senior-ii', 'CHS2', [
     'Clinical Practice II',
     'Advanced Nursing Topics',
     'Public Health Project',
     'Professional Ethics in Health',
+    'Leadership in Care Teams',
+    'Community Placement',
+    'Advanced Pathophysiology',
+    'Complex Care Planning',
+    'Health Economics Intro',
+    'Digital Health Applications',
+    'Disaster Preparedness',
+    'Palliative Care Basics',
+    'Clinical Audit Methods',
+    'Teaching Skills for CHS',
+    'Global Health Issues',
+    'Advanced Simulation',
+    'Quality Improvement Lab',
+    'CHS Research Project',
+    'Professional Portfolio',
+    'CHS Senior Seminar II',
   ], { codeStart: 301 }),
-  ...buildActiveBatchDemoCourses('batch-me-cst-ii', 'CST2', [
+  ...buildActiveBatchDemoCourses('batch-ge-sci-ii', 'CST2', [
     'Advanced Networks',
     'Enterprise Systems',
     'IT Strategy',
     'Capstone Delivery',
-  ], { codeStart: 401 }),
-  ...buildActiveBatchDemoCourses('batch-me-swe-ii', 'SWE2', [
+    'Cloud Architecture',
+    'Security Operations Center',
+    'Data Platform Design',
+    'API Gateway Patterns',
+    'IT Service Continuity',
+    'Vendor Management',
+    'Enterprise Integration',
+    'Observability Practices',
+    'Platform Engineering',
+    'Identity Federation',
+    'Cost Optimization in Cloud',
+    'Release Management',
+    'Architecture Review Board',
+    'Digital Transformation Cases',
+    'IT Risk Workshops',
+    'CST Capstone Studio',
+  ], { type: 'GE', codeStart: 401 }),
+  ...buildActiveBatchDemoCourses('batch-ge-mpu-i-draft', 'SWE2', [
     'Software Architecture',
     'DevOps Pipeline',
     'Quality Assurance Lab',
     'Team Project Studio',
-  ], { codeStart: 401 }),
-  ...buildActiveBatchDemoCourses('batch-me-cys-ii', 'CYS2', [
+    'Domain-Driven Design',
+    'Microservices Patterns',
+    'Test Automation Advanced',
+    'Performance Engineering',
+    'Secure SDLC',
+    'Code Review Culture',
+    'Refactoring Large Systems',
+    'Feature Flag Strategies',
+    'Observability for Apps',
+    'Mobile Backend Patterns',
+    'Event-Driven Systems',
+    'Contract Testing',
+    'Technical Leadership',
+    'Legacy Modernization',
+    'Product Engineering Sync',
+    'SWE Capstone Delivery',
+  ], { type: 'GE', codeStart: 401 }),
+  ...buildActiveBatchDemoCourses('batch-ge-sci-i', 'CYS2', [
     'Advanced Cryptography',
     'Red Team Lab',
     'Security Governance',
     'Incident Command',
-  ], { codeStart: 401 }),
-  ...buildActiveBatchDemoCourses('batch-me-dsc-i', 'DSC', [
+    'Threat Hunting',
+    'Cloud Native Security',
+    'Secure Architecture Review',
+    'Malware Reverse Engineering',
+    'Purple Team Exercises',
+    'Privacy Impact Assessment',
+    'OT Security Basics',
+    'Security Automation',
+    'Forensics Advanced',
+    'Zero Trust Design',
+    'Compliance Mapping Lab',
+    'Adversary Emulation',
+    'Security Metrics Dashboard',
+    'Board-Level Risk Briefings',
+    'Cyber Resilience Planning',
+    'CYS Capstone Exercise',
+  ], { type: 'GE', codeStart: 401 }),
+  ...buildActiveBatchDemoCourses('batch-ge-hum-ii', 'DSC', [
     'Data Wrangling',
     'Statistical Computing',
     'ML Pipelines',
     'Dashboard Design',
-  ], { codeStart: 201 }),
-  ...buildActiveBatchDemoCourses('batch-me-eee-i', 'EEE1', [
+    'Exploratory Data Analysis',
+    'Feature Engineering',
+    'SQL for Analytics',
+    'Time Series Intro',
+    'Causal Inference Basics',
+    'Data Ethics Workshop',
+    'Experiment Design',
+    'Model Evaluation Lab',
+    'Streaming Analytics Intro',
+    'Geospatial Data Basics',
+    'Recommender Systems Intro',
+    'NLP for Analysts',
+    'Data Product Thinking',
+    'Storytelling with Data',
+    'MLOps Lite',
+    'DSC Capstone Prep',
+  ], { type: 'GE', codeStart: 201 }),
+  ...buildActiveBatchDemoCourses('batch-ge-fin-i', 'EEE1', [
     'Circuit Analysis',
     'Digital Logic',
     'Signals and Systems',
     'Embedded Basics',
-  ], { codeStart: 201 }),
+    'Electronics Lab I',
+    'Electromagnetics Intro',
+    'Power Systems Basics',
+    'Microcontrollers',
+    'Instrumentation',
+    'Control Theory Intro',
+    'PCB Design Fundamentals',
+    'Analog Circuits',
+    'Digital Signal Processing',
+    'Sensors and Actuators',
+    'Renewable Energy Intro',
+    'Communication Principles',
+    'FPGA Basics',
+    'Electrical Safety',
+    'Engineering Drawing for EEE',
+    'EEE Project Studio I',
+  ], { type: 'GE', codeStart: 201 }),
   ...buildActiveBatchDemoCourses('batch-me-eee-ii', 'EEE2', [
     'Power Electronics',
     'Control Systems',
     'Communications Lab',
     'Capstone Electronics',
+    'Advanced Embedded Systems',
+    'Motor Drives',
+    'RF Engineering Intro',
+    'Smart Grid Topics',
+    'Industrial Automation',
+    'VLSI Design Intro',
+    'Power Quality',
+    'Robotics Electronics',
+    'Wireless Systems Lab',
+    'Hardware Verification',
+    'Energy Storage Systems',
+    'Mechatronics Integration',
+    'EMC Compliance',
+    'High Voltage Safety',
+    'EEE Design Review',
+    'EEE Capstone Delivery',
   ], { codeStart: 401 }),
   ...buildActiveBatchDemoCourses('batch-2502-me-closed', 'MECL', [
     'Legacy Systems Review',
     'Archive Project Seminar',
     'Closed Batch Elective A',
     'Closed Batch Elective B',
+    'Historical Curriculum Topics',
+    'Prior Term Capstone Replay',
+    'Retired Elective Workshop',
+    'Archive Case Studies',
+    'Curriculum Transition Lab',
+    'Closed Cohort Seminar',
+    'Past Offering Review A',
+    'Past Offering Review B',
+    'Faculty Archive Reading',
+    'Assessment Portfolio Review',
+    'Closed Batch Elective C',
+    'Closed Batch Elective D',
+    'Programme Exit Survey Lab',
+    'Alumni Project Showcase',
+    'Records Retention Briefing',
+    'Closed Session Capstone',
   ], { codeStart: 101 }),
 ]
 
@@ -859,7 +1128,9 @@ function buildActiveBatchDemoCourses(batchId, codePrefix, titles, options = {}) 
     ['Mon 08:00–10:00', 'Thu 16:00–18:00'],
     ['Tue 14:00–16:00', 'Fri 09:00–11:00'],
   ]
-  const type = options.type || 'ME'
+  const type =
+    options.type ||
+    (/^batch-ge-/.test(batchId) || /^batch-2504-g/.test(batchId) ? 'GE' : 'ME')
   const codeStart = options.codeStart || 201
   return titles.map((name, index) => {
     const n = index + 1

@@ -3,7 +3,7 @@
  */
 import { computed, ref } from 'vue'
 import { getActiveBatch, getBatchById } from './registrationBatches.js'
-import { getAudienceRounds, AUDIENCE_SENIOR } from './audienceRounds.js'
+import { getAudienceRounds, AUDIENCE_SENIOR, DEMO_SENIOR_ROUNDS_202604 } from './audienceRounds.js'
 import { getStudentAudience } from './studentAudience.js'
 import { studentPendingAssignCourses } from './studentPendingAssignState.js'
 
@@ -125,7 +125,7 @@ export function parseResultReleaseAt(raw) {
  */
 export function getResultReleaseAt(batch = getActiveBatch(), audience = getStudentAudience()) {
   const rounds = getAudienceRounds(batch, audience)
-  return rounds?.resultReleaseAt || batch?.resultReleaseAt || ''
+  return rounds?.resultReleaseAt || batch?.resultReleaseAt || DEMO_SENIOR_ROUNDS_202604.resultReleaseAt || ''
 }
 
 /**
@@ -157,10 +157,29 @@ export function isVolunteerListLocked(batch = getActiveBatch()) {
   return preferenceOrderConfirmed.value && !isVolunteerResultReleased(batch)
 }
 
-export function sortedPendingVolunteers() {
-  return [...(studentPendingAssignCourses.value || [])].sort(
+function pendingMatchesBatch(row, batchId) {
+  if (!batchId) return true
+  return String(row?.batchId || '') === String(batchId)
+}
+
+/**
+ * 当前批次待分配志愿（按志愿次序）
+ * @param {string} [batchId]
+ */
+export function sortedPendingVolunteers(batchId = getActiveBatch()?.id) {
+  const list = (studentPendingAssignCourses.value || []).filter((row) =>
+    pendingMatchesBatch(row, batchId),
+  )
+  return [...list].sort(
     (a, b) => (Number(a.preferenceOrder) || 0) - (Number(b.preferenceOrder) || 0),
   )
+}
+
+function replacePendingForBatch(batchId, nextForBatch) {
+  const others = (studentPendingAssignCourses.value || []).filter(
+    (row) => !pendingMatchesBatch(row, batchId),
+  )
+  studentPendingAssignCourses.value = [...others, ...nextForBatch]
 }
 
 export function renumberPreferenceOrders(list) {
@@ -175,11 +194,12 @@ export function renumberPreferenceOrders(list) {
  * @param {object} item
  */
 export function assignNextPreferenceOrder(item) {
-  const max = (studentPendingAssignCourses.value || []).reduce(
+  const batchId = item?.batchId || getActiveBatch()?.id || ''
+  const max = sortedPendingVolunteers(batchId).reduce(
     (m, row) => Math.max(m, Number(row.preferenceOrder) || 0),
     0,
   )
-  return { ...item, preferenceOrder: max + 1 }
+  return { ...item, batchId: item?.batchId || batchId, preferenceOrder: max + 1 }
 }
 
 /**
@@ -191,7 +211,8 @@ export function movePendingVolunteerOrder(courseId, direction) {
   if (isVolunteerListLocked() || preferenceOrderConfirmed.value) {
     return { ok: false, errorKey: 'courseRegistration.student.volunteerSheet.orderLocked' }
   }
-  const list = sortedPendingVolunteers()
+  const batchId = getActiveBatch()?.id || ''
+  const list = sortedPendingVolunteers(batchId)
   const idx = list.findIndex((row) => row.courseId === courseId)
   if (idx < 0) return { ok: false }
   const target = direction === 'up' ? idx - 1 : idx + 1
@@ -200,7 +221,7 @@ export function movePendingVolunteerOrder(courseId, direction) {
   const tmp = next[idx]
   next[idx] = next[target]
   next[target] = tmp
-  studentPendingAssignCourses.value = renumberPreferenceOrders(next)
+  replacePendingForBatch(batchId, renumberPreferenceOrders(next))
   return { ok: true }
 }
 
@@ -212,9 +233,10 @@ export function applyPendingVolunteerOrder(courseIds) {
   if (isVolunteerListLocked() || preferenceOrderConfirmed.value) {
     return { ok: false, errorKey: 'courseRegistration.student.volunteerSheet.orderLocked' }
   }
+  const batchId = getActiveBatch()?.id || ''
   const ids = (courseIds || []).filter(Boolean)
   if (!ids.length) return { ok: false, errorKey: 'courseRegistration.student.volunteerSheet.empty' }
-  const map = new Map(sortedPendingVolunteers().map((row) => [row.courseId, row]))
+  const map = new Map(sortedPendingVolunteers(batchId).map((row) => [row.courseId, row]))
   const next = []
   for (const id of ids) {
     const row = map.get(id)
@@ -227,7 +249,7 @@ export function applyPendingVolunteerOrder(courseIds) {
   for (const row of map.values()) {
     next.push({ ...row })
   }
-  studentPendingAssignCourses.value = renumberPreferenceOrders(next)
+  replacePendingForBatch(batchId, renumberPreferenceOrders(next))
   return { ok: true, count: next.length }
 }
 
@@ -238,13 +260,13 @@ export function confirmVolunteerPreferenceOrder() {
   if (preferenceOrderConfirmed.value) {
     return { ok: false, errorKey: 'courseRegistration.student.volunteerSheet.alreadyConfirmed' }
   }
-  const list = sortedPendingVolunteers()
+  const batchId = getActiveBatch()?.id || ''
+  const list = sortedPendingVolunteers(batchId)
   if (!list.length) {
     return { ok: false, errorKey: 'courseRegistration.student.volunteerSheet.empty' }
   }
   const renumbered = renumberPreferenceOrders(list)
-  studentPendingAssignCourses.value = renumbered
-  const batchId = getActiveBatch()?.id || ''
+  replacePendingForBatch(batchId, renumbered)
   const snapshot = {
     confirmedAt: new Date().toISOString(),
     batchId,
@@ -331,7 +353,7 @@ export function buildVolunteerResultRows(batch = getActiveBatch()) {
 }
 
 /**
- * demo：五门待分配未确认（便于验收调序 +「确认志愿」）
+ * demo：ME 五门 + GE 四门待分配未确认（ME/GE 各含一对同槽课，便于验收互撞提示 + 调序）
  * 确认后可再切 demoVolunteerReleaseMode / volunteerReleaseResults 演示公示
  */
 export function seedVolunteerSheetDemo() {
@@ -392,8 +414,8 @@ export function seedVolunteerSheetDemo() {
       type: 'ME',
       sectionId: 'sec-se201-1',
       sectionCode: '01',
-      time: 'Tue 08:00–10:00',
-      classTime: 'Tue 08:00–10:00',
+      time: 'Wed 14:00–16:00',
+      classTime: 'Wed 14:00–16:00',
       weekRange: '1-14',
       room: 'D5-1-301',
       lecturer: '李博士',
@@ -403,7 +425,7 @@ export function seedVolunteerSheetDemo() {
       selectedAt: '2026-04-01T09:10:00.000Z',
       sourceType: 'preselect',
       roundKey: 'preselect',
-      meetings: [{ time: 'Tue 08:00–10:00', room: 'D5-1-301', weekRange: '1-14' }],
+      meetings: [{ time: 'Wed 14:00–16:00', room: 'D5-1-301', weekRange: '1-14' }],
     },
     {
       id: 'pending-vol-course-ai110',
@@ -452,11 +474,105 @@ export function seedVolunteerSheetDemo() {
       meetings: [{ time: 'Thu 16:00–18:00', room: 'D5-3-105', weekRange: '1-18' }],
     },
   ]
+  const gePending = [
+    {
+      id: 'pending-vol-course-hum-demo-1',
+      courseId: 'course-hum-demo-1',
+      courseCode: 'HUM201',
+      courseName: 'Philosophy and Current Issues',
+      courseNameEn: 'Philosophy and Current Issues',
+      credits: 2,
+      type: 'GE',
+      sectionId: 'sec-hum-demo-1-1',
+      sectionCode: '01',
+      time: 'Wed 10:00–12:00',
+      classTime: 'Wed 10:00–12:00',
+      weekRange: '1-18',
+      room: 'B2-2-201',
+      lecturer: 'Demo Lecturer A',
+      lecturerEn: 'Demo Lecturer A',
+      batchId: 'batch-2504-g1',
+      preferenceOrder: 1,
+      selectedAt: '2026-04-01T09:00:00.000Z',
+      sourceType: 'preselect',
+      roundKey: 'preselect',
+      meetings: [{ time: 'Wed 10:00–12:00', room: 'B2-2-201', weekRange: '1-18' }],
+    },
+    {
+      id: 'pending-vol-course-hum-demo-2',
+      courseId: 'course-hum-demo-2',
+      courseCode: 'HUM202',
+      courseName: 'Creative Arts Appreciation',
+      courseNameEn: 'Creative Arts Appreciation',
+      credits: 3,
+      type: 'GE',
+      sectionId: 'sec-hum-demo-2-1',
+      sectionCode: '01',
+      time: 'Mon 08:00–10:00',
+      classTime: 'Mon 08:00–10:00',
+      weekRange: '1-18',
+      room: 'B2-2-201',
+      lecturer: 'Demo Lecturer B',
+      lecturerEn: 'Demo Lecturer B',
+      batchId: 'batch-2504-g1',
+      preferenceOrder: 2,
+      selectedAt: '2026-04-01T09:05:00.000Z',
+      sourceType: 'preselect',
+      roundKey: 'preselect',
+      meetings: [{ time: 'Mon 08:00–10:00', room: 'B2-2-201', weekRange: '1-18' }],
+    },
+    {
+      id: 'pending-vol-course-hum-demo-3',
+      courseId: 'course-hum-demo-3',
+      courseCode: 'HUM203',
+      courseName: 'Intercultural Communication',
+      courseNameEn: 'Intercultural Communication',
+      credits: 4,
+      type: 'GE',
+      sectionId: 'sec-hum-demo-3-1',
+      sectionCode: '01',
+      time: 'Tue 14:00–16:00',
+      classTime: 'Tue 14:00–16:00',
+      weekRange: '1-18',
+      room: 'B2-2-201',
+      lecturer: 'Demo Lecturer C',
+      lecturerEn: 'Demo Lecturer C',
+      batchId: 'batch-2504-g1',
+      preferenceOrder: 3,
+      selectedAt: '2026-04-01T09:10:00.000Z',
+      sourceType: 'preselect',
+      roundKey: 'preselect',
+      meetings: [{ time: 'Tue 14:00–16:00', room: 'B2-2-201', weekRange: '1-18' }],
+    },
+    {
+      id: 'pending-vol-course-hum-demo-4',
+      courseId: 'course-hum-demo-4',
+      courseCode: 'HUM204',
+      courseName: 'Media Literacy',
+      courseNameEn: 'Media Literacy',
+      credits: 2,
+      type: 'GE',
+      sectionId: 'sec-hum-demo-4-1',
+      sectionCode: '01',
+      time: 'Wed 10:00–12:00',
+      classTime: 'Wed 10:00–12:00',
+      weekRange: '1-18',
+      room: 'B2-2-201',
+      lecturer: 'Demo Lecturer A',
+      lecturerEn: 'Demo Lecturer A',
+      batchId: 'batch-2504-g1',
+      preferenceOrder: 4,
+      selectedAt: '2026-04-01T09:15:00.000Z',
+      sourceType: 'preselect',
+      roundKey: 'preselect',
+      meetings: [{ time: 'Wed 10:00–12:00', room: 'B2-2-201', weekRange: '1-18' }],
+    },
+  ]
   volunteerOrderSnapshot.value = null
   volunteerReleaseResults.value = []
   demoVolunteerReleaseMode.value = null
   volunteerSheetsByBatch.value = {}
-  studentPendingAssignCourses.value = pending
+  studentPendingAssignCourses.value = [...pending, ...gePending]
 }
 
 /**
@@ -513,12 +629,12 @@ export function seedVolunteerResultSheetsDemo() {
           credits: 3,
           type: 'ME',
           sectionCode: '01',
-          classTime: 'Tue 08:00–10:00',
-          time: 'Tue 08:00–10:00',
+          classTime: 'Wed 14:00–16:00',
+          time: 'Wed 14:00–16:00',
           weekRange: '1-14',
           room: 'D5-1-301',
           lecturer: '李博士',
-          meetings: [{ time: 'Tue 08:00–10:00', room: 'D5-1-301', weekRange: '1-14' }],
+          meetings: [{ time: 'Wed 14:00–16:00', room: 'D5-1-301', weekRange: '1-14' }],
         },
       },
       {
@@ -562,7 +678,7 @@ export function seedVolunteerResultSheetsDemo() {
     results: [
       { slot: 1, courseId: 'course-comp201', status: 'hit' },
       { slot: 2, courseId: 'course-net110', status: 'miss' },
-      { slot: 3, courseId: 'course-se201', status: 'hit' },
+      { slot: 3, courseId: 'course-se201', status: 'miss' },
       { slot: 4, courseId: 'course-ai110', status: 'miss' },
       { slot: 5, courseId: 'course-web220', status: 'hit' },
     ],
@@ -639,7 +755,7 @@ export function seedVolunteerReleasedDemo() {
   const results = [
     { slot: 1, courseId: 'course-comp201', status: 'hit' },
     { slot: 2, courseId: 'course-net110', status: 'miss' },
-    { slot: 3, courseId: 'course-se201', status: 'hit' },
+    { slot: 3, courseId: 'course-se201', status: 'miss' },
     { slot: 4, courseId: 'course-ai110', status: 'miss' },
     { slot: 5, courseId: 'course-web220', status: 'hit' },
   ]

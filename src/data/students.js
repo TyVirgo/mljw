@@ -757,6 +757,7 @@ export const initialStudents = [
       typeOfFinancialAid: 'None',
       tuitionFeeAnnual: '25000',
       fujianScholarshipAmt: '5000',
+      schoolElectiveCategory: 'arts',
     },
     education: {
       qualification: 'STPM',

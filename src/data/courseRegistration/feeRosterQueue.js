@@ -1280,7 +1280,15 @@ export const filterFeeRosterRows = filterFeeRosterDetailRows
 /** 审批生成账单时写入缴费名单占位行（演示） */
 export function appendFeeRosterFromApproval(app) {
   if (!app) return { ok: false, count: 0 }
-  const feeItems = (app.items || []).filter((item) => Number(item.fee) > 0)
+  let feeItems = (app.items || []).filter((item) => Number(item.fee) > 0)
+  if (!feeItems.length) {
+    const amount = Number(app.billAmount) || Number(app.feeEstimate?.total) || 0
+    if (amount > 0) {
+      const primary =
+        (app.items || []).find((i) => ['Add', 'Retake'].includes(i.action)) || (app.items || [])[0]
+      if (primary) feeItems = [{ ...primary, fee: amount }]
+    }
+  }
   if (!feeItems.length) return { ok: true, count: 0 }
   let count = 0
   for (const item of feeItems) {
@@ -1303,6 +1311,8 @@ export function appendFeeRosterFromApproval(app) {
       courseSource: 'admin',
       paid: 'N',
       paidAt: '',
+      paymentDueAt: app.paymentDueAt || '',
+      paymentGraceDays: app.paymentGraceDays ?? null,
     })
     count += 1
   }

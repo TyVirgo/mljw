@@ -19,6 +19,21 @@
 - [x] 2.2 专业范围设置增加学生类别、校选类别（必选≥1）；写入 `audience`；本轮不接校验
 - [x] 2.3 i18n
 
+## 增量（2026-08 ME 入学年名额占比）
+
+- [x] 1.1 默认三年改为 50/30/20；i18n 列名为名额占比（%）；合计/超限/保存校验文案
+- [x] 1.2 去掉表上入学年下拉；表下「+ 新增」追加 0% 行；单行与合计校验；保存拦合计≠100
+- [x] 1.3 表上左新增、右合计；说明移到表下；入学年行内下拉（新年在前，默认 2027–2022 共 6 年）
+
+## 增量（2026-08 管理轮次时间与系数必填）
+
+- [x] 1.1 第一轮开始/结束、结果发布时间、衰减系数 r / 名额占比加 `*`；参与范围不加
+- [x] 1.2 保存校验空时间与 r；第二轮锁定文案改为公布时间自动锁定
+
+## 增量（2026-08）：去掉退课截止周填写
+
+- [x] 1.1 批次表单移除退课截止周输入与 tip，保存仍可用默认周次
+
 ## 历史来源任务摘要
 
 ### add-batch-local-rules-selectable
@@ -27,6 +42,7 @@
 ## 1. 数据与表单
 
 - [x] 1.1 批次默认 `isSelectable` + `localRules`；新建/编辑读写
+- [x] 1.1b `localRules.releaseCrossAudienceOnRound3`（第三轮选课新老生名额互释，默认勾选；与 align-ge-me 联动）
 - [x] 1.2 列表 YnSwitch 列切换写回
 - [x] 1.3 i18n
 
@@ -422,4 +438,24 @@
 - [x] 1.1 去掉「全部轮次」；校验必选具体轮次；更新说明文案
 - [x] 1.2 匹配逻辑不再把空 round 当全轮
 - [x] 1.3 主活跃批次 + defaultScopeRules demo 改为三轮基本形态
+```
+
+### enrich-draft-batch-courses-and-table-spacing
+
+```
+## 1. 实现
+
+- [x] 1.1 规格：草稿/轻量批 ≥20 门；管理课程行距可读
+- [x] 1.2 `selectableCourses`：轻量挂课批各补至 20 门（约 40 分组行）
+- [x] 1.3 `registrationBatches`：对应批次 `courseCount` 同步为 20
+- [x] 1.4 `BatchCoursesDrawer`：主表单元格略增 padding；时间地点行间距
+```
+
+### reuse-form-view-list-student-roster
+
+```
+## 1. 实现
+
+- [x] 1.1 编辑批次「查看清单」跳转 BatchScopeRuleRosterDrawer · 全局选课名单
+- [x] 1.2 去掉表单内独立 BatchGlobalParticipantRosterDrawer
 ```

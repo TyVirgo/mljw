@@ -1,0 +1,7 @@
+schema: spec-driven
+created: 2026-08-20
+updated: 2026-08-20
+title: 模板指定章节填充通用手册
+locale: zh-CN
+kind: playbook
+reusable: true

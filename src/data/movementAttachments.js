@@ -10,6 +10,8 @@ export function createEmptyMovementAttachments() {
     medicalRecovery: null,
     /** 退学：住宿退宿表（可选） */
     accommodationCheckOut: null,
+    /** 退学（中国）：中国身份证正面&反面（单槽必填） */
+    chinaIdFrontBack: null,
     /** 退学/休学：病历 Medical Record（可选，与复学 medicalRecovery 分离） */
     medicalRecord: null,
     /** 复学：签证相关材料（中国/其他必填） */
@@ -107,10 +109,16 @@ export function resolveAttachmentNationGroup(nationality, studentCategory) {
 }
 
 /**
- * 退学附件字段清单（图示3）：马/中/其他国籍同一套国际生附件包；休学/复学不走此列表
+ * 退学附件字段清单（按国籍）：
+ * 马来：同意书* + 退宿 + 病历 + 其他（无机票）
+ * 中国：同意书* + 退宿 + 机票* + 中国身份证正反面* + 病历 + 其他
+ * 其他：同意书* + 退宿 + 机票* + 病历 + 其他
+ * @param {string} [nationality] 国籍
+ * @param {string} [studentCategory] 学生类别
  */
-export function getWithdrawalDocumentFields() {
-  return [
+export function getWithdrawalDocumentFields(nationality, studentCategory) {
+  const group = resolveAttachmentNationGroup(nationality, studentCategory)
+  const fields = [
     {
       key: 'consentLetter',
       labelKey: CONSENT_LABEL_KEYS.withdrawal,
@@ -124,12 +132,24 @@ export function getWithdrawalDocumentFields() {
       required: false,
       showConsentDownload: false,
     },
-    {
+  ]
+  if (group !== 'malaysia') {
+    fields.push({
       key: 'flightTickets',
       labelKey: 'movementDocuments.fields.flightTickets',
       required: true,
       showConsentDownload: false,
-    },
+    })
+  }
+  if (group === 'china') {
+    fields.push({
+      key: 'chinaIdFrontBack',
+      labelKey: 'movementDocuments.fields.chinaIdFrontBack',
+      required: true,
+      showConsentDownload: false,
+    })
+  }
+  fields.push(
     {
       key: 'medicalRecord',
       labelKey: 'movementDocuments.fields.medicalRecord',
@@ -144,7 +164,8 @@ export function getWithdrawalDocumentFields() {
       multi: true,
       minSlots: 1,
     },
-  ]
+  )
+  return fields
 }
 
 /**
@@ -237,7 +258,7 @@ export function getResumptionDocumentFields(nationality, studentCategory) {
  */
 export function getMovementDocumentFields(sourceKey, studentCategory, nationality = '') {
   if (sourceKey === 'withdrawal') {
-    return getWithdrawalDocumentFields()
+    return getWithdrawalDocumentFields(nationality, studentCategory)
   }
   if (sourceKey === 'deferment') {
     return getDefermentDocumentFields(nationality, studentCategory)
@@ -262,6 +283,15 @@ export function getMovementDocumentFields(sourceKey, studentCategory, nationalit
       showConsentDownload: false,
     })
   }
+  // 转专业等默认清单：末尾统一「其他附件」（可选，可多行）
+  fields.push({
+    key: 'otherDocuments',
+    labelKey: 'movementDocuments.fields.otherDocuments',
+    required: false,
+    showConsentDownload: false,
+    multi: true,
+    minSlots: 1,
+  })
   return fields
 }
 
@@ -274,13 +304,24 @@ export function attachmentErrorKey(fieldKey) {
 }
 
 export function validateMovementAttachmentFile(file) {
-  if (!file) return { valid: false, error: 'Supporting document is required.' }
-  const allowed = /\.(pdf|jpg|jpeg|png|docx)$/i
-  if (!allowed.test(file.name)) {
-    return { valid: false, error: 'Supported formats: PDF, JPG, PNG, DOCX.' }
+  if (!file) {
+    return { valid: false, errorKey: 'movementDocuments.errors.required', error: 'Supporting document is required.' }
   }
-  if (file.size > 5 * 1024 * 1024) {
-    return { valid: false, error: 'Max file size is 5MB.' }
+  const allowed = /\.(pdf|doc|docx)$/i
+  if (!allowed.test(file.name)) {
+    return {
+      valid: false,
+      errorKey: 'movementDocuments.errors.invalidFormat',
+      error: 'Upload file format: Word and PDF.',
+    }
+  }
+  const maxBytes = 20 * 1024 * 1024
+  if (file.size > maxBytes) {
+    return {
+      valid: false,
+      errorKey: 'movementDocuments.errors.tooLarge',
+      error: 'Size below 20MB.',
+    }
   }
   return {
     valid: true,

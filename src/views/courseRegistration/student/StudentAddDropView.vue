@@ -17,7 +17,6 @@ import {
 import { formatCourseSectionName } from '../../../utils/courseSectionDisplay.js'
 import { addDropStatusBadgeClass } from '../../../data/courseRegistration/addDropStatusBadge.js'
 import '../../../styles/movement-status-badge.css'
-import { runRegistrationQueue } from '../../../composables/useRegistrationQueue.js'
 import { getActiveBatch, formatRoundRange } from '../../../data/courseRegistration/registrationBatches.js'
 import {
   submitStudentAddDropApplication,
@@ -29,6 +28,7 @@ import {
 import {
   ADD_DROP_TYPE_TABS,
   getAddDropListColumns,
+  isShieldedAddDropType,
 } from '../../../data/courseRegistration/addDropListColumns.js'
 import { filterByCurrentStudent } from '../../../data/mockCurrentStudent.js'
 import {
@@ -48,9 +48,9 @@ import {
 import { getEligibleAddCoursesForStudent } from '../../../data/courseRegistration/addDropEligibleCourses.js'
 import {
   getStudentTranscript,
-  defaultRetakeTypeFromGrade,
+  retakeHistoryFromCourse,
 } from '../../../data/courseRegistration/studentTranscript.js'
-import { estimateCourseFee, sumFeeEstimates } from '../../../data/courseRegistration/addDropFeeRates.js'
+import { estimateCourseFee, sumFeeEstimates, formatAmountRmb } from '../../../data/courseRegistration/addDropFeeRates.js'
 import { buildScheduleBaselineFromEnrolled } from '../../../data/courseRegistration/addDropSectionConflict.js'
 import { getCourseById } from '../../../data/courseRegistration/selectableCourses.js'
 import { getCurrentStudent } from '../../../data/mockCurrentStudent.js'
@@ -66,6 +66,8 @@ import {
 import {
   getStudentCreditSummary,
   getTermGeCategoryBars,
+  getTermGeElectiveCategoryBars,
+  buildAddDropPlanRemaining,
 } from '../../../data/courseRegistration/studentRegistrationContext.js'
 import {
   registrationAcademicSessionOptions,
@@ -226,9 +228,9 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 
 const allApplications = computed(() =>
-  filterByCurrentStudent(addDropApprovalQueue.value).sort((a, b) =>
-    b.submittedAt.localeCompare(a.submittedAt),
-  ),
+  filterByCurrentStudent(addDropApprovalQueue.value)
+    .filter((app) => !isShieldedAddDropType(app.type))
+    .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),
 )
 
 const filteredApplications = computed(() => {
@@ -291,6 +293,8 @@ const courseOptions = computed(() => {
       weekRange: item.weekRange || '1-18',
       fromEnrolled: true,
       type: item.type || 'ME',
+      schoolElectiveCategory: item.schoolElectiveCategory || '',
+      meetings: item.meetings,
     }))
   }
   if (form.value.action === 'Add' || pickingFor.value === 'add') {
@@ -313,8 +317,6 @@ const courseOptions = computed(() => {
   }
   return selectableCourses.value
 })
-
-const transcriptOptions = computed(() => getStudentTranscript(studentFields.value.studentId))
 
 const scheduleBaseline = computed(() =>
   buildScheduleBaselineFromEnrolled(enrolled.value, pendingDropCodes.value),
@@ -339,16 +341,17 @@ const termCreditBars = computed(() => {
   ]
 })
 
-const termCategoryBars = computed(() => getTermGeCategoryBars())
-
-/** 本学期剩余可覆盖学分（超额计费） */
-const planRemaining = computed(() => {
-  const p = getTermElectiveCreditProgress()
-  return {
-    geRemaining: Math.max(0, (p.geMax || 0) - (p.ge || 0)),
-    meRemaining: Math.max(0, (p.meMax || 0) - (p.me || 0)),
-  }
+/** 方案 B：GE 文商理 + ME 文商理 */
+const pickerCreditGroups = computed(() => {
+  const bars = termCreditBars.value
+  return [
+    { key: 'ge', total: bars.find((b) => b.key === 'ge'), categories: getTermGeElectiveCategoryBars() },
+    { key: 'me', total: bars.find((b) => b.key === 'me'), categories: getTermGeCategoryBars() },
+  ]
 })
+
+/** 本学期文商理类别剩余（超额计费；含 GE/ME 总量兜底） */
+const planRemaining = computed(() => buildAddDropPlanRemaining())
 
 const feeEstimate = computed(() => {
   const lines = []
@@ -483,7 +486,7 @@ function listLecturers(app) {
 function listFee(app) {
   const amount = app.billAmount ?? app.feeEstimate?.total
   if (amount == null || amount === '') return '—'
-  return Number(amount) || 0
+  return formatAmountRmb(amount)
 }
 
 function listRetakeType(app) {
@@ -520,7 +523,8 @@ function columnHeader(col) {
 function columnClass(col) {
   if (col === 'serial') return 'sticky-left sticky-idx nowrap'
   if (col === 'applicationNo') return 'sticky-left sticky-no nowrap'
-  if (col === 'status') return 'sticky-right sticky-status nowrap'
+  if (col === 'status') return 'sticky-right sticky-status nowrap col-status'
+  if (col === 'classTimeVenue') return 'col-time-venue'
   if (col === 'actions') return 'sticky-right sticky-actions'
   return 'nowrap'
 }
@@ -729,47 +733,21 @@ function handleCoursePicked(payload) {
       }
       next = applySectionToForm(next, 'primary', sec, course)
     }
+    if (form.value.action === 'Retake') {
+      const resolved = course || resolveCourseById(courseId, false)
+      next = {
+        ...next,
+        ...retakeHistoryFromCourse(
+          resolved,
+          next.academicSession,
+          studentFields.value.studentId,
+        ),
+      }
+    }
   }
   form.value = next
   coursePickerVisible.value = false
   formError.value = ''
-}
-
-function handleTranscriptPick(transcriptId) {
-  const row = transcriptOptions.value.find((r) => r.id === transcriptId)
-  if (!row) {
-    form.value = {
-      ...form.value,
-      transcriptId: '',
-      previouslyTakenCourse: '',
-      gradeEarned: '',
-      academicSessionTaken: '',
-      retakeType: '',
-      courseId: '',
-      ...{
-        sectionId: '',
-        sectionCode: '',
-        classTime: '',
-        venue: '',
-        lecturers: '',
-      },
-    }
-    return
-  }
-  form.value = {
-    ...form.value,
-    transcriptId: row.id,
-    previouslyTakenCourse: `${row.courseCode} ${row.courseName}`,
-    gradeEarned: row.grade,
-    academicSessionTaken: row.academicSession,
-    retakeType: defaultRetakeTypeFromGrade(row.grade),
-    courseId: row.retakeCourseId || '',
-    sectionId: '',
-    sectionCode: '',
-    classTime: '',
-    venue: '',
-    lecturers: '',
-  }
 }
 
 function onAttachmentSelected(event) {
@@ -796,6 +774,8 @@ function buildItemFromCourse(action, course, sectionOverride = null) {
     courseCode: course.code,
     courseName: course.name || course.code,
     credits: course.credits,
+    courseId: course.id,
+    sectionId: sectionOverride?.id || form.value.sectionId || course.sectionId || '',
     section: section?.code || '01',
     time: section?.time || '',
     room: section?.room || '',
@@ -805,7 +785,7 @@ function buildItemFromCourse(action, course, sectionOverride = null) {
   }
 }
 
-async function handleSubmit() {
+function handleSubmit() {
   if (!canApply.value) {
     formError.value = t('courseRegistration.student.addDropWindowClosedShort')
     return
@@ -833,6 +813,7 @@ async function handleSubmit() {
         lecturer: form.value.dropLecturers || dropCourse.lecturer || '',
       }),
       buildItemFromCourse('Add', addCourse, {
+        id: form.value.addSectionId,
         code: form.value.addSectionCode || '01',
         time: form.value.addClassTime || '',
         room: form.value.addVenue || '',
@@ -847,6 +828,7 @@ async function handleSubmit() {
     }
     items = [
       buildItemFromCourse(form.value.action, course, {
+        id: form.value.sectionId,
         code: form.value.sectionCode || course.sectionCode || '01',
         time: form.value.classTime || course.time || '',
         room: form.value.venue || course.room || '',
@@ -932,43 +914,11 @@ async function handleSubmit() {
     ...sectionPayload,
   }
 
-  const needsQueue = items.some((item) => item.action === 'Add' || item.action === 'Retake')
-  if (needsQueue) {
-    const addItem = items.find((item) => item.action === 'Add' || item.action === 'Retake')
-    try {
-      await runRegistrationQueue(
-        {
-          ...studentFields.value,
-          batchName: activeBatch.value?.name,
-          courseCode: addItem.courseCode,
-          courseName: addItem.courseCode,
-          credits: addItem.credits,
-          section: addItem.section,
-          time: addItem.time,
-        },
-        {
-          showSuccess: true,
-          onComplete: () => {
-            const result = submitStudentAddDropApplication(studentFields.value, items, sharedOptions)
-            if (!result.ok) {
-              formError.value = t(result.errorKey)
-              return { ok: false }
-            }
-            return { ok: true }
-          },
-        },
-      )
-      if (!formError.value) finishOk()
-    } catch {
-      /* cancelled */
-    }
+  const result = submitStudentAddDropApplication(studentFields.value, items, sharedOptions)
+  if (!result.ok) {
+    formError.value = t(result.errorKey)
   } else {
-    const result = submitStudentAddDropApplication(studentFields.value, items, sharedOptions)
-    if (!result.ok) {
-      formError.value = t(result.errorKey)
-    } else {
-      finishOk()
-    }
+    finishOk()
   }
 
   submitting.value = false
@@ -1063,13 +1013,14 @@ async function handleSubmit() {
         >
           {{ scheduleToolbarLabel }}
         </button>
+        <p
+          v-if="message"
+          class="cr-student-message cr-adddrop-toolbar-message"
+          :class="{ 'cr-student-message--error': (!canApply || !canStartCurrentType) && message }"
+        >
+          {{ message }}
+        </p>
       </div>
-
-      <p
-        v-if="message"
-        class="cr-student-message"
-        :class="{ 'cr-student-message--error': (!canApply || !canStartCurrentType) && message }"
-      >{{ message }}</p>
 
       <div class="table-section">
         <div class="table-wrap table-wrap--scroll">
@@ -1165,11 +1116,9 @@ async function handleSubmit() {
             :drop-course="formDropCourse"
             :add-course="formAddCourse"
             :fee-estimate="feeEstimate"
-            :transcript-options="transcriptOptions"
             :schedule-baseline="scheduleBaseline"
             @update:form="onFormUpdate"
             @pick-course="openCoursePicker"
-            @pick-transcript="handleTranscriptPick"
             @attachment-change="onAttachmentSelected"
             @clear-attachment="clearAttachment"
           />
@@ -1220,7 +1169,7 @@ async function handleSubmit() {
       "
       :schedule-baseline="scheduleBaseline"
       :credit-bars="termCreditBars"
-      :category-bars="termCategoryBars"
+      :credit-groups="pickerCreditGroups"
       :plan-remaining="planRemaining"
       @close="coursePickerVisible = false"
       @confirm="handleCoursePicked"
@@ -1450,6 +1399,12 @@ async function handleSubmit() {
   gap: 8px;
 }
 
+.cr-adddrop-toolbar-message {
+  margin: 0 0 0 auto;
+  max-width: min(480px, 55%);
+  text-align: right;
+}
+
 .cr-schedule-trigger.has-slots {
   border-color: #93c5fd;
   color: #1d4ed8;
@@ -1601,15 +1556,26 @@ async function handleSubmit() {
 }
 
 .cr-time-venue {
-  min-width: 200px;
-  max-width: 340px;
+  min-width: 220px;
   font-size: 12px;
   line-height: 1.35;
   white-space: normal;
 }
 
+.cr-time-venue-line {
+  white-space: nowrap;
+}
+
 .cr-time-venue-line + .cr-time-venue-line {
   margin-top: 2px;
+}
+
+.col-time-venue {
+  white-space: normal;
+}
+
+.col-status {
+  min-width: 108px;
 }
 
 .cr-student-message--error {

@@ -12,10 +12,10 @@
 
 ## Decisions
 
-1. 字段：`batch.isSelectable`（boolean，默认 true）；`batch.localRules = { linkPrerequisites, allowRetakeOnFail, allowDropSelfSelected, dropSelfSelectedMaxPerRound, allowExceedCreditMax }`。
+1. 字段：`batch.isSelectable`（boolean，默认 true）；`batch.localRules = { linkPrerequisites, allowRetakeOnFail, allowDropSelfSelected, dropSelfSelectedMaxPerRound, allowExceedCreditMax, releaseCrossAudienceOnRound3 }`。
 2. 表单区块标题「选课规则」；不展示规则区/加退课区原型说明文案。
 3. 时间标签统一「开始时间 / 结束时间」；对象限制默认展开，学期阈值 `minSemestersAbove` 默认 1。
-4. 前三项默认勾选，N=10；`allowExceedCreditMax` 默认 false。
+4. 前三项默认勾选，N=10；`allowExceedCreditMax` 默认 false；`releaseCrossAudienceOnRound3`（第三轮选课新老生名额互释）默认 true，与校级规则同名；学生端校验批次优先于校级（见 `align-ge-me-senior-freshman-model`）。
 5. 列表用 `YnSwitch`；是否可选=false 原型只存。
 6. 可退自选行 checkbox 与文案垂直居中对齐。
 
@@ -244,7 +244,7 @@ src/i18n/locales/zh.js / en.js
 6. 配额 Tab、GE 类别等本变更不暴露。
 7. 管理课程副标题：`getRegistrationTypeLabel(batch.type)`，与表内课程类别一致。
 8. 默认分页 20 条/页；列表「共 N 条」按展平行数；工具条「本批次已有 X 门课程，包含 Y 课程分组」。
-9. 课程 demo：凡有课的批次补齐至 ≥25 门（主批手工课保留，不足用 `buildActiveBatchDemoCourses` 补）。
+9. 课程 demo：主演示 / 进行中列表批 ≥25 门（主批手工课保留，不足用 `buildActiveBatchDemoCourses` 补）。草稿与结果页轻量挂课批统一 ≥20 门（约 40 分组行），便于「管理课程」演示勾选与分页；管理课程表单元格 padding 约 6×8，时间地点多行间距 2px。
 
 ## 来源：polish-batch-drawer-tables
 
@@ -284,6 +284,7 @@ src/i18n/locales/zh.js / en.js
 9. 「多选平铺」：名单侧一行一学生（入学批次已拆开）；不再在中间层展示顿号拼接的维度多选。
 10. 列表「可选课人数」= 三轮 Tab 人数相加（`countEligibleStudentsAcrossRounds`），置于「是否可选」前；数字可点打开学生清单；表头问号 tooltip 说明口径。
 11. 学生清单不展示标题与 Tab 之间的批次合计横幅；保留各轮「本轮」统计；Tab 无人数角标。
+12. 编辑批次「④学生参与范围 · 查看清单」必须跳转同一 `BatchScopeRuleRosterDrawer`，定位「可选学生 · 全局选课名单」；必须NOT 再打开独立的 `BatchGlobalParticipantRosterDrawer`。打开时关闭编辑抽屉，避免双抽屉叠层。
 
 ## 来源：polish-batch-names-and-drop-ui
 
@@ -505,3 +506,32 @@ src/i18n/locales/zh.js / en.js
 2. `filterScopeRulesForRound`：仅返回 `rule.round === roundKey` 的规则。
 3. 主活跃 `batch-2504-m1` demo 三行覆盖三轮；维度展示多选/全部即可，不穷举。
 4. `defaultScopeRulesForProgramme` 改为三轮各一条（同专业、双入学批次多选）。
+
+## 增量：ME 入学年名额占比（2026-08）
+
+## Context
+
+ME 第一轮老生容量细分原先用相对「份额」+ 表上选择入学年再添加。改为百分数口径；添加入口与合计同一行放在表上，说明文案在表下；入学年可在行内改。
+
+## Decisions
+
+1. **布局**：表上同一行左 `+ 新增`、右「当前合计」；专业说明文案移到表下。去掉表上入学年下拉+添加入学学年。
+2. **入学年下拉**：行内可改；选项新年份在前。默认池为锚点年 +1 至锚点年 −4 共 6 年（2026 → 2027–2022）。本行当前年即使不在池内也保留；其他行已占用年不出现。新增取池内未占用的最新年，占比 0；池满则禁用新增。
+3. **列名**：`round1MeShare` →「名额占比（%）」。
+4. **校验**：单行 0–100；写入前若合计将 >100 则提示不写入；保存时合计必须恰好 100，否则提示并阻止。
+5. **默认**：`DEFAULT_ME_YEAR_SHARE_WEIGHTS = [50, 30, 20]`。`allocateMeYearQuotas` 仍按份额/合计切整数。
+6. **文件**：`BatchRoundManageDrawer.vue`、`batchRound1Quota.js`、`zh.js` / `en.js`。
+
+## 增量：管理轮次时间与系数必填（2026-08）
+
+## Context
+
+管理轮次第一轮时间与衰减系数无必填星号、保存不校验空值；第二轮闸门文案仍写「最终确认」。
+
+## Decisions
+
+1. **必填字段**：老生第一轮开始/结束、结果发布时间；GE 衰减系数 r；ME 名额占比列（合计 100% 已有）。当前 Tab 的第一轮开始/结束同样必填。第二/三轮仅在解锁后必填开始/结束。
+2. **非必填**：参与范围不加 `*`，空则沿用批次全局范围。
+3. **校验**：保存前拦截空时间或 r≤0；提示后不写入。
+4. **闸门文案**：`roundLockNeedVolunteerConfirm` 改为到达公布时间自动锁定后再配第二轮。
+5. **文件**：`BatchRoundManageDrawer.vue`、`zh.js` / `en.js`。

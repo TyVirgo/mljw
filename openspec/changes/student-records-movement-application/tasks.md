@@ -622,3 +622,31 @@
 - [x] 8.2 `ResumptionFormModal` 传 nationality；换学生清空提示；只读/导出/i18n 同步
 - [x] 8.3 学生端共用 FormModal，随本人国籍同步清单
 ```
+
+### refine-withdrawal-attachments-by-nationality
+
+```
+## 1. 实现
+
+- [x] 1.1 规格/设计：退学按国籍分支；中国身份证单槽必填；马来无机票
+- [x] 1.2 `getWithdrawalDocumentFields(nationality, category)` + 空壳 `chinaIdFrontBack`
+- [x] 1.3 i18n zh/en；只读/demo 展示同步；校验随 fields 自动生效
+```
+
+### polish-movement-attachment-upload-ux
+
+```
+## 1. 实现
+
+- [x] 1.1 规格：已上传可删；Word(.doc/.docx)+PDF、20MB；提示与校验一致
+- [x] 1.2 `validateMovementAttachmentFile` + accept；四异动 attachmentHint zh/en
+- [x] 1.3 `MovementDocumentsUploadSection`：有文件时显示删除；非法文件拒绝并提示
+```
+
+### add-programme-transfer-other-documents
+
+```
+## 1. 实现
+
+- [x] 1.1 转专业附件清单末尾增加「其他附件」（可选，multi，与休学/退学一致）
+```

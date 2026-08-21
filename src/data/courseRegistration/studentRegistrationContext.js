@@ -51,6 +51,17 @@ export const DEFAULT_TERM_GE_CATEGORIES = {
 }
 
 /**
+ * Demo：本学期 GE 文/商/理（毕业 GE 类别在本学期配额）
+ * 三类 required 之和 = 本学期 GE 局部；默认 4+4+4 = 12，与 geMax 对齐；当前 1+1+1 = 3
+ */
+export const DEFAULT_TERM_GE_ELECTIVE_CATEGORIES = {
+  humanities: 1,
+  business: 1,
+  science: 1,
+  required: { humanities: 4, business: 4, science: 4 },
+}
+
+/**
  * 规范化类别进度 { current 字段 + required }
  * @param {object|null|undefined} raw
  * @param {object} fallback
@@ -90,6 +101,27 @@ export function normalizeTermGeCategories(raw, meRequired) {
     base.required.humanities + base.required.business + base.required.science
   if (sum === target) return base
   // 保持比例缩放到 sum=target；无法整除时理补差
+  const h = Math.floor((base.required.humanities / sum) * target)
+  const b = Math.floor((base.required.business / sum) * target)
+  const s = target - h - b
+  return {
+    ...base,
+    required: { humanities: h, business: b, science: s },
+  }
+}
+
+/**
+ * 规范化本学期 GE 文商理；必要时按 geRequired 均分 required
+ * @param {object|null|undefined} raw
+ * @param {number} [geRequired] 本学期 GE 局部要求
+ */
+export function normalizeTermGeElectiveCategories(raw, geRequired) {
+  const base = normalizeCategoryProgress(raw, DEFAULT_TERM_GE_ELECTIVE_CATEGORIES)
+  const target = Number(geRequired)
+  if (!Number.isFinite(target) || target <= 0) return base
+  const sum =
+    base.required.humanities + base.required.business + base.required.science
+  if (sum === target) return base
   const h = Math.floor((base.required.humanities / sum) * target)
   const b = Math.floor((base.required.business / sum) * target)
   const s = target - h - b
@@ -210,6 +242,10 @@ export function getStudentMonitorRow(studentId = getStudentProfileFields().stude
     cgpa: 3.35,
     termElectiveProgress: { ...DEFAULT_ELECTIVE },
     termGeCategories: { ...DEFAULT_TERM_GE_CATEGORIES, required: { ...DEFAULT_TERM_GE_CATEGORIES.required } },
+    termGeElectiveCategories: {
+      ...DEFAULT_TERM_GE_ELECTIVE_CATEGORIES,
+      required: { ...DEFAULT_TERM_GE_ELECTIVE_CATEGORIES.required },
+    },
     graduationGeProgress: { ...DEFAULT_GRADUATION_GE_PROGRESS },
     schedule: [],
     issues: confirmedCredits ? [] : ['notRegistered'],
@@ -231,6 +267,10 @@ export function getStudentCreditLayers(studentId = getStudentProfileFields().stu
   const termGeCategories = normalizeTermGeCategories(
     row.termGeCategories || deriveTermGeFromGraduation(row.graduationGeProgress, meRequired),
     meRequired,
+  )
+  const termGeElectiveCategories = normalizeTermGeElectiveCategories(
+    row.termGeElectiveCategories || deriveTermGeElectiveFromGraduation(row.graduationGeProgress, geRequired),
+    geRequired,
   )
   const graduationGe = normalizeGraduationGeProgress(row.graduationGeProgress || row.g1Progress)
 
@@ -254,6 +294,7 @@ export function getStudentCreditLayers(studentId = getStudentProfileFields().stu
       me: { current: programme.meEarned, required: programme.meRequired },
     },
     termGeCategories,
+    termGeElectiveCategories,
     graduationGeCategories: graduationGe,
   }
 }
@@ -278,20 +319,26 @@ function deriveTermGeFromGraduation(graduation, meRequired) {
 }
 
 /**
- * 本学期文/商/理进度（ME 细分；顶栏主闸）
- * @param {object} [row] 监控行；缺省取当前学生 layers
+ * 无本学期 GE 类别字段时，用毕业进度折到本学期 GE 局部
+ * @param {object|null|undefined} graduation
+ * @param {number} geRequired
  */
-export function getTermGeCategoryBars(row) {
-  const layers = row
-    ? {
-        termGeCategories: normalizeTermGeCategories(
-          row.termGeCategories ||
-            deriveTermGeFromGraduation(row.graduationGeProgress, row.termElectiveProgress?.meMax),
-          row.termElectiveProgress?.meMax,
-        ),
-      }
-    : getStudentCreditLayers()
-  const progress = layers.termGeCategories
+function deriveTermGeElectiveFromGraduation(graduation, geRequired) {
+  const g = normalizeGraduationGeProgress(graduation)
+  const target = Number(geRequired) || DEFAULT_ELECTIVE.geMax
+  return normalizeTermGeElectiveCategories(
+    {
+      humanities: Math.min(g.humanities, g.required.humanities),
+      business: Math.min(g.business, g.required.business),
+      science: Math.min(g.science, g.required.science),
+      required: DEFAULT_TERM_GE_ELECTIVE_CATEGORIES.required,
+    },
+    target,
+  )
+}
+
+/** @param {object} progress 含 humanities/business/science + required */
+function categoryBarsFromProgress(progress) {
   return [
     {
       key: 'humanities',
@@ -315,6 +362,43 @@ export function getTermGeCategoryBars(row) {
 }
 
 /**
+ * 本学期文/商/理进度（ME 细分；顶栏主闸）
+ * @param {object} [row] 监控行；缺省取当前学生 layers
+ */
+export function getTermGeCategoryBars(row) {
+  const layers = row
+    ? {
+        termGeCategories: normalizeTermGeCategories(
+          row.termGeCategories ||
+            deriveTermGeFromGraduation(row.graduationGeProgress, row.termElectiveProgress?.meMax),
+          row.termElectiveProgress?.meMax,
+        ),
+      }
+    : getStudentCreditLayers()
+  return categoryBarsFromProgress(layers.termGeCategories)
+}
+
+/**
+ * 本学期 GE 文/商/理进度（GE 批入口/列表）
+ * @param {object} [row] 监控行；缺省取当前学生 layers
+ */
+export function getTermGeElectiveCategoryBars(row) {
+  const layers = row
+    ? {
+        termGeElectiveCategories: normalizeTermGeElectiveCategories(
+          row.termGeElectiveCategories ||
+            deriveTermGeElectiveFromGraduation(
+              row.graduationGeProgress,
+              row.termElectiveProgress?.geMax,
+            ),
+          row.termElectiveProgress?.geMax,
+        ),
+      }
+    : getStudentCreditLayers()
+  return categoryBarsFromProgress(layers.termGeElectiveCategories)
+}
+
+/**
  * 类型学分是否将超过学期局部（可少不可超）
  * @param {'GE'|'ME'} type
  * @param {number} addCredits
@@ -325,6 +409,26 @@ export function wouldExceedTermElectiveCap(type, addCredits = 0, studentId) {
   const kind = normalizeRegistrationType(type)
   const bucket = kind === 'GE' ? layers.termElective.ge : layers.termElective.me
   return bucket.current + (Number(addCredits) || 0) > bucket.required
+}
+
+/**
+ * 加退课费用：本学期 GE/ME 文商理类别剩余（供 estimateCourseFee）
+ * @param {string} [studentId]
+ */
+export function buildAddDropPlanRemaining(studentId = getStudentProfileFields().studentId) {
+  const layers = getStudentCreditLayers(studentId)
+  const remCat = (cat) => ({
+    humanities: Math.max(0, (Number(cat?.required?.humanities) || 0) - (Number(cat?.humanities) || 0)),
+    business: Math.max(0, (Number(cat?.required?.business) || 0) - (Number(cat?.business) || 0)),
+    science: Math.max(0, (Number(cat?.required?.science) || 0) - (Number(cat?.science) || 0)),
+  })
+  const p = getTermElectiveCreditProgress(studentId)
+  return {
+    geRemaining: Math.max(0, (p.geMax || 0) - (p.ge || 0)),
+    meRemaining: Math.max(0, (p.meMax || 0) - (p.me || 0)),
+    geCategory: remCat(layers.termGeElectiveCategories),
+    meCategory: remCat(layers.termGeCategories),
+  }
 }
 
 /**

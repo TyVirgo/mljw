@@ -15,6 +15,7 @@ const DEMO_ATTACHMENT_FILES = {
   flightTickets: 'flight-tickets.pdf',
   medicalRecovery: 'medical-recovery.pdf',
   accommodationCheckOut: 'accommodation-checkout.pdf',
+  chinaIdFrontBack: 'china-id-front-back.pdf',
   medicalRecord: 'medical-record.pdf',
   visaRelatedDocuments: 'visa-related-documents.pdf',
 }
@@ -51,21 +52,34 @@ function resolveFileName(fieldKey) {
   if (fieldKey === 'flightTickets' && !shouldDemoFlightTickets()) {
     return ''
   }
+  if (fieldKey === 'chinaIdFrontBack' && !shouldDemoChinaIdFrontBack()) {
+    return ''
+  }
   if (fieldKey === 'visaRelatedDocuments' && !shouldDemoVisaRelated()) {
     return ''
   }
   return DEMO_ATTACHMENT_FILES[fieldKey] || 'attachment.pdf'
 }
 
-/** 机票 demo：退学一律；休学仅中国/其他；其余类型仅 International */
+/** 机票 demo：退学非马来；休学仅中国/其他；其余类型仅 International */
 function shouldDemoFlightTickets() {
-  if (props.sourceKey === 'withdrawal') return true
+  if (props.sourceKey === 'withdrawal') {
+    const group = resolveAttachmentNationGroup(nationality.value, studentCategory.value)
+    return group !== 'malaysia'
+  }
   if (props.sourceKey === 'deferment') {
     const group = resolveAttachmentNationGroup(nationality.value, studentCategory.value)
     return group === 'china' || group === 'other'
   }
   if (props.sourceKey === 'resumption') return false
   return isInternationalMovementApplicant(studentCategory.value)
+}
+
+/** 中国身份证 demo：仅退学且中国 */
+function shouldDemoChinaIdFrontBack() {
+  if (props.sourceKey !== 'withdrawal') return false
+  const group = resolveAttachmentNationGroup(nationality.value, studentCategory.value)
+  return group === 'china'
 }
 
 /** 签证材料 demo：仅复学且中国/其他 */

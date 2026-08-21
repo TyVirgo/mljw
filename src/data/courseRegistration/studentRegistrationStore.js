@@ -1,12 +1,16 @@
 import { ref, computed } from 'vue'
 import { getCurrentStudent } from '../mockCurrentStudent.js'
 import { getActiveBatch } from './registrationBatches.js'
+import { isReleaseCrossAudienceOnRound3 } from './registrationRuleSettings.js'
 import {
   getCoursesByBatch,
   getCourseById,
   selectableCourses,
   sortCoursesForStudentDemo,
   getRound3EffectiveRemaining,
+  courseMatchesStudentSchoolElective,
+  getDefaultStudentSchoolElectiveCategory,
+  resolveSchoolElectiveCategory,
 } from './selectableCourses.js'
 import {
   runRegistrationQueue,
@@ -39,7 +43,6 @@ import {
   creditCapForCourseType,
   isGraduateStudent,
 } from './studentAudience.js'
-import { preselectWeightSettings } from './preselectWeightSettings.js'
 import { normalizeRegistrationType } from './registrationTypes.js'
 import { studentPendingAssignCourses } from './studentPendingAssignState.js'
 import {
@@ -134,7 +137,9 @@ export const myRegistrationList = computed(() => {
     list.push({ ...pendingRegistration.value, status: 'queued' })
   }
   if (roundKey === 'preselect') {
+    const batchId = getActiveBatch()?.id
     for (const item of studentPendingAssignCourses.value) {
+      if (batchId && item.batchId && item.batchId !== batchId) continue
       list.push({ ...item, status: 'pendingAssign' })
     }
     return list
@@ -194,6 +199,8 @@ export function getStudentProfileFields(student = getCurrentStudent()) {
     audience: getStudentAudience(studentId),
     isGraduate: isGraduateStudent(studentId),
     termCreditCaps: caps,
+    schoolElectiveCategory:
+      enrollment.schoolElectiveCategory || getDefaultStudentSchoolElectiveCategory(),
   }
 }
 
@@ -258,7 +265,7 @@ function assertRound3AudienceCapacity(course) {
   const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
   if (roundKey !== 'supplement' || !course) return { ok: true }
   const audience = getStudentAudience()
-  const release = preselectWeightSettings.value.releaseCrossAudienceOnRound3 !== false
+  const release = isReleaseCrossAudienceOnRound3(getActiveBatch())
   const { effective } = getRound3EffectiveRemaining(course, audience, release)
   if (effective <= 0) {
     return { ok: false, errorKey: 'courseRegistration.student.round3PoolExhausted' }
@@ -629,6 +636,74 @@ function adjustSectionEnrolled(courseId, sectionId, sectionCode, delta) {
   section.enrolled = Math.max(0, (Number(section.enrolled) || 0) + delta)
 }
 
+/**
+ * 按课号/分组定位教学组
+ * @param {{ courseId?: string, courseCode?: string, sectionId?: string, sectionCode?: string }} ref
+ */
+function findCourseAndSection(ref = {}) {
+  const course =
+    (ref.courseId && getCourseById(ref.courseId)) ||
+    selectableCourses.value.find((item) => item.code === ref.courseCode) ||
+    null
+  if (!course) return { course: null, section: null }
+  const section =
+    (ref.sectionId && course.sections?.find((item) => item.id === ref.sectionId)) ||
+    (ref.sectionCode && course.sections?.find((item) => item.code === ref.sectionCode)) ||
+    null
+  return { course, section }
+}
+
+/**
+ * 加退课提交时预占名额（不进选课排队）
+ * @param {{ courseId?: string, courseCode?: string, sectionId?: string, sectionCode?: string }} ref
+ */
+export function holdAddDropSectionSeat(ref) {
+  const { course, section } = findCourseAndSection(ref)
+  if (!course) {
+    return { ok: false, errorKey: 'courseRegistration.student.sectionFull' }
+  }
+  if (section) {
+    if (Number(section.enrolled) >= Number(section.capacity)) {
+      return { ok: false, errorKey: 'courseRegistration.student.sectionFull' }
+    }
+    section.enrolled = Number(section.enrolled) + 1
+  } else if (Number(course.remainingCapacity) <= 0) {
+    return { ok: false, errorKey: 'courseRegistration.student.sectionFull' }
+  }
+  if (course.remainingCapacity != null) {
+    course.remainingCapacity = Math.max(0, Number(course.remainingCapacity) - 1)
+  }
+  return {
+    ok: true,
+    hold: {
+      courseId: course.id,
+      courseCode: course.code,
+      sectionId: section?.id || '',
+      sectionCode: section?.code || ref.sectionCode || '',
+    },
+  }
+}
+
+/**
+ * 取消/拒绝加退课时释放预占名额
+ * @param {{ courseId?: string, courseCode?: string, sectionId?: string, sectionCode?: string }|null} hold
+ */
+export function releaseAddDropSectionSeat(hold) {
+  if (!hold) return { ok: false }
+  const { course, section } = findCourseAndSection(hold)
+  if (!course) return { ok: false }
+  if (section) {
+    section.enrolled = Math.max(0, Number(section.enrolled) - 1)
+  }
+  if (course.remainingCapacity != null) {
+    const cap = course.sections?.length
+      ? course.sections.reduce((sum, item) => sum + (Number(item.capacity) || 0), 0)
+      : Number(course.totalCapacity) || Number(course.remainingCapacity) + 1
+    course.remainingCapacity = Math.min(cap, Number(course.remainingCapacity) + 1)
+  }
+  return { ok: true }
+}
+
 function refreshStudentScheduleFromConfirmed() {
   studentSchedule.value = studentConfirmedCourses.value
     .map((item) => parseSectionSchedule(item.time || item.classTime, item.courseCode))
@@ -710,7 +785,8 @@ function upsertMonitorRow(studentFields, batch, historyAction) {
   }
 }
 
-function applyConfirmedRegistration(courses) {
+function applyConfirmedRegistration(courses, options = {}) {
+  const holdSeat = options.holdSeat !== false
   const merged = [...studentConfirmedCourses.value]
   const selectedAt = nowSelectedAt()
   const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
@@ -722,7 +798,9 @@ function applyConfirmedRegistration(courses) {
         sourceType: course.sourceType || 'round',
         roundKey: course.roundKey || roundKey,
       })
-      adjustSectionEnrolled(course.courseId, course.sectionId, course.sectionCode, 1)
+      if (holdSeat) {
+        adjustSectionEnrolled(course.courseId, course.sectionId, course.sectionCode, 1)
+      }
     }
   }
   studentConfirmedCourses.value = merged
@@ -779,11 +857,16 @@ export function unselectConfirmedCourse(courseId) {
     )
     const studentId = getStudentProfileFields().studentId
     removeStudentPreselectVolunteer(courseId, studentId)
-    // 撤出后重排序号（仅未锁定时可达）
-    studentPendingAssignCourses.value = studentPendingAssignCourses.value
+    const batchId = pending.batchId || getActiveBatch()?.id || ''
+    const keptOther = studentPendingAssignCourses.value.filter(
+      (item) => String(item.batchId || '') !== String(batchId),
+    )
+    const remaining = studentPendingAssignCourses.value
+      .filter((item) => String(item.batchId || '') === String(batchId))
       .slice()
       .sort((a, b) => (Number(a.preferenceOrder) || 0) - (Number(b.preferenceOrder) || 0))
       .map((item, index) => ({ ...item, preferenceOrder: index + 1 }))
+    studentPendingAssignCourses.value = [...keptOther, ...remaining]
     return { ok: true }
   }
 
@@ -810,18 +893,22 @@ export function dropConfirmedCourseByCode(courseCode) {
 
 /**
  * 加退课审批通过后：将 Add/Retake 项写入当前演示学生已选结果（演示级）
+ * @param {object[]} items
+ * @param {{ seatAlreadyHeld?: boolean }} [options]
  */
-export function confirmCoursesFromAddDropItems(items = []) {
+export function confirmCoursesFromAddDropItems(items = [], options = {}) {
   const addItems = (items || []).filter((item) => item.action === 'Add' || item.action === 'Retake')
   if (!addItems.length) return { ok: true, count: 0 }
 
   const courses = []
   for (const item of addItems) {
     const course =
+      (item.courseId && getCourseById(item.courseId)) ||
       selectableCourses.value.find((c) => c.code === item.courseCode) ||
       getCoursesByBatch(getActiveBatch()?.id).find((c) => c.code === item.courseCode)
     if (!course) continue
     const section =
+      (item.sectionId && course.sections?.find((s) => s.id === item.sectionId)) ||
       (item.section && course.sections?.find((s) => s.code === item.section)) ||
       course.sections?.find((s) => s.enrolled < s.capacity) ||
       course.sections?.[0]
@@ -844,7 +931,7 @@ export function confirmCoursesFromAddDropItems(items = []) {
     })
   }
   if (!courses.length) return { ok: false, count: 0 }
-  applyConfirmedRegistration(courses)
+  applyConfirmedRegistration(courses, { holdSeat: !options.seatAlreadyHeld })
   const studentFields = getStudentProfileFields()
   const batch = getActiveBatch()
   const codes = courses.map((c) => c.courseCode).join(', ')
@@ -920,32 +1007,62 @@ export async function submitRegistrationCart() {
 
 export function getStudentEnrolledCourses(studentId = getStudentProfileFields().studentId) {
   if (studentConfirmedCourses.value.length) {
-    return studentConfirmedCourses.value.map((item) => ({
-      courseCode: item.courseCode,
-      courseName: item.courseName,
-      sectionCode: item.sectionCode,
-      time: item.time,
-      classTime: item.classTime || item.time,
-      weekRange: item.weekRange || '—',
-      room: item.room || '—',
-      credits: item.credits,
-      lecturer: item.lecturer,
-    }))
+    return studentConfirmedCourses.value.map((item) => {
+      const lib =
+        (item.courseId && getCourseById(item.courseId)) ||
+        selectableCourses.value.find((c) => c.code === item.courseCode) ||
+        null
+      const type = item.type || lib?.type || 'ME'
+      const schoolElectiveCategory = resolveSchoolElectiveCategory({
+        type,
+        code: item.courseCode,
+        id: item.courseId || item.courseCode,
+        schoolElectiveCategory: item.schoolElectiveCategory || lib?.schoolElectiveCategory,
+      })
+      return {
+        courseId: item.courseId || '',
+        courseCode: item.courseCode,
+        courseName: item.courseName,
+        sectionId: item.sectionId,
+        sectionCode: item.sectionCode,
+        sectionName: item.sectionName,
+        time: item.time,
+        classTime: item.classTime || item.time,
+        weekRange: item.weekRange || '—',
+        room: item.room || '—',
+        credits: item.credits,
+        lecturer: item.lecturer,
+        type,
+        schoolElectiveCategory,
+        meetings: item.meetings,
+      }
+    })
   }
   const monitorRow = registrationMonitorQueue.value.find((row) => row.studentId === studentId)
   if (monitorRow?.schedule?.length) {
     return monitorRow.schedule.map((slot) => {
       const time = `${slot.day} ${slot.start}:00–${slot.end}:00`
+      const type = slot.type || 'ME'
       return {
+        courseId: '',
         courseCode: slot.course,
         courseName: slot.courseName || slot.course || '—',
+        sectionId: slot.sectionId,
         sectionCode: slot.section || '—',
+        sectionName: slot.sectionName,
         time,
         classTime: slot.classTime || time,
         weekRange: slot.weekRange || '—',
         room: slot.room || '—',
         credits: slot.credits,
         lecturer: slot.lecturer || '—',
+        type,
+        schoolElectiveCategory: resolveSchoolElectiveCategory({
+          type,
+          code: slot.course,
+          id: slot.course,
+          schoolElectiveCategory: slot.schoolElectiveCategory,
+        }),
       }
     })
   }
@@ -955,7 +1072,12 @@ export function getStudentEnrolledCourses(studentId = getStudentProfileFields().
 export function getSelectableCoursesForStudent(roundKey) {
   const batch = getActiveBatch()
   const preferredType = batch?.type === 'GE' ? 'GE' : 'ME'
-  const courses = getCoursesByBatch(batch?.id).filter((course) => course.type === preferredType)
+  const studentCat =
+    getStudentProfileFields().schoolElectiveCategory || getDefaultStudentSchoolElectiveCategory()
+  const courses = getCoursesByBatch(batch?.id).filter(
+    (course) =>
+      course.type === preferredType && courseMatchesStudentSchoolElective(course, studentCat),
+  )
   const resolvedRound =
     roundKey != null && roundKey !== ''
       ? normalizeCartRoundKey(roundKey)

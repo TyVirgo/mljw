@@ -7,6 +7,8 @@ import { useAppI18n } from '../../composables/useAppI18n.js'
 import CourseRegistrationCallout from './CourseRegistrationCallout.vue'
 import {
   RETAKE_TYPE_OPTIONS,
+  GRADE_EARNED_OPTIONS,
+  PREVIOUS_SESSION_OPTIONS,
   getVisibleAddDropSections,
   buildAddDropSectionBars,
   applySectionToForm,
@@ -21,7 +23,7 @@ import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 import {
   displayClassTimeVenueFromFields,
 } from '../../data/courseRegistration/sectionScheduleFields.js'
-import { CREDIT_FEE_RATES } from '../../data/courseRegistration/addDropFeeRates.js'
+import { CREDIT_FEE_RATES, formatAmountRmb } from '../../data/courseRegistration/addDropFeeRates.js'
 
 const props = defineProps({
   form: { type: Object, required: true },
@@ -36,8 +38,6 @@ const props = defineProps({
   addCourse: { type: Object, default: null },
   /** 费用试算汇总 { items, total } */
   feeEstimate: { type: Object, default: null },
-  /** 往期成绩单 */
-  transcriptOptions: { type: Array, default: () => [] },
   /** 冲突比对课表基线 */
   scheduleBaseline: { type: Array, default: () => [] },
 })
@@ -45,7 +45,6 @@ const props = defineProps({
 const emit = defineEmits([
   'update:form',
   'pick-course',
-  'pick-transcript',
   'attachment-change',
   'clear-attachment',
 ])
@@ -88,8 +87,8 @@ const sectionFeeAmount = computed(() => {
   if (!course) return ''
   const lines = props.feeEstimate?.lines || props.feeEstimate?.items || []
   const hit = lines.find((i) => i.courseCode === course.code)
-  if (hit && hit.amount != null) return String(hit.amount)
-  return '0'
+  if (hit && hit.amount != null) return formatAmountRmb(hit.amount)
+  return formatAmountRmb(0)
 })
 
 /** 超出学分（应收学分） */
@@ -273,6 +272,20 @@ const addLabel = computed(() => {
   return `${props.addCourse.code} — ${props.addCourse.name}`
 })
 
+const retakeSessionOptions = computed(() => {
+  const values = [
+    ...(props.academicSessionOptions || []),
+    ...PREVIOUS_SESSION_OPTIONS,
+    props.form.academicSessionTaken,
+  ].filter(Boolean)
+  return [...new Set(values)]
+})
+
+const retakeGradeOptions = computed(() => {
+  const values = [...GRADE_EARNED_OPTIONS, props.form.gradeEarned].filter(Boolean)
+  return [...new Set(values)]
+})
+
 function patch(partial) {
   emit('update:form', { ...props.form, ...partial })
 }
@@ -406,23 +419,15 @@ function feeStreamLabel(stream) {
             {{ t('courseRegistration.student.fieldGroupNo') }}
             <span class="required">*</span>
           </label>
-          <select
+          <input
+            type="text"
             class="form-control"
-            :value="dropFields.sectionId"
-            :disabled="!dropSectionOptions.length"
-            @change="onSelectSection(form.action === 'AddDrop' ? 'drop' : 'primary', $event)"
-          >
-            <option value="">{{ t('courseRegistration.student.sectionSelectPlaceholder') }}</option>
-            <option
-              v-for="opt in dropSectionOptions"
-              :key="opt.id"
-              :value="opt.id"
-              :disabled="opt.disabled"
-            >
-              {{ opt.name || formatCourseSectionName(opt, t) }}
-              {{ opt.disabled ? t('courseRegistration.student.sectionConflictOption') : '' }}
-            </option>
-          </select>
+            readonly
+            :value="
+              dropFields.groupName ||
+              (dropFields.groupNo ? formatCourseSectionName(dropFields.groupNo, t) : '—')
+            "
+          />
         </div>
         <div class="form-field">
           <label>{{ t('courseRegistration.student.fieldWeekRange') }}</label>
@@ -621,12 +626,12 @@ function feeStreamLabel(stream) {
               <li v-for="(line, idx) in feeEstimate.items" :key="idx">
                 {{ line.courseCode }} · {{ feeStreamLabel(line.feeStream) }} ·
                 {{ t('courseRegistration.student.feeBillableCredits', { n: line.billableCredits }) }}
-                × {{ line.rate }} = {{ line.amount }}
+                × {{ formatAmountRmb(line.rate) }} = {{ formatAmountRmb(line.amount) }}
               </li>
             </ul>
             <p class="fee-total">
               {{ t('courseRegistration.student.feeEstimateTotal') }}:
-              <strong>{{ feeEstimate.total }}</strong>
+              <strong>{{ formatAmountRmb(feeEstimate.total) }}</strong>
             </p>
           </div>
         </div>
@@ -649,31 +654,53 @@ function feeStreamLabel(stream) {
       <div class="form-grid">
         <div class="form-field span-2">
           <label>
-            {{ t('courseRegistration.student.transcriptPick') }}
+            {{ t('courseRegistration.student.retakeCourse') }}
+            <span class="required">*</span>
+          </label>
+          <div class="course-trigger">
+            <input
+              type="text"
+              class="form-control"
+              readonly
+              :value="primaryLabel"
+              :placeholder="t('courseRegistration.student.retakeCoursePlaceholder')"
+              @click="emit('pick-course', 'primary')"
+            />
+            <button type="button" class="btn btn-default" @click="emit('pick-course', 'primary')">
+              {{ t('courseRegistration.student.pickCourse') }}
+            </button>
+          </div>
+          <p class="field-hint">{{ t('courseRegistration.student.retakeCourseHint') }}</p>
+        </div>
+        <div class="form-field">
+          <label>
+            {{ t('courseRegistration.student.gradeEarned') }}
             <span class="required">*</span>
           </label>
           <select
             class="form-control"
-            :value="form.transcriptId"
-            @change="emit('pick-transcript', $event.target.value)"
+            :value="form.gradeEarned"
+            @change="onField('gradeEarned', $event)"
           >
-            <option value="">{{ t('courseRegistration.student.transcriptPickPlaceholder') }}</option>
-            <option v-for="row in transcriptOptions" :key="row.id" :value="row.id">
-              {{ row.courseCode }} {{ row.courseName }} · {{ row.grade }} · {{ row.academicSession }}
-            </option>
+            <option value="">{{ t('common.pleaseSelect') }}</option>
+            <option v-for="g in retakeGradeOptions" :key="g" :value="g">{{ g }}</option>
           </select>
-        </div>
-        <div class="form-field span-2">
-          <label>{{ t('courseRegistration.student.previouslyTakenCourse') }}</label>
-          <input type="text" class="form-control" readonly :value="dash(form.previouslyTakenCourse)" />
+          <p class="field-hint">{{ t('courseRegistration.student.gradeEarnedHint') }}</p>
         </div>
         <div class="form-field">
-          <label>{{ t('courseRegistration.student.gradeEarned') }}</label>
-          <input type="text" class="form-control" readonly :value="dash(form.gradeEarned)" />
-        </div>
-        <div class="form-field">
-          <label>{{ t('courseRegistration.student.academicSessionTaken') }}</label>
-          <input type="text" class="form-control" readonly :value="dash(form.academicSessionTaken)" />
+          <label>
+            {{ t('courseRegistration.student.academicSessionTaken') }}
+            <span class="required">*</span>
+          </label>
+          <select
+            class="form-control"
+            :value="form.academicSessionTaken"
+            @change="onField('academicSessionTaken', $event)"
+          >
+            <option value="">{{ t('common.pleaseSelect') }}</option>
+            <option v-for="s in retakeSessionOptions" :key="s" :value="s">{{ s }}</option>
+          </select>
+          <p class="field-hint">{{ t('courseRegistration.student.academicSessionTakenHint') }}</p>
         </div>
         <div class="form-field">
           <label>
@@ -690,25 +717,6 @@ function feeStreamLabel(stream) {
               {{ t(opt.labelKey) }}
             </option>
           </select>
-        </div>
-        <div class="form-field span-2">
-          <label>
-            {{ t('courseRegistration.student.retakeCourse') }}
-            <span class="required">*</span>
-          </label>
-          <div class="course-trigger">
-            <input
-              type="text"
-              class="form-control"
-              readonly
-              :value="primaryLabel"
-              :placeholder="t('courseRegistration.student.selectCourse')"
-              @click="emit('pick-course', 'primary')"
-            />
-            <button type="button" class="btn btn-default" @click="emit('pick-course', 'primary')">
-              {{ t('courseRegistration.student.pickCourse') }}
-            </button>
-          </div>
         </div>
         <div class="form-field">
           <label>
@@ -738,17 +746,32 @@ function feeStreamLabel(stream) {
           <input type="text" class="form-control" readonly :value="dash(primaryFields.weekRange)" />
         </div>
         <div class="form-field span-2">
-          <label>{{ t('courseRegistration.student.fieldClassTimeVenue') }}</label>
+          <label>
+            {{ t('courseRegistration.student.fieldClassTimeVenue') }}
+            <span class="required">*</span>
+          </label>
           <textarea
             class="form-control cr-time-venue-input"
-            readonly
             rows="3"
-            :value="dash(timeVenueDisplay(primaryFields))"
+            :value="form.classTimeVenue === '—' ? '' : form.classTimeVenue"
+            :placeholder="t('courseRegistration.student.retakeTimeVenuePlaceholder')"
+            @input="onField('classTimeVenue', $event)"
           />
+          <p class="field-hint">{{ t('courseRegistration.student.retakeTimeVenueHint') }}</p>
         </div>
         <div class="form-field">
-          <label>{{ t('courseRegistration.student.fieldLecturers') }}</label>
-          <input type="text" class="form-control" readonly :value="dash(primaryFields.lecturers)" />
+          <label>
+            {{ t('courseRegistration.student.fieldLecturers') }}
+            <span class="required">*</span>
+          </label>
+          <input
+            type="text"
+            class="form-control"
+            :value="form.lecturers === '—' ? '' : form.lecturers"
+            :placeholder="t('courseRegistration.student.retakeLecturersPlaceholder')"
+            @input="onField('lecturers', $event)"
+          />
+          <p class="field-hint">{{ t('courseRegistration.student.retakeLecturersHint') }}</p>
         </div>
         <div class="form-field">
           <label>{{ t('courseRegistration.student.fieldCredits') }}</label>
@@ -794,12 +817,12 @@ function feeStreamLabel(stream) {
         <li v-for="(line, idx) in feeEstimate.items" :key="idx">
           {{ line.courseCode }} · {{ feeStreamLabel(line.feeStream) }} ·
           {{ t('courseRegistration.student.feeBillableCredits', { n: line.billableCredits }) }}
-          × {{ line.rate }} = {{ line.amount }}
+          × {{ formatAmountRmb(line.rate) }} = {{ formatAmountRmb(line.amount) }}
         </li>
       </ul>
       <p class="fee-total">
         {{ t('courseRegistration.student.feeEstimateTotal') }}:
-        <strong>{{ feeEstimate.total }}</strong>
+        <strong>{{ formatAmountRmb(feeEstimate.total) }}</strong>
       </p>
     </div>
 

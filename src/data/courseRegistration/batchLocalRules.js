@@ -6,6 +6,8 @@ export function defaultBatchLocalRules() {
     allowDropSelfSelected: true,
     dropSelfSelectedMaxPerRound: 10,
     allowExceedCreditMax: false,
+    /** 第三轮选课新老生名额互释（默认开，与校级规则一致） */
+    releaseCrossAudienceOnRound3: true,
   }
 }
 
@@ -19,5 +21,6 @@ export function normalizeBatchLocalRules(raw) {
     allowDropSelfSelected: raw.allowDropSelfSelected !== false,
     dropSelfSelectedMaxPerRound: Number.isFinite(max) && max > 0 ? Math.floor(max) : 10,
     allowExceedCreditMax: Boolean(raw.allowExceedCreditMax),
+    releaseCrossAudienceOnRound3: raw.releaseCrossAudienceOnRound3 !== false,
   }
 }

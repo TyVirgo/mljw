@@ -23,6 +23,8 @@ const COURSE_NAME_BY_CODE = {
   EMB210: 'Embedded Systems',
   STAT301: 'Advanced Statistics',
   GE201: 'Critical Thinking',
+  SCI110: 'Scientific Reasoning',
+  FIN110: 'Personal Finance Literacy',
 }
 
 export function resolveAddDropCourseName(item) {
@@ -36,6 +38,18 @@ export function formatAddDropCourseText(item) {
   const name = resolveAddDropCourseName(item)
   if (!name || name === item.courseCode) return item.courseCode
   return `${item.courseCode} ${name}`
+}
+
+/** 详情拆列：名称 / 编码 */
+export function resolveAddDropCourseParts(item, snapshot = null) {
+  const code = snapshot?.code || snapshot?.courseCode || item?.courseCode || ''
+  const name =
+    snapshot?.name ||
+    snapshot?.courseName ||
+    resolveAddDropCourseName(item) ||
+    snapshot?.label ||
+    ''
+  return { code, name }
 }
 
 function joinCourseTexts(items) {

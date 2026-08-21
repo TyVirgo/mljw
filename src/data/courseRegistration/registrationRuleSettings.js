@@ -1,14 +1,13 @@
 import { ref } from 'vue'
 
 /**
- * v3：与批次「②选课规则」图示对齐的总规则目录（+ 保留延迟缴费天数）
- * 原 v2 key 不再读取，避免旧 7 条污染
+ * v4：v3 目录 + CR205 第三轮选课新老生名额互释（并入规则表，不再独立卡片）
+ * 读库时按 DEFAULT_RULES 合并，缺省 id 用默认值
  */
-// const STORAGE_KEY = 'registration-rules-v2' // 弃用：v2 为 CR101–CR107 七条目录
-const STORAGE_KEY = 'registration-rules-v3'
+const STORAGE_KEY = 'registration-rules-v4'
 
 /**
- * @deprecated 旧版七条 ID；已由 CR201–CR204 + CR107 替代，保留导出仅供对照
+ * @deprecated 旧版七条 ID；已由 CR201–CR204 + CR107 + CR205 替代，保留导出仅供对照
  */
 export const LEGACY_REGISTRATION_RULE_IDS = [
   'CR101',
@@ -26,13 +25,14 @@ export const REGISTRATION_RULE_IDS = [
   'CR203',
   'CR204',
   'CR107',
+  'CR205',
 ]
 
 /** @typedef {'flag'|'count'} RegistrationRuleType */
 
 /**
  * 默认总规则（顺序与设置页展示一致）
- * CR201–CR204 对齐 batchLocalRules；CR107 延迟缴费保留
+ * CR201–CR204 对齐 batchLocalRules；CR107 延迟缴费；CR205 第三轮互释校级默认
  */
 const DEFAULT_RULES = [
   {
@@ -64,6 +64,12 @@ const DEFAULT_RULES = [
     type: 'count',
     enabled: true,
     params: { value: 2 },
+  },
+  {
+    id: 'CR205',
+    type: 'flag',
+    enabled: true,
+    params: { value: 1 },
   },
 ]
 
@@ -158,7 +164,17 @@ export function validateRegistrationRuleParams(type, params) {
 export function updateRegistrationRuleEnabled(id, enabled) {
   const index = registrationRules.value.findIndex((row) => row.id === id)
   if (index === -1) return null
-  const next = { ...registrationRules.value[index], enabled: Boolean(enabled) }
+  const current = registrationRules.value[index]
+  const on = Boolean(enabled)
+  const next = {
+    ...current,
+    enabled: on,
+    // flag：启用与规则值 0/1 同步，避免表意分裂
+    params:
+      current.type === 'flag'
+        ? { value: on ? 1 : 0 }
+        : { ...current.params },
+  }
   registrationRules.value[index] = next
   saveRegistrationRules(registrationRules.value)
   return next
@@ -177,6 +193,9 @@ export function updateRegistrationRuleValue(id, value) {
     ...current,
     params: normalizeParams(current.type, params, current),
   }
+  if (current.type === 'flag') {
+    next.enabled = next.params.value === 1
+  }
   registrationRules.value[index] = next
   saveRegistrationRules(registrationRules.value)
   return { ok: true, rule: next }
@@ -193,4 +212,26 @@ export function getPaymentGraceDays() {
   if (!rule || rule.enabled === false) return 2
   const n = Number.parseInt(String(rule.params?.value ?? ''), 10)
   return Number.isFinite(n) && n >= 0 ? n : 2
+}
+
+/**
+ * 校级「第三轮选课新老生名额互释」是否开启（CR205）
+ */
+export function isCampusReleaseCrossAudienceOnRound3() {
+  const rule = registrationRules.value.find((row) => row.id === 'CR205')
+  if (!rule) return true
+  if (rule.enabled === false) return false
+  return Number(rule.params?.value) !== 0
+}
+
+/**
+ * 是否开启 R3 新老生名额互释：批次 localRules 优先，否则校级 CR205
+ * @param {object|null|undefined} batch
+ */
+export function isReleaseCrossAudienceOnRound3(batch) {
+  const local = batch?.localRules
+  if (local && typeof local === 'object' && 'releaseCrossAudienceOnRound3' in local) {
+    return local.releaseCrossAudienceOnRound3 !== false
+  }
+  return isCampusReleaseCrossAudienceOnRound3()
 }

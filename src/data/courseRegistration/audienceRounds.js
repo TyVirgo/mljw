@@ -26,14 +26,14 @@ export function cloneRounds(rounds = {}) {
 }
 
 /**
- * 演示用老生轮次窗（相对原型「今天」≈ 2026-08，保证进行中轮的 end 未过，便于入口倒计时）
- * 原邮件 2026/04 表已整体平移到 8 月窗；开闭仍由 demoActiveRound / demoClosedRounds 驱动
+ * 演示用老生轮次窗（展示用固定文案；学生端开闭由 demoActiveRound / demoClosedRounds 驱动，不跟系统时钟走）
+ * 原邮件 2026/04 表已整体平移到 8 月窗
  */
 export const DEMO_SENIOR_ROUNDS_202604 = {
   preselect: { start: '30-Jul-2026 00:00:00', end: '15-Aug-2026 18:00:00' },
   main: { start: '10-Aug-2026 00:00:00', end: '20-Aug-2026 23:59:00' },
   supplement: { start: '21-Aug-2026 00:00:00', end: '28-Aug-2026 23:59:00' },
-  resultReleaseAt: '15-Aug-2026 19:00:00',
+  resultReleaseAt: '25-Aug-2026 19:00:00',
 }
 
 /** 演示用新生轮次窗；R1 咬老生 R2 附近 */

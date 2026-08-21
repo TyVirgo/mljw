@@ -179,7 +179,7 @@ movementAttachments.js
 
 | 字段 | 必填 | 格式 |
 |------|------|------|
-| Consent Letter | 是 | pdf/jpg/png/docx，5MB |
+| Consent Letter | 是 | pdf/doc/docx，20MB |
 | Flight Tickets | International 必填 | 同上 |
 | Medical Recovery | 复学可选 | 同上 |
 
@@ -789,25 +789,25 @@ Email         (span-2)
 | 展示 | 英文界面显示英文国名；中文界面用既有 `tr()` / `zh-flat` 映射（如 Malaysia→马来西亚、China→中国），与教师表单国籍下拉一致 |
 | 改动面 | 仅 `StudentSelectModal` normalize + 列 + `studentSelect.columns.nationality` i18n |
 
-### 退学附件 — 统一图示3（马/中/其他）
+### 退学附件 — 按国籍（修订统一图示3）
 
-产品确认：退学侧马来西亚、中国、其他国家均按 **图示3** 同一套国际生附件包完善；**不**再按国籍拆三套清单。休学/复学附件各自独立，本变更不改。
+产品修订：退学侧按国籍分支；未点名的槽位与原国际生包一致。休学/复学附件各自独立，本变更不改。
 
-| 槽位 | 必填 | 说明 |
-|------|------|------|
-| consentLetter | * | 既有同意书 + Download |
-| accommodationCheckOut | 否 | Accommodation Check Out Form |
-| flightTickets | * | Flight Tickets (International Students) |
-| medicalRecord | 否 | 新槽，与复学 `medicalRecovery` 分离 |
-| otherDocuments[] | 否 | 默认 1 行；可添加更多；第 2 行起带关闭按钮 |
+| 槽位 | 马来 | 中国 | 其他 |
+|------|------|------|------|
+| consentLetter * | ✓ | ✓ | ✓ |
+| accommodationCheckOut | ✓ | ✓ | ✓ |
+| flightTickets * | — | ✓ | ✓ |
+| chinaIdFrontBack *（单槽） | — | ✓（病历之上） | — |
+| medicalRecord | ✓ | ✓ | ✓ |
+| otherDocuments[] | ✓ | ✓ | ✓ |
 
 | 决策 | 说明 |
 |------|------|
-| 分支 | `getWithdrawalDocumentFields()` 固定返回上表；`getMovementDocumentFields('withdrawal')` 走该列表 |
-| 切换学生 | `WithdrawalFormModal` 换学号时 `createEmptyMovementAttachments()` 并 `alert` 提示 |
-| i18n | 住宿/机票/病历/其他附件/添加更多：中文界面中文标签，英文界面英文标签 |
-| 双端 | 管理端与学生端共用 `WithdrawalFormModal` + 同一 fields，学生端按本人档案自动填充 |
-| UI | 保持自定义「选择文件」按钮，不改原生 file 外观 |
+| 分支 | `getWithdrawalDocumentFields(nationality, category)` + `resolveAttachmentNationGroup` |
+| 身份证 | 单槽 `chinaIdFrontBack`，必填；标签「中国身份证正面&反面」/ 英文等价 |
+| 切换学生 | `WithdrawalFormModal` 换学号时清空附件并提示（既有） |
+| 双端 | 管理端与学生端共用 `WithdrawalFormModal` + 同一 fields |
 
 ### 休学附件 — 图示1–3（按国家）
 

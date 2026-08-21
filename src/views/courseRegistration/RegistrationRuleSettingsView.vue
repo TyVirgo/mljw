@@ -7,19 +7,11 @@ import {
   updateRegistrationRuleEnabled,
   updateRegistrationRuleValue,
 } from '../../data/courseRegistration/registrationRuleSettings.js'
-import { preselectWeightSettings } from '../../data/courseRegistration/preselectWeightSettings.js'
 
 const { t } = useAppI18n()
 
 const draftValues = ref({})
 const valueErrors = ref({})
-const geRDraft = ref(String(preselectWeightSettings.value.geDefaultR))
-const defaultRDraft = ref(String(preselectWeightSettings.value.defaultR))
-const meProgrammeDraft = ref(
-  Object.entries(preselectWeightSettings.value.meByProgramme || {})
-    .map(([k, v]) => `${k}:${v}`)
-    .join(', '),
-)
 
 const switchOnLabel = computed(() => t('registrationRules.switchOn'))
 const switchOffLabel = computed(() => t('registrationRules.switchOff'))
@@ -64,28 +56,12 @@ function commitValue(row) {
 
 function handleToggleEnabled(row, enabled) {
   updateRegistrationRuleEnabled(row.id, enabled)
-}
-
-function commitWeightSettings() {
-  const ge = Number(geRDraft.value)
-  const def = Number(defaultRDraft.value)
-  if (Number.isFinite(ge) && ge > 0) preselectWeightSettings.value.geDefaultR = ge
-  if (Number.isFinite(def) && def > 0) preselectWeightSettings.value.defaultR = def
-  const map = {}
-  String(meProgrammeDraft.value || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .forEach((pair) => {
-      const [code, r] = pair.split(':').map((x) => x.trim())
-      const n = Number(r)
-      if (code && Number.isFinite(n) && n > 0) map[code] = n
-    })
-  preselectWeightSettings.value.meByProgramme = map
-}
-
-function toggleCrossRelease(value) {
-  preselectWeightSettings.value.releaseCrossAudienceOnRound3 = Boolean(value)
+  // flag 启用会同步规则值，清掉未提交草稿以免显示旧数字
+  if (row.type === 'flag' && Object.prototype.hasOwnProperty.call(draftValues.value, row.id)) {
+    const next = { ...draftValues.value }
+    delete next[row.id]
+    draftValues.value = next
+  }
 }
 </script>
 
@@ -129,40 +105,6 @@ function toggleCrossRelease(value) {
         </table>
       </div>
     </div>
-
-    <div class="page-card weight-card">
-      <h3 class="card-title">{{ t('registrationRules.preselectWeightTitle') }}</h3>
-      <p class="card-hint">{{ t('registrationRules.preselectWeightHint') }}</p>
-      <div class="weight-fields">
-        <div class="field-row">
-          <label class="field-label">{{ t('registrationRules.geDefaultR') }}</label>
-          <input v-model="geRDraft" type="number" min="1" step="0.1" class="value-input" @change="commitWeightSettings" />
-        </div>
-        <div class="field-row">
-          <label class="field-label">{{ t('registrationRules.defaultR') }}</label>
-          <input v-model="defaultRDraft" type="number" min="1" step="0.1" class="value-input" @change="commitWeightSettings" />
-        </div>
-        <div class="field-row field-row-wide">
-          <label class="field-label">{{ t('registrationRules.meByProgramme') }}</label>
-          <input
-            v-model="meProgrammeDraft"
-            type="text"
-            class="value-input wide"
-            :placeholder="t('registrationRules.meByProgrammePlaceholder')"
-            @change="commitWeightSettings"
-          />
-        </div>
-        <div class="field-row">
-          <label class="field-label">{{ t('registrationRules.releaseCrossAudience') }}</label>
-          <YnSwitch
-            :model-value="preselectWeightSettings.releaseCrossAudienceOnRound3"
-            :on-label="switchOnLabel"
-            :off-label="switchOffLabel"
-            @update:model-value="toggleCrossRelease"
-          />
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -180,57 +122,13 @@ function toggleCrossRelease(value) {
 .page-card {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
   background: #fff;
   border-radius: 12px;
   border: 1px solid #f3f4f6;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 20px 24px 16px;
-}
-
-.page-card:first-child {
-  flex: 1;
-}
-
-.weight-card {
-  flex: 0 0 auto;
-}
-
-.card-title {
-  margin: 0 0 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #111827;
-}
-
-.card-hint {
-  margin: 0 0 16px;
-  font-size: 12px;
-  color: #9ca3af;
-  line-height: 1.45;
-}
-
-.weight-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.field-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.field-row-wide .wide {
-  width: min(420px, 100%);
-}
-
-.field-label {
-  min-width: 160px;
-  font-size: 13px;
-  color: #374151;
 }
 
 .table-wrap {
@@ -291,10 +189,6 @@ function toggleCrossRelease(value) {
   border-radius: 6px;
   font-size: 13px;
   text-align: center;
-}
-
-.value-input.wide {
-  text-align: left;
 }
 
 .value-error {

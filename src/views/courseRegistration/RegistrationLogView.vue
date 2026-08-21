@@ -34,7 +34,6 @@ const { t } = useAppI18n()
 
 const emptyFilters = () => ({
   studentKeyword: '',
-  // batchKeyword: '', // 批次改由页顶下拉，搜索区不再提供
   courseKeyword: '',
   operatorKeyword: '',
   result: '',
@@ -213,58 +212,6 @@ function handleExportConfirm({ selectedFields }) {
 
 <template>
   <div class="cr-list-page cr-log-page">
-    <!-- 原顶栏三轮 Tab：改为先批次后轮次双下拉
-    <div class="round-tab-bar">
-      <button
-        v-for="tab in registrationLogRoundTabs"
-        :key="tab.id"
-        type="button"
-        class="round-tab-btn"
-        :class="{ active: activeRound === tab.id }"
-        @click="activeRound = tab.id"
-      >
-        {{ t(tab.labelKey) }}
-      </button>
-    </div>
-    -->
-
-    <div class="search-bar cr-log-context-bar">
-      <div class="search-row">
-        <div class="search-fields">
-          <div class="search-item">
-            <label for="cr-log-batch-select">
-              {{ t('courseRegistration.student.batchSelectLabel') }}
-            </label>
-            <select
-              id="cr-log-batch-select"
-              v-model="selectedBatchId"
-              class="search-select cr-log-batch-select"
-              :style="batchSelectWidth ? { width: batchSelectWidth } : undefined"
-            >
-              <option v-for="batch in batchOptions" :key="batch.id" :value="batch.id">
-                {{ batch.name }}
-              </option>
-            </select>
-          </div>
-          <div class="search-item">
-            <label for="cr-log-round-select">
-              {{ t('courseRegistration.student.roundSelectLabel') }}
-            </label>
-            <select
-              id="cr-log-round-select"
-              v-model="selectedRound"
-              class="search-select cr-log-round-select"
-              :style="roundSelectWidth ? { width: roundSelectWidth } : undefined"
-            >
-              <option v-for="opt in roundOptions" :key="opt.key" :value="opt.key">
-                {{ opt.label }}
-              </option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div class="stats-row stats-row--seven">
       <div class="stat-card">
         <span class="stat-value">{{ roundStats.loginUsers }}</span>
@@ -304,16 +251,40 @@ function handleExportConfirm({ selectedFields }) {
       <div class="search-bar">
         <div class="search-row">
           <div class="search-fields">
+            <div class="search-item search-item--context">
+              <label for="cr-log-batch-select">
+                {{ t('courseRegistration.student.batchSelectLabel') }}
+              </label>
+              <select
+                id="cr-log-batch-select"
+                v-model="selectedBatchId"
+                class="search-select cr-log-batch-select"
+                :style="batchSelectWidth ? { width: batchSelectWidth } : undefined"
+              >
+                <option v-for="batch in batchOptions" :key="batch.id" :value="batch.id">
+                  {{ batch.name }}
+                </option>
+              </select>
+            </div>
+            <div class="search-item search-item--context">
+              <label for="cr-log-round-select">
+                {{ t('courseRegistration.student.roundSelectLabel') }}
+              </label>
+              <select
+                id="cr-log-round-select"
+                v-model="selectedRound"
+                class="search-select cr-log-round-select"
+                :style="roundSelectWidth ? { width: roundSelectWidth } : undefined"
+              >
+                <option v-for="opt in roundOptions" :key="opt.key" :value="opt.key">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </div>
             <div class="search-item">
               <label>{{ t('courseRegistration.log.studentKeyword') }}</label>
               <input v-model="searchForm.studentKeyword" type="text" class="search-input" />
             </div>
-            <!-- 批次改由页顶统一选择，搜索区不再提供批次关键词
-            <div class="search-item">
-              <label>{{ t('courseRegistration.log.batchKeyword') }}</label>
-              <input v-model="searchForm.batchKeyword" type="text" class="search-input" />
-            </div>
-            -->
             <div class="search-item">
               <label>{{ t('courseRegistration.log.courseKeyword') }}</label>
               <input v-model="searchForm.courseKeyword" type="text" class="search-input" />
@@ -384,12 +355,11 @@ function handleExportConfirm({ selectedFields }) {
                 <th>{{ t('courseRegistration.monitor.studentId') }}</th>
                 <th>{{ t('courseRegistration.monitor.studentName') }}</th>
                 <th>{{ t('courseRegistration.log.course') }}</th>
+                <th>{{ t('courseRegistration.log.section') }}</th>
                 <th>{{ t('courseRegistration.courses.credits') }}</th>
                 <th>{{ t('courseRegistration.courses.type') }}</th>
-                <th>{{ t('courseRegistration.log.section') }}</th>
                 <th>{{ t('courseRegistration.log.operator') }}</th>
                 <th>{{ t('courseRegistration.log.operatedAt') }}</th>
-                <th>{{ t('courseRegistration.log.remark') }}</th>
                 <th class="col-sticky-right col-queue">{{ t('courseRegistration.log.queueStatusLabel') }}</th>
                 <th class="col-sticky-right col-result">{{ t('courseRegistration.log.resultLabel') }}</th>
               </tr>
@@ -401,12 +371,11 @@ function handleExportConfirm({ selectedFields }) {
                 <td>{{ row.studentId }}</td>
                 <td>{{ row.studentName }}</td>
                 <td>{{ row.courseCode }} {{ row.courseName }}</td>
+                <td>{{ sectionLabel(row.sectionCode) }}</td>
                 <td>{{ row.credits }}</td>
                 <td>{{ getRegistrationTypeLabel(row.courseType, t) || row.courseType || '—' }}</td>
-                <td>{{ sectionLabel(row.sectionCode) }}</td>
                 <td>{{ formatOperatorDisplay(row) }}</td>
                 <td>{{ row.operatedAt }}</td>
-                <td>{{ row.remark }}</td>
                 <td class="col-sticky-right col-queue">
                   {{ formatQueueStatusLabel(row, t) }}
                 </td>
@@ -415,14 +384,19 @@ function handleExportConfirm({ selectedFields }) {
                 </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="13" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="12" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         <div v-if="totalCount > 0" class="pagination-bar">
-          <TablePagination v-model="currentPage" v-model:page-size="pageSize" :total="totalCount" />
+          <TablePagination
+            v-model="currentPage"
+            v-model:page-size="pageSize"
+            :total="totalCount"
+            :page-size-options="[10, 20, 50]"
+          />
         </div>
       </div>
     </div>
@@ -437,12 +411,14 @@ function handleExportConfirm({ selectedFields }) {
 </template>
 
 <style scoped>
-.cr-log-context-bar {
-  margin-bottom: 12px;
+.search-item--context {
+  flex-shrink: 0;
 }
 
-.cr-log-batch-select,
-.cr-log-round-select {
+.cr-log-page :deep(.search-item--context .cr-log-batch-select),
+.cr-log-page :deep(.search-item--context .cr-log-round-select) {
+  width: auto;
+  min-width: 180px;
   max-width: min(100%, 720px);
 }
 

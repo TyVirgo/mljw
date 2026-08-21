@@ -32,6 +32,7 @@ import {
   filterStudentCourseList,
   filterCoursesByRound,
   getTermGeCategoryBars,
+  getTermGeElectiveCategoryBars,
   getGraduationGeBars,
 } from '../../../data/courseRegistration/studentRegistrationContext.js'
 import {
@@ -91,8 +92,6 @@ const entryStudentProfile = computed(() => {
 
 /** 同页两步：目录 → 列表 */
 const entryStep = ref('catalog')
-/** 进入列表时该类型是否有开放批（无则只读） */
-const entryBatchOpen = ref(true)
 /** 目录卡：各类型选中的批次 id（同类型开放批可下拉切换） */
 const catalogBatchIdByType = ref({ GE: '', ME: '' })
 /** 入口倒计时基准：进页算一次，不随时间刷新 */
@@ -116,6 +115,26 @@ function formatCatalogRemainText(endRaw) {
   })
 }
 
+/**
+ * 轮次 end 是否已过（相对进页基准）
+ * @param {string} [endRaw]
+ */
+function isCatalogRoundExpired(endRaw) {
+  const remain = getRemainingDaysHours(endRaw, catalogRemainBaseNow.value)
+  return Boolean(remain?.expired)
+}
+
+/**
+ * 截止后提示：一二轮等待下一轮；三轮批次结束
+ * @param {string} roundKey
+ */
+function catalogExpiredHintKey(roundKey) {
+  if (roundKey === 'supplement') {
+    return 'courseRegistration.student.typeEntry.batchEndedHint'
+  }
+  return 'courseRegistration.student.typeEntry.waitNextRoundHint'
+}
+
 const selectedRound = ref('main')
 setActiveCartRound(selectedRound.value)
 
@@ -131,9 +150,9 @@ const currentOpenRoundKey = computed(() =>
   getStudentCurrentOpenRoundKey(activeBatch.value, studentAudience.value),
 )
 
-/** 可操作：有开放批 + 当前轮开放 + 选中即为该开放轮 */
+/** 可操作：有批次 + 当前轮开放 + 选中即为该开放轮（开闭只认 demo 标志） */
 const canOperateRegistration = computed(() => {
-  if (!entryBatchOpen.value) return false
+  if (!activeBatch.value) return false
   const openKey = currentOpenRoundKey.value
   if (!openKey) return false
   return (
@@ -170,22 +189,25 @@ const listBatchOptions = computed(() => {
   }))
 })
 
-/** 列表顶栏：方案 A 仅当前开放轮 */
+/** 列表顶栏：当前开放轮；关窗批展示默认轮文案 */
 const listRoundOptions = computed(() => {
   const batch = activeBatch.value
   const audience = studentAudience.value
+  if (!batch) return []
   const openKey = currentOpenRoundKey.value
-  if (!batch || !openKey) return []
+  const displayKey = openKey || getStudentDefaultRoundKey(batch, audience)
   const rounds = getAudienceRounds(batch, audience)
-  const range = rounds?.[openKey]
+  const range = displayKey ? rounds?.[displayKey] : null
   if (!range) return []
   return [
     {
-      key: openKey,
-      label: `${t(ROUND_LABEL_KEYS[openKey] || ROUND_LABEL_KEYS.main)} ${formatRoundRange(range)}`,
+      key: displayKey,
+      label: `${t(ROUND_LABEL_KEYS[displayKey] || ROUND_LABEL_KEYS.main)} ${formatRoundRange(range)}`,
     },
   ]
 })
+
+const listRoundDisplayKey = computed(() => listRoundOptions.value[0]?.key || '')
 
 /**
  * 列表顶栏切换同类型批次（方案 A：进入后锁定该批当前开放轮）
@@ -200,7 +222,6 @@ function handleListBatchChange(event) {
   const openKey = getStudentCurrentOpenRoundKey(batch, audience)
   catalogBatchIdByType.value = { ...catalogBatchIdByType.value, [type]: batch.id }
   setStudentSelectedBatchId(batch.id)
-  entryBatchOpen.value = Boolean(openKey)
   selectedRound.value = openKey || getStudentDefaultRoundKey(batch, audience)
   setActiveCartRound(selectedRound.value)
   message.value = ''
@@ -390,9 +411,9 @@ const termElectiveBars = computed(() => {
   ]
 })
 
-/** 顶栏本学期文/商/理（仅 ME 批；之和对齐 meMax） */
+/** 顶栏本学期文/商/理（GE / ME 均展示；配额分别对齐 geMax / meMax） */
 const termCategoryBars = computed(() =>
-  batchTypeTab.value === 'ME' ? getTermGeCategoryBars() : [],
+  batchTypeTab.value === 'GE' ? getTermGeElectiveCategoryBars() : getTermGeCategoryBars(),
 )
 
 const CATEGORY_SHORT_KEYS = {
@@ -415,17 +436,29 @@ const graduationGeTip = computed(() => {
 })
 
 /**
- * 同类型可选批：优先当前开放批；无开放则退回全部 active 可选批
+ * 批次当前 demo 是否进行中（不看日历 end）
+ * @param {object|null} batch
+ * @param {string} audience
+ */
+function isCatalogBatchLive(batch, audience) {
+  return Boolean(getStudentCurrentOpenRoundKey(batch, audience))
+}
+
+/**
+ * 同类型可选批：全部 active；进行中排前（含已结束，便于下拉切换看关态）
  * @param {'GE'|'ME'} type
  * @param {string} audience
  */
 function listCatalogBatchesForType(type, audience) {
   const all = listStudentSelectableBatchesByType(type)
-  const open = all.filter((batch) => Boolean(getStudentCurrentOpenRoundKey(batch, audience)))
-  return open.length ? open : all
+  return [...all].sort((a, b) => {
+    const liveA = isCatalogBatchLive(a, audience) ? 0 : 1
+    const liveB = isCatalogBatchLive(b, audience) ? 0 : 1
+    return liveA - liveB
+  })
 }
 
-/** 目录卡默认选中各类型当前开放批（或首条可选批） */
+/** 目录卡默认选中各类型当前开放批（优先进行中） */
 watch(
   studentAudience,
   (audience) => {
@@ -440,9 +473,17 @@ watch(
         }
         continue
       }
-      if (!next[type] || !options.some((batch) => batch.id === next[type])) {
-        next[type] = options[0].id
-        changed = true
+      const live = options.find((batch) => isCatalogBatchLive(batch, audience))
+      const preferredId = (live || options[0]).id
+      const currentOk = next[type] && options.some((batch) => batch.id === next[type])
+      const currentLive =
+        currentOk && isCatalogBatchLive(getBatchById(next[type]), audience)
+      // 无选中 / 选中已不在列表 / 选中已结束但存在进行中 → 落到进行中
+      if (!currentOk || (!currentLive && live)) {
+        if (next[type] !== preferredId) {
+          next[type] = preferredId
+          changed = true
+        }
       }
     }
     if (changed) catalogBatchIdByType.value = next
@@ -451,12 +492,13 @@ watch(
 )
 
 /**
- * 目录入口卡：GE / ME（方案 A：选课轮次仅展示当前开放轮）
+ * 目录入口卡：GE / ME（方案 A：轮次仅当前开放轮；关窗只认 demo 标志）
  */
 const typeEntryCards = computed(() => {
   const audience = studentAudience.value
   const term = getTermElectiveCreditProgress()
   const meCategoryBars = getTermGeCategoryBars()
+  const geCategoryBars = getTermGeElectiveCategoryBars()
   return (['GE', 'ME']).map((type) => {
     const batchOptions = listCatalogBatchesForType(type, audience).map((batch) => ({
       id: batch.id,
@@ -465,15 +507,20 @@ const typeEntryCards = computed(() => {
     }))
     const selectedId = catalogBatchIdByType.value[type] || batchOptions[0]?.id || ''
     const batch = selectedId ? getBatchById(selectedId) : null
-    const openKey = batch ? getStudentCurrentOpenRoundKey(batch, audience) : null
+    const demoOpenKey = batch ? getStudentCurrentOpenRoundKey(batch, audience) : null
+    const displayRoundKey =
+      demoOpenKey || (batch ? getStudentDefaultRoundKey(batch, audience) : '')
     const rounds = batch ? getAudienceRounds(batch, audience) : null
-    const deadlineRange = openKey && rounds ? rounds[openKey] : null
+    const deadlineRange = displayRoundKey && rounds ? rounds[displayRoundKey] : null
+    const isOpen = Boolean(demoOpenKey)
+    const roundExpired = Boolean(batch) && !isOpen
+    const calendarRemainExpired = isCatalogRoundExpired(deadlineRange?.end)
     const roundOptions =
-      openKey && rounds?.[openKey]
+      displayRoundKey && rounds?.[displayRoundKey]
         ? [
             {
-              key: openKey,
-              label: `${t(ROUND_LABEL_KEYS[openKey] || ROUND_LABEL_KEYS.main)} ${formatRoundRange(rounds[openKey])}`,
+              key: displayRoundKey,
+              label: `${t(ROUND_LABEL_KEYS[displayRoundKey] || ROUND_LABEL_KEYS.main)} ${formatRoundRange(rounds[displayRoundKey])}`,
             },
           ]
         : []
@@ -483,18 +530,23 @@ const typeEntryCards = computed(() => {
         type === 'GE'
           ? 'courseRegistration.student.typeEntry.geTitle'
           : 'courseRegistration.student.typeEntry.meTitle',
-      conditionKey: openKey
-        ? ROUND_CONDITION_KEYS[openKey] || ROUND_CONDITION_KEYS.main
+      conditionKey: displayRoundKey
+        ? ROUND_CONDITION_KEYS[displayRoundKey] || ROUND_CONDITION_KEYS.main
         : 'courseRegistration.student.typeEntry.noOpenRoundHint',
       deadline: formatRoundRange(deadlineRange),
       remainText:
-        openKey && deadlineRange?.end ? formatCatalogRemainText(deadlineRange.end) : '',
+        isOpen && deadlineRange?.end && !calendarRemainExpired
+          ? formatCatalogRemainText(deadlineRange.end)
+          : '',
       batchOptions,
       selectedBatchId: selectedId,
       roundOptions,
-      selectedRoundKey: openKey || '',
-      isOpen: Boolean(openKey),
+      selectedRoundKey: displayRoundKey || '',
+      isOpen,
+      roundExpired,
+      closedHintKey: roundExpired && displayRoundKey ? catalogExpiredHintKey(displayRoundKey) : '',
       hasBatch: Boolean(batch) || batchOptions.length > 0,
+      canEnter: isOpen,
       creditBar:
         type === 'GE'
           ? {
@@ -509,7 +561,7 @@ const typeEntryCards = computed(() => {
               current: term.me,
               max: term.meMax,
             },
-      categoryBars: type === 'ME' ? meCategoryBars : [],
+      categoryBars: type === 'GE' ? geCategoryBars : meCategoryBars,
     }
   })
 })
@@ -540,8 +592,12 @@ function handleEnterType(type) {
     return
   }
   const openKey = getStudentCurrentOpenRoundKey(batch, audience)
+  const displayKey = openKey || getStudentDefaultRoundKey(batch, audience)
+  if (!openKey) {
+    message.value = t(catalogExpiredHintKey(displayKey))
+    return
+  }
   message.value = ''
-  entryBatchOpen.value = Boolean(openKey)
   catalogBatchIdByType.value = { ...catalogBatchIdByType.value, [type]: batch.id }
   setStudentSelectedBatchId(batch.id)
   selectedRound.value = openKey || getStudentDefaultRoundKey(batch, audience)
@@ -897,7 +953,9 @@ function confirmRegisterSubmit() {
               {{
                 card.isOpen
                   ? t('courseRegistration.student.typeEntry.open')
-                  : t('courseRegistration.student.typeEntry.closed')
+                  : card.roundExpired
+                    ? t('courseRegistration.student.typeEntry.ended')
+                    : t('courseRegistration.student.typeEntry.closed')
               }}
             </span>
           </div>
@@ -906,7 +964,7 @@ function confirmRegisterSubmit() {
               <dt>{{ t('courseRegistration.student.typeEntry.deadline') }}</dt>
               <dd class="cr-type-entry-deadline">
                 <span>{{ card.deadline }}</span>
-                <span v-if="card.isOpen && card.remainText" class="cr-type-entry-remain">
+                <span v-if="card.remainText" class="cr-type-entry-remain">
                   {{ t('courseRegistration.student.typeEntry.remainParen', { text: card.remainText }) }}
                 </span>
               </dd>
@@ -969,10 +1027,14 @@ function confirmRegisterSubmit() {
           <button
             type="button"
             class="btn btn-primary cr-type-entry-cta"
-            :disabled="!card.hasBatch"
+            :disabled="!card.canEnter"
             @click="handleEnterType(card.type)"
           >
-            {{ t('courseRegistration.student.typeEntry.enter') }}
+            {{
+              card.closedHintKey
+                ? t(card.closedHintKey)
+                : t('courseRegistration.student.typeEntry.enter')
+            }}
           </button>
         </div>
       </div>
@@ -983,27 +1045,36 @@ function confirmRegisterSubmit() {
     <div class="cr-student-register-context">
       <div class="cr-list-context-bar">
         <div class="cr-list-context-selects">
-          <select
-            class="cr-type-entry-batch-select cr-list-context-select"
-            :value="studentSelectedBatchId"
-            :aria-label="t('courseRegistration.student.typeEntry.batchLabel')"
-            @change="handleListBatchChange"
-          >
-            <option v-for="opt in listBatchOptions" :key="opt.id" :value="opt.id">
-              {{ opt.name }}
-            </option>
-          </select>
-          <select
-            v-if="listRoundOptions.length"
-            class="cr-type-entry-batch-select cr-list-context-select cr-list-context-select--round"
-            :value="currentOpenRoundKey"
-            :aria-label="t('courseRegistration.student.typeEntry.roundLabel')"
-            @click.stop
-          >
-            <option v-for="opt in listRoundOptions" :key="opt.key" :value="opt.key">
-              {{ opt.label }}
-            </option>
-          </select>
+          <label class="cr-list-context-field">
+            <span class="cr-list-context-field-label">{{
+              t('courseRegistration.student.typeEntry.batchLabel')
+            }}</span>
+            <select
+              class="cr-type-entry-batch-select cr-list-context-select"
+              :value="studentSelectedBatchId"
+              :aria-label="t('courseRegistration.student.typeEntry.batchLabel')"
+              @change="handleListBatchChange"
+            >
+              <option v-for="opt in listBatchOptions" :key="opt.id" :value="opt.id">
+                {{ opt.name }}
+              </option>
+            </select>
+          </label>
+          <label v-if="listRoundOptions.length" class="cr-list-context-field">
+            <span class="cr-list-context-field-label">{{
+              t('courseRegistration.student.typeEntry.roundLabel')
+            }}</span>
+            <select
+              class="cr-type-entry-batch-select cr-list-context-select cr-list-context-select--round"
+              :value="listRoundDisplayKey"
+              :aria-label="t('courseRegistration.student.typeEntry.roundLabel')"
+              @click.stop
+            >
+              <option v-for="opt in listRoundOptions" :key="opt.key" :value="opt.key">
+                {{ opt.label }}
+              </option>
+            </select>
+          </label>
           <span v-else class="cr-type-entry-hint-text">
             {{ t('courseRegistration.student.typeEntry.noOpenRoundHint') }}
           </span>
@@ -1022,7 +1093,7 @@ function confirmRegisterSubmit() {
 
     <div class="page-card">
       <div class="cr-student-register-layout">
-        <CourseRegistrationCallout v-if="!entryBatchOpen" variant="warning">
+        <CourseRegistrationCallout v-if="!activeBatch" variant="warning">
           <p>{{ t('courseRegistration.student.typeEntry.noOpenBatch') }}</p>
         </CourseRegistrationCallout>
         <CourseRegistrationCallout v-else-if="!canOperateRegistration" variant="warning">
@@ -1713,10 +1784,27 @@ function confirmRegisterSubmit() {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
+  gap: 12px 16px;
   min-width: 0;
   flex: 0 0 auto;
   margin-left: 0;
+}
+
+.cr-list-context-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.cr-list-context-field-label {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
 }
 
 .cr-list-context-select {
@@ -2009,6 +2097,7 @@ function confirmRegisterSubmit() {
 .cr-type-entry-cta:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+  filter: grayscale(0.35);
 }
 
 @media (max-width: 860px) {
@@ -2030,6 +2119,10 @@ function confirmRegisterSubmit() {
     margin-left: 0;
   }
 
+  .cr-list-context-field {
+    width: 100%;
+  }
+
   .cr-list-back-btn {
     margin-left: 0;
   }
@@ -2038,7 +2131,7 @@ function confirmRegisterSubmit() {
   .cr-list-context-bar .cr-list-context-select--round {
     width: 100%;
     max-width: none;
-    flex: 1 1 100%;
+    flex: 1 1 auto;
   }
 
   .cr-list-context-progress {

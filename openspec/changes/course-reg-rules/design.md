@@ -48,3 +48,7 @@ src/i18n/locales/zh.js / en.js
 ## Risks
 
 - 本地若曾存 v1，刷新后按 v2 默认；可接受（原型）。
+
+## 增量：第三轮互释校级开关（align-ge-me）
+
+「第三轮选课新老生名额互释」作为规则表一行（`CR205`，flag，默认开），与 CR201–CR204、CR107 同表；必须NOT 独立卡片。批次可经 `localRules.releaseCrossAudienceOnRound3` 覆盖。第一轮容量细分在管理轮次 · 老生第一轮。详见 `align-ge-me-senior-freshman-model`。

@@ -101,23 +101,52 @@ function pickPrimaryItem(app) {
   return items.find((i) => i.action === 'Add' || i.action === 'Retake') || items[0]
 }
 
-/** demo / 缺字段时从账单金额反推超出学分 */
+function netCreditDelta(app) {
+  return (app?.items || []).reduce((sum, item) => {
+    const cr = Number(item.credits) || 0
+    if (item.action === 'Drop') return sum - cr
+    if (item.action === 'Add' || item.action === 'Retake') return sum + cr
+    return sum
+  }, 0)
+}
+
+/** 超出学分：显式字段或「当前 + 净加 − 上限」；不得用账单金额反推 */
 function deriveExcessCredits(app) {
-  if (app?.excessCredits != null && app.excessCredits !== '') return Number(app.excessCredits) || 0
-  if (app?.billableCredits != null && app.billableCredits !== '') return Number(app.billableCredits) || 0
+  if (app?.type === 'Drop') return 0
+  if (app?.excessCredits != null && app.excessCredits !== '') {
+    return Math.max(0, Number(app.excessCredits) || 0)
+  }
+  if (app?.billableCredits != null && app.billableCredits !== '') {
+    return Math.max(0, Number(app.billableCredits) || 0)
+  }
   const fromEst = app?.feeEstimate?.billableCredits
-  if (fromEst != null) return Number(fromEst) || 0
+  if (fromEst != null && fromEst !== '') return Math.max(0, Number(fromEst) || 0)
   const fromItems = (app?.feeEstimate?.items || []).reduce(
     (s, i) => s + (Number(i.billableCredits) || 0),
     0,
   )
   if (fromItems > 0) return fromItems
-  const amount = Number(app?.billAmount) || 0
-  if (amount <= 0) return 0
-  for (const rate of [500, 550, 600]) {
-    if (amount % rate === 0) return amount / rate
+  const current = Number(app?.currentCredits) || 0
+  const max = Number(app?.creditMax) || 20
+  return Math.max(0, current + netCreditDelta(app) - max)
+}
+
+function reconcileExcessFeeBill(app, excessCredits) {
+  if (excessCredits <= 0) {
+    return {
+      excessCredits: 0,
+      billableCredits: 0,
+      billAmount: 0,
+      billStatus: 'none',
+    }
   }
-  return 0
+  const seededAmount = Number(app?.billAmount)
+  return {
+    excessCredits,
+    billableCredits: app?.billableCredits ?? excessCredits,
+    billAmount: Number.isFinite(seededAmount) && seededAmount > 0 ? seededAmount : excessCredits * 500,
+    billStatus: !app?.billStatus || app.billStatus === 'none' ? 'pending' : app.billStatus,
+  }
 }
 
 /** 补齐申请顶层与 items 排课字段，供列表/详情直接展示 */
@@ -134,6 +163,9 @@ export function enrichAddDropApplicationSchedule(app, seedIndex = 0) {
     app.sectionName || primary.sectionName || primary.name || `分组名称${sectionCode}`
   const meetings = primary.meetings || app.meetings
   const excessCredits = deriveExcessCredits(app)
+  const feeBill = reconcileExcessFeeBill(app, excessCredits)
+  const phone = String(app.contactPhone || '').trim()
+  const session = String(app.academicSession || '').trim()
   return {
     ...app,
     items,
@@ -145,9 +177,18 @@ export function enrichAddDropApplicationSchedule(app, seedIndex = 0) {
     weekRange,
     meetings,
     time: app.time || primary.time,
-    excessCredits,
-    billableCredits: app.billableCredits ?? excessCredits,
+    academicSession: session || '2026/04',
+    contactPhone: phone && phone !== '—' ? phone : demoContactPhone(app.studentId),
+    declarationAgreed: app.declarationAgreed !== false,
+    ...feeBill,
   }
+}
+
+function demoContactPhone(studentId) {
+  if (studentId === 'XMUM2309001') return '0123456789'
+  const digits = String(studentId || '').replace(/\D/g, '')
+  const tail = (digits.slice(-8) || '87654321').padStart(8, '8')
+  return `01${tail}`
 }
 
 export function enrichAddDropQueueSchedule(rows) {

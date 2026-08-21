@@ -4,6 +4,7 @@ import {
   scopeLabelsFromRules,
 } from './batchScopeRules.js'
 import { defaultBatchLocalRules } from './batchLocalRules.js'
+import { defaultRound1Quota } from './batchRound1Quota.js'
 import {
   DEMO_FRESHMAN_ROUNDS_202604,
   DEMO_SENIOR_ROUNDS_202604,
@@ -48,7 +49,7 @@ function meName(dept, tier) {
 }
 
 /**
- * GE 批次命名：对齐管理端 ME 句式，SCOPE 为 HUM/BUS/MPU
+ * GE 批次命名：对齐管理端 ME 句式，SCOPE 为 HUM/BUS/MPU/SCI
  * @param {'HUM'|'BUS'|'MPU'|string} scope 类别短码
  * @param {string|null} tier 档位如 I/II，可空
  */
@@ -63,6 +64,49 @@ function withScopeRules(rules) {
   return {
     scopeRules: rules,
     scope: scopeLabelsFromRules(rules),
+  }
+}
+
+function geBatch({
+  id,
+  scope,
+  tier = null,
+  status = 'draft',
+  courseCount = 8,
+  scopeRules,
+  ...rest
+}) {
+  const rules = scopeRules || []
+  return {
+    id,
+    name: geName(scope, tier),
+    academicSession: SESSION,
+    type: 'GE',
+    programme: '',
+    status,
+    roundsSummary: 'R1 25-Aug–28-Aug',
+    ...withScopeRules(rules),
+    creditMin: 4,
+    creditMax: 8,
+    courseCount,
+    rounds: { ...R1_ONLY_ROUNDS },
+    roundsByAudience: {
+      senior: { ...R1_ONLY_ROUNDS, resultReleaseAt: DEMO_SENIOR_ROUNDS_202604.resultReleaseAt },
+      freshman: {
+        preselect: { start: '', end: '' },
+        main: { start: '', end: '' },
+        supplement: { start: '', end: '' },
+      },
+    },
+    addDropWindow: { ...DEFAULT_ADD_DROP },
+    termKind: TERM_KIND_LONG,
+    dropDeadlineWeek: 2,
+    notifyTemplate: 'default-ge',
+    isSelectable: true,
+    localRules: defaultBatchLocalRules(),
+    round1Quota: defaultRound1Quota('GE', '', SESSION),
+    volunteerFinalConfirmedAt: null,
+    ...rest,
   }
 }
 
@@ -91,7 +135,7 @@ function meBatch({
     courseCount,
     rounds: { ...R1_ONLY_ROUNDS },
     roundsByAudience: {
-      senior: { ...R1_ONLY_ROUNDS, resultReleaseAt: '' },
+      senior: { ...R1_ONLY_ROUNDS, resultReleaseAt: DEMO_SENIOR_ROUNDS_202604.resultReleaseAt },
       freshman: {
         preselect: { start: '', end: '' },
         main: { start: '', end: '' },
@@ -108,6 +152,7 @@ function meBatch({
     },
     isSelectable: true,
     localRules: defaultBatchLocalRules(),
+    round1Quota: defaultRound1Quota('ME', dept, SESSION),
     volunteerFinalConfirmedAt: null,
     ...rest,
   }
@@ -116,30 +161,31 @@ function meBatch({
 export { resolveBatchTermKind, resolveDropDeadlineWeek, TERM_KIND_LONG, TERM_KIND_SHORT }
 
 /**
- * 图示 Major Elective Selection 命名；batch-2504-m1 = SWE (I) active，供学生课表 demo。
- * 另有多条 ME active 样例（须排在 batch-2504-m1 之后）；GE 另有独立 active，由类型偏好解析。
+ * 学生端 demo 矩阵（开闭只认 demoActiveRound / demoClosedRounds）：
+ * GE：HUM=R1 进行中、BUS=R2、MPU=R3、SCI=R1 已结束
+ * ME：SWE=R1 进行中、CST=R2、CYS=R3、COS=R1 已结束；batch-2504-m1 兼学生课表主批。
  */
 const initialBatches = [
-  meBatch({
-    id: 'batch-me-chs-junior',
-    dept: 'CHS',
+  geBatch({
+    id: 'batch-ge-hum-junior',
+    scope: 'HUM',
     tier: 'Junior',
     status: 'draft',
-    courseCount: 12,
+    courseCount: 20,
   }),
   meBatch({
     id: 'batch-me-chs-senior-i',
     dept: 'CHS',
     tier: 'Senior I',
     status: 'draft',
-    courseCount: 11,
+    courseCount: 20,
   }),
   meBatch({
     id: 'batch-me-chs-senior-ii',
     dept: 'CHS',
     tier: 'Senior II',
     status: 'closed',
-    courseCount: 10,
+    courseCount: 20,
     /** 已结束：三轮选课已走完，新老生轮次均有完整时间 */
     rounds: { ...FULL_ROUNDS },
     roundsByAudience: {
@@ -150,14 +196,14 @@ const initialBatches = [
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
     demoClosedRounds: ['preselect', 'main', 'supplement'],
   }),
-  meBatch({
-    id: 'batch-me-cst-ii',
-    dept: 'CST',
+  geBatch({
+    id: 'batch-ge-sci-ii',
+    scope: 'SCI',
     tier: 'II',
     status: 'draft',
-    courseCount: 13,
+    courseCount: 20,
   }),
-  // D：主活跃批 — 三轮齐全，供学生选课 demo
+  // D：第一轮进行中 — 三轮齐全，兼学生课表主批
   meBatch({
     id: 'batch-2504-m1',
     dept: 'SWE',
@@ -166,7 +212,7 @@ const initialBatches = [
     courseCount: 24,
     faculty: 'School of Information',
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
-    /** Demo：当前进行第一轮志愿填报（验收志愿槽）；二三轮可再切 demoActiveRound */
+    /** Demo：当前第一轮可操作 */
     demoActiveRound: 'preselect',
     demoClosedRounds: [],
     rounds: { ...FULL_ROUNDS },
@@ -206,7 +252,7 @@ const initialBatches = [
       },
     ],
   }),
-  // B：已确认志愿，已配第二轮（结束日未到），第三轮未配置
+  // B：第二轮进行中
   meBatch({
     id: 'batch-me-cst-i',
     dept: 'CST',
@@ -236,15 +282,16 @@ const initialBatches = [
       },
     ],
   }),
-  // A：进行中但尚未最终确认 — 仅第一轮，管理轮次中二三轮锁定
+  // A：已结束（三轮均关闭，展示钉第一轮）
   meBatch({
     id: 'batch-me-cos',
     dept: 'COS',
     status: 'active',
     courseCount: 18,
     faculty: 'School of Information',
-    volunteerFinalConfirmedAt: null,
+    volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
     demoActiveRound: 'preselect',
+    demoClosedRounds: ['preselect', 'main', 'supplement'],
     scopeRules: [
       {
         faculties: ['School of Information'],
@@ -255,7 +302,7 @@ const initialBatches = [
       },
     ],
   }),
-  // C：二轮已结束，第三轮已配
+  // C：第三轮进行中
   meBatch({
     id: 'batch-me-cys-i',
     dept: 'CYS',
@@ -292,40 +339,44 @@ const initialBatches = [
       },
     ],
   }),
-  meBatch({
-    id: 'batch-me-swe-ii',
-    dept: 'SWE',
-    tier: 'II',
-    status: 'draft',
-    courseCount: 16,
-  }),
-  meBatch({
-    id: 'batch-me-cys-ii',
-    dept: 'CYS',
-    tier: 'II',
-    status: 'draft',
-    courseCount: 11,
-  }),
-  meBatch({
-    id: 'batch-me-dsc-i',
-    dept: 'DSC',
+  geBatch({
+    id: 'batch-ge-mpu-i-draft',
+    scope: 'MPU',
     tier: 'I',
     status: 'draft',
-    courseCount: 12,
+    courseCount: 20,
   }),
-  meBatch({
-    id: 'batch-me-eee-i',
-    dept: 'EEE',
+  geBatch({
+    id: 'batch-ge-sci-i',
+    scope: 'SCI',
+    tier: 'I',
+    status: 'active',
+    courseCount: 20,
+    /** Demo：已结束，展示钉第一轮 */
+    demoActiveRound: 'preselect',
+    demoClosedRounds: ['preselect', 'main', 'supplement'],
+    volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
+  }),
+  geBatch({
+    id: 'batch-ge-hum-ii',
+    scope: 'HUM',
+    tier: 'II',
+    status: 'draft',
+    courseCount: 20,
+  }),
+  geBatch({
+    id: 'batch-ge-fin-i',
+    scope: 'FIN',
     tier: 'I',
     status: 'draft',
-    courseCount: 15,
+    courseCount: 20,
   }),
   meBatch({
     id: 'batch-me-eee-ii',
     dept: 'EEE',
     tier: 'II',
     status: 'closed',
-    courseCount: 14,
+    courseCount: 20,
     rounds: { ...FULL_ROUNDS },
     roundsByAudience: {
       senior: { ...FULL_ROUNDS, resultReleaseAt: '10-Sep-2025 19:00:00' },
@@ -335,7 +386,7 @@ const initialBatches = [
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
     demoClosedRounds: ['preselect', 'main', 'supplement'],
   }),
-  // GE：HUM / BUS / MPU 三类 active，命名对齐管理端句式；课表与轮次状态错开
+  // GE：HUM / BUS / MPU 进行中 + SCI 关窗；课表与轮次状态错开
   {
     id: 'batch-2504-g1',
     // 原名 GE General Studies Selection… 已改为 HUM 句式
@@ -345,10 +396,10 @@ const initialBatches = [
     status: 'active',
     roundsSummary: 'R1 01-Sep–03-Sep · R2 06-Sep–08-Sep · R3 11-Sep–12-Sep',
     ...withScopeRules([]),
-    /** Demo：当前第二轮；第一轮已过；第三轮关闭 */
-    demoActiveRound: 'main',
-    demoClosedRounds: ['preselect', 'supplement'],
-    volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
+    /** Demo：当前第一轮可操作 */
+    demoActiveRound: 'preselect',
+    demoClosedRounds: [],
+    volunteerFinalConfirmedAt: null,
     creditMin: 4,
     creditMax: 8,
     courseCount: 16,
@@ -361,6 +412,9 @@ const initialBatches = [
     termKind: TERM_KIND_LONG,
     dropDeadlineWeek: 2,
     notifyTemplate: 'default-g1',
+    isSelectable: true,
+    localRules: defaultBatchLocalRules(),
+    round1Quota: defaultRound1Quota('GE', '', SESSION),
   },
   {
     id: 'batch-2504-g2',
@@ -370,10 +424,10 @@ const initialBatches = [
     status: 'active',
     roundsSummary: 'R1 01-Sep–03-Sep · R2 06-Sep–08-Sep',
     ...withScopeRules([]),
-    /** Demo：当前第一轮；二三轮未配或未开放 */
-    demoActiveRound: 'preselect',
-    demoClosedRounds: [],
-    volunteerFinalConfirmedAt: null,
+    /** Demo：当前第二轮可操作；第一轮关闭 */
+    demoActiveRound: 'main',
+    demoClosedRounds: ['preselect'],
+    volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
     creditMin: 3,
     creditMax: 6,
     courseCount: 10,
@@ -386,6 +440,9 @@ const initialBatches = [
     termKind: TERM_KIND_LONG,
     dropDeadlineWeek: 2,
     notifyTemplate: 'default-g2',
+    isSelectable: true,
+    localRules: defaultBatchLocalRules(),
+    round1Quota: defaultRound1Quota('GE', '', SESSION),
   },
   {
     id: 'batch-2504-g3',
@@ -395,7 +452,7 @@ const initialBatches = [
     status: 'active',
     roundsSummary: 'R1 01-Sep–03-Sep · R2 06-Sep–08-Sep · R3 11-Sep–12-Sep',
     ...withScopeRules([]),
-    /** Demo：当前第三轮；一二轮已过 */
+    /** Demo：当前第三轮可操作；一二轮关闭 */
     demoActiveRound: 'supplement',
     demoClosedRounds: ['preselect', 'main'],
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
@@ -411,6 +468,9 @@ const initialBatches = [
     termKind: TERM_KIND_LONG,
     dropDeadlineWeek: 2,
     notifyTemplate: 'default-g3',
+    isSelectable: true,
+    localRules: defaultBatchLocalRules(),
+    round1Quota: defaultRound1Quota('GE', '', SESSION),
   },
   {
     id: 'batch-2502-me-closed',
@@ -436,7 +496,7 @@ const initialBatches = [
     ]),
     creditMin: 12,
     creditMax: 20,
-    courseCount: 8,
+    courseCount: 20,
     rounds: {
       preselect: { start: '10-Jan-2025', end: '12-Jan-2025' },
       main: { start: '15-Jan-2025', end: '20-Jan-2025' },
@@ -476,7 +536,7 @@ function withAudienceRounds(item) {
     ? { ...DEMO_SENIOR_ROUNDS_202604 }
     : {
         ...(item.roundsByAudience?.senior || item.rounds || empty),
-        resultReleaseAt: item.roundsByAudience?.senior?.resultReleaseAt || '',
+        resultReleaseAt: item.roundsByAudience?.senior?.resultReleaseAt || DEMO_SENIOR_ROUNDS_202604.resultReleaseAt,
       }
   const freshman = useMailDemo
     ? { ...DEMO_FRESHMAN_ROUNDS_202604 }
@@ -770,7 +830,7 @@ export function addRegistrationBatch(payload) {
   }
   const addDropWindow = payload.addDropWindow || { start: '', end: '' }
   const roundsByAudience = payload.roundsByAudience || {
-    senior: { ...rounds, resultReleaseAt: '' },
+    senior: { ...rounds, resultReleaseAt: DEMO_SENIOR_ROUNDS_202604.resultReleaseAt },
     freshman: {
       preselect: { start: '', end: '' },
       main: { start: '', end: '' },
@@ -784,6 +844,7 @@ export function addRegistrationBatch(payload) {
     preselectPriority: { preferSenior: false, minSemestersAbove: 1 },
     isSelectable: true,
     localRules: defaultBatchLocalRules(),
+    round1Quota: defaultRound1Quota(payload.type || 'GE', payload.programme || '', payload.academicSession || ''),
     ...payload,
     rounds,
     roundsByAudience,
