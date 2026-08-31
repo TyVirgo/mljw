@@ -219,8 +219,26 @@ export function displayClassTimeVenueFromFields(fields, locale = 'zh') {
   return `${clock || '—'}(${venue})${weeks ? `(${weeks}周)` : ''}`
 }
 
+/** @param {string} timeStr Mon 14:00–16:00 */
+function parseTimeSlot(timeStr) {
+  const match = String(timeStr || '').match(/^(\w+)\s+(\d+):(\d+)[–-](\d+):(\d+)/)
+  if (!match) return null
+  return {
+    day: match[1],
+    start: Number(match[2]) * 60 + Number(match[3]),
+    end: Number(match[4]) * 60 + Number(match[5]),
+  }
+}
+
+/** 同周几时段是否重叠 */
+function timeSlotsOverlap(a, b) {
+  if (!a || !b || a.day !== b.day) return false
+  return a.start < b.end && b.start < a.end
+}
+
 /**
  * demo：无 meetings 时按分组 id 合成 1–3 段，便于 GE/ME 列表展示多行「上课时间地点」
+ * 同分组内追加段须与已有段同周几不重叠
  * 已有 meetings 的分组不受影响
  */
 function synthesizeDemoMeetings(section) {
@@ -234,23 +252,35 @@ function synthesizeDemoMeetings(section) {
   const room = section.room || section.venue || 'A1-101'
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
   const slots = [
+    [8, 10],
     [9, 11],
     [10, 12],
+    [13, 15],
     [14, 16],
-    [15, 17],
     [16, 18],
   ]
   const meetings = [{ time, room, weekRange }]
-  for (let i = 1; i < count; i++) {
-    const day = days[(h + i * 2) % days.length]
-    const [sh, eh] = slots[(h + i) % slots.length]
-    const roomNum = 100 + ((h + i * 7) % 80)
-    const roomBase = String(room).replace(/#?\d+$/, '') || 'D5-1'
-    meetings.push({
-      time: `${day} ${pad2(sh)}:00–${pad2(eh)}:00`,
-      room: `${roomBase}${room.includes('#') ? '' : '-'}${roomNum}`.replace(/--+/g, '-'),
-      weekRange,
-    })
+  const parsedSlots = [parseTimeSlot(time)].filter(Boolean)
+  for (let i = 1; i < count; i += 1) {
+    let added = false
+    const maxAttempts = days.length * slots.length
+    for (let attempt = 0; attempt < maxAttempts && !added; attempt += 1) {
+      const day = days[(h + i * 2 + attempt) % days.length]
+      const [sh, eh] = slots[(h + i + attempt) % slots.length]
+      const candidateTime = `${day} ${pad2(sh)}:00–${pad2(eh)}:00`
+      const candidate = parseTimeSlot(candidateTime)
+      if (!candidate) continue
+      if (parsedSlots.some((existing) => timeSlotsOverlap(existing, candidate))) continue
+      const roomNum = 100 + ((h + i * 7 + attempt) % 80)
+      const roomBase = String(room).replace(/#?\d+$/, '') || 'D5-1'
+      meetings.push({
+        time: candidateTime,
+        room: `${roomBase}${room.includes('#') ? '' : '-'}${roomNum}`.replace(/--+/g, '-'),
+        weekRange,
+      })
+      parsedSlots.push(candidate)
+      added = true
+    }
   }
   return meetings
 }

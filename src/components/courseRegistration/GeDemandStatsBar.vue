@@ -70,6 +70,10 @@ const geDemandStats = computed(() => getGeDemandStats())
   border-top-color: #22c55e;
 }
 
+.cr-ge-demand-cat--aiOpen {
+  border-top-color: #8b5cf6;
+}
+
 .cr-ge-demand-cat-head {
   display: flex;
   align-items: center;

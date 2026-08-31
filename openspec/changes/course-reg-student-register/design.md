@@ -125,7 +125,7 @@
 ## Decisions
 
 1. `flattenCoursesToSectionRows(courses)`：无 sections 时仍出一行（分组字段 —，不可选课）。
-2. 分页对 flattened 列表按默认 `pageSize` 切片；`total` 为展开行数；不按「课」聚合、不保证同课分组同页。
+2. **§8 修订**：分页按课程聚合（`paginateSectionRowsByCourse`）；`total` 为课程门数；同课分组不跨页；页内纵向滚动。课级列 rowspan 合并序号/代码/名称/类型/校选课类型/学分/先修（ME 含课程组）。
 3. 名额列用 section `enrolled/capacity`；课级 `eligibility` / 先修 / 类型 / 学分每行复用。
 4. `canRegisterRow`：课可选且分组未满且未占用。
 5. 行内「立即选课」打开 `ConfirmDialog` 询问是否确认选择；确认后调用 `submitSingleCourseRegistration`；取消关闭弹框。去掉 picker。
@@ -365,12 +365,12 @@
 ## Decisions
 
 1. 搜索表单去掉 `eligibility`；`filterStudentCourseList` 不再处理 eligibility（避免死代码路径被误用）。
-2. availability 标签用 `courses.enrolled`（已选/容量）；过滤移到 `sectionRows`：open=分组未满，full=分组已满或无分组。
+2. availability 标签用 `courses.enrolled`（已选/容量）；**§8 修订**：`filterCoursesBySectionAvailability` 在课级判定，任一分组命中则保留该课全部分组行后再展平。
 3. `filterStudentCourseList` 去掉 availability，避免课级与行级双重过滤。
 
 ## Risks
 
-- 一门课多分组时，「有余量」只显示未满分组行（符合主表语义）。
+- 一门课多分组时，「有余量」展示该课全部分组行（任一分组有余量即保留整课）。
 
 ## 来源：unify-round-direct-register
 

@@ -25,6 +25,11 @@ const props = defineProps({
     type: Array,
     default: () => menuItems,
   },
+  /** 菜单链之后的额外层级（如学生选课批次名） */
+  extraCrumbs: {
+    type: Array,
+    default: () => [],
+  },
 })
 
 const { t } = useAppI18n()
@@ -40,7 +45,9 @@ const crumbs = computed(() => {
   } else {
     keys = buildKeys(props.pageId, props.moduleKey, props.items)
   }
-  return keys.map((key) => t(key))
+  const menuLabels = keys.map((key) => t(key))
+  const extra = (props.extraCrumbs || []).map((item) => String(item || '').trim()).filter(Boolean)
+  return extra.length ? [...menuLabels, ...extra] : menuLabels
 })
 </script>
 

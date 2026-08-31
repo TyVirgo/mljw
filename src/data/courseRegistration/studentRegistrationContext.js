@@ -21,45 +21,59 @@ import {
 } from './studentVolunteerSheet.js'
 import { LONG_SEMESTER_CREDIT_MIN, LONG_SEMESTER_CREDIT_MAX } from './registrationRules.js'
 import { normalizeRegistrationType } from './registrationTypes.js'
-import { getAudienceRounds } from './audienceRounds.js'
+import { getEffectiveAudienceRounds } from './audienceRounds.js'
 import { getStudentAudience } from './studentAudience.js'
 
 const DEFAULT_ELECTIVE = {
   ge: 4,
   me: 6,
-  geMax: 12,
-  meMax: 16,
+  geMax: 18,
+  meMax: 22,
 }
 
-/** Demo：毕业 GE 类别累计（次要展示） */
+/** Demo：毕业 GE 类别累计（首次选课：已选≡本学期；要求更大） */
 export const DEFAULT_GRADUATION_GE_PROGRESS = {
-  humanities: 4,
-  business: 3,
-  science: 2,
-  required: { humanities: 6, business: 6, science: 6 },
+  humanities: 5,
+  business: 5,
+  science: 3,
+  aiOpen: 0,
+  required: { humanities: 12, business: 12, science: 12, aiOpen: 12 },
+}
+
+/** Demo：毕业 ME 类别累计（首次选课：已选≡本学期；要求更大） */
+export const DEFAULT_GRADUATION_ME_PROGRESS = {
+  humanities: 6,
+  business: 7,
+  science: 5,
+  required: { humanities: 12, business: 20, science: 16 },
 }
 
 /**
  * Demo：本学期 ME 文/商/理（字段名历史保留 termGeCategories）
- * 三类 required 之和 = 本学期 ME 局部；默认 6+5+5 = 16，与 meMax 对齐
+ * 三类 required 之和 = 本学期 ME 局部；默认 7+8+7 = 22，与 meMax 对齐
+ * 已选默认对齐确认半池汇总示意（文6+商7+理5=18）
  */
 export const DEFAULT_TERM_GE_CATEGORIES = {
-  humanities: 0,
-  business: 4,
-  science: 2,
-  required: { humanities: 6, business: 5, science: 5 },
+  humanities: 6,
+  business: 7,
+  science: 5,
+  required: { humanities: 7, business: 8, science: 7 },
 }
 
 /**
- * Demo：本学期 GE 文/商/理（毕业 GE 类别在本学期配额）
- * 三类 required 之和 = 本学期 GE 局部；默认 4+4+4 = 12，与 geMax 对齐；当前 1+1+1 = 3
+ * Demo：本学期 GE 文/商/理/AI与开放选修
+ * 四类 required 之和 = 本学期 GE 局部；默认 5+5+4+4 = 18，与 geMax 对齐
+ * 已选默认对齐确认半池汇总示意（文5+商5+理3+AI0=13）
  */
 export const DEFAULT_TERM_GE_ELECTIVE_CATEGORIES = {
-  humanities: 1,
-  business: 1,
-  science: 1,
-  required: { humanities: 4, business: 4, science: 4 },
+  humanities: 5,
+  business: 5,
+  science: 3,
+  aiOpen: 0,
+  required: { humanities: 5, business: 5, science: 4, aiOpen: 4 },
 }
+
+const GE_ELECTIVE_CATEGORY_KEYS = ['humanities', 'business', 'science', 'aiOpen']
 
 /**
  * 规范化类别进度 { current 字段 + required }
@@ -67,17 +81,25 @@ export const DEFAULT_TERM_GE_ELECTIVE_CATEGORIES = {
  * @param {object} fallback
  */
 function normalizeCategoryProgress(raw, fallback) {
+  const hasAiOpen = fallback.required?.aiOpen != null
   const required = {
     humanities: Number(raw?.required?.humanities) || fallback.required.humanities,
     business: Number(raw?.required?.business) || fallback.required.business,
     science: Number(raw?.required?.science) || fallback.required.science,
   }
-  return {
+  if (hasAiOpen) {
+    required.aiOpen = Number(raw?.required?.aiOpen) || fallback.required.aiOpen
+  }
+  const result = {
     humanities: Number(raw?.humanities) || 0,
     business: Number(raw?.business) || 0,
     science: Number(raw?.science) || 0,
     required,
   }
+  if (hasAiOpen) {
+    result.aiOpen = Number(raw?.aiOpen) || 0
+  }
+  return result
 }
 
 /**
@@ -119,15 +141,21 @@ export function normalizeTermGeElectiveCategories(raw, geRequired) {
   const base = normalizeCategoryProgress(raw, DEFAULT_TERM_GE_ELECTIVE_CATEGORIES)
   const target = Number(geRequired)
   if (!Number.isFinite(target) || target <= 0) return base
-  const sum =
-    base.required.humanities + base.required.business + base.required.science
+  const sum = GE_ELECTIVE_CATEGORY_KEYS.reduce((acc, key) => acc + base.required[key], 0)
   if (sum === target) return base
-  const h = Math.floor((base.required.humanities / sum) * target)
-  const b = Math.floor((base.required.business / sum) * target)
-  const s = target - h - b
+  let allocated = 0
+  const scaled = {}
+  GE_ELECTIVE_CATEGORY_KEYS.forEach((key, index) => {
+    if (index === GE_ELECTIVE_CATEGORY_KEYS.length - 1) {
+      scaled[key] = target - allocated
+    } else {
+      scaled[key] = Math.floor((base.required[key] / sum) * target)
+      allocated += scaled[key]
+    }
+  })
   return {
     ...base,
-    required: { humanities: h, business: b, science: s },
+    required: scaled,
   }
 }
 
@@ -138,9 +166,10 @@ export function normalizeTermGeElectiveCategories(raw, geRequired) {
 export const DEMO_GE_DEMAND_STATS = {
   total: 1215,
   categories: [
-    { key: 'humanities', shortKey: 'courseRegistration.student.geDemand.short.humanities', count: 255, percent: 21 },
-    { key: 'business', shortKey: 'courseRegistration.student.geDemand.short.business', count: 277, percent: 23 },
-    { key: 'science', shortKey: 'courseRegistration.student.geDemand.short.science', count: 683, percent: 56 },
+    { key: 'humanities', shortKey: 'courseRegistration.student.geDemand.short.humanities', count: 220, percent: 18 },
+    { key: 'business', shortKey: 'courseRegistration.student.geDemand.short.business', count: 240, percent: 20 },
+    { key: 'science', shortKey: 'courseRegistration.student.geDemand.short.science', count: 590, percent: 49 },
+    { key: 'aiOpen', shortKey: 'courseRegistration.student.geDemand.short.aiOpen', count: 165, percent: 13 },
   ],
 }
 
@@ -154,6 +183,28 @@ export const DEMO_PROGRAMME_CREDIT_TARGETS = {
   electiveRequired: 36,
   meRequired: 24,
   geRequired: 12,
+}
+
+/** 按专业码覆盖培养方案学分要求；未配置则回落 DEMO_PROGRAMME_CREDIT_TARGETS */
+const PROGRAMME_CREDIT_TARGETS_BY_CODE = {
+  SWE: DEMO_PROGRAMME_CREDIT_TARGETS,
+}
+
+/**
+ * 读取专业培养方案学分要求（demo；正式环境对接方案接口）
+ * @param {string} [programmeCode]
+ */
+export function getProgrammeCreditTargets(programmeCode) {
+  const code = String(programmeCode || '').trim()
+  return PROGRAMME_CREDIT_TARGETS_BY_CODE[code] || DEMO_PROGRAMME_CREDIT_TARGETS
+}
+
+/**
+ * 该专业是否需修 GE（geRequired > 0）；无 GE 要求时入口仅展示 ME 卡
+ * @param {string} [programmeCode]
+ */
+export function studentHasGeElectiveRequirement(programmeCode) {
+  return (Number(getProgrammeCreditTargets(programmeCode).geRequired) || 0) > 0
 }
 
 /**
@@ -331,6 +382,7 @@ function deriveTermGeElectiveFromGraduation(graduation, geRequired) {
       humanities: Math.min(g.humanities, g.required.humanities),
       business: Math.min(g.business, g.required.business),
       science: Math.min(g.science, g.required.science),
+      aiOpen: Math.min(g.aiOpen || 0, g.required.aiOpen || 0),
       required: DEFAULT_TERM_GE_ELECTIVE_CATEGORIES.required,
     },
     target,
@@ -338,8 +390,8 @@ function deriveTermGeElectiveFromGraduation(graduation, geRequired) {
 }
 
 /** @param {object} progress 含 humanities/business/science + required */
-function categoryBarsFromProgress(progress) {
-  return [
+function categoryBarsFromProgress(progress, { includeAiOpen = false } = {}) {
+  const bars = [
     {
       key: 'humanities',
       labelKey: 'courseRegistration.student.graduationGe.humanities',
@@ -359,6 +411,15 @@ function categoryBarsFromProgress(progress) {
       max: progress.required.science,
     },
   ]
+  if (includeAiOpen && progress.required?.aiOpen != null) {
+    bars.push({
+      key: 'aiOpen',
+      labelKey: 'courseRegistration.student.graduationGe.aiOpen',
+      current: progress.aiOpen || 0,
+      max: progress.required.aiOpen,
+    })
+  }
+  return bars
 }
 
 /**
@@ -395,7 +456,7 @@ export function getTermGeElectiveCategoryBars(row) {
         ),
       }
     : getStudentCreditLayers()
-  return categoryBarsFromProgress(layers.termGeElectiveCategories)
+  return categoryBarsFromProgress(layers.termGeElectiveCategories, { includeAiOpen: true })
 }
 
 /**
@@ -417,23 +478,29 @@ export function wouldExceedTermElectiveCap(type, addCredits = 0, studentId) {
  */
 export function buildAddDropPlanRemaining(studentId = getStudentProfileFields().studentId) {
   const layers = getStudentCreditLayers(studentId)
-  const remCat = (cat) => ({
-    humanities: Math.max(0, (Number(cat?.required?.humanities) || 0) - (Number(cat?.humanities) || 0)),
-    business: Math.max(0, (Number(cat?.required?.business) || 0) - (Number(cat?.business) || 0)),
-    science: Math.max(0, (Number(cat?.required?.science) || 0) - (Number(cat?.science) || 0)),
-  })
+  const remCat = (cat, includeAiOpen = false) => {
+    const out = {
+      humanities: Math.max(0, (Number(cat?.required?.humanities) || 0) - (Number(cat?.humanities) || 0)),
+      business: Math.max(0, (Number(cat?.required?.business) || 0) - (Number(cat?.business) || 0)),
+      science: Math.max(0, (Number(cat?.required?.science) || 0) - (Number(cat?.science) || 0)),
+    }
+    if (includeAiOpen && cat?.required?.aiOpen != null) {
+      out.aiOpen = Math.max(0, (Number(cat.required.aiOpen) || 0) - (Number(cat.aiOpen) || 0))
+    }
+    return out
+  }
   const p = getTermElectiveCreditProgress(studentId)
   return {
     geRemaining: Math.max(0, (p.geMax || 0) - (p.ge || 0)),
     meRemaining: Math.max(0, (p.meMax || 0) - (p.me || 0)),
-    geCategory: remCat(layers.termGeElectiveCategories),
+    geCategory: remCat(layers.termGeElectiveCategories, true),
     meCategory: remCat(layers.termGeCategories),
   }
 }
 
 /**
  * 本学期某文商理类别是否将超配额
- * @param {'humanities'|'business'|'science'} categoryKey
+ * @param {'humanities'|'business'|'science'|'aiOpen'} categoryKey
  * @param {number} addCredits
  * @param {string} [studentId]
  */
@@ -460,10 +527,12 @@ export function getGraduationGeProgress(studentId = getStudentProfileFields().st
       humanities: row.g1Progress.humanities,
       business: row.g1Progress.business,
       science: row.g1Progress.science,
+      aiOpen: row.g1Progress.aiOpen,
       required: {
         humanities: row.g1Progress.required?.humanities,
         business: row.g1Progress.required?.business,
         science: row.g1Progress.required?.science,
+        aiOpen: row.g1Progress.required?.aiOpen,
       },
     })
   }
@@ -471,33 +540,35 @@ export function getGraduationGeProgress(studentId = getStudentProfileFields().st
 }
 
 /**
- * 毕业 GE 类别累计进度条（次要；顶栏主闸请用 getTermGeCategoryBars）
+ * 毕业 GE 类别累计：首次选课叙事下已选取本学期 GE 分类，要求用毕业配额
  * @param {object} [row] 监控行；缺省取当前学生
  */
 export function getGraduationGeBars(row) {
-  const progress = row
+  const termBars = getTermGeElectiveCategoryBars(row)
+  const required = (row
     ? normalizeGraduationGeProgress(row.graduationGeProgress || row.g1Progress)
     : getGraduationGeProgress()
-  return [
-    {
-      key: 'humanities',
-      labelKey: 'courseRegistration.student.graduationGe.humanities',
-      current: progress.humanities,
-      max: progress.required.humanities,
-    },
-    {
-      key: 'business',
-      labelKey: 'courseRegistration.student.graduationGe.business',
-      current: progress.business,
-      max: progress.required.business,
-    },
-    {
-      key: 'science',
-      labelKey: 'courseRegistration.student.graduationGe.science',
-      current: progress.science,
-      max: progress.required.science,
-    },
-  ]
+  ).required
+  return termBars.map((bar) => ({
+    ...bar,
+    max: Number(required[bar.key]) || bar.max,
+  }))
+}
+
+/**
+ * 毕业 ME 类别累计：已选取本学期 ME 分类，要求用毕业配额
+ * @param {object} [row] 监控行；缺省取当前学生
+ */
+export function getGraduationMeBars(row) {
+  const termBars = getTermGeCategoryBars(row)
+  const live = row || getStudentMonitorRow()
+  const required = normalizeGraduationGeProgress(
+    live?.graduationMeProgress || DEFAULT_GRADUATION_ME_PROGRESS,
+  ).required
+  return termBars.map((bar) => ({
+    ...bar,
+    max: Number(required[bar.key]) || bar.max,
+  }))
 }
 
 /**
@@ -540,7 +611,7 @@ function resolveTermSummaryPublishStatus(batch, phaseKey) {
   const hasConfirmedOrder = preferenceOrderConfirmed.value
   const hasPending = (studentPendingAssignCourses.value || []).length > 0
   const releaseAt = getResultReleaseAt(batch)
-  if (hasConfirmedOrder) {
+  if (hasConfirmedOrder || (phaseKey === 'preselect' && hasPending)) {
     if (!isVolunteerResultReleased(batch)) {
       return { key: 'waitingRelease', releaseAt }
     }
@@ -550,9 +621,6 @@ function resolveTermSummaryPublishStatus(batch, phaseKey) {
       return { key: 'releasedWithMiss', releaseAt }
     }
     return { key: 'releasedAllHit', releaseAt }
-  }
-  if (phaseKey === 'preselect' && hasPending) {
-    return { key: 'orderUnconfirmed', releaseAt: '' }
   }
   if (phaseKey === 'preselect') {
     return { key: 'volunteerOpen', releaseAt: '' }
@@ -674,7 +742,7 @@ export function getActiveRoundPhase(batch = getActiveBatch(), audience = getStud
 }
 
 export function getRoundTimeline(batch = getActiveBatch(), highlightKey, audience = getStudentAudience()) {
-  const rounds = getAudienceRounds(batch, audience)
+  const rounds = getEffectiveAudienceRounds(batch, audience)
   if (!rounds) return []
   const active = highlightKey || getActiveRoundPhase(batch, audience).key
   const steps = [
@@ -707,7 +775,7 @@ export function getStudentAudienceBanner(studentId) {
   const profile = getStudentProfileFields()
   const id = studentId || profile.studentId
   const audience = getStudentAudience(id)
-  const caps = profile.termCreditCaps || { geMax: 12, meMax: 16 }
+  const caps = profile.termCreditCaps || { geMax: 18, meMax: 22 }
   return {
     audience,
     registrationSemesterIndex: profile.registrationSemesterIndex,

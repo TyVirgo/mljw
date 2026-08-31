@@ -8,6 +8,7 @@ const LEGACY_SEMESTER_MAP = {
 
 /** 与学籍/异动模块一致的学年学期选项（新→旧） */
 export const registrationAcademicSessionOptions = [
+  '2026/09',
   '2026/04',
   '2026/02',
   '2025/09',
@@ -289,7 +290,7 @@ export function addDaysToPickerDate(value, days) {
   return formatPickerDate(date)
 }
 
-/** 批次时间链字段顺序（picker 值） */
+/** 批次时间链字段顺序（picker 值）— 批次表单加退课用，不含结果公布 */
 export function getBatchSchedulePickerValues(form) {
   return [
     form?.rounds?.preselect?.start || '',
@@ -304,12 +305,12 @@ export function getBatchSchedulePickerValues(form) {
 }
 
 /**
- * 各字段最小可选时刻。
- * 同窗结束 ≥ 开始；跨窗下一段开始 ≥ 上一段结束的次日 00:00:00。
+ * 各字段最小可选时刻（批次表单 / 加退课）。
+ * 同窗结束 ≥ 开始；跨窗下一段开始 ≥ 上一段结束（允许同时刻）。
  */
 export function getBatchScheduleMinDates(form) {
   const values = getBatchSchedulePickerValues(form)
-  const mins = Array(8).fill('')
+  const mins = Array(values.length).fill('')
 
   function lastBound(beforeIndex) {
     for (let i = beforeIndex - 1; i >= 0; i -= 1) {
@@ -318,17 +319,54 @@ export function getBatchScheduleMinDates(form) {
     return ''
   }
 
-  for (let i = 0; i < 8; i += 1) {
+  for (let i = 0; i < values.length; i += 1) {
     if (i === 0) {
       mins[i] = ''
       continue
     }
-    const prev = lastBound(i)
-    if (!prev) {
-      mins[i] = ''
-      continue
+    mins[i] = lastBound(i)
+  }
+  return mins
+}
+
+/**
+ * 管理轮次时间链（picker）。
+ * 老生含结果公布：R1起、R1止、公布、R2起、R2止、R3起、R3止
+ * 新生无公布：R1起、R1止、R2起、R2止、R3起、R3止
+ * @param {object} form
+ * @param {{ includeResultRelease?: boolean }} [options]
+ */
+export function getManageRoundsSchedulePickerValues(form, options = {}) {
+  const includeRelease = Boolean(options.includeResultRelease)
+  const values = [form?.rounds?.preselect?.start || '', form?.rounds?.preselect?.end || '']
+  if (includeRelease) {
+    values.push(form?.seniorResultReleaseAt || '')
+  }
+  values.push(
+    form?.rounds?.main?.start || '',
+    form?.rounds?.main?.end || '',
+    form?.rounds?.supplement?.start || '',
+    form?.rounds?.supplement?.end || '',
+  )
+  return values
+}
+
+/**
+ * 管理轮次各字段最小可选时刻：后序 ≥ 前序锚点（允许同时刻）。
+ * @param {object} form
+ * @param {{ includeResultRelease?: boolean }} [options]
+ */
+export function getManageRoundsScheduleMinDates(form, options = {}) {
+  const values = getManageRoundsSchedulePickerValues(form, options)
+  const mins = Array(values.length).fill('')
+  function lastBound(beforeIndex) {
+    for (let i = beforeIndex - 1; i >= 0; i -= 1) {
+      if (values[i]) return values[i]
     }
-    mins[i] = i % 2 === 1 ? prev : addDaysToPickerDate(prev, 1)
+    return ''
+  }
+  for (let i = 0; i < values.length; i += 1) {
+    mins[i] = i === 0 ? '' : lastBound(i)
   }
   return mins
 }
@@ -342,7 +380,7 @@ export function isPickerDateOnOrAfter(value, minValue) {
   return a.getTime() >= b.getTime()
 }
 
-/** 从 changedIndex 起，清空不满足最小日约束的后续字段 */
+/** 从 changedIndex 起，清空不满足最小日约束的后续字段（批次表单） */
 export function clearInvalidBatchScheduleAfter(form, changedIndex) {
   const setters = [
     (v) => {
@@ -371,7 +409,7 @@ export function clearInvalidBatchScheduleAfter(form, changedIndex) {
     },
   ]
   const values = getBatchSchedulePickerValues(form)
-  for (let i = changedIndex + 1; i < 8; i += 1) {
+  for (let i = changedIndex + 1; i < values.length; i += 1) {
     const liveMins = getBatchScheduleMinDates(form)
     if (values[i] && !isPickerDateOnOrAfter(values[i], liveMins[i])) {
       setters[i]('')
@@ -379,3 +417,66 @@ export function clearInvalidBatchScheduleAfter(form, changedIndex) {
     }
   }
 }
+
+/**
+ * 管理轮次：从 changedIndex 起清空不满足 min 的后续字段
+ * @param {object} form
+ * @param {number} changedIndex
+ * @param {{ includeResultRelease?: boolean }} [options]
+ */
+export function clearInvalidManageRoundsScheduleAfter(form, changedIndex, options = {}) {
+  const includeRelease = Boolean(options.includeResultRelease)
+  const setters = includeRelease
+    ? [
+        (v) => {
+          form.rounds.preselect.start = v
+        },
+        (v) => {
+          form.rounds.preselect.end = v
+        },
+        (v) => {
+          form.seniorResultReleaseAt = v
+        },
+        (v) => {
+          form.rounds.main.start = v
+        },
+        (v) => {
+          form.rounds.main.end = v
+        },
+        (v) => {
+          form.rounds.supplement.start = v
+        },
+        (v) => {
+          form.rounds.supplement.end = v
+        },
+      ]
+    : [
+        (v) => {
+          form.rounds.preselect.start = v
+        },
+        (v) => {
+          form.rounds.preselect.end = v
+        },
+        (v) => {
+          form.rounds.main.start = v
+        },
+        (v) => {
+          form.rounds.main.end = v
+        },
+        (v) => {
+          form.rounds.supplement.start = v
+        },
+        (v) => {
+          form.rounds.supplement.end = v
+        },
+      ]
+  const values = getManageRoundsSchedulePickerValues(form, options)
+  for (let i = changedIndex + 1; i < values.length; i += 1) {
+    const liveMins = getManageRoundsScheduleMinDates(form, options)
+    if (values[i] && !isPickerDateOnOrAfter(values[i], liveMins[i])) {
+      setters[i]('')
+      values[i] = ''
+    }
+  }
+}
+

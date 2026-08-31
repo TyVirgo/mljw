@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import Sidebar from './components/Sidebar.vue'
 import HeaderBar from './components/HeaderBar.vue'
 import PageBreadcrumb from './components/PageBreadcrumb.vue'
@@ -31,6 +31,7 @@ import MovementQueryView from './views/studentRecords/MovementQueryView.vue'
 import MovementStatisticsView from './views/studentRecords/MovementStatisticsView.vue'
 import MovementRuleSettingsView from './views/studentRecords/MovementRuleSettingsView.vue'
 import RegistrationBatchView from './views/courseRegistration/RegistrationBatchView.vue'
+import RegistrationScheduleView from './views/courseRegistration/RegistrationScheduleView.vue'
 import RegistrationRuleSettingsView from './views/courseRegistration/RegistrationRuleSettingsView.vue'
 import RegistrationMonitorView from './views/courseRegistration/RegistrationMonitorView.vue'
 import AddDropApprovalView from './views/courseRegistration/AddDropApprovalView.vue'
@@ -59,6 +60,9 @@ import {
 } from './config/courseRegistrationMenu.js'
 import { processDueImplementations } from './data/movementImplementationScheduler.js'
 import { seedStudentRegistrationDemo } from './data/courseRegistration/studentDemoSeed.js'
+import { useAppI18n } from './composables/useAppI18n.js'
+
+const { t } = useAppI18n()
 
 onMounted(() => {
   processDueImplementations()
@@ -67,6 +71,9 @@ onMounted(() => {
 
 const appView = ref('portal')
 const currentPageId = ref('dashboard')
+const crsRegisterViewRef = ref(null)
+const crsRegisterListActive = ref(false)
+const crsRegisterExtraCrumbs = ref([])
 
 const isStudentRecordsApp = computed(() => appView.value === 'student-records')
 const isCourseRegistrationApp = computed(() => appView.value === 'course-registration')
@@ -109,6 +116,7 @@ const isSrUnderConstruction = computed(() => !studentRecordsDevelopedPages.has(c
 
 const isCrFlowGuide = computed(() => currentPageId.value === 'cr-flow-guide')
 const isCrBatch = computed(() => currentPageId.value === 'cr-batch')
+const isCrSchedule = computed(() => currentPageId.value === 'cr-schedule')
 const isCrRules = computed(() => currentPageId.value === 'cr-rules')
 const isCrMonitor = computed(() => currentPageId.value === 'cr-monitor')
 const isCrApproval = computed(() => currentPageId.value === 'cr-approval')
@@ -187,6 +195,25 @@ function handleCrNavigate(pageId) {
   currentPageId.value = pageId === 'cr-courses' ? 'cr-batch' : pageId
 }
 
+function onCrsRegisterListActive(active) {
+  crsRegisterListActive.value = Boolean(active)
+}
+
+function onCrsRegisterBreadcrumbExtra(crumbs) {
+  crsRegisterExtraCrumbs.value = Array.isArray(crumbs) ? crumbs.filter(Boolean) : []
+}
+
+function handleCrsRegisterBack() {
+  crsRegisterViewRef.value?.backToCatalog?.()
+}
+
+watch(isCrsRegister, (on) => {
+  if (!on) {
+    crsRegisterListActive.value = false
+    crsRegisterExtraCrumbs.value = []
+  }
+})
+
 function openStudentPreviewPortal() {
   currentPageId.value = 'sr-movement-application-student'
 }
@@ -219,9 +246,22 @@ function openStudentPreviewPortal() {
           :page-id="currentPageId"
           :module-key="headerModuleKey"
           :items="sidebarItems ?? undefined"
+          :extra-crumbs="isCrsRegister ? crsRegisterExtraCrumbs : []"
         >
           <template v-if="isCourseRegistrationApp" #trailing>
-            <ModuleBriefPanel :page-id="currentPageId" />
+            <button
+              v-if="isCrsRegister && crsRegisterListActive"
+              type="button"
+              class="crs-register-back-btn"
+              @click="handleCrsRegisterBack"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <line x1="19" y1="12" x2="5" y2="12" />
+                <polyline points="12 19 5 12 12 5" />
+              </svg>
+              {{ t('courseRegistration.student.typeEntry.backToCatalog') }}
+            </button>
+            <ModuleBriefPanel v-else-if="!isCrsRegister" :page-id="currentPageId" />
           </template>
         </PageBreadcrumb>
         <main class="main-content">
@@ -247,6 +287,7 @@ function openStudentPreviewPortal() {
 
           <template v-else-if="isCourseRegistrationApp">
             <CourseRegistrationFlowGuideView v-if="isCrFlowGuide" @navigate="handleCrNavigate" />
+            <RegistrationScheduleView v-else-if="isCrSchedule" />
             <RegistrationBatchView v-else-if="isCrBatch" @navigate="handleCrNavigate" />
             <RegistrationRuleSettingsView v-else-if="isCrRules" />
             <RegistrationMonitorView v-else-if="isCrMonitor" @navigate="handleCrNavigate" />
@@ -255,7 +296,13 @@ function openStudentPreviewPortal() {
             <RegistrationResultView v-else-if="isCrResult" />
             <RegistrationLogView v-else-if="isCrLog" />
             <FeeRosterView v-else-if="isCrFeeRoster" />
-            <StudentRegisterView v-else-if="isCrsRegister" @navigate="handleCrNavigate" />
+            <StudentRegisterView
+              v-else-if="isCrsRegister"
+              ref="crsRegisterViewRef"
+              @navigate="handleCrNavigate"
+              @list-active="onCrsRegisterListActive"
+              @breadcrumb-extra="onCrsRegisterBreadcrumbExtra"
+            />
             <StudentAddDropView v-else-if="isCrsAddDrop" @navigate="handleCrNavigate" />
             <StudentMyResultView v-else-if="isCrsResult" @navigate="handleCrNavigate" />
             <UnderConstructionView v-else-if="isCrUnderConstruction" @back="handleCrBack" />
@@ -321,6 +368,33 @@ function openStudentPreviewPortal() {
   overflow-y: auto;
   background: #f3f4f6;
   min-width: 0;
+}
+
+.crs-register-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.crs-register-back-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.crs-register-back-btn:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 
 </style>

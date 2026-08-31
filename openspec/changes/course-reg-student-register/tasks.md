@@ -258,6 +258,16 @@
 - [x] 1.2 有余量/已满按分组行过滤
 ```
 
+### course-level-table-merge（§8 · 2026-08）
+
+```
+## 1. 实现
+
+- [x] 1.1 `sectionTableRowSpans.js`：课级 rowspan、按课程分页、课级 availability 过滤
+- [x] 1.2 `StudentRegisterView`：序号按课程；同课不跨页；页内滚动
+- [x] 1.3 更新 spec/design；build 通过
+```
+
 ### unify-round-direct-register
 
 ```

@@ -1,7 +1,7 @@
 /**
  * 第一轮结果发布时间：倒计时、自动锁定、学生端公示同步
  */
-import { registrationBatches } from './registrationBatches.js'
+import { registrationBatches, isResultDemoBatch } from './registrationBatches.js'
 import {
   demoVolunteerReleaseMode,
   getResultReleaseAt,
@@ -124,6 +124,9 @@ export function autoLockVolunteerBatchAtRelease(batchId, opts = {}) {
   if (index === -1) return { ok: false }
   const batch = registrationBatches.value[index]
   if (batch.volunteerFinalConfirmedAt) return { ok: true, already: true }
+  if (isResultDemoBatch(batchId) && batch.demoResultReleaseFixed && !batch.demoResultReleaseFixed.released) {
+    return { ok: false }
+  }
 
   const countdown = getBatchReleaseCountdown(batchId)
   if (!opts.force && !countdown.released) return { ok: false }
@@ -156,6 +159,9 @@ export function tickAutoLockVolunteerBatchesAtRelease(nowMs = Date.now()) {
   const locked = []
   for (const batch of registrationBatches.value) {
     if (batch.volunteerFinalConfirmedAt) continue
+    if (isResultDemoBatch(batch.id) && batch.demoResultReleaseFixed && !batch.demoResultReleaseFixed.released) {
+      continue
+    }
     const cd = getBatchReleaseCountdown(batch.id, nowMs)
     if (!cd.atMs || !cd.released) continue
     const result = autoLockVolunteerBatchAtRelease(batch.id, { force: true })

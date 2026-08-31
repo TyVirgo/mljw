@@ -2,20 +2,15 @@
 import { ref, watch, computed } from 'vue'
 import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
 import CourseRegistrationCallout from './CourseRegistrationCallout.vue'
-import DatePickerEn from '../common/DatePickerEn.vue'
 import ExternalDataHint from './ExternalDataHint.vue'
+import MeQuotaRowsEditor from './MeQuotaRowsEditor.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { formatRoundsSummary } from '../../data/courseRegistration/registrationBatches.js'
 import {
   registrationAcademicSessionOptions,
   normalizeBatchAcademicSession,
   emptyRoundsPicker,
-  emptyAddDropWindowPicker,
-  addDropWindowToPicker,
-  addDropWindowFromPicker,
   validateBatchFormBasics,
-  getBatchScheduleMinDates,
-  clearInvalidBatchScheduleAfter,
 } from '../../data/courseRegistration/registrationBatchFormUtils.js'
 import {
   normalizeRegistrationType,
@@ -36,7 +31,16 @@ import {
   resolveBatchTermKind,
   resolveDropDeadlineWeek,
 } from '../../data/courseRegistration/batchTermKind.js'
-import { countGlobalBatchParticipants } from '../../data/courseRegistration/batchStudentRoster.js'
+import {
+  emptyBatchMeQuota,
+  normalizeBatchMeQuota,
+  normalizeIntakeKey,
+} from '../../data/courseRegistration/batchRound1Quota.js'
+import {
+  countGlobalBatchParticipants,
+  listBatchRosterStudents,
+  listGlobalBatchParticipants,
+} from '../../data/courseRegistration/batchStudentRoster.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -49,12 +53,14 @@ const { t } = useAppI18n()
 
 const form = ref(createEmptyForm())
 const errors = ref({})
+const meQuotaEditorRef = ref(null)
 
 function createEmptyForm() {
+  const meQuota = emptyBatchMeQuota()
   return {
     name: '',
     academicSession: '',
-    type: 'ME',
+    type: '',
     programme: '',
     isSelectable: true,
     localRules: defaultBatchLocalRules(),
@@ -64,7 +70,8 @@ function createEmptyForm() {
     termKind: 'long',
     notifyTemplate: 'default-m1',
     rounds: emptyRoundsPicker(),
-    addDropWindow: emptyAddDropWindowPicker(),
+    meQuotaTotalCap: meQuota.totalCap,
+    meQuotaRows: meQuota.meQuotaRows,
   }
 }
 
@@ -73,9 +80,11 @@ watch(
   (batch) => {
     errors.value = {}
     if (batch) {
+      const session = normalizeBatchAcademicSession(batch.academicSession || batch.semester)
+      const meQuota = normalizeBatchMeQuota(batch.round1Quota, session)
       form.value = {
         name: batch.name,
-        academicSession: normalizeBatchAcademicSession(batch.academicSession || batch.semester),
+        academicSession: session,
         type: normalizeRegistrationType(batch.type),
         programme: batch.programme || '',
         isSelectable: batch.isSelectable !== false,
@@ -86,7 +95,8 @@ watch(
         termKind: resolveBatchTermKind(batch),
         notifyTemplate: batch.notifyTemplate || 'default-m1',
         rounds: emptyRoundsPicker(),
-        addDropWindow: addDropWindowToPicker(batch.addDropWindow),
+        meQuotaTotalCap: meQuota.totalCap,
+        meQuotaRows: meQuota.meQuotaRows,
       }
     } else {
       form.value = createEmptyForm()
@@ -104,6 +114,8 @@ const isEdit = computed(() => !!props.batch)
 const typeFieldTooltip = computed(() => getBatchTypeFieldTooltip(t))
 
 const showProgrammeField = computed(() => form.value.type === 'ME')
+const showMeQuotaSection = computed(() => form.value.type === 'ME')
+const globalScopeStep = computed(() => (showMeQuotaSection.value ? 4 : 3))
 
 /** 编辑态用表单当前学期/专业推导全局人数 */
 const globalScopePreviewBatch = computed(() => {
@@ -132,20 +144,34 @@ function openGlobalStudentList() {
 watch(
   () => form.value.type,
   (type) => {
-    if (type !== 'ME') form.value.programme = ''
+    if (type !== 'ME') {
+      form.value.programme = ''
+      form.value.meQuotaRows = []
+      return
+    }
+    if (!props.batch) {
+      form.value.meQuotaRows = []
+      form.value.meQuotaTotalCap = emptyBatchMeQuota().totalCap
+    }
   },
 )
 
-const scheduleMinDates = computed(() => getBatchScheduleMinDates(form.value))
+const meQuotaValidationContext = computed(() => {
+  const ctx = { hasSpecialStudents: false, requiredIntakes: [] }
+  if (!props.batch?.id) return ctx
+  const special = listBatchRosterStudents(props.batch.id, 'special')
+  ctx.hasSpecialStudents = special.length > 0
+  const intakes = new Set()
+  for (const row of listGlobalBatchParticipants(globalScopePreviewBatch.value || props.batch)) {
+    const k = normalizeIntakeKey(row.intake)
+    if (k) intakes.add(k)
+  }
+  ctx.requiredIntakes = [...intakes]
+  return ctx
+})
 
 function err(field) {
   return errors.value[field] ? t(errors.value[field]) : ''
-}
-
-function onAddDropDateChange(index, value) {
-  if (index === 6) form.value.addDropWindow.start = value || ''
-  if (index === 7) form.value.addDropWindow.end = value || ''
-  clearInvalidBatchScheduleAfter(form.value, index)
 }
 
 function emptyRounds() {
@@ -173,7 +199,6 @@ function buildPayload(statusPatch = {}) {
         },
       }
     : emptyRounds()
-  const addDropWindow = addDropWindowFromPicker(form.value.addDropWindow)
   const scopeRules = props.batch ? cloneScopeRules(getBatchScopeRules(props.batch)) : []
   const localRules = normalizeBatchLocalRules(form.value.localRules)
 
@@ -192,15 +217,31 @@ function buildPayload(statusPatch = {}) {
     termKind: form.value.termKind || resolveBatchTermKind(form.value),
     notifyTemplate: form.value.notifyTemplate,
     rounds,
-    addDropWindow,
-    roundsSummary: formatRoundsSummary(rounds, addDropWindow),
+    roundsSummary: formatRoundsSummary(rounds, { start: '', end: '' }),
     preselectPriority: {
       preferSenior: false,
       minSemestersAbove: 1,
     },
     volunteerFinalConfirmedAt: props.batch?.volunteerFinalConfirmedAt || null,
+    ...(form.value.type === 'ME'
+      ? {
+          round1Quota: normalizeBatchMeQuota(
+            {
+              totalCap: form.value.meQuotaTotalCap,
+              meQuotaRows: form.value.meQuotaRows,
+            },
+            form.value.academicSession,
+          ),
+        }
+      : {}),
     ...statusPatch,
   }
+}
+
+function validateMeQuotaForSave() {
+  if (form.value.type !== 'ME') return true
+  if (!meQuotaEditorRef.value?.validate) return true
+  return meQuotaEditorRef.value.validate()
 }
 
 function handleSaveDraft() {
@@ -212,6 +253,7 @@ function handleSaveDraft() {
 function handleSave() {
   errors.value = validateBatchFormBasics(form.value)
   if (Object.keys(errors.value).length) return
+  if (!validateMeQuotaForSave()) return
   emit('save', buildPayload())
 }
 </script>
@@ -255,7 +297,12 @@ function handleSave() {
             <span class="req">*</span> {{ t('courseRegistration.batch.type') }}
             <ExternalDataHint :text="typeFieldTooltip" />
           </label>
-          <select v-model="form.type" class="form-input" :class="{ 'has-error': !!errors.type }">
+          <select
+            v-model="form.type"
+            class="form-input"
+            :class="{ 'has-error': !!errors.type, 'is-empty': !form.type }"
+          >
+            <option value="">{{ t('common.pleaseSelect') }}</option>
             <option v-for="opt in registrationBatchTypeOptions" :key="opt.value" :value="opt.value">
               {{ t(opt.labelKey) }}
             </option>
@@ -339,43 +386,24 @@ function handleSave() {
       </div>
     </section>
 
-    <section class="form-section">
+    <section v-if="showMeQuotaSection" class="form-section">
       <h3 class="section-title">
         <span class="step-badge">3</span>
-        {{ t('courseRegistration.batch.addDropWindow') }}
+        {{ t('courseRegistration.batch.sectionMeQuota') }}
       </h3>
-      <CourseRegistrationCallout variant="info">
-        <p>{{ t('courseRegistration.batch.addDropWindowVsRoundsTip') }}</p>
-      </CourseRegistrationCallout>
-      <div class="round-card">
-        <div class="round-fields">
-          <div class="form-field">
-            <label class="field-label">{{ t('courseRegistration.batch.roundStart') }}</label>
-            <DatePickerEn
-              mode="datetime"
-              :model-value="form.addDropWindow.start"
-              :placeholder="t('common.pleaseSelectDateTime')"
-              :min-date="scheduleMinDates[6]"
-              @update:model-value="(v) => onAddDropDateChange(6, v)"
-            />
-          </div>
-          <div class="form-field">
-            <label class="field-label">{{ t('courseRegistration.batch.roundEnd') }}</label>
-            <DatePickerEn
-              mode="datetime"
-              :model-value="form.addDropWindow.end"
-              :placeholder="t('common.pleaseSelectDateTime')"
-              :min-date="scheduleMinDates[7]"
-              @update:model-value="(v) => onAddDropDateChange(7, v)"
-            />
-          </div>
-        </div>
-      </div>
+      <MeQuotaRowsEditor
+        ref="meQuotaEditorRef"
+        v-model="form.meQuotaRows"
+        :total-cap="form.meQuotaTotalCap"
+        :academic-session="form.academicSession"
+        :programme="form.programme"
+        :validation-context="meQuotaValidationContext"
+      />
     </section>
 
     <section v-if="isEdit" class="form-section">
       <h3 class="section-title">
-        <span class="step-badge">4</span>
+        <span class="step-badge">{{ globalScopeStep }}</span>
         {{ t('courseRegistration.batch.sectionGlobalScope') }}
       </h3>
       <CourseRegistrationCallout variant="info">
@@ -539,7 +567,7 @@ function handleSave() {
 
 .local-rules-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px 16px;
   align-items: center;
 }

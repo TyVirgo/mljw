@@ -81,8 +81,8 @@ function finishQueueWithResult(result, options, context) {
  * @param {boolean} [options.silent] 不自动展示 overlay
  */
 export function runRegistrationQueue(context, options = {}) {
-  const minWait = options.minWait ?? 5
-  const maxWait = options.maxWait ?? 8
+  const minWait = options.minWait ?? 1
+  const maxWait = options.maxWait ?? 3
   const totalWait = minWait + Math.floor(Math.random() * (maxWait - minWait + 1))
 
   return new Promise((resolve, reject) => {

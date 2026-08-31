@@ -80,7 +80,8 @@ const showAttachmentsSection = computed(() => {
     Boolean(attachmentFile.value) ||
     app.value.dropChannel === 'special' ||
     app.value.type === 'Drop' ||
-    app.value.type === 'AddDrop'
+    app.value.type === 'AddDrop' ||
+    app.value.type === 'RetakeDrop'
   )
 })
 
@@ -112,7 +113,7 @@ function statusLabel(status) {
 function feeWaiverLabel() {
   const row = app.value
   if (!row) return '—'
-  if (row.type !== 'Drop' && row.type !== 'AddDrop') return '—'
+  if (row.type !== 'Drop' && row.type !== 'AddDrop' && row.type !== 'RetakeDrop') return '—'
   if (row.feeWaiver === true) return t('courseRegistration.student.feeWaiverYes')
   if (row.feeWaiver === false) return t('courseRegistration.student.feeWaiverNo')
   return '—'

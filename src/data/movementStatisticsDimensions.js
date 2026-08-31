@@ -6,7 +6,7 @@ import {
 const SCHOOL_NAME_TO_CODE = {
   'School of Computing': 'SOC',
   'School of Business': 'SOB',
-  'School of Foundation': 'SOF',
+  'School of Foundation': 'STCM',
 }
 
 const PROGRAMME_ALIASES = {

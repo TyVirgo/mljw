@@ -12,7 +12,7 @@ const SCHOOL_ID_TO_OFFERING_CODE = {
   soi: 'SOC',
   some: 'SOE',
   seem: 'SOB',
-  sbe: 'SOA',
+  sbe: 'SASS',
 }
 
 export const COURSE_CODE_PATTERN = /^[A-Za-z0-9]+$/
@@ -148,7 +148,7 @@ export const initialCourses = [
     id: 1,
     courseCode: 'PHY101',
     courseName: 'ASEAN Business Essentials',
-    offering: 'SOF',
+    offering: 'STCM',
     affiliatedProgramme: 'IBU',
     courseOwner: 'TML001',
     courseClassification: 'Compulsory',

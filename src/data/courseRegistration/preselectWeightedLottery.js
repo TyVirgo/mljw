@@ -1,21 +1,41 @@
 /**
- * 第一轮录取：毕业生优先 → GE 按日硬额度 / ME 按入学年池
- * 池内：人数≤容量全录；超额则均匀随机（毕业生超额改为提交时间先到先得）
+ * 第一轮录取：毕业生优先 → GE 按日串行额度（可结转）/ ME 按入学年池
+ * 池内：人数≤容量全录；超额则均匀随机
  */
 import { isGraduateStudent } from './studentAudience.js'
 import { getCourseAudienceCapacity } from './selectableCourses.js'
 import {
   getBatchRound1Quota,
   allocateDayQuotas,
-  allocateMeYearQuotas,
+  allocateMeQuotaRows,
   intakeYearFromValue,
+  normalizeIntakeKey,
+  resolveMeQuotaRowForVolunteer,
   dayWeights,
   openDaysFromRange,
   DEMO_ROUND1_OPEN_DAYS,
   DEFAULT_DECAY_R,
 } from './batchRound1Quota.js'
+import { resolveEffectiveAudienceRounds } from './sessionRegistrationSchedules.js'
 
 export { dayWeights }
+
+/** 由 batchStudentRoster 在模块末尾注入，避免与名单模块循环依赖 */
+let meSpecialStudentIdsResolver = null
+
+/** @param {(batchId: string) => string[]} fn */
+export function setMeSpecialStudentIdsResolver(fn) {
+  meSpecialStudentIdsResolver = typeof fn === 'function' ? fn : null
+}
+
+function resolveSpecialStudentIds(batchId) {
+  if (!batchId || !meSpecialStudentIdsResolver) return []
+  try {
+    return meSpecialStudentIdsResolver(batchId) || []
+  } catch {
+    return []
+  }
+}
 
 /**
  * 解析批次/志愿时间（ISO、YYYY-MM-DD HH:mm:ss、DD-Mon-YYYY）
@@ -45,7 +65,11 @@ export function dayIndexFromSubmittedAt(submittedAt, roundStart, nDays) {
 }
 
 export function getBatchRound1Window(batch) {
-  const pre = batch?.roundsByAudience?.senior?.preselect || batch?.rounds?.preselect || {}
+  const pre =
+    resolveEffectiveAudienceRounds(batch)?.senior?.preselect ||
+    batch?.roundsByAudience?.senior?.preselect ||
+    batch?.rounds?.preselect ||
+    {}
   return { start: pre.start || '', end: pre.end || '' }
 }
 
@@ -118,7 +142,9 @@ function withResultFlags(list, selected) {
 }
 
 /**
- * GE 第一轮：保留全部志愿，按选上（毕业生→按日）再未选上（按日）排序
+ * GE 第一轮：R1 结束后统一分配。毕业生占满容量则老生无名额；
+ * 老生总量≤剩余额度则全录；否则按衰退因子分日额度串行抽签，落选当日出局，未用额度结转次日，
+ * 若后续天人数可填满剩余空位则免随机全录。输出顺序：选上(毕业生→老生)→未选上。
  * @returns {object[]}
  */
 export function layoutGeRound1Roster(volunteers = [], opts = {}) {
@@ -138,11 +164,22 @@ export function layoutGeRound1Roster(volunteers = [], opts = {}) {
   }
   grads.sort((a, b) => String(a.submittedAt || '').localeCompare(String(b.submittedAt || '')))
 
-  const selectedGrads = capacity > 0 ? grads.slice(0, capacity) : []
-  const rejectedGrads = capacity > 0 ? grads.slice(capacity) : [...grads]
-  const remaining = Math.max(0, capacity - selectedGrads.length)
-  const dayQuotas =
-    remaining > 0 ? allocateDayQuotas(remaining, nDays, decayR) : Array.from({ length: nDays }, () => 0)
+  let selectedGrads = []
+  let rejectedGrads = []
+  let remaining = capacity
+
+  if (capacity <= 0) {
+    rejectedGrads = [...grads]
+    remaining = 0
+  } else if (grads.length <= capacity) {
+    selectedGrads = [...grads]
+    remaining = capacity - grads.length
+  } else {
+    const gradPick = partitionPool(grads, capacity, rand)
+    selectedGrads = gradPick.picked
+    rejectedGrads = gradPick.rest
+    remaining = 0
+  }
 
   const byDay = Array.from({ length: nDays }, () => [])
   for (const v of others) {
@@ -150,37 +187,75 @@ export function layoutGeRound1Roster(volunteers = [], opts = {}) {
     byDay[day - 1].push(v)
   }
 
-  const selectedByDay = []
-  const rejectedByDay = []
-  byDay.forEach((pool, idx) => {
-    const { picked, rest } = partitionPool(pool, dayQuotas[idx] || 0, rand)
-    selectedByDay.push(...picked)
-    rejectedByDay.push(...rest)
-  })
+  let selectedOthers = []
+  let rejectedOthers = []
+
+  if (remaining <= 0 || !others.length) {
+    rejectedOthers = [...others]
+  } else if (others.length <= remaining) {
+    selectedOthers = [...others]
+  } else {
+    const dayQuotas = allocateDayQuotas(remaining, nDays, decayR)
+    const excludedIds = new Set()
+    let carry = 0
+
+    for (let day = 1; day <= nDays; day += 1) {
+      let budget = (dayQuotas[day - 1] || 0) + carry
+      carry = 0
+      const pool = byDay[day - 1] || []
+
+      if (!pool.length) {
+        carry = budget
+      } else if (pool.length <= budget) {
+        selectedOthers.push(...pool)
+        carry = budget - pool.length
+      } else {
+        const { picked, rest } = partitionPool(pool, budget, rand)
+        selectedOthers.push(...picked)
+        for (const v of rest) excludedIds.add(v.studentId)
+        carry = 0
+      }
+
+      const slotsLeft = remaining - selectedOthers.length
+      if (slotsLeft <= 0) break
+
+      const future = []
+      for (let d = day + 1; d <= nDays; d += 1) {
+        for (const v of byDay[d - 1] || []) {
+          if (!excludedIds.has(v.studentId)) future.push(v)
+        }
+      }
+      if (future.length > 0 && future.length <= slotsLeft) {
+        selectedOthers.push(...future)
+        break
+      }
+    }
+
+    const selectedIds = new Set(selectedOthers.map((v) => v.studentId))
+    rejectedOthers = others.filter((v) => !selectedIds.has(v.studentId))
+  }
 
   return [
     ...withResultFlags(selectedGrads, true),
-    ...withResultFlags(selectedByDay, true),
+    ...withResultFlags(selectedOthers, true),
     ...withResultFlags(rejectedGrads, false),
-    ...withResultFlags(rejectedByDay, false),
+    ...withResultFlags(rejectedOthers, false),
   ]
 }
 
-function compareIntakeYearAsc(a, b) {
-  const ya = intakeYearFromValue(a.intake) || '9999'
-  const yb = intakeYearFromValue(b.intake) || '9999'
-  return ya.localeCompare(yb)
-}
-
 /**
- * ME 第一轮：保留全部志愿，按选上（毕业生→学年早到晚）再未选上排序
- * 年际不结转；入学年不在配置表则未选上
+ * ME 第一轮：毕业生优先 → 按占比行（多入学学期 / 特殊学生）分桶
+ * 行际不结转；未命中任何占比行则未选上
  * @returns {object[]}
  */
 export function layoutMeRound1Roster(volunteers = [], opts = {}) {
   const capacity = Math.max(0, Math.floor(Number(opts.capacity) || 0))
   const rand = opts.rand || Math.random
-  const meYearShares = opts.meYearShares || opts.meGradeRatios || {}
+  const meQuotaRows = opts.meQuotaRows || opts.meYearShares || []
+  const specialIdSet =
+    opts.specialStudentIds instanceof Set
+      ? opts.specialStudentIds
+      : new Set((opts.specialStudentIds || []).map(String))
 
   if (!volunteers.length) return []
 
@@ -195,37 +270,40 @@ export function layoutMeRound1Roster(volunteers = [], opts = {}) {
   const selectedGrads = capacity > 0 ? grads.slice(0, capacity) : []
   const rejectedGrads = capacity > 0 ? grads.slice(capacity) : [...grads]
   const remaining = Math.max(0, capacity - selectedGrads.length)
-  const quotas = remaining > 0 ? allocateMeYearQuotas(remaining, meYearShares) : {}
-  const yearKeys = Object.keys(quotas).sort((a, b) => a.localeCompare(b))
-  const configured = new Set(yearKeys)
+  const quotas = remaining > 0 ? allocateMeQuotaRows(remaining, meQuotaRows) : {}
+  const rowIds = Object.keys(quotas)
 
   const buckets = {}
   const unconfigured = []
   for (const v of others) {
-    const year = intakeYearFromValue(v.intake)
-    if (year && configured.has(year)) {
-      if (!buckets[year]) buckets[year] = []
-      buckets[year].push(v)
+    const row = resolveMeQuotaRowForVolunteer(v, meQuotaRows, specialIdSet)
+    if (row?.id && quotas[row.id] != null) {
+      if (!buckets[row.id]) buckets[row.id] = []
+      buckets[row.id].push(v)
     } else {
       unconfigured.push(v)
     }
   }
-  unconfigured.sort(compareIntakeYearAsc)
-
-  const selectedByYear = []
-  const rejectedByYear = []
-  yearKeys.forEach((year) => {
-    const { picked, rest } = partitionPool(buckets[year] || [], quotas[year] || 0, rand)
-    selectedByYear.push(...picked)
-    rejectedByYear.push(...rest)
+  unconfigured.sort((a, b) => {
+    const ia = normalizeIntakeKey(a.intake) || intakeYearFromValue(a.intake)
+    const ib = normalizeIntakeKey(b.intake) || intakeYearFromValue(b.intake)
+    return String(ia).localeCompare(String(ib))
   })
-  rejectedByYear.push(...unconfigured)
+
+  const selectedByRow = []
+  const rejectedByRow = []
+  rowIds.forEach((rowId) => {
+    const { picked, rest } = partitionPool(buckets[rowId] || [], quotas[rowId] || 0, rand)
+    selectedByRow.push(...picked)
+    rejectedByRow.push(...rest)
+  })
+  rejectedByRow.push(...unconfigured)
 
   return [
     ...withResultFlags(selectedGrads, true),
-    ...withResultFlags(selectedByYear, true),
+    ...withResultFlags(selectedByRow, true),
     ...withResultFlags(rejectedGrads, false),
-    ...withResultFlags(rejectedByYear, false),
+    ...withResultFlags(rejectedByRow, false),
   ]
 }
 
@@ -258,6 +336,7 @@ function drawOptsForSection(state, course, batch) {
   const seniorPool = getSectionSeniorCapacity(course, state.sectionId, sectionCap)
   const quota = getBatchRound1Quota(batch)
   const { start, end } = getBatchRound1Window(batch)
+  const specialIds = resolveSpecialStudentIds(batch?.id)
   return {
     capacity: Math.min(sectionCap, seniorPool),
     batchType: batch?.type,
@@ -265,7 +344,8 @@ function drawOptsForSection(state, course, batch) {
     nDays: openDaysFromRange(start, end) || DEMO_ROUND1_OPEN_DAYS,
     roundStart: start,
     decayR: quota.decayR ?? DEFAULT_DECAY_R,
-    meYearShares: quota.meYearShares,
+    meQuotaRows: quota.meQuotaRows || [],
+    specialStudentIds: specialIds,
     rand: seededRandomFromKey(state.key || `${state.courseId}::${state.sectionId}`),
   }
 }

@@ -438,16 +438,16 @@ export function deriveGlobalScopeRuleFromProgrammePlan(batch) {
 }
 
 /**
- * 某轮生效规则：有轮次专属则覆盖；否则回退培养方案全局规则。
+ * 某轮生效规则：三轮统一使用培养方案全局名单（忽略分轮 scope 覆盖）。
  * @param {object|null} batch
- * @param {string} roundKey
+ * @param {string} [_roundKey]
  * @returns {object[]}
  */
-export function resolveEffectiveScopeRulesForRound(batch, roundKey = '') {
-  const roundRules = filterScopeRulesForRound(getBatchScopeRules(batch), roundKey)
-  if (roundRules.length) return roundRules
+export function resolveEffectiveScopeRulesForRound(batch, _roundKey = '') {
   const global = deriveGlobalScopeRuleFromProgrammePlan(batch)
-  return global ? [global] : []
+  if (global) return [global]
+  const shared = getBatchScopeRules(batch).filter((rule) => !(rule?.round || ''))
+  return shared.length ? shared : []
 }
 
 /** 按专业生成三轮各一条（双入学批次多选，便于 demo） */

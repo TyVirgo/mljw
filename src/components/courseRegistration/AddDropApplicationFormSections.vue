@@ -72,9 +72,13 @@ const noteKeys = computed(() => getAddDropFormNoteKeys(props.form.action))
 const notesTitleKey = computed(() => getAddDropFormNotesTitleKey(props.form.action))
 const declarationExtraKey = computed(() => getAddDropDeclarationExtraKey(props.form.action))
 
+const isAddDropLinked = computed(() => props.form.action === 'AddDrop')
+const isRetakeDropLinked = computed(() => props.form.action === 'RetakeDrop')
+const usesDropSlot = computed(() => isAddDropLinked.value || isRetakeDropLinked.value)
+
 const addCourseCredits = computed(() => {
   const course =
-    props.form.action === 'AddDrop' ? props.addCourse : props.primaryCourse
+    isAddDropLinked.value ? props.addCourse : props.primaryCourse
   const n = course?.credits
   return n == null || n === '' ? '' : String(n)
 })
@@ -83,7 +87,7 @@ const addCourseCredits = computed(() => {
 const sectionFeeAmount = computed(() => {
   const action = props.form.action
   if (action === 'Drop') return ''
-  const course = action === 'AddDrop' ? props.addCourse : props.primaryCourse
+  const course = isAddDropLinked.value ? props.addCourse : props.primaryCourse
   if (!course) return ''
   const lines = props.feeEstimate?.lines || props.feeEstimate?.items || []
   const hit = lines.find((i) => i.courseCode === course.code)
@@ -95,7 +99,7 @@ const sectionFeeAmount = computed(() => {
 const sectionExcessCredits = computed(() => {
   const action = props.form.action
   if (action === 'Drop') return ''
-  const course = action === 'AddDrop' ? props.addCourse : props.primaryCourse
+  const course = isAddDropLinked.value ? props.addCourse : props.primaryCourse
   if (!course) return ''
   const lines = props.feeEstimate?.lines || props.feeEstimate?.items || []
   const hit = lines.find((i) => i.courseCode === course.code)
@@ -120,12 +124,13 @@ const hasFeeBoxContent = computed(
 /** 加课/联合加退：费用块放在补充说明上方 */
 const showInlineAddFeeBox = computed(
   () =>
-    (props.form.action === 'Add' || props.form.action === 'AddDrop') && hasFeeBoxContent.value,
+    (props.form.action === 'Add' || isAddDropLinked.value) && hasFeeBoxContent.value,
 )
 
-/** 重修：费用块仍在声明前（位置不调整） */
+/** 重修 / 重修关联：费用块仍在声明前 */
 const showBottomFeeBox = computed(
-  () => props.form.action === 'Retake' && hasFeeBoxContent.value,
+  () =>
+    (props.form.action === 'Retake' || isRetakeDropLinked.value) && hasFeeBoxContent.value,
 )
 
 function sectionFields(mode) {
@@ -173,10 +178,10 @@ function sectionFields(mode) {
 }
 
 const dropFields = computed(() =>
-  sectionFields(props.form.action === 'AddDrop' ? 'drop' : 'primary'),
+  sectionFields(usesDropSlot.value ? 'drop' : 'primary'),
 )
 const addFields = computed(() =>
-  sectionFields(props.form.action === 'AddDrop' ? 'add' : 'primary'),
+  sectionFields(isAddDropLinked.value ? 'add' : 'primary'),
 )
 const primaryFields = computed(() => sectionFields('primary'))
 
@@ -222,13 +227,13 @@ function buildSectionOptions(course, forDrop = false) {
 
 const dropSectionOptions = computed(() =>
   buildSectionOptions(
-    props.form.action === 'AddDrop' ? props.dropCourse : props.primaryCourse,
-    props.form.action === 'Drop' || props.form.action === 'AddDrop',
+    usesDropSlot.value ? props.dropCourse : props.primaryCourse,
+    props.form.action === 'Drop' || usesDropSlot.value,
   ),
 )
 const addSectionOptions = computed(() =>
   buildSectionOptions(
-    props.form.action === 'AddDrop' ? props.addCourse : props.primaryCourse,
+    isAddDropLinked.value ? props.addCourse : props.primaryCourse,
     false,
   ),
 )
@@ -248,11 +253,11 @@ function onSelectSection(target, event) {
   if (!section || section.disabled) return
   const course =
     target === 'drop'
-      ? props.form.action === 'AddDrop'
+      ? usesDropSlot.value
         ? props.dropCourse
         : props.primaryCourse
       : target === 'add'
-        ? props.form.action === 'AddDrop'
+        ? isAddDropLinked.value
           ? props.addCourse
           : props.primaryCourse
         : props.primaryCourse
@@ -387,7 +392,7 @@ function feeStreamLabel(stream) {
       </div>
     </div>
 
-    <!-- Section III Drop（AddDrop 时先退课后加课） -->
+    <!-- Section III Drop（AddDrop / RetakeDrop 时先退课） -->
     <template v-if="sections.showIII">
       <div class="section-bar">{{ sectionBars.drop }}</div>
       <div class="form-grid">
@@ -401,14 +406,14 @@ function feeStreamLabel(stream) {
               type="text"
               class="form-control"
               readonly
-              :value="form.action === 'AddDrop' ? dropLabel : primaryLabel"
+              :value="usesDropSlot ? dropLabel : primaryLabel"
               :placeholder="t('courseRegistration.student.selectCourse')"
-              @click="emit('pick-course', form.action === 'AddDrop' ? 'drop' : 'primary')"
+              @click="emit('pick-course', usesDropSlot ? 'drop' : 'primary')"
             />
             <button
               type="button"
               class="btn btn-default"
-              @click="emit('pick-course', form.action === 'AddDrop' ? 'drop' : 'primary')"
+              @click="emit('pick-course', usesDropSlot ? 'drop' : 'primary')"
             >
               {{ t('courseRegistration.student.pickCourse') }}
             </button>
@@ -531,14 +536,14 @@ function feeStreamLabel(stream) {
               type="text"
               class="form-control"
               readonly
-              :value="form.action === 'AddDrop' ? addLabel : primaryLabel"
+              :value="isAddDropLinked ? addLabel : primaryLabel"
               :placeholder="t('courseRegistration.student.selectCourse')"
-              @click="emit('pick-course', form.action === 'AddDrop' ? 'add' : 'primary')"
+              @click="emit('pick-course', isAddDropLinked ? 'add' : 'primary')"
             />
             <button
               type="button"
               class="btn btn-default"
-              @click="emit('pick-course', form.action === 'AddDrop' ? 'add' : 'primary')"
+              @click="emit('pick-course', isAddDropLinked ? 'add' : 'primary')"
             >
               {{ t('courseRegistration.student.pickCourse') }}
             </button>
@@ -553,7 +558,7 @@ function feeStreamLabel(stream) {
             class="form-control"
             :value="addFields.sectionId"
             :disabled="!addSectionOptions.length"
-            @change="onSelectSection(form.action === 'AddDrop' ? 'add' : 'primary', $event)"
+            @change="onSelectSection(isAddDropLinked ? 'add' : 'primary', $event)"
           >
             <option value="">{{ t('courseRegistration.student.sectionSelectPlaceholder') }}</option>
             <option

@@ -19,16 +19,16 @@ const COURSES = {
 }
 
 const STUDENTS = {
-  SWE2409001: { studentId: 'SWE2409001', studentName: 'Tan Wei Ming' },
-  SWE2409012: { studentId: 'SWE2409012', studentName: 'Lim Jia Hui' },
-  COS2409001: { studentId: 'COS2409001', studentName: 'Ahmad bin Ali' },
-  COS2504015: { studentId: 'COS2504015', studentName: 'Tan Mei Ling' },
-  DSA2504002: { studentId: 'DSA2504002', studentName: 'Lee Wei Ming' },
-  AIT2409010: { studentId: 'AIT2409010', studentName: 'Siti Nurhaliza' },
-  BUS2409020: { studentId: 'BUS2409020', studentName: 'Wong Mei Ling' },
-  ACC2409008: { studentId: 'ACC2409008', studentName: 'Chong Kai Xin' },
-  MAT2504003: { studentId: 'MAT2504003', studentName: 'Raj Kumar' },
-  FIN2409011: { studentId: 'FIN2409011', studentName: 'Nurul Aina' },
+  SWE2409001: { studentId: 'SWE2409001', studentName: 'Tan Wei Ming', programme: 'SWE', intake: '2409' },
+  SWE2409012: { studentId: 'SWE2409012', studentName: 'Lim Jia Hui', programme: 'SWE', intake: '2409' },
+  COS2409001: { studentId: 'COS2409001', studentName: 'Ahmad bin Ali', programme: 'COS', intake: '2409' },
+  COS2504015: { studentId: 'COS2504015', studentName: 'Tan Mei Ling', programme: 'COS', intake: '2504' },
+  DSA2504002: { studentId: 'DSA2504002', studentName: 'Lee Wei Ming', programme: 'DSA', intake: '2504' },
+  AIT2409010: { studentId: 'AIT2409010', studentName: 'Siti Nurhaliza', programme: 'AIT', intake: '2409' },
+  BUS2409020: { studentId: 'BUS2409020', studentName: 'Wong Mei Ling', programme: 'BUS', intake: '2409' },
+  ACC2409008: { studentId: 'ACC2409008', studentName: 'Chong Kai Xin', programme: 'ACC', intake: '2409' },
+  MAT2504003: { studentId: 'MAT2504003', studentName: 'Raj Kumar', programme: 'MAT', intake: '2504' },
+  FIN2409011: { studentId: 'FIN2409011', studentName: 'Nurul Aina', programme: 'FIN', intake: '2409' },
 }
 
 /**
@@ -45,6 +45,7 @@ const STUDENTS = {
  *   round: 'preselect' | 'main' | 'supplement',
  *   queueStatus?: '' | 'queuing' | 'cancelled',
  *   queueRank?: number,
+ *   isRetake?: boolean,
  * }} row
  */
 function log(row) {
@@ -78,6 +79,7 @@ function log(row) {
     result: row.result,
     queueStatus,
     queueRank: row.queueRank ?? null,
+    isRetake: Boolean(row.isRetake),
   }
 }
 
@@ -148,6 +150,7 @@ export const registrationLogs = ref([
     remark: '选课成功',
     operation: 'register',
     result: 'success',
+    isRetake: true,
   }),
   log({
     id: 'log-007',
@@ -158,6 +161,7 @@ export const registrationLogs = ref([
     remark: '选课失败：课程已满',
     operation: 'register',
     result: 'failure',
+    isRetake: true,
   }),
   log({
     id: 'log-008',
@@ -189,6 +193,7 @@ export const registrationLogs = ref([
     operation: 'joinQueue',
     result: 'queuing',
     queueRank: 1,
+    isRetake: true,
   }),
   log({
     id: 'log-029',

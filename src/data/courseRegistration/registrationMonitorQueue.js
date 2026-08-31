@@ -1,14 +1,15 @@
 import { ref } from 'vue'
 import { LONG_SEMESTER_CREDIT_MIN, LONG_SEMESTER_CREDIT_MAX } from './registrationRules.js'
 
-const DEFAULT_ELECTIVE_CAPS = { geMax: 12, meMax: 16 }
+const DEFAULT_ELECTIVE_CAPS = { geMax: 18, meMax: 22 }
 
-/** Demo：毕业 GE 文/商/理 */
+/** Demo：毕业 GE 文/商/理/AI与开放选修（首次选课已选≡本学期） */
 const DEFAULT_GRADUATION_GE = {
-  humanities: 4,
+  humanities: 0,
   business: 3,
-  science: 2,
-  required: { humanities: 6, business: 6, science: 6 },
+  science: 0,
+  aiOpen: 0,
+  required: { humanities: 12, business: 12, science: 12, aiOpen: 12 },
 }
 
 /** Demo：本学期文商理（4+4+4=12） */
@@ -45,7 +46,7 @@ const initialMonitorRows = [
     tags: [],
     cgpa: 3.42,
     termElectiveProgress: { ge: 4, me: 6, ...DEFAULT_ELECTIVE_CAPS },
-    graduationGeProgress: { humanities: 5, business: 4, science: 3, required: { ...DEFAULT_GRADUATION_GE.required } },
+    graduationGeProgress: { humanities: 5, business: 2, science: 3, aiOpen: 3, required: { ...DEFAULT_GRADUATION_GE.required } },
     schedule: [
       { day: 'Mon', start: 10, end: 12, course: 'COMP201' },
       { day: 'Wed', start: 14, end: 16, course: 'COMP3192' },
@@ -67,7 +68,7 @@ const initialMonitorRows = [
       tags: ['freshman'],
       cgpa: 2.88,
       termElectiveProgress: { ge: 3, me: 0, ...DEFAULT_ELECTIVE_CAPS },
-      graduationGeProgress: { humanities: 3, business: 0, science: 0, required: { ...DEFAULT_GRADUATION_GE.required } },
+      graduationGeProgress: { humanities: 3, business: 0, science: 0, aiOpen: 0, required: { ...DEFAULT_GRADUATION_GE.required } },
       schedule: [{ day: 'Tue', start: 9, end: 12, course: 'MPU3183' }],
       issues: ['creditBelowMin'],
       history: [{ at: '01-Sep-2025', action: 'Registered MPU3183 sec 01' }],
@@ -88,7 +89,7 @@ const initialMonitorRows = [
       tags: ['resumption'],
       cgpa: 3.15,
       termElectiveProgress: { ge: 6, me: 8, ...DEFAULT_ELECTIVE_CAPS },
-      graduationGeProgress: { humanities: 6, business: 5, science: 4, required: { ...DEFAULT_GRADUATION_GE.required } },
+      graduationGeProgress: { humanities: 6, business: 5, science: 4, aiOpen: 1, required: { ...DEFAULT_GRADUATION_GE.required } },
       schedule: [
         { day: 'Mon', start: 10, end: 12, course: 'COMP201' },
         { day: 'Wed', start: 14, end: 16, course: 'COMP3192' },
@@ -113,7 +114,7 @@ const initialMonitorRows = [
       tags: ['freshman'],
       cgpa: null,
       termElectiveProgress: { ge: 0, me: 0, geMax: 12, meMax: 12 },
-      graduationGeProgress: { humanities: 0, business: 0, science: 0, required: { ...DEFAULT_GRADUATION_GE.required } },
+      graduationGeProgress: { humanities: 0, business: 0, science: 0, aiOpen: 0, required: { ...DEFAULT_GRADUATION_GE.required } },
       schedule: [],
       issues: ['notRegistered'],
       history: [],
@@ -134,7 +135,7 @@ const initialMonitorRows = [
       tags: [],
       cgpa: 3.01,
       termElectiveProgress: { ge: 2, me: 6, ...DEFAULT_ELECTIVE_CAPS },
-      graduationGeProgress: { humanities: 2, business: 4, science: 1, required: { ...DEFAULT_GRADUATION_GE.required } },
+      graduationGeProgress: { humanities: 2, business: 4, science: 1, aiOpen: 0, required: { ...DEFAULT_GRADUATION_GE.required } },
       schedule: [{ day: 'Tue', start: 9, end: 12, course: 'MPU3183' }],
       issues: ['g1HumanitiesLow'],
       history: [{ at: '03-Sep-2025', action: 'Warning: GE shortfall' }],
@@ -173,7 +174,7 @@ const initialMonitorRows = [
       tags: ['freshman', 'transferCredit'],
       cgpa: 3.55,
       termElectiveProgress: { ge: 3, me: 5, ...DEFAULT_ELECTIVE_CAPS },
-      graduationGeProgress: { humanities: 3, business: 2, science: 2, required: { ...DEFAULT_GRADUATION_GE.required } },
+      graduationGeProgress: { humanities: 3, business: 2, science: 2, aiOpen: 1, required: { ...DEFAULT_GRADUATION_GE.required } },
       schedule: [
         { day: 'Mon', start: 10, end: 12, course: 'COMP201' },
         { day: 'Tue', start: 9, end: 12, course: 'MPU3183' },

@@ -1,10 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
-import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import RegistrationBatchStatusBadge from '../../components/courseRegistration/RegistrationBatchStatusBadge.vue'
 import RegistrationBatchFormDrawer from '../../components/courseRegistration/RegistrationBatchFormDrawer.vue'
-import BatchRoundManageDrawer from '../../components/courseRegistration/BatchRoundManageDrawer.vue'
 import BatchCoursesDrawer from '../../components/courseRegistration/BatchCoursesDrawer.vue'
 import BatchScopeRuleRosterDrawer from '../../components/courseRegistration/BatchScopeRuleRosterDrawer.vue'
 import YnSwitch from '../../components/common/YnSwitch.vue'
@@ -15,18 +13,10 @@ import {
   publishRegistrationBatch,
   revokeRegistrationBatch,
   updateRegistrationBatch,
-  formatRoundRange,
-  formatRoundRangeDisplay,
-  formatRoundRangeTitle,
+  removeRegistrationBatches,
 } from '../../data/courseRegistration/registrationBatches.js'
-import { ensureRoundsByAudience } from '../../data/courseRegistration/audienceRounds.js'
 import { countCoursesByBatch } from '../../data/courseRegistration/selectableCourses.js'
 import { countEligibleStudentsAcrossRounds } from '../../data/courseRegistration/batchStudentRoster.js'
-import { batchExportFields } from '../../data/courseRegistration/courseRegistrationExportFields.js'
-import {
-  exportCourseRegistrationData,
-  formatBatchExportRow,
-} from '../../utils/exportCourseRegistrationExcel.js'
 import { registrationAcademicSessionOptions } from '../../data/courseRegistration/registrationBatchFormUtils.js'
 import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
 import '../../styles/course-registration-list.css'
@@ -45,12 +35,15 @@ const pageSize = ref(20)
 const drawerVisible = ref(false)
 const editingBatch = ref(null)
 const coursesDrawerBatch = ref(null)
-const roundsManageBatch = ref(null)
 const studentListBatch = ref(null)
 /** 打开学生清单时预选轮次 / 外层 Tab */
 const studentListInitialRound = ref('global')
 const studentListInitialOuterTab = ref('eligible')
-const exportModalVisible = ref(false)
+const selectedBatchIds = ref([])
+
+function isBatchDeletable(batch) {
+  return batch?.status === 'draft' || batch?.status === 'closed'
+}
 
 const rows = computed(() => {
   let list = registrationBatches.value.map((batch) => ({
@@ -78,15 +71,60 @@ const paginatedRows = computed(() => {
   return rows.value.slice(start, start + pageSize.value)
 })
 
+const deletablePageRows = computed(() => paginatedRows.value.filter(isBatchDeletable))
+
+const allPageSelected = computed(() => {
+  if (!deletablePageRows.value.length) return false
+  return deletablePageRows.value.every((row) => selectedBatchIds.value.includes(row.id))
+})
+
 function handleSearch() {
   appliedSearch.value = { ...searchForm.value }
   currentPage.value = 1
+  selectedBatchIds.value = []
 }
 
 function handleReset() {
   searchForm.value = { academicSession: '', status: '', keyword: '' }
   appliedSearch.value = { academicSession: '', status: '', keyword: '' }
   currentPage.value = 1
+  selectedBatchIds.value = []
+}
+
+function toggleSelectAll(checked) {
+  const pageIds = deletablePageRows.value.map((r) => r.id)
+  if (checked) {
+    selectedBatchIds.value = [...new Set([...selectedBatchIds.value, ...pageIds])]
+  } else {
+    selectedBatchIds.value = selectedBatchIds.value.filter((id) => !pageIds.includes(id))
+  }
+}
+
+function toggleRow(batchId, checked) {
+  if (checked) {
+    if (!selectedBatchIds.value.includes(batchId)) {
+      selectedBatchIds.value = [...selectedBatchIds.value, batchId]
+    }
+  } else {
+    selectedBatchIds.value = selectedBatchIds.value.filter((id) => id !== batchId)
+  }
+}
+
+function handleDeleteSelected() {
+  if (!selectedBatchIds.value.length) return
+  const selectedRows = rows.value.filter((row) => selectedBatchIds.value.includes(row.id))
+  const deletableRows = selectedRows.filter(isBatchDeletable)
+  if (!deletableRows.length) {
+    window.alert(t('courseRegistration.batch.deleteOnlyDraftClosed'))
+    return
+  }
+  const names = deletableRows.map((row) => row.name || row.id).join('\n')
+  if (!window.confirm(t('courseRegistration.batch.deleteConfirm', { names }))) return
+  const result = removeRegistrationBatches(deletableRows.map((row) => row.id))
+  selectedBatchIds.value = selectedBatchIds.value.filter((id) => !result.deletedIds.includes(id))
+  if (result.skippedIds.length) {
+    window.alert(t('courseRegistration.batch.deleteOnlyDraftClosed'))
+  }
 }
 
 function openCreate() {
@@ -109,19 +147,6 @@ function handleSave(payload) {
     addRegistrationBatch(payload)
   }
   drawerVisible.value = false
-}
-
-function openManageRounds(batch) {
-  roundsManageBatch.value = { ...batch }
-}
-
-function handleRoundsSave(payload) {
-  if (!roundsManageBatch.value?.id) return
-  const index = registrationBatches.value.findIndex((b) => b.id === roundsManageBatch.value.id)
-  if (index !== -1) {
-    registrationBatches.value[index] = { ...registrationBatches.value[index], ...payload }
-  }
-  roundsManageBatch.value = null
 }
 
 function handlePublish(batch) {
@@ -148,12 +173,11 @@ function openManageCourses(batch) {
  * 打开学生清单（可选学生 + 指定内层 Tab）
  * @param {{ batch: object, round?: string }} payload
  */
-function handleOpenStudentListFromRounds({ batch, round }) {
+function handleOpenStudentListFromRounds({ batch }) {
   drawerVisible.value = false
   editingBatch.value = null
-  roundsManageBatch.value = null
   studentListInitialOuterTab.value = 'eligible'
-  studentListInitialRound.value = round || 'preselect'
+  studentListInitialRound.value = 'global'
   studentListBatch.value = batch
 }
 
@@ -161,31 +185,6 @@ function openStudentList(batch) {
   studentListInitialOuterTab.value = 'eligible'
   studentListInitialRound.value = 'global'
   studentListBatch.value = batch
-}
-
-function audienceRoundDisplay(batch, audience, roundKey) {
-  const by = ensureRoundsByAudience(batch)
-  const range = by[audience]?.[roundKey]
-  return formatRoundRangeDisplay(range, t)
-}
-
-function audienceRoundTitle(batch, audience, roundKey) {
-  const by = ensureRoundsByAudience(batch)
-  return formatRoundRangeTitle(by[audience]?.[roundKey])
-}
-
-function handleExportConfirm({ selectedFields }) {
-  const timestamp = new Date().toISOString().slice(0, 10)
-  const columns = batchExportFields.filter((col) => selectedFields.includes(col.key))
-  exportCourseRegistrationData({
-    rows: rows.value,
-    columns,
-    formatRow: formatBatchExportRow,
-    filename: `registration-batches-${timestamp}.xlsx`,
-    sheetName: 'Registration Batches',
-    i18n: { t },
-  })
-  exportModalVisible.value = false
 }
 </script>
 
@@ -227,8 +226,13 @@ function handleExportConfirm({ selectedFields }) {
         <button type="button" class="btn btn-primary" @click="openCreate">
           + {{ t('courseRegistration.batch.new') }}
         </button>
-        <button type="button" class="btn btn-outline" @click="exportModalVisible = true">
-          {{ t('common.export') }}
+        <button
+          type="button"
+          class="btn btn-default"
+          :disabled="!selectedBatchIds.length"
+          @click="handleDeleteSelected"
+        >
+          {{ t('common.delete') }}
         </button>
       </div>
 
@@ -237,15 +241,19 @@ function handleExportConfirm({ selectedFields }) {
           <table class="data-table batch-data-table">
             <thead>
               <tr>
+                <th class="col-check col-sticky-left">
+                  <input
+                    type="checkbox"
+                    :checked="allPageSelected"
+                    :disabled="!deletablePageRows.length"
+                    @change="toggleSelectAll($event.target.checked)"
+                  />
+                </th>
                 <th class="col-sticky-left col-no">{{ t('common.serialNo') }}</th>
                 <th class="col-sticky-left col-name">{{ t('courseRegistration.batch.name') }}</th>
                 <th>{{ t('courseRegistration.batch.academicSession') }}</th>
                 <th>{{ t('courseRegistration.batch.type') }}</th>
                 <th>{{ t('courseRegistration.batch.programme') }}</th>
-                <th class="col-round">{{ t('courseRegistration.batch.roundColPreselect') }}</th>
-                <th class="col-round">{{ t('courseRegistration.batch.roundColMain') }}</th>
-                <th class="col-round">{{ t('courseRegistration.batch.roundColSupplement') }}</th>
-                <th class="col-round">{{ t('courseRegistration.batch.roundColAddDrop') }}</th>
                 <th class="col-eligible-count">
                   <span
                     class="th-with-tip"
@@ -262,6 +270,14 @@ function handleExportConfirm({ selectedFields }) {
             </thead>
             <tbody>
               <tr v-for="(row, index) in paginatedRows" :key="row.id">
+                <td class="col-check col-sticky-left">
+                  <input
+                    type="checkbox"
+                    :checked="selectedBatchIds.includes(row.id)"
+                    :disabled="!isBatchDeletable(row)"
+                    @change="toggleRow(row.id, $event.target.checked)"
+                  />
+                </td>
                 <td class="col-sticky-left col-no">
                   {{ (currentPage - 1) * pageSize + index + 1 }}
                 </td>
@@ -271,51 +287,6 @@ function handleExportConfirm({ selectedFields }) {
                 <td>{{ row.academicSession || row.semester }}</td>
                 <td>{{ getRegistrationTypeLabel(row.type, t) }}</td>
                 <td>{{ row.type === 'ME' ? row.programme || '—' : '—' }}</td>
-                <td
-                  class="col-round col-round-dual"
-                  :title="`${audienceRoundTitle(row, 'freshman', 'preselect')} / ${audienceRoundTitle(row, 'senior', 'preselect')}`"
-                >
-                  <div class="round-dual-line">
-                    <span class="round-aud-tag">{{ t('courseRegistration.batch.audienceFreshmanLabel') }}</span>
-                    {{ audienceRoundDisplay(row, 'freshman', 'preselect') }}
-                  </div>
-                  <div class="round-dual-line">
-                    <span class="round-aud-tag">{{ t('courseRegistration.batch.audienceSeniorLabel') }}</span>
-                    {{ audienceRoundDisplay(row, 'senior', 'preselect') }}
-                  </div>
-                </td>
-                <td
-                  class="col-round col-round-dual"
-                  :title="`${audienceRoundTitle(row, 'freshman', 'main')} / ${audienceRoundTitle(row, 'senior', 'main')}`"
-                >
-                  <div class="round-dual-line">
-                    <span class="round-aud-tag">{{ t('courseRegistration.batch.audienceFreshmanLabel') }}</span>
-                    {{ audienceRoundDisplay(row, 'freshman', 'main') }}
-                  </div>
-                  <div class="round-dual-line">
-                    <span class="round-aud-tag">{{ t('courseRegistration.batch.audienceSeniorLabel') }}</span>
-                    {{ audienceRoundDisplay(row, 'senior', 'main') }}
-                  </div>
-                </td>
-                <td
-                  class="col-round col-round-dual"
-                  :title="`${audienceRoundTitle(row, 'freshman', 'supplement')} / ${audienceRoundTitle(row, 'senior', 'supplement')}`"
-                >
-                  <div class="round-dual-line">
-                    <span class="round-aud-tag">{{ t('courseRegistration.batch.audienceFreshmanLabel') }}</span>
-                    {{ audienceRoundDisplay(row, 'freshman', 'supplement') }}
-                  </div>
-                  <div class="round-dual-line">
-                    <span class="round-aud-tag">{{ t('courseRegistration.batch.audienceSeniorLabel') }}</span>
-                    {{ audienceRoundDisplay(row, 'senior', 'supplement') }}
-                  </div>
-                </td>
-                <td
-                  class="col-round"
-                  :title="formatRoundRangeTitle(row.addDropWindow)"
-                >
-                  {{ formatRoundRange(row.addDropWindow) }}
-                </td>
                 <td class="col-eligible-count">
                   <button type="button" class="link-btn" @click="openStudentList(row)">
                     {{ row.eligibleStudentCount }}
@@ -334,9 +305,6 @@ function handleExportConfirm({ selectedFields }) {
                 </td>
                 <td class="col-sticky-right col-actions">
                   <button type="button" class="link-btn" @click="openEdit(row)">{{ t('common.edit') }}</button>
-                  <button type="button" class="link-btn" @click="openManageRounds(row)">
-                    {{ t('courseRegistration.batch.manageRounds') }}
-                  </button>
                   <button type="button" class="link-btn" @click="openManageCourses(row)">
                     {{ t('courseRegistration.courses.manageCourses') }}
                   </button>
@@ -362,7 +330,7 @@ function handleExportConfirm({ selectedFields }) {
                 </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="12" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="10" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -385,14 +353,6 @@ function handleExportConfirm({ selectedFields }) {
       @open-student-list="handleOpenStudentListFromRounds"
     />
 
-    <BatchRoundManageDrawer
-      :visible="!!roundsManageBatch"
-      :batch="roundsManageBatch"
-      @close="roundsManageBatch = null"
-      @save="handleRoundsSave"
-      @open-student-list="handleOpenStudentListFromRounds"
-    />
-
     <BatchCoursesDrawer
       :visible="!!coursesDrawerBatch"
       :batch="coursesDrawerBatch"
@@ -405,13 +365,6 @@ function handleExportConfirm({ selectedFields }) {
       :initial-outer-tab="studentListInitialOuterTab"
       :initial-round="studentListInitialRound"
       @close="studentListBatch = null"
-    />
-
-    <ExportModal
-      :visible="exportModalVisible"
-      :fields="batchExportFields.map((f) => ({ key: f.key, label: t(f.labelKey) }))"
-      @close="exportModalVisible = false"
-      @confirm="handleExportConfirm"
     />
   </div>
 </template>
@@ -439,6 +392,12 @@ function handleExportConfirm({ selectedFields }) {
   padding-bottom: 6px;
 }
 
+.batch-data-table .col-check {
+  width: 40px;
+  min-width: 40px;
+  text-align: center;
+}
+
 .batch-data-table .col-no {
   width: 56px;
   min-width: 56px;
@@ -457,36 +416,6 @@ function handleExportConfirm({ selectedFields }) {
   line-height: 1.35;
   white-space: nowrap;
   word-break: normal;
-}
-
-.batch-data-table td.col-round {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.batch-data-table .col-round-dual {
-  white-space: nowrap;
-  min-width: 260px;
-  vertical-align: middle;
-  line-height: 1.3;
-}
-
-.round-dual-line {
-  line-height: 1.3;
-  margin-bottom: 1px;
-  white-space: nowrap;
-}
-
-.round-dual-line:last-child {
-  margin-bottom: 0;
-}
-
-.round-aud-tag {
-  display: inline;
-  margin-right: 2px;
-  font-weight: 600;
-  color: #374151;
-  white-space: nowrap;
 }
 
 .batch-data-table .col-eligible-count {
@@ -522,7 +451,11 @@ function handleExportConfirm({ selectedFields }) {
 }
 
 .batch-data-table .col-actions {
-  min-width: 300px;
+  width: max-content;
+  min-width: 0;
+  white-space: nowrap;
+  padding-left: 12px;
+  padding-right: 12px;
 }
 
 .batch-data-table .col-sticky-left {
@@ -535,12 +468,16 @@ function handleExportConfirm({ selectedFields }) {
   background: #f9fafb;
 }
 
-.batch-data-table .col-no.col-sticky-left {
+.batch-data-table .col-check.col-sticky-left {
   left: 0;
 }
 
+.batch-data-table .col-no.col-sticky-left {
+  left: 40px;
+}
+
 .batch-data-table .col-name.col-sticky-left {
-  left: 56px;
+  left: 96px;
   box-shadow: 4px 0 6px -4px rgba(0, 0, 0, 0.1);
 }
 
@@ -560,7 +497,7 @@ function handleExportConfirm({ selectedFields }) {
 }
 
 .batch-data-table .col-status.col-sticky-right {
-  right: 300px;
+  right: 232px;
   border-left: 1px solid #f3f4f6;
 }
 

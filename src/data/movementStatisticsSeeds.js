@@ -32,9 +32,9 @@ export const movementStatisticsSeeds = [
   { schoolCode: 'SOC', programmeCode: 'CS', intake: '2023/09', applicationSession: '2023/09', statColumn: 'inboundMobility', status: 'Approved' },
   { schoolCode: 'SOC', programmeCode: 'CS', intake: '2023/09', applicationSession: '2023/09', statColumn: 'iep', status: 'Approved' },
 
-  { schoolCode: 'SOF', programmeCode: 'FDN', intake: '2025/02', applicationSession: '2025/02', statColumn: 'outboundMobility', status: 'Approved' },
-  { schoolCode: 'SOF', programmeCode: 'FDN', intake: '2025/02', applicationSession: '2025/02', statColumn: 'incomplete', status: 'Approved' },
-  { schoolCode: 'SOF', programmeCode: 'FDN', intake: '2025/02', applicationSession: '2025/02', statColumn: 'completion', status: 'Approved' },
-  { schoolCode: 'SOF', programmeCode: 'FDN', intake: '2025/02', applicationSession: '2025/02', statColumn: 'inboundMobility', status: 'Approved' },
-  { schoolCode: 'SOF', programmeCode: 'FDN', intake: '2025/02', applicationSession: '2025/02', statColumn: 'iep', status: 'Approved' },
+  { schoolCode: 'STCM', programmeCode: 'FDN', intake: '2025/02', applicationSession: '2025/02', statColumn: 'outboundMobility', status: 'Approved' },
+  { schoolCode: 'STCM', programmeCode: 'FDN', intake: '2025/02', applicationSession: '2025/02', statColumn: 'incomplete', status: 'Approved' },
+  { schoolCode: 'STCM', programmeCode: 'FDN', intake: '2025/02', applicationSession: '2025/02', statColumn: 'completion', status: 'Approved' },
+  { schoolCode: 'STCM', programmeCode: 'FDN', intake: '2025/02', applicationSession: '2025/02', statColumn: 'inboundMobility', status: 'Approved' },
+  { schoolCode: 'STCM', programmeCode: 'FDN', intake: '2025/02', applicationSession: '2025/02', statColumn: 'iep', status: 'Approved' },
 ]

@@ -98,6 +98,7 @@ function pickPrimaryItem(app) {
   const items = app?.items || []
   if (app?.type === 'Drop') return items.find((i) => i.action === 'Drop') || items[0]
   if (app?.type === 'AddDrop') return items.find((i) => i.action === 'Add') || items[0]
+  if (app?.type === 'RetakeDrop') return items.find((i) => i.action === 'Retake') || items[0]
   return items.find((i) => i.action === 'Add' || i.action === 'Retake') || items[0]
 }
 

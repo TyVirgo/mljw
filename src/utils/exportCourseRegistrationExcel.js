@@ -1,5 +1,4 @@
 import * as XLSX from 'xlsx'
-import { formatRoundRange } from '../data/courseRegistration/registrationBatches.js'
 import { scopeLabelsFromRules } from '../data/courseRegistration/batchScopeRules.js'
 import { formatIntakeBatch } from '../data/intakeSets.js'
 import { getAddDropCourseColumnTexts } from './addDropCourseDisplay.js'
@@ -62,10 +61,6 @@ export function formatBatchExportRow(batch, t) {
     name: batch.name,
     academicSession: batch.academicSession || batch.semester,
     type: batch.type,
-    roundPreselect: formatRoundRange(batch.rounds?.preselect),
-    roundMain: formatRoundRange(batch.rounds?.main),
-    roundSupplement: formatRoundRange(batch.rounds?.supplement),
-    roundAddDrop: formatRoundRange(batch.addDropWindow),
     scope:
       Array.isArray(batch.scopeRules) && batch.scopeRules.length
         ? scopeLabelsFromRules(batch.scopeRules).join(', ')
@@ -175,12 +170,15 @@ export function formatRegistrationLogExportRow(row, t) {
     batchName: row.batchName,
     studentId: row.studentId,
     studentName: row.studentName,
+    programme: row.programme || '',
+    intake: formatIntakeBatch(row.intake) || '',
     course,
     sectionCode: row.sectionCode
       ? t('courseRegistration.courses.sectionNameDisplay', { code: row.sectionCode })
       : '',
     credits: row.credits ?? '',
     courseType: getRegistrationTypeLabel(row.courseType, t) || row.courseType || '',
+    isRetake: row.isRetake ? t('common.yes') : t('common.no'),
     operator,
     operatedAt: row.operatedAt,
     queueStatus,

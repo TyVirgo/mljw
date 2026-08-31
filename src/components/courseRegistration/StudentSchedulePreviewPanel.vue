@@ -5,7 +5,6 @@ import { useAppI18n } from '../../composables/useAppI18n.js'
 defineProps({
   title: { type: String, default: '' },
   schedule: { type: Array, default: () => [] },
-  conflictCourses: { type: Array, default: () => [] },
   hint: { type: String, default: '' },
   /** 抽屉/表单内嵌时更紧凑，去掉大块灰底占位感 */
   embedded: { type: Boolean, default: false },
@@ -25,8 +24,8 @@ const { t } = useAppI18n()
     <WeekScheduleGrid
       v-if="schedule.length"
       :schedule="schedule"
-      :conflict-courses="conflictCourses"
       :show-legend="showLegend"
+      :stretch="embedded"
     />
     <p v-else class="schedule-preview-empty">{{ t('courseRegistration.student.schedulePreviewEmpty') }}</p>
   </div>
@@ -46,6 +45,10 @@ const { t } = useAppI18n()
   background: transparent;
   border: none;
   border-radius: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .schedule-preview-head {

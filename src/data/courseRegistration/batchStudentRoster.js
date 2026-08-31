@@ -1,19 +1,22 @@
-import { ref } from 'vue'
-import { formatIntakeBatch } from '../intakeSets.js'
-import { registrationBatches } from './registrationBatches.js'
-import { getBatchScopeRules, matchScopeRule, resolveEffectiveScopeRulesForRound, deriveGlobalScopeRuleFromProgrammePlan } from './batchScopeRules.js'
-import {
-  listAdminAddStudentCandidates,
-  filterAdminAddStudentCandidates,
-  getAdminAddStudentFilterOptions,
-} from './registrationResult.js'
-
 /**
  * 批次学生选课名单（原型）
  * - eligible：按参与范围展开的可选学生
  * - special：特殊例外名单
  * - DEMO_STUDENT_POOL：按单条 scopeRule 匹配人数/名单的共享池（单队列 ≥20，规模错开）
  */
+import { ref } from 'vue'
+import { formatIntakeBatch } from '../intakeSets.js'
+import { registrationBatches } from './registrationBatches.js'
+import { matchScopeRule, deriveGlobalScopeRuleFromProgrammePlan } from './batchScopeRules.js'
+import {
+  listAdminAddStudentCandidates,
+  filterAdminAddStudentCandidates,
+  getAdminAddStudentFilterOptions,
+} from './registrationResult.js'
+import { setMeSpecialStudentIdsResolver } from './preselectWeightedLottery.js'
+
+/** @type {import('vue').Ref<Record<string, { eligible: object[], special: object[] }>>} */
+export const batchStudentRosters = ref({})
 
 /** @param {string} intake */
 function toDisplayIntake(intake) {
@@ -279,9 +282,6 @@ function ensureBatchRoster(batchId) {
   return batchStudentRosters.value[batchId]
 }
 
-/** @type {import('vue').Ref<Record<string, { eligible: object[], special: object[] }>>} */
-export const batchStudentRosters = ref({})
-
 /** 按单条参与范围规则匹配的学生名单（与其它行独立） */
 export function listStudentsForScopeRule(rule) {
   if (!rule) return []
@@ -299,36 +299,12 @@ export function countStudentsForScopeRule(rule) {
 }
 
 /**
- * 按批次 + 选课轮次聚合可选学生（该轮生效规则并集，按学号去重）。
- * 该轮无专属规则时回退培养方案全局参与范围。
+ * 按批次聚合可选学生（三轮共用培养方案全局名单）。
  * @param {object|null} batch
- * @param {'preselect'|'main'|'supplement'} roundKey
+ * @param {'preselect'|'main'|'supplement'|string} [_roundKey]
  */
-export function listStudentsForBatchRound(batch, roundKey) {
-  if (!batch || !roundKey) return []
-  const roundOverride = getBatchScopeRules(batch).some((rule) => (rule?.round || '') === roundKey)
-  const rules = resolveEffectiveScopeRulesForRound(batch, roundKey)
-  if (!rules.length) return []
-  const byId = new Map()
-  for (const rule of rules) {
-    for (const row of listStudentsForScopeRule(rule)) {
-      byId.set(row.studentId, row)
-    }
-  }
-  let rows = [...byId.values()]
-  rows.sort((a, b) => String(a.studentId).localeCompare(String(b.studentId)))
-  // 仅轮次特例时拉开观感；走全局时三轮名单一致
-  if (!roundOverride) return rows
-  if (roundKey === 'main') {
-    rows = rows.filter((_, i) => i % 3 !== 2)
-  } else if (roundKey === 'supplement') {
-    rows = rows.filter((_, i) => i % 2 === 0).reverse()
-  } else if (batch.status === 'draft') {
-    rows = rows.slice(0, Math.min(rows.length, 12))
-  } else if (batch.status === 'closed') {
-    rows = rows.slice(0, Math.min(rows.length, Math.max(8, rows.length - 2)))
-  }
-  return rows
+export function listStudentsForBatchRound(batch, _roundKey) {
+  return listGlobalBatchParticipants(batch)
 }
 
 /**
@@ -592,3 +568,7 @@ export function formatRosterIntake(intake) {
 }
 
 export const rosterSourceOptions = ['scope', 'resumption', 'special']
+
+setMeSpecialStudentIdsResolver((batchId) =>
+  listBatchRosterStudents(batchId, 'special').map((row) => String(row.studentId)),
+)

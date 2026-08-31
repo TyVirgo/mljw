@@ -535,3 +535,20 @@ ME 第一轮老生容量细分原先用相对「份额」+ 表上选择入学年
 3. **校验**：保存前拦截空时间或 r≤0；提示后不写入。
 4. **闸门文案**：`roundLockNeedVolunteerConfirm` 改为到达公布时间自动锁定后再配第二轮。
 5. **文件**：`BatchRoundManageDrawer.vue`、`zh.js` / `en.js`。
+
+## 增量：一次配齐三轮 + 全局名单（2026-08）
+
+## Context
+
+管理轮次曾用闸门阻止一次配齐 R2/R3；每轮可配独立学生范围；学生清单用内层 Tab 分轮展示。产品改为三轮时间一次配完，名单只认培养方案全局。
+
+## Decisions
+
+1. **闸门废除**：`getBatchRoundSetupGates` 恒开；去掉黄条/`is-locked`；老生与新生 Tab 均始终可编辑 R1–R3。
+2. **分轮范围废除**：管理轮次不再编辑 `scopeRules`；保存轮次时不改写范围。资格与名单一律 `deriveGlobalScopeRuleFromProgrammePlan` / `listGlobalBatchParticipants`。
+3. **学生清单**：去掉可选学生内层轮次 Tab；打开即全局名单。`initialRound` 可保留兼容但忽略。
+4. **时间链（老生）**：`R1起 ≤ R1止 ≤ 结果公布 ≤ R2起 ≤ R2止 ≤ R3起 ≤ R3止`；后字段 `min-date` ≥ 前锚（允许同时刻，不再强制次日）。
+5. **时间链（新生）**：无公布字段；`R1起 ≤ R1止 ≤ R2起 ≤ R2止 ≤ R3起 ≤ R3止`。
+6. **必填**：老生 R1+公布+R2+R3；当前若在新生 Tab 则新生 R1–R3 亦必填（与一次配齐一致）。
+7. **Demo**：`DEMO_SENIOR_ROUNDS_*` / `DEMO_FRESHMAN_*` 与 `FULL_ROUNDS` 按链重排；去掉依赖闸门的错序样例。
+8. **文件**：`BatchRoundManageDrawer.vue`、`BatchScopeRuleRosterDrawer.vue`、`registrationBatchFormUtils.js`、`audienceRounds.js`、`registrationBatches.js`、`batchScopeRules.js`、`batchRoundSetupGates.js`、`batchStudentRoster.js`、i18n。

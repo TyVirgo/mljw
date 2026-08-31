@@ -1,14 +1,29 @@
 /** 学生端加退重修申请列表：按类型的主表列配置 */
 
-/** 学生端可见 Tab（加退关联先屏蔽） */
-export const ADD_DROP_TYPE_TABS = ['Add', 'Drop', 'Retake']
+/** 学生端可见 Tab（含加退关联、重修关联） */
+export const ADD_DROP_TYPE_TABS = ['Add', 'Drop', 'Retake', 'AddDrop', 'RetakeDrop']
 
-/** 含重修与加退关联的完整类型（内部/历史数据仍可能出现 AddDrop） */
-export const ADD_DROP_ALL_TYPES = ['Add', 'Drop', 'Retake', 'AddDrop']
+/** 全部申请类型 */
+export const ADD_DROP_ALL_TYPES = ['Add', 'Drop', 'Retake', 'AddDrop', 'RetakeDrop']
 
-/** 当前阶段不在列表/筛选中展示的类型 */
-export function isShieldedAddDropType(type) {
+/** 当前阶段不在列表/筛选中展示的类型（关联类型已开放） */
+export function isShieldedAddDropType(_type) {
+  return false
+}
+
+/** 是否含退课分节的关联/退课类型 */
+export function isDropLinkedType(type) {
+  return type === 'Drop' || type === 'AddDrop' || type === 'RetakeDrop'
+}
+
+/** 加退关联（退+加） */
+export function isAddDropLinkedType(type) {
   return type === 'AddDrop'
+}
+
+/** 重修关联（退+重修） */
+export function isRetakeDropLinkedType(type) {
+  return type === 'RetakeDrop'
 }
 
 /**
@@ -79,6 +94,24 @@ export const ADD_DROP_LIST_COLUMNS_BY_TYPE = {
     'submittedAt',
     'actions',
   ],
+  RetakeDrop: [
+    'serial',
+    'applicationNo',
+    'academicSession',
+    'dropCourse',
+    'retakeCourse',
+    'section',
+    'weekRange',
+    'classTimeVenue',
+    'lecturers',
+    'excessCredits',
+    'fee',
+    'retakeType',
+    'feeWaiver',
+    'status',
+    'submittedAt',
+    'actions',
+  ],
 }
 
 /** 审批端：未筛类型时的宽列（含三科名） */
@@ -125,6 +158,7 @@ export function getAddDropFormNoteKeys(action) {
   const eligibility = 'courseRegistration.student.formNotesEligibility'
   const conflict = 'courseRegistration.student.formNotesConflict'
   const dropThenAdd = 'courseRegistration.student.formNotesDropThenAdd'
+  const dropThenRetake = 'courseRegistration.student.formNotesDropThenRetake'
   const dropOnly = 'courseRegistration.student.formNotesDropOnly'
   switch (action) {
     case 'Drop':
@@ -133,6 +167,8 @@ export function getAddDropFormNoteKeys(action) {
       return [one, conflict]
     case 'AddDrop':
       return [dropThenAdd, one, eligibility, conflict]
+    case 'RetakeDrop':
+      return [dropThenRetake, one, conflict]
     case 'Add':
     default:
       return [one, eligibility, conflict]
@@ -146,6 +182,7 @@ export function getAddDropFormNotesTitleKey(action) {
     Drop: 'courseRegistration.student.formNotesTitleDrop',
     Retake: 'courseRegistration.student.formNotesTitleRetake',
     AddDrop: 'courseRegistration.student.formNotesTitleAddDrop',
+    RetakeDrop: 'courseRegistration.student.formNotesTitleRetakeDrop',
   }
   return map[action] || map.Add
 }
@@ -157,6 +194,7 @@ export function getAddDropDeclarationExtraKey(action) {
     Drop: 'courseRegistration.student.declarationExtraDrop',
     Retake: 'courseRegistration.student.declarationExtraRetake',
     AddDrop: 'courseRegistration.student.declarationExtraAddDrop',
+    RetakeDrop: 'courseRegistration.student.declarationExtraRetakeDrop',
   }
   return map[action] || map.Add
 }

@@ -159,7 +159,7 @@ export const initialCourseChangeApplications = [
     sourceCourseCode: 'PHY101',
     courseCode: 'PHY101',
     courseName: 'ASEAN Business Essentials',
-    offering: 'SOF',
+    offering: 'STCM',
     affiliatedProgramme: 'IBU',
     courseOwner: 'TML001',
     courseClassification: 'Compulsory',

@@ -8,7 +8,6 @@ import BatchSpecialStudentImportModal from './BatchSpecialStudentImportModal.vue
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
 import {
-  listStudentsForBatchRound,
   listGlobalBatchParticipants,
   listBatchRosterStudents,
   filterBatchRosterStudents,
@@ -17,21 +16,12 @@ import {
 } from '../../data/courseRegistration/batchStudentRoster.js'
 import '../../styles/list-page-search.css'
 
-const ELIGIBLE_INNER_TABS = [
-  { id: 'global', labelKey: 'courseRegistration.batch.rosterTabGlobal' },
-  { id: 'preselect', labelKey: 'courseRegistration.batch.roundPreselect' },
-  { id: 'main', labelKey: 'courseRegistration.batch.roundMain' },
-  { id: 'supplement', labelKey: 'courseRegistration.batch.roundSupplement' },
-]
-
-const ELIGIBLE_INNER_IDS = ELIGIBLE_INNER_TABS.map((tab) => tab.id)
-
 const props = defineProps({
   visible: Boolean,
   batch: { type: Object, default: null },
   /** 打开时外层 Tab：special | eligible */
   initialOuterTab: { type: String, default: 'eligible' },
-  /** 打开时内层：global | preselect | main | supplement */
+  /** @deprecated 已取消内层轮次 Tab，保留 prop 以免调用方报错 */
   initialRound: { type: String, default: 'global' },
 })
 
@@ -45,7 +35,6 @@ const appliedSearch = ref(emptyFilters())
 const currentPage = ref(1)
 const pageSize = ref(20)
 const activeOuterTab = ref('eligible')
-const activeRound = ref('global')
 const selectedIds = ref([])
 const addVisible = ref(false)
 const editVisible = ref(false)
@@ -70,7 +59,6 @@ const subtitle = computed(() => {
 
 const isEligibleTab = computed(() => activeOuterTab.value === 'eligible')
 const isSpecialTab = computed(() => activeOuterTab.value === 'special')
-const isGlobalInnerTab = computed(() => isEligibleTab.value && activeRound.value === 'global')
 const batchReadOnly = computed(
   () => props.batch?.status === 'active' || props.batch?.status === 'closed',
 )
@@ -81,12 +69,7 @@ const batchReadOnlyHint = computed(() =>
 )
 const showSpecialSelection = computed(() => isSpecialTab.value && !batchReadOnly.value)
 
-const eligibleRows = computed(() => {
-  if (activeRound.value === 'global') {
-    return listGlobalBatchParticipants(props.batch)
-  }
-  return listStudentsForBatchRound(props.batch, activeRound.value)
-})
+const eligibleRows = computed(() => listGlobalBatchParticipants(props.batch))
 
 const specialRows = computed(() => {
   void specialRefreshKey.value
@@ -119,16 +102,13 @@ const allPageSelected = computed(() => {
 })
 
 watch(
-  () => [props.visible, props.batch, props.initialOuterTab, props.initialRound],
+  () => [props.visible, props.batch, props.initialOuterTab],
   () => {
     if (!props.visible) return
     activeOuterTab.value =
       props.initialOuterTab === 'eligible' || props.initialOuterTab === 'special'
         ? props.initialOuterTab
         : 'eligible'
-    activeRound.value = ELIGIBLE_INNER_IDS.includes(props.initialRound)
-      ? props.initialRound
-      : 'global'
     searchForm.value = emptyFilters()
     appliedSearch.value = emptyFilters()
     currentPage.value = 1
@@ -139,7 +119,7 @@ watch(
   },
 )
 
-watch([activeOuterTab, activeRound], () => {
+watch(activeOuterTab, () => {
   currentPage.value = 1
   selectedIds.value = []
   searchForm.value = emptyFilters()
@@ -251,19 +231,6 @@ function onSpecialImported() {
           </button>
         </div>
 
-        <div v-if="isEligibleTab" class="tab-bar round-tabs">
-          <button
-            v-for="tab in ELIGIBLE_INNER_TABS"
-            :key="tab.id"
-            type="button"
-            class="tab-btn"
-            :class="{ active: activeRound === tab.id }"
-            @click="activeRound = tab.id"
-          >
-            {{ t(tab.labelKey) }}
-          </button>
-        </div>
-
         <div class="search-bar">
           <div class="search-row">
             <div class="search-fields">
@@ -340,11 +307,8 @@ function onSpecialImported() {
           </div>
           <span v-else class="toolbar-spacer" aria-hidden="true" />
           <span class="drawer-meta">
-            <template v-if="isGlobalInnerTab">
+            <template v-if="isEligibleTab">
               {{ t('courseRegistration.batch.globalScopeRosterMeta', { count: listTotal }) }}
-            </template>
-            <template v-else-if="isEligibleTab">
-              {{ t('courseRegistration.batch.scopeRosterMeta', { count: listTotal }) }}
             </template>
             <template v-else>
               {{ t('courseRegistration.batch.specialRosterMeta', { count: listTotal }) }}

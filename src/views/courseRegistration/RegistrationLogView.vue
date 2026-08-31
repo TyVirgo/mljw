@@ -27,6 +27,7 @@ import {
   formatRegistrationLogExportRow,
 } from '../../utils/exportCourseRegistrationExcel.js'
 import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
+import { formatIntakeBatch } from '../../data/intakeSets.js'
 import '../../styles/list-page-search.css'
 import '../../styles/course-registration-list.css'
 
@@ -354,10 +355,13 @@ function handleExportConfirm({ selectedFields }) {
                 <th>{{ t('courseRegistration.log.batchName') }}</th>
                 <th>{{ t('courseRegistration.monitor.studentId') }}</th>
                 <th>{{ t('courseRegistration.monitor.studentName') }}</th>
+                <th>{{ t('courseRegistration.monitor.programme') }}</th>
+                <th>{{ t('courseRegistration.monitor.intake') }}</th>
                 <th>{{ t('courseRegistration.log.course') }}</th>
                 <th>{{ t('courseRegistration.log.section') }}</th>
                 <th>{{ t('courseRegistration.courses.credits') }}</th>
                 <th>{{ t('courseRegistration.courses.type') }}</th>
+                <th>{{ t('courseRegistration.student.isRetake') }}</th>
                 <th>{{ t('courseRegistration.log.operator') }}</th>
                 <th>{{ t('courseRegistration.log.operatedAt') }}</th>
                 <th class="col-sticky-right col-queue">{{ t('courseRegistration.log.queueStatusLabel') }}</th>
@@ -370,10 +374,13 @@ function handleExportConfirm({ selectedFields }) {
                 <td>{{ row.batchName }}</td>
                 <td>{{ row.studentId }}</td>
                 <td>{{ row.studentName }}</td>
+                <td>{{ row.programme || '—' }}</td>
+                <td>{{ formatIntakeBatch(row.intake) || '—' }}</td>
                 <td>{{ row.courseCode }} {{ row.courseName }}</td>
                 <td>{{ sectionLabel(row.sectionCode) }}</td>
                 <td>{{ row.credits }}</td>
                 <td>{{ getRegistrationTypeLabel(row.courseType, t) || row.courseType || '—' }}</td>
+                <td>{{ row.isRetake ? t('common.yes') : t('common.no') }}</td>
                 <td>{{ formatOperatorDisplay(row) }}</td>
                 <td>{{ row.operatedAt }}</td>
                 <td class="col-sticky-right col-queue">
@@ -384,7 +391,7 @@ function handleExportConfirm({ selectedFields }) {
                 </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="12" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="15" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>

@@ -27,9 +27,12 @@ export const zhFlat = {
   'ID or Code already exists.': 'ID 或编码已存在。',
   'Details': '详情',
   'Category': '类别',
-  'School Elective Category': '校选类别',
-  'School Elective Category:': '校选类别：',
-  'School Elective Category is required': '校选类别为必填项',
+  'School Elective Category': '校选课类型',
+  'School Elective Category:': '校选课类型：',
+  'School Elective Category is required': '校选课类型为必填项',
+  'School Elective Course Type': '校选课类型',
+  'School Elective Course Type:': '校选课类型：',
+  'School Elective Course Type is required': '校选课类型为必填项',
 
   // Classroom
   'Block': '楼栋',

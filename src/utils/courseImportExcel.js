@@ -119,7 +119,7 @@ export function downloadCourseImportTemplate() {
   const sampleRow = [
     'PHY101',
     'ASEAN Business Essentials',
-    'SOF',
+    'STCM',
     'TML001',
     'Compulsory',
     4,

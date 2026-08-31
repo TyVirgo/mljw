@@ -39,7 +39,7 @@ export const initialCourseApplications = [
     approvalStage: 'HoD/HoP Review',
     courseCode: 'PHY101',
     courseName: 'ASEAN Business Essentials',
-    offering: 'SOF',
+    offering: 'STCM',
     affiliatedProgramme: 'IBU',
     courseOwner: 'TML001',
     courseClassification: 'Compulsory',

@@ -24,6 +24,7 @@ export const courseRegistrationMenuItems = [
     icon: 'grid',
     audience: 'admin',
     children: [
+      { id: 'cr-schedule', labelKey: 'menu.crSchedule', audience: 'admin' },
       { id: 'cr-batch', labelKey: 'menu.crBatch', audience: 'admin' },
       { id: 'cr-rules', labelKey: 'menu.crRules', audience: 'admin' },
     ],
@@ -63,6 +64,7 @@ export const courseRegistrationMenuItems = [
 
 export const courseRegistrationDevelopedPages = new Set([
   'cr-flow-guide',
+  'cr-schedule',
   'cr-batch',
   'cr-rules',
   'cr-monitor',

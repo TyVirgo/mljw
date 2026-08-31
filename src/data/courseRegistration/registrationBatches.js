@@ -19,25 +19,28 @@ import {
   resolveBatchTermKind,
   resolveDropDeadlineWeek,
 } from './batchTermKind.js'
+import { buildDemoSelectionGroups } from './courseSelectionGroups.js'
 
 const SESSION = '2026/04'
-/** 默认仅第一轮；二三轮经「管理轮次」递进配置 */
+/** 默认完整三轮（顺序：R1 → 公布 → R2 → R3）；草稿可空二三轮 */
 const R1_ONLY_ROUNDS = {
-  preselect: { start: '25-Aug-2025', end: '28-Aug-2025' },
+  preselect: { start: '25-Aug-2025 00:00:00', end: '28-Aug-2025 18:00:00' },
   main: { start: '', end: '' },
   supplement: { start: '', end: '' },
 }
 const FULL_ROUNDS = {
-  preselect: { start: '25-Aug-2025', end: '28-Aug-2025' },
-  main: { start: '31-Aug-2025', end: '04-Sep-2025' },
-  supplement: { start: '07-Sep-2025', end: '09-Sep-2025' },
+  preselect: { start: '25-Aug-2025 00:00:00', end: '28-Aug-2025 18:00:00' },
+  main: { start: '01-Sep-2025 00:00:00', end: '04-Sep-2025 23:59:00' },
+  supplement: { start: '07-Sep-2025 00:00:00', end: '09-Sep-2025 23:59:00' },
 }
-/** 已配第二轮、结束日未到（相对 2026-07），用于演示 R3 仍锁定 */
+const FULL_ROUNDS_RELEASE = '30-Aug-2025 19:00:00'
+/** 已配满三轮的演示窗（相对 2026 暑期） */
 const R2_OPEN_ROUNDS = {
-  preselect: { start: '25-Aug-2025', end: '28-Aug-2025' },
-  main: { start: '01-Aug-2026', end: '20-Aug-2026' },
-  supplement: { start: '', end: '' },
+  preselect: { start: '25-Jul-2026 00:00:00', end: '05-Aug-2026 18:00:00' },
+  main: { start: '10-Aug-2026 00:00:00', end: '20-Aug-2026 23:59:00' },
+  supplement: { start: '21-Aug-2026 00:00:00', end: '28-Aug-2026 23:59:00' },
 }
+const R2_OPEN_RELEASE = '08-Aug-2026 19:00:00'
 /** 长学期演示：窗口保持开放便于联调；截止周=2，结束对齐 17:00 */
 const DEFAULT_ADD_DROP = { ...DEMO_ADD_DROP_WINDOW_OPEN_LONG }
 
@@ -74,6 +77,7 @@ function geBatch({
   status = 'draft',
   courseCount = 8,
   scopeRules,
+  programme = '',
   ...rest
 }) {
   const rules = scopeRules || []
@@ -82,7 +86,7 @@ function geBatch({
     name: geName(scope, tier),
     academicSession: SESSION,
     type: 'GE',
-    programme: '',
+    programme: programme || (scope === 'HUM' || scope === 'BUS' || scope === 'MPU' || scope === 'SCI' || scope === 'FIN' ? '' : scope),
     status,
     roundsSummary: 'R1 25-Aug–28-Aug',
     ...withScopeRules(rules),
@@ -91,7 +95,7 @@ function geBatch({
     courseCount,
     rounds: { ...R1_ONLY_ROUNDS },
     roundsByAudience: {
-      senior: { ...R1_ONLY_ROUNDS, resultReleaseAt: DEMO_SENIOR_ROUNDS_202604.resultReleaseAt },
+      senior: { ...R1_ONLY_ROUNDS, resultReleaseAt: FULL_ROUNDS_RELEASE },
       freshman: {
         preselect: { start: '', end: '' },
         main: { start: '', end: '' },
@@ -135,7 +139,7 @@ function meBatch({
     courseCount,
     rounds: { ...R1_ONLY_ROUNDS },
     roundsByAudience: {
-      senior: { ...R1_ONLY_ROUNDS, resultReleaseAt: DEMO_SENIOR_ROUNDS_202604.resultReleaseAt },
+      senior: { ...R1_ONLY_ROUNDS, resultReleaseAt: FULL_ROUNDS_RELEASE },
       freshman: {
         preselect: { start: '', end: '' },
         main: { start: '', end: '' },
@@ -161,9 +165,10 @@ function meBatch({
 export { resolveBatchTermKind, resolveDropDeadlineWeek, TERM_KIND_LONG, TERM_KIND_SHORT }
 
 /**
- * 学生端 demo 矩阵（开闭只认 demoActiveRound / demoClosedRounds）：
- * GE：HUM=R1 进行中、BUS=R2、MPU=R3、SCI=R1 已结束
- * ME：SWE=R1 进行中、CST=R2、CYS=R3、COS=R1 已结束；batch-2504-m1 兼学生课表主批。
+ * 学生端 demo 矩阵（开闭只认 demoActiveRound / demoClosedRounds；按 programme 过滤）：
+ * 默认演示专业 SWE — GE/ME 各三档：R1 / R2 / R3 进行中
+ * （进行中,待开放,待开放）/（已结束,进行中,待开放）/（已结束,已结束,进行中）
+ * batch-2504-m1 兼学生课表主批。
  */
 const initialBatches = [
   geBatch({
@@ -179,6 +184,21 @@ const initialBatches = [
     tier: 'Senior I',
     status: 'draft',
     courseCount: 20,
+    volunteerFinalConfirmedAt: null,
+    demoResultReleaseFixed: {
+      released: false,
+      displayAt: '18/08/2026 19:00:00',
+      remainingDays: 5,
+      remainingHours: 12,
+    },
+    roundsByAudience: {
+      senior: { ...R1_ONLY_ROUNDS, resultReleaseAt: '18-Aug-2026 19:00:00' },
+      freshman: {
+        preselect: { start: '', end: '' },
+        main: { start: '', end: '' },
+        supplement: { start: '', end: '' },
+      },
+    },
   }),
   meBatch({
     id: 'batch-me-chs-senior-ii',
@@ -189,11 +209,15 @@ const initialBatches = [
     /** 已结束：三轮选课已走完，新老生轮次均有完整时间 */
     rounds: { ...FULL_ROUNDS },
     roundsByAudience: {
-      senior: { ...FULL_ROUNDS, resultReleaseAt: '10-Sep-2025 19:00:00' },
+      senior: { ...FULL_ROUNDS, resultReleaseAt: '18-Aug-2026 19:00:00' },
       freshman: { ...FULL_ROUNDS },
     },
     roundsSummary: 'R1 25-Aug–28-Aug · R2 31-Aug–04-Sep · R3 07-Sep–09-Sep · Closed',
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
+    demoResultReleaseFixed: {
+      released: true,
+      displayAt: '18/08/2026 19:00:00',
+    },
     demoClosedRounds: ['preselect', 'main', 'supplement'],
   }),
   geBatch({
@@ -219,15 +243,15 @@ const initialBatches = [
     roundsByAudience: {
       senior: {
         ...FULL_ROUNDS,
-        resultReleaseAt: '01-Apr-2026 19:00:00',
+        resultReleaseAt: FULL_ROUNDS_RELEASE,
       },
       freshman: {
-        preselect: { start: '', end: '' },
-        main: { start: '02-Apr-2026 00:00:00', end: '05-Apr-2026 23:59:00' },
-        supplement: { start: '06-Apr-2026 00:00:00', end: '12-Apr-2026 23:59:00' },
+        preselect: { start: '26-Aug-2025 00:00:00', end: '29-Aug-2025 12:00:00' },
+        main: { start: '01-Sep-2025 00:00:00', end: '04-Sep-2025 23:59:00' },
+        supplement: { start: '07-Sep-2025 00:00:00', end: '09-Sep-2025 23:59:00' },
       },
     },
-    roundsSummary: 'R1 25-Aug–28-Aug · R2 31-Aug–04-Sep · R3 07-Sep–09-Sep',
+    roundsSummary: 'R1 25-Aug–28-Aug · 公布 30-Aug · R2 01–04-Sep · R3 07–09-Sep',
     scopeRules: [
       {
         faculties: ['School of Information'],
@@ -251,12 +275,18 @@ const initialBatches = [
         round: 'supplement',
       },
     ],
+    /** 3 组 demo：4选3 / 3选2 / 2选1，组块排在普通课之前 */
+    selectionGroups: buildDemoSelectionGroups('me-m1', '2025/09', [
+      { courseCodes: ['IT102', 'COMP220', 'MATH201', 'STAT201'], minPick: 3 },
+      { courseCodes: ['AI110', 'WEB210', 'PHYS101'], minPick: 2 },
+      { courseCodes: ['EMB210', 'STAT301'], minPick: 1 },
+    ]),
   }),
-  // B：第二轮进行中
+  // SWE 第二轮进行中（同专业 demo 档 II）
   meBatch({
     id: 'batch-me-cst-i',
-    dept: 'CST',
-    tier: 'I',
+    dept: 'SWE',
+    tier: 'II',
     status: 'active',
     courseCount: 14,
     faculty: 'School of Information',
@@ -264,25 +294,41 @@ const initialBatches = [
     demoActiveRound: 'main',
     demoClosedRounds: ['preselect'],
     rounds: { ...R2_OPEN_ROUNDS },
-    roundsSummary: 'R1 25-Aug–28-Aug · R2 01-Aug–20-Aug-2026',
+    roundsByAudience: {
+      senior: { ...R2_OPEN_ROUNDS, resultReleaseAt: R2_OPEN_RELEASE },
+      freshman: { ...R2_OPEN_ROUNDS },
+    },
+    roundsSummary: 'R1 25-Jul–05-Aug · 公布 08-Aug · R2 10–20-Aug · R3 21–28-Aug',
     scopeRules: [
       {
         faculties: ['School of Information'],
         intakes: ['2024/09', '2025/04'],
-        programmes: ['CST'],
+        programmes: ['SWE'],
         groupName: '',
         round: 'preselect',
       },
       {
-        faculties: ['School of Information', 'School of Computing'],
-        intakes: ['2025/04'],
-        programmes: ['CST', 'CSN'],
+        faculties: ['School of Information'],
+        intakes: ['2024/09', '2025/04'],
+        programmes: ['SWE'],
         groupName: '',
         round: 'main',
       },
+      {
+        faculties: ['School of Information'],
+        intakes: ['All'],
+        programmes: ['SWE'],
+        groupName: '',
+        round: 'supplement',
+      },
     ],
+    selectionGroups: buildDemoSelectionGroups('me-cst', '2025/09', [
+      { courseCodes: ['CST201', 'CST202', 'CST203', 'CST204'], minPick: 3 },
+      { courseCodes: ['CST205', 'CST206', 'CST207'], minPick: 2 },
+      { courseCodes: ['CST208', 'CST209'], minPick: 1 },
+    ]),
   }),
-  // A：已结束（三轮均关闭，展示钉第一轮）
+  // 其他专业关窗样例（学生端按 programme 过滤，SWE 不可见）
   meBatch({
     id: 'batch-me-cos',
     dept: 'COS',
@@ -296,48 +342,57 @@ const initialBatches = [
       {
         faculties: ['School of Information'],
         intakes: ['2024/09'],
-        programmes: ['COS', 'SWE'],
+        programmes: ['COS'],
         groupName: '',
         round: 'preselect',
       },
     ],
   }),
-  // C：第三轮进行中
+  // SWE 第三轮进行中（同专业 demo 档 III）
   meBatch({
     id: 'batch-me-cys-i',
-    dept: 'CYS',
-    tier: 'I',
+    dept: 'SWE',
+    tier: 'III',
     status: 'active',
     courseCount: 12,
     faculty: 'School of Information',
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
     demoActiveRound: 'supplement',
     demoClosedRounds: ['preselect', 'main'],
-    rounds: { ...FULL_ROUNDS },
-    roundsSummary: 'R1 25-Aug–28-Aug · R2 31-Aug–04-Sep · R3 07-Sep–09-Sep',
+    rounds: { ...R2_OPEN_ROUNDS },
+    roundsByAudience: {
+      senior: { ...R2_OPEN_ROUNDS, resultReleaseAt: R2_OPEN_RELEASE },
+      freshman: { ...R2_OPEN_ROUNDS },
+    },
+    roundsSummary: 'R1 25-Jul–05-Aug · 公布 08-Aug · R2 10–20-Aug · R3 21–28-Aug',
     scopeRules: [
       {
         faculties: ['School of Information'],
         intakes: ['2024/09', '2025/04'],
-        programmes: ['CYS'],
+        programmes: ['SWE'],
         groupName: '',
         round: 'preselect',
       },
       {
-        faculties: ['School of Information', 'School of Computing'],
+        faculties: ['School of Information'],
         intakes: ['2024/09'],
-        programmes: ['CYS'],
+        programmes: ['SWE'],
         groupName: '',
         round: 'main',
       },
       {
         faculties: ['School of Information'],
-        intakes: ['2025/04'],
-        programmes: ['CYS', 'SWE'],
+        intakes: ['All'],
+        programmes: ['SWE'],
         groupName: '',
         round: 'supplement',
       },
     ],
+    selectionGroups: buildDemoSelectionGroups('me-cys', '2025/09', [
+      { courseCodes: ['CYS201', 'CYS202', 'CYS203', 'CYS204'], minPick: 3 },
+      { courseCodes: ['CYS205', 'CYS206', 'CYS207'], minPick: 2 },
+      { courseCodes: ['CYS208', 'CYS209'], minPick: 1 },
+    ]),
   }),
   geBatch({
     id: 'batch-ge-mpu-i-draft',
@@ -352,7 +407,8 @@ const initialBatches = [
     tier: 'I',
     status: 'active',
     courseCount: 20,
-    /** Demo：已结束，展示钉第一轮 */
+    programme: 'SCI',
+    /** 其他专业关窗样例；SWE 学生端不可见 */
     demoActiveRound: 'preselect',
     demoClosedRounds: ['preselect', 'main', 'supplement'],
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
@@ -379,34 +435,48 @@ const initialBatches = [
     courseCount: 20,
     rounds: { ...FULL_ROUNDS },
     roundsByAudience: {
-      senior: { ...FULL_ROUNDS, resultReleaseAt: '10-Sep-2025 19:00:00' },
+      senior: { ...FULL_ROUNDS, resultReleaseAt: FULL_ROUNDS_RELEASE },
       freshman: { ...FULL_ROUNDS },
     },
     roundsSummary: 'R1 25-Aug–28-Aug · R2 31-Aug–04-Sep · R3 07-Sep–09-Sep · Closed',
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
     demoClosedRounds: ['preselect', 'main', 'supplement'],
   }),
-  // GE：HUM / BUS / MPU 进行中 + SCI 关窗；课表与轮次状态错开
+  // GE：SWE 同专业三档 R1/R2/R3 进行中
   {
     id: 'batch-2504-g1',
-    // 原名 GE General Studies Selection… 已改为 HUM 句式
-    name: geName('HUM', 'I'),
+    name: geName('SWE', 'I'),
     academicSession: SESSION,
     type: 'GE',
+    programme: 'SWE',
     status: 'active',
-    roundsSummary: 'R1 01-Sep–03-Sep · R2 06-Sep–08-Sep · R3 11-Sep–12-Sep',
-    ...withScopeRules([]),
-    /** Demo：当前第一轮可操作 */
+    roundsSummary: 'R1 25-Jul–05-Aug · R2 10–20-Aug · R3 21–28-Aug',
+    ...withScopeRules([
+      {
+        faculties: ['School of Information'],
+        intakes: ['2024/09', '2025/04'],
+        programmes: ['SWE'],
+        groupName: '',
+        round: 'preselect',
+      },
+    ]),
+    /** Demo：第一轮进行中 */
     demoActiveRound: 'preselect',
     demoClosedRounds: [],
     volunteerFinalConfirmedAt: null,
+    demoResultReleaseFixed: {
+      released: false,
+      displayAt: '18/08/2026 19:00:00',
+      remainingDays: 5,
+      remainingHours: 12,
+    },
     creditMin: 4,
     creditMax: 8,
     courseCount: 16,
-    rounds: {
-      preselect: { start: '01-Sep-2025', end: '03-Sep-2025' },
-      main: { start: '06-Sep-2025', end: '08-Sep-2025' },
-      supplement: { start: '11-Sep-2025', end: '12-Sep-2025' },
+    rounds: { ...R2_OPEN_ROUNDS },
+    roundsByAudience: {
+      senior: { ...R2_OPEN_ROUNDS, resultReleaseAt: '18-Aug-2026 19:00:00' },
+      freshman: { ...R2_OPEN_ROUNDS },
     },
     addDropWindow: { start: '15-Sep-2025 00:00:00', end: '26-Sep-2025 17:00:00' },
     termKind: TERM_KIND_LONG,
@@ -414,27 +484,40 @@ const initialBatches = [
     notifyTemplate: 'default-g1',
     isSelectable: true,
     localRules: defaultBatchLocalRules(),
-    round1Quota: defaultRound1Quota('GE', '', SESSION),
+    round1Quota: defaultRound1Quota('GE', 'SWE', SESSION),
   },
   {
     id: 'batch-2504-g2',
-    name: geName('BUS', 'I'),
+    name: geName('SWE', 'II'),
     academicSession: SESSION,
     type: 'GE',
+    programme: 'SWE',
     status: 'active',
-    roundsSummary: 'R1 01-Sep–03-Sep · R2 06-Sep–08-Sep',
-    ...withScopeRules([]),
-    /** Demo：当前第二轮可操作；第一轮关闭 */
+    roundsSummary: 'R1 25-Jul–05-Aug · R2 10–20-Aug · R3 21–28-Aug',
+    ...withScopeRules([
+      {
+        faculties: ['School of Information'],
+        intakes: ['2024/09', '2025/04'],
+        programmes: ['SWE'],
+        groupName: '',
+        round: 'main',
+      },
+    ]),
+    /** Demo：第二轮进行中；第一轮关闭 */
     demoActiveRound: 'main',
     demoClosedRounds: ['preselect'],
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
+    demoResultReleaseFixed: {
+      released: true,
+      displayAt: '18/08/2026 19:00:00',
+    },
     creditMin: 3,
     creditMax: 6,
     courseCount: 10,
-    rounds: {
-      preselect: { start: '01-Sep-2025', end: '03-Sep-2025' },
-      main: { start: '06-Sep-2025', end: '08-Sep-2025' },
-      supplement: { start: '', end: '' },
+    rounds: { ...R2_OPEN_ROUNDS },
+    roundsByAudience: {
+      senior: { ...R2_OPEN_ROUNDS, resultReleaseAt: R2_OPEN_RELEASE },
+      freshman: { ...R2_OPEN_ROUNDS },
     },
     addDropWindow: { start: '15-Sep-2025 00:00:00', end: '26-Sep-2025 17:00:00' },
     termKind: TERM_KIND_LONG,
@@ -442,27 +525,36 @@ const initialBatches = [
     notifyTemplate: 'default-g2',
     isSelectable: true,
     localRules: defaultBatchLocalRules(),
-    round1Quota: defaultRound1Quota('GE', '', SESSION),
+    round1Quota: defaultRound1Quota('GE', 'SWE', SESSION),
   },
   {
     id: 'batch-2504-g3',
-    name: geName('MPU', 'II'),
+    name: geName('SWE', 'III'),
     academicSession: SESSION,
     type: 'GE',
+    programme: 'SWE',
     status: 'active',
-    roundsSummary: 'R1 01-Sep–03-Sep · R2 06-Sep–08-Sep · R3 11-Sep–12-Sep',
-    ...withScopeRules([]),
-    /** Demo：当前第三轮可操作；一二轮关闭 */
+    roundsSummary: 'R1 25-Jul–05-Aug · R2 10–20-Aug · R3 21–28-Aug',
+    ...withScopeRules([
+      {
+        faculties: ['School of Information'],
+        intakes: ['2024/09', '2025/04'],
+        programmes: ['SWE'],
+        groupName: '',
+        round: 'supplement',
+      },
+    ]),
+    /** Demo：第三轮进行中；一二轮关闭 */
     demoActiveRound: 'supplement',
     demoClosedRounds: ['preselect', 'main'],
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
     creditMin: 2,
     creditMax: 6,
     courseCount: 8,
-    rounds: {
-      preselect: { start: '01-Sep-2025', end: '03-Sep-2025' },
-      main: { start: '06-Sep-2025', end: '08-Sep-2025' },
-      supplement: { start: '11-Sep-2025', end: '12-Sep-2025' },
+    rounds: { ...R2_OPEN_ROUNDS },
+    roundsByAudience: {
+      senior: { ...R2_OPEN_ROUNDS, resultReleaseAt: R2_OPEN_RELEASE },
+      freshman: { ...R2_OPEN_ROUNDS },
     },
     addDropWindow: { start: '15-Sep-2025 00:00:00', end: '26-Sep-2025 17:00:00' },
     termKind: TERM_KIND_LONG,
@@ -470,7 +562,7 @@ const initialBatches = [
     notifyTemplate: 'default-g3',
     isSelectable: true,
     localRules: defaultBatchLocalRules(),
-    round1Quota: defaultRound1Quota('GE', '', SESSION),
+    round1Quota: defaultRound1Quota('GE', 'SWE', SESSION),
   },
   {
     id: 'batch-2502-me-closed',
@@ -507,7 +599,7 @@ const initialBatches = [
         preselect: { start: '10-Jan-2025', end: '12-Jan-2025' },
         main: { start: '15-Jan-2025', end: '20-Jan-2025' },
         supplement: { start: '21-Jan-2025', end: '22-Jan-2025' },
-        resultReleaseAt: '22-Jan-2025 19:00:00',
+        resultReleaseAt: '13-Jan-2025 19:00:00',
       },
       freshman: {
         preselect: { start: '10-Jan-2025', end: '12-Jan-2025' },
@@ -550,6 +642,26 @@ function withAudienceRounds(item) {
 }
 
 export const registrationBatches = ref(initialBatches.map((item) => withAudienceRounds({ ...item })))
+
+/** 选课结果页 demo：2 GE + 2 ME，公布状态固定 */
+export const RESULT_DEMO_BATCH_IDS = [
+  'batch-2504-g1',
+  'batch-2504-g2',
+  'batch-me-chs-senior-i',
+  'batch-me-chs-senior-ii',
+]
+
+const RESULT_DEMO_BATCH_ID_SET = new Set(RESULT_DEMO_BATCH_IDS)
+
+/** @param {string} batchId */
+export function isResultDemoBatch(batchId) {
+  return RESULT_DEMO_BATCH_ID_SET.has(String(batchId || '').trim())
+}
+
+/** @returns {object[]} */
+export function listResultDemoBatches() {
+  return RESULT_DEMO_BATCH_IDS.map((id) => getBatchById(id)).filter(Boolean)
+}
 
 let batchSeq = 3
 
@@ -609,9 +721,24 @@ export function formatRoundRange(range) {
   return end ? `${start} – ${end}` : start
 }
 
+/** 紧凑列表：去掉秒（HH:mm） */
+export function formatRoundRangeCompact(range) {
+  const text = formatRoundRange(range)
+  if (text === '—') return text
+  return text.replace(/(\d{2}:\d{2}):\d{2}/g, '$1')
+}
+
 /** 列表展示：未配置轮次用文案，避免与「—」空数据混淆时可传入 t */
 export function formatRoundRangeDisplay(range, t) {
   const text = formatRoundRange(range)
+  if (text !== '—') return text
+  if (t) return t('courseRegistration.batch.roundNotConfigured')
+  return '—'
+}
+
+/** 紧凑列表展示（去秒） */
+export function formatRoundRangeDisplayCompact(range, t) {
+  const text = formatRoundRangeCompact(range)
   if (text !== '—') return text
   if (t) return t('courseRegistration.batch.roundNotConfigured')
   return '—'
@@ -724,23 +851,79 @@ export function isStudentRoundSelectable(batch, roundKey, audience) {
 }
 
 /**
- * 学生可选进行中批次（按 GE/ME）
- * @param {'GE'|'ME'|string} type 类型
+ * 批次是否对学生专业可见（优先 batch.programme；否则看 scopeRules）
+ * @param {object|null} batch
+ * @param {string} [programmeCode]
  */
-export function listStudentSelectableBatchesByType(type) {
+export function batchMatchesStudentProgramme(batch, programmeCode) {
+  if (!batch) return false
+  const code = String(programmeCode || '').trim()
+  if (!code) return true
+  const batchProg = String(batch.programme || '').trim()
+  if (batchProg) return batchProg === code
+  const fromRules = []
+  for (const rule of batch.scopeRules || []) {
+    if (Array.isArray(rule.programmes)) fromRules.push(...rule.programmes)
+    if (rule.programme) fromRules.push(rule.programme)
+  }
+  if (!fromRules.length) return false
+  return fromRules.some((p) => String(p).trim() === code)
+}
+
+/**
+ * 学生可选进行中批次（按 GE/ME，可选按专业过滤）
+ * @param {'GE'|'ME'|string} type 类型
+ * @param {string} [programmeCode] 学生专业码；缺省不过滤
+ */
+export function listStudentSelectableBatchesByType(type, programmeCode) {
   const kind = type === 'GE' ? 'GE' : 'ME'
-  return listStudentSelectableBatches().filter((item) => item.type === kind)
+  return listStudentSelectableBatches().filter((item) => {
+    if (item.type !== kind) return false
+    if (programmeCode == null || programmeCode === '') return true
+    return batchMatchesStudentProgramme(item, programmeCode)
+  })
+}
+
+/**
+ * 入口时间轴：三轮状态（仅认 demo 标志，不跟系统时钟）
+ * @param {object|null} batch
+ * @param {string} [audience]
+ * @returns {{ key: string, status: 'active'|'ended'|'pending' }[]}
+ */
+export function listStudentRoundTimelineStatuses(batch, audience) {
+  const keys = ['preselect', 'main', 'supplement']
+  if (!batch) {
+    return keys.map((key) => ({ key, status: 'pending' }))
+  }
+  const configured = listConfiguredRoundKeys(batch, audience)
+  const closed = new Set(batch.demoClosedRounds || [])
+  const openKey = getStudentCurrentOpenRoundKey(batch, audience)
+  return keys.map((key) => {
+    if (!configured.includes(key)) {
+      return { key, status: 'pending' }
+    }
+    if (closed.has(key)) return { key, status: 'ended' }
+    if (openKey === key) return { key, status: 'active' }
+    return { key, status: 'pending' }
+  })
+}
+
+/** 公布时刻展示（单点） */
+export function formatResultReleaseAt(at) {
+  const text = batchDateToPicker(String(at || '').trim())
+  return text || '—'
 }
 
 /**
  * 按类型取当前开放批：该类型 active 中「存在当前开放轮」的第一条（数据源顺序）
  * @param {'GE'|'ME'|string} type 类型
  * @param {string} [audience] 受众
+ * @param {string} [programmeCode] 专业码
  * @returns {object|null}
  */
-export function getCurrentOpenBatchByType(type, audience) {
+export function getCurrentOpenBatchByType(type, audience, programmeCode) {
   return (
-    listStudentSelectableBatchesByType(type).find((batch) =>
+    listStudentSelectableBatchesByType(type, programmeCode).find((batch) =>
       Boolean(getStudentCurrentOpenRoundKey(batch, audience)),
     ) || null
   )
@@ -750,12 +933,13 @@ export function getCurrentOpenBatchByType(type, audience) {
  * 目录点选类型：优先当前开放批；无开放则取该类型第一条 active（列表只读预览）
  * @param {'GE'|'ME'|string} type 类型
  * @param {string} [audience] 受众
+ * @param {string} [programmeCode] 专业码
  * @returns {{ batch: object|null, isOpen: boolean }}
  */
-export function resolveBatchForTypeEntry(type, audience) {
-  const open = getCurrentOpenBatchByType(type, audience)
+export function resolveBatchForTypeEntry(type, audience, programmeCode) {
+  const open = getCurrentOpenBatchByType(type, audience, programmeCode)
   if (open) return { batch: open, isOpen: true }
-  const first = listStudentSelectableBatchesByType(type)[0] || null
+  const first = listStudentSelectableBatchesByType(type, programmeCode)[0] || null
   return { batch: first, isOpen: false }
 }
 
@@ -844,7 +1028,10 @@ export function addRegistrationBatch(payload) {
     preselectPriority: { preferSenior: false, minSemestersAbove: 1 },
     isSelectable: true,
     localRules: defaultBatchLocalRules(),
-    round1Quota: defaultRound1Quota(payload.type || 'GE', payload.programme || '', payload.academicSession || ''),
+    round1Quota:
+      String(payload.type || '').toUpperCase() === 'ME'
+        ? defaultRound1Quota('ME', payload.programme || '', payload.academicSession || '')
+        : undefined,
     ...payload,
     rounds,
     roundsByAudience,
@@ -878,4 +1065,36 @@ export function revokeRegistrationBatch(id) {
     return { ok: false, errorKey: 'courseRegistration.batch.revokeOnlyActive' }
   }
   return updateRegistrationBatch(id, { status: 'draft' })
+}
+
+/** 删除批次（仅 draft / closed；原型仅移除批次行） */
+export function removeRegistrationBatch(id) {
+  const batch = getBatchById(id)
+  if (!batch) return { ok: false, errorKey: 'courseRegistration.batch.notFound' }
+  if (batch.status === 'active') {
+    return { ok: false, errorKey: 'courseRegistration.batch.deleteOnlyDraftClosed' }
+  }
+  registrationBatches.value = registrationBatches.value.filter((item) => item.id !== id)
+  return { ok: true }
+}
+
+/**
+ * 批量删除批次
+ * @param {string[]} ids
+ * @returns {{ ok: boolean, deletedIds?: string[], skippedIds?: string[] }}
+ */
+export function removeRegistrationBatches(ids) {
+  const uniqueIds = [...new Set((ids || []).map((id) => String(id || '').trim()).filter(Boolean))]
+  const deletedIds = []
+  const skippedIds = []
+  for (const id of uniqueIds) {
+    const result = removeRegistrationBatch(id)
+    if (result.ok) deletedIds.push(id)
+    else skippedIds.push(id)
+  }
+  return {
+    ok: deletedIds.length > 0,
+    deletedIds,
+    skippedIds,
+  }
 }

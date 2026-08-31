@@ -13,7 +13,10 @@ import {
   seededRandomFromKey,
 } from './preselectWeightedLottery.js'
 import { getBatchRound1Quota, openDaysFromRange, DEFAULT_DECAY_R } from './batchRound1Quota.js'
+import { listBatchRosterStudents } from './batchStudentRoster.js'
 import { countRelativeSemesters } from '../intakeSets.js'
+import { resolveEffectiveAudienceRounds } from './sessionRegistrationSchedules.js'
+import { studentPendingAssignCourses } from './studentPendingAssignState.js'
 
 /**
  * 第一轮志愿名单（按教学分组）
@@ -284,9 +287,18 @@ function seedSectionStates() {
             rand,
           })
         } else if (isMe) {
+          let specialIds = []
+          try {
+            specialIds = listBatchRosterStudents(batch.id, 'special').map((r) =>
+              String(r.studentId),
+            )
+          } catch {
+            specialIds = []
+          }
           volunteers = layoutMeRound1Roster(volunteers, {
             capacity: listCap,
-            meYearShares: quota.meYearShares,
+            meQuotaRows: quota.meQuotaRows || [],
+            specialStudentIds: specialIds,
             rand,
           })
         } else {
@@ -319,10 +331,20 @@ function seedSectionStates() {
   return rows
 }
 
-export const volunteerCourseStates = ref(seedSectionStates())
+export const volunteerCourseStates = ref([])
 export const volunteerFinalConfirmedAt = ref(null)
 export const volunteerSecondRoundStarted = ref(false)
 export const studentVolunteerCourseIds = ref([])
+
+/** 延迟播种，避开与 batchStudentRoster 的循环初始化 TDZ */
+function bootVolunteerCourseStates() {
+  volunteerCourseStates.value = seedSectionStates()
+}
+if (typeof queueMicrotask === 'function') {
+  queueMicrotask(bootVolunteerCourseStates)
+} else {
+  Promise.resolve().then(bootVolunteerCourseStates)
+}
 
 export function resetPreselectVolunteerConfirm() {
   volunteerCourseStates.value = seedSectionStates()
@@ -375,9 +397,26 @@ export function getVolunteerBatchFinalizedAt(batchId) {
   return batch?.volunteerFinalConfirmedAt || null
 }
 
+function volunteerSelectedPercent(count, seniorCap) {
+  const cap = Number(seniorCap) || 0
+  if (cap <= 0) return null
+  return Math.round((Number(count) / cap) * 100)
+}
+
+function volunteerCapacityTone(count, seniorCap) {
+  const cap = Number(seniorCap) || 0
+  const n = Number(count) || 0
+  if (cap <= 0) return 'capacity-open'
+  if (n < cap) return 'capacity-open'
+  if (n <= cap * 2) return 'capacity-warn'
+  return 'capacity-full'
+}
+
 export function listVolunteerCourseSummaries(filters = {}) {
   let list = volunteerCourseStates.value.map((row) => {
     const count = row.volunteers.length
+    const seniorCapacity = row.seniorCapacity ?? row.capacity
+    const selectedPercent = volunteerSelectedPercent(count, seniorCapacity)
     return {
       id: `volunteer-${row.key}`,
       key: row.key,
@@ -392,11 +431,14 @@ export function listVolunteerCourseSummaries(filters = {}) {
       batchName: row.batchName,
       volunteerCount: count,
       capacity: row.capacity,
-      seniorCapacity: row.seniorCapacity ?? row.capacity,
+      seniorCapacity,
       isGeRound1: Boolean(row.isGeRound1),
       isMeRound1: Boolean(row.isMeRound1),
       dirty: Boolean(row.dirty),
-      capacityLabel: `${count}/${row.seniorCapacity ?? row.capacity}`,
+      capacityLabel: `${count}/${seniorCapacity}`,
+      selectedPercent,
+      selectedPercentLabel: selectedPercent != null ? `${selectedPercent}%` : '—',
+      capacityTone: volunteerCapacityTone(count, seniorCapacity),
     }
   })
 
@@ -605,7 +647,11 @@ export function autoPublishPreselectResults(batchId, opts = {}) {
     return { ok: false, errorKey: 'courseRegistration.result.volunteerReadonly' }
   }
 
-  const releaseAt = batch.roundsByAudience?.senior?.resultReleaseAt || ''
+  const releaseAt =
+    resolveEffectiveAudienceRounds(batch)?.senior?.resultReleaseAt ||
+    batch.roundsByAudience?.senior?.resultReleaseAt ||
+    ''
+
   if (!opts.force && releaseAt) {
     // 原型：有发布时间但未 force 时仍允许（演示到点）；正式环境再比时钟
   }
@@ -640,6 +686,22 @@ export function hasStudentVolunteeredCourse(courseId, studentId) {
   if (sid && studentVolunteerCourseIds.value.includes(courseId)) return true
   if (!sid) return false
   return listStudentIdsOnCourse(courseId, { includeDraft: false }).includes(sid)
+}
+
+/** R1：是否已在指定分组提交志愿/待分配（同课不同组允许重复） */
+export function hasStudentVolunteeredSection(courseId, sectionId, studentId) {
+  if (!courseId || !sectionId) return false
+  const sid = studentId || getCurrentStudent()?.basicInfo?.studentId || ''
+  if (
+    studentPendingAssignCourses.value.some(
+      (item) => item.courseId === courseId && item.sectionId === sectionId,
+    )
+  ) {
+    return true
+  }
+  if (!sid) return false
+  const state = getVolunteerSectionState(courseId, sectionId)
+  return Boolean(state?.volunteers?.some((v) => v.studentId === sid))
 }
 
 export function buildVolunteerDraftAfterAdd(courseId, sectionId, draftVolunteers, profiles) {
@@ -709,7 +771,7 @@ export function submitStudentPreselectVolunteer({ course, section, studentFields
   if (!course || !section || !studentFields?.studentId) {
     return { ok: false, errorKey: 'courseRegistration.student.volunteerSubmitFailed' }
   }
-  if (hasStudentVolunteeredCourse(course.id, studentFields.studentId)) {
+  if (hasStudentVolunteeredSection(course.id, section.id, studentFields.studentId)) {
     return { ok: false, errorKey: 'courseRegistration.student.volunteerDuplicate' }
   }
 

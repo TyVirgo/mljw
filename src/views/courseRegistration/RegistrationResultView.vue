@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import ExportModal from '../../components/common/ExportModal.vue'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
@@ -8,7 +8,7 @@ import PreselectVolunteerRosterDrawer from '../../components/courseRegistration/
 import AdminAddCourseForStudentModal from '../../components/courseRegistration/AdminAddCourseForStudentModal.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { formatIntakeBatch } from '../../data/intakeSets.js'
-import { registrationBatches } from '../../data/courseRegistration/registrationBatches.js'
+import { listResultDemoBatches, registrationBatches } from '../../data/courseRegistration/registrationBatches.js'
 import {
   adminStudentRegistrationResults,
   filterStudentResults,
@@ -30,9 +30,6 @@ import {
 } from '../../data/courseRegistration/preselectVolunteerConfirm.js'
 import {
   formatResultReleaseDisplay,
-  getBatchReleaseCountdown,
-  autoLockVolunteerBatchAtRelease,
-  tickAutoLockVolunteerBatchesAtRelease,
 } from '../../data/courseRegistration/preselectReleaseSync.js'
 import {
   resultStudentExportFields,
@@ -72,11 +69,10 @@ const emptyCourseSearch = () => ({
  * @returns {string}
  */
 function pickDefaultBatchId() {
-  const list = registrationBatches.value
+  const list = listResultDemoBatches()
   const unconfirmed = list.find((b) => !b.volunteerFinalConfirmedAt)
   if (unconfirmed) return unconfirmed.id
-  const active = list.find((b) => b.status === 'active')
-  return active?.id || list[0]?.id || ''
+  return list[0]?.id || ''
 }
 
 /** 页顶选中批次，同步过滤三 Tab */
@@ -120,9 +116,8 @@ const volunteerDrawerVisible = ref(false)
 const volunteerCourseId = ref('')
 const volunteerSectionId = ref('')
 const volunteerTableTick = ref(0)
-/** 每分钟刷新公布倒计时 */
-const releaseCountdownTick = ref(0)
-let releaseCountdownTimer = null
+/** 结果页 demo 批次公布文案固定，不随真实时间刷新 */
+const batchOptions = computed(() => listResultDemoBatches())
 
 const studentRows = computed(() => adminStudentRegistrationResults.value)
 
@@ -153,8 +148,6 @@ const paginatedRows = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   return rows.value.slice(start, start + pageSize.value)
 })
-
-const batchOptions = computed(() => registrationBatches.value)
 
 /** 按最长批次名撑开下拉宽度（对齐学生在线选课） */
 const batchSelectWidth = ref('')
@@ -196,12 +189,10 @@ watch(
 
 onMounted(() => {
   measureBatchSelectWidth()
-  tickReleaseCountdown()
-  releaseCountdownTimer = window.setInterval(tickReleaseCountdown, 60_000)
-})
-
-onUnmounted(() => {
-  if (releaseCountdownTimer) window.clearInterval(releaseCountdownTimer)
+  if (!batchOptions.value.some((b) => b.id === selectedBatchId.value)) {
+    selectedBatchId.value = pickDefaultBatchId()
+    syncBatchToFilters(selectedBatchId.value)
+  }
 })
 
 const exportFields = computed(() =>
@@ -228,43 +219,33 @@ const volunteerBatchFinalized = computed(() => {
   return isVolunteerBatchFinalized(selectedBatchId.value)
 })
 
-/** 有/无最终确认的状态文案（工具行展示） */
+/** 有/无最终确认的状态文案（工具行展示；demo 批次固定不随真实时间变） */
 const volunteerConfirmStatusLabel = computed(() => {
   void volunteerBatchTick.value
-  void releaseCountdownTick.value
+  const batch = registrationBatches.value.find((b) => b.id === selectedBatchId.value)
+  const fixed = batch?.demoResultReleaseFixed
+  if (fixed) {
+    if (batch.volunteerFinalConfirmedAt || fixed.released) {
+      return t('courseRegistration.result.volunteerReleasePublishedFixed', { at: fixed.displayAt })
+    }
+    return t('courseRegistration.result.volunteerReleasePendingFixed', {
+      at: fixed.displayAt,
+      days: fixed.remainingDays ?? 0,
+      hours: fixed.remainingHours ?? 0,
+    })
+  }
   const at = getVolunteerBatchFinalizedAt(selectedBatchId.value)
   if (at) {
     return t('courseRegistration.result.volunteerConfirmedAt', {
       at: String(at).slice(0, 19).replace('T', ' '),
     })
   }
-  const batch = registrationBatches.value.find((b) => b.id === selectedBatchId.value)
   const raw = getResultReleaseAt(batch)
   if (!raw) return t('courseRegistration.result.volunteerReleasePending')
-  const countdown = getBatchReleaseCountdown(selectedBatchId.value)
-  const displayAt = formatResultReleaseDisplay(raw)
-  if (countdown.released) {
-    return t('courseRegistration.result.volunteerReleasePublished', { at: displayAt })
-  }
-  return t('courseRegistration.result.volunteerReleaseRemaining', {
-    at: displayAt,
-    days: countdown.days,
-    hours: countdown.hours,
+  return t('courseRegistration.result.volunteerReleasePublished', {
+    at: formatResultReleaseDisplay(raw),
   })
 })
-
-function runReleaseAutoLock(batchId = selectedBatchId.value) {
-  const result = autoLockVolunteerBatchAtRelease(batchId)
-  if (result.ok && !result.already) {
-    refreshVolunteerTable()
-  }
-}
-
-function tickReleaseCountdown() {
-  releaseCountdownTick.value += 1
-  tickAutoLockVolunteerBatchesAtRelease()
-  runReleaseAutoLock()
-}
 
 const hasSelection = computed(() => selectedIds.value.length > 0)
 const allPageSelected = computed(() => {
@@ -288,7 +269,6 @@ watch(selectedBatchId, (id) => {
   syncBatchToFilters(id)
   currentPage.value = 1
   clearSelection()
-  runReleaseAutoLock(id)
 })
 
 function clearSelection() {
@@ -667,6 +647,7 @@ function handleExportConfirm({ selectedFields }) {
                 <th>{{ t('courseRegistration.courses.credits') }}</th>
                 <th>{{ t('courseRegistration.result.volunteerSectionGroup') }}</th>
                 <th>{{ t('courseRegistration.result.volunteerCapacityLabel') }}</th>
+                <th>{{ t('courseRegistration.courses.volunteerSelectedPercent') }}</th>
                 <th>{{ t('common.actions') }}</th>
               </tr>
             </thead>
@@ -680,6 +661,16 @@ function handleExportConfirm({ selectedFields }) {
                 <td>{{ row.credits }}</td>
                 <td>{{ t('courseRegistration.courses.sectionNameDisplay', { code: row.sectionCode }) }}</td>
                 <td>{{ row.capacityLabel }}</td>
+                <td class="td-capacity">
+                  <span
+                    v-if="row.selectedPercentLabel && row.selectedPercentLabel !== '—'"
+                    class="capacity-pill"
+                    :class="row.capacityTone"
+                  >
+                    {{ row.selectedPercentLabel }}
+                  </span>
+                  <template v-else>—</template>
+                </td>
                 <td class="col-actions">
                   <button
                     type="button"
@@ -695,7 +686,7 @@ function handleExportConfirm({ selectedFields }) {
                 </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="9" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="10" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -945,5 +936,32 @@ function handleExportConfirm({ selectedFields }) {
 
 .link-btn:hover {
   text-decoration: underline;
+}
+
+.td-capacity {
+  text-align: center;
+}
+
+.capacity-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.capacity-open {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.capacity-warn {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.capacity-full {
+  color: #b91c1c;
+  background: #fee2e2;
 }
 </style>

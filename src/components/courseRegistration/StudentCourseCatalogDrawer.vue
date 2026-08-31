@@ -47,7 +47,7 @@ const sortedCourses = computed(() =>
             <tbody>
               <tr v-for="course in sortedCourses" :key="course.id || course.code">
                 <td class="nowrap">
-                  <CourseCodeSourcePopover :code="course.code" />
+                  <CourseCodeSourcePopover :code="course.code" :course="course" />
                 </td>
                 <td>{{ course.name }}</td>
                 <td class="nowrap">

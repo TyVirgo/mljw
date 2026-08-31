@@ -1,25 +1,56 @@
 /**
- * 批次第一轮容量细分：
+ * 第一轮容量细分：
  * - GE：按日 W_i = r^(N-i)
- * - ME：按入学年份额（同年 02/04/09 共用；专业在批次上已绑定）
+ * - ME：按占比行（多入学学期 YYYY/MM 共用一行；另可有「特殊学生」行）
  */
 import { parseIntakeBatch, VALID_INTAKE_MONTHS } from '../intakeSets.js'
 
-/** Demo / 预览用开放天数 */
 export const DEMO_ROUND1_OPEN_DAYS = 5
-
-/** GE 默认衰减系数 */
 export const DEFAULT_DECAY_R = 3
-
-/** 一年三学期（与 intake 模块一致） */
+export const DEFAULT_ME_QUOTA_TOTAL_CAP = 100
 export const YEAR_INTAKE_MONTHS = [...VALID_INTAKE_MONTHS]
+/** ME 名额表入学学期选项年池（原型暂定） */
+export const ME_INTAKE_YEAR_POOL = ['2027', '2026', '2025', '2024']
 
-/** 默认三年名额占比（%）：较早入学年更高，合计 100 */
-export const DEFAULT_ME_YEAR_SHARE_WEIGHTS = [50, 30, 20]
+export const ME_QUOTA_KIND_INTAKE = 'intake'
+export const ME_QUOTA_KIND_SPECIAL = 'special'
+/** 行内 + 下拉：添加特殊学生行（非 YYYY/MM） */
+export const ME_QUOTA_PICKER_SPECIAL = '__special__'
 
-/**
- * 从学术学期（如 2026/04）解析锚点年
- */
+const INTAKE_KEY_RE = /^(20\d{2})\/(02|04|09)$/
+
+let meQuotaRowSeq = 1
+
+export function createMeQuotaRowId(prefix = 'meq') {
+  meQuotaRowSeq += 1
+  return `${prefix}-${meQuotaRowSeq}-${Date.now().toString(36)}`
+}
+
+export function formatIntakeKey(year, month) {
+  const y = String(year || '').trim()
+  const m = String(month || '').padStart(2, '0')
+  if (!/^\d{4}$/.test(y) || !['02', '04', '09'].includes(m)) return ''
+  return `${y}/${m}`
+}
+
+/** 规范化入学学期为 YYYY/MM（仅 02/04/09） */
+export function normalizeIntakeKey(value) {
+  const parsed = parseIntakeBatch(value)
+  if (parsed?.year && parsed?.month) {
+    const m = String(parsed.month).padStart(2, '0')
+    if (['02', '04', '09'].includes(m)) return `${parsed.year}/${m}`
+  }
+  const raw = String(value || '').trim().replace(/-/g, '/')
+  const m = raw.match(/^(20\d{2})\/(0?[249]|02|04|09)$/)
+  if (!m) return ''
+  const month = String(m[2]).padStart(2, '0')
+  if (month === '02' || month === '04' || month === '09') return `${m[1]}/${month}`
+  if (month === '2') return `${m[1]}/02`
+  if (month === '4') return `${m[1]}/04`
+  if (month === '9') return `${m[1]}/09`
+  return ''
+}
+
 export function anchorYearFromSession(academicSession) {
   const parsed = parseIntakeBatch(academicSession)
   if (parsed?.year) return Number(parsed.year)
@@ -27,67 +58,327 @@ export function anchorYearFromSession(academicSession) {
   return m ? Number(m[1]) : new Date().getFullYear()
 }
 
-/** 某入学年对应的三个入学学期展示 */
+/** @deprecated 旧按年展示；保留空实现以免外部 import 报错 */
 export function intakeLabelsForYear(year) {
   const y = String(year)
   return YEAR_INTAKE_MONTHS.map((m) => `${y}/${m}`)
 }
 
 /**
- * 默认三年入学年名额占比（相对批次学年往前推两年，合计 100%）
- * @returns {Record<string, number>}
+ * 默认 ME 占比行（demo / 新建模板）
  */
-export function defaultMeYearShares(academicSession) {
+export function defaultMeQuotaRows(academicSession = '', totalCap = DEFAULT_ME_QUOTA_TOTAL_CAP) {
   const anchor = anchorYearFromSession(academicSession)
-  const years = [anchor - 2, anchor - 1, anchor]
-  const map = {}
-  years.forEach((y, i) => {
-    map[String(y)] = DEFAULT_ME_YEAR_SHARE_WEIGHTS[i] ?? 2
-  })
-  return map
+  const rows = [
+    {
+      id: createMeQuotaRowId('def'),
+      kind: ME_QUOTA_KIND_INTAKE,
+      intakes: [`${anchor - 2}/09`],
+      share: 40,
+      count: 0,
+    },
+    {
+      id: createMeQuotaRowId('def'),
+      kind: ME_QUOTA_KIND_INTAKE,
+      intakes: [`${anchor - 1}/04`, `${anchor - 1}/09`],
+      share: 30,
+      count: 0,
+    },
+    {
+      id: createMeQuotaRowId('def'),
+      kind: ME_QUOTA_KIND_INTAKE,
+      intakes: [`${anchor}/02`],
+      share: 20,
+      count: 0,
+    },
+    {
+      id: createMeQuotaRowId('def'),
+      kind: ME_QUOTA_KIND_SPECIAL,
+      intakes: [],
+      share: 10,
+      count: 0,
+    },
+  ]
+  return syncMeQuotaRowCounts(rows, totalCap)
+}
+
+export function emptyMeIntakeQuotaRow() {
+  return {
+    id: createMeQuotaRowId(),
+    kind: ME_QUOTA_KIND_INTAKE,
+    intakes: [],
+    share: 0,
+    count: 0,
+  }
+}
+
+export function emptyMeSpecialQuotaRow(share = 10, count = 0) {
+  return {
+    id: createMeQuotaRowId('special'),
+    kind: ME_QUOTA_KIND_SPECIAL,
+    intakes: [],
+    share: Math.max(0, Number(share) || 0),
+    count: Math.max(0, Math.floor(Number(count) || 0)),
+  }
+}
+
+export function meQuotaCountSum(rows = []) {
+  return (rows || []).reduce((sum, r) => sum + Math.max(0, Math.floor(Number(r?.count) || 0)), 0)
+}
+
+export function normalizeMeQuotaTotalCap(value) {
+  const n = Math.floor(Number(value) || 0)
+  return n > 0 ? n : DEFAULT_ME_QUOTA_TOTAL_CAP
+}
+
+/** 按占比与总数重算各行名额数（余数按 allocateMeQuotaRows 分配） */
+export function syncMeQuotaRowCounts(rows = [], totalCap = DEFAULT_ME_QUOTA_TOTAL_CAP) {
+  const cap = normalizeMeQuotaTotalCap(totalCap)
+  const quotas = allocateMeQuotaRows(cap, rows)
+  return (rows || []).map((r) => ({
+    ...r,
+    count: quotas[r.id] ?? 0,
+  }))
+}
+
+export function shareFromMeQuotaCount(count, totalCap) {
+  const cap = normalizeMeQuotaTotalCap(totalCap)
+  const n = Math.max(0, Math.floor(Number(count) || 0))
+  if (!cap) return 0
+  return Math.round((n / cap) * 100)
+}
+
+export function countFromMeQuotaShare(share, totalCap) {
+  const cap = normalizeMeQuotaTotalCap(totalCap)
+  const s = Math.max(0, Number(share) || 0)
+  if (!cap) return 0
+  return Math.floor((cap * s) / 100)
+}
+
+export function ensureSpecialMeQuotaRow(rows = [], totalCap = DEFAULT_ME_QUOTA_TOTAL_CAP) {
+  const intakeRows = (rows || []).filter((r) => r.kind !== ME_QUOTA_KIND_SPECIAL)
+  const special =
+    (rows || []).find((r) => r.kind === ME_QUOTA_KIND_SPECIAL) ||
+    emptyMeSpecialQuotaRow(10, countFromMeQuotaShare(10, totalCap))
+  return [...intakeRows, special]
+}
+
+function normalizeOneMeQuotaRow(row, totalCap = DEFAULT_ME_QUOTA_TOTAL_CAP) {
+  if (!row || typeof row !== 'object') return null
+  const kind =
+    row.kind === ME_QUOTA_KIND_SPECIAL ? ME_QUOTA_KIND_SPECIAL : ME_QUOTA_KIND_INTAKE
+  const share = Math.max(0, Number(row.share) || 0)
+  const count = Math.max(0, Math.floor(Number(row.count) || countFromMeQuotaShare(share, totalCap)))
+  const id = String(row.id || '').trim() || createMeQuotaRowId()
+  if (kind === ME_QUOTA_KIND_SPECIAL) {
+    return { id, kind, intakes: [], share, count }
+  }
+  const intakes = [
+    ...new Set(
+      (Array.isArray(row.intakes) ? row.intakes : [])
+        .map((v) => normalizeIntakeKey(v))
+        .filter(Boolean),
+    ),
+  ].sort()
+  return { id, kind, intakes, share, count }
+}
+
+export function normalizeMeQuotaRows(raw, academicSession = '', opts = {}) {
+  const totalCap = normalizeMeQuotaTotalCap(opts.totalCap)
+  const fallbackDefault = opts.fallbackDefault !== false
+  const syncCounts = opts.syncCounts !== false
+  const ensureSpecial = opts.ensureSpecial === true
+  if (Array.isArray(raw) && raw.length) {
+    const rows = raw.map((r) => normalizeOneMeQuotaRow(r, totalCap)).filter(Boolean)
+    const merged = ensureSpecial ? ensureSpecialMeQuotaRow(rows, totalCap) : rows
+    return syncCounts ? syncMeQuotaRowCounts(merged, totalCap) : merged
+  }
+  if (Array.isArray(raw) && !fallbackDefault) {
+    if (ensureSpecial) {
+      const merged = ensureSpecialMeQuotaRow([], totalCap)
+      return syncCounts ? syncMeQuotaRowCounts(merged, totalCap) : merged
+    }
+    return []
+  }
+  return fallbackDefault ? defaultMeQuotaRows(academicSession, totalCap) : []
+}
+
+export function meQuotaShareSum(rows = []) {
+  return (rows || []).reduce((sum, r) => sum + Math.max(0, Number(r?.share) || 0), 0)
+}
+
+/** @deprecated 旧 API 名 */
+export function meYearSharePercentSum(meYearSharesOrRows) {
+  if (Array.isArray(meYearSharesOrRows)) return meQuotaShareSum(meYearSharesOrRows)
+  return Object.values(meYearSharesOrRows || {}).reduce(
+    (sum, n) => sum + Math.max(0, Number(n) || 0),
+    0,
+  )
+}
+
+export function listMeQuotaIntakeKeys(rows = []) {
+  const keys = []
+  for (const row of rows || []) {
+    if (row?.kind !== ME_QUOTA_KIND_INTAKE) continue
+    for (const k of row.intakes || []) {
+      const n = normalizeIntakeKey(k)
+      if (n) keys.push(n)
+    }
+  }
+  return keys
+}
+
+export function findDuplicateMeQuotaIntakes(rows = []) {
+  const seen = new Set()
+  const dup = new Set()
+  for (const key of listMeQuotaIntakeKeys(rows)) {
+    if (seen.has(key)) dup.add(key)
+    else seen.add(key)
+  }
+  return [...dup]
+}
+
+/**
+ * @param {object[]} rows
+ * @param {{ hasSpecialStudents?: boolean, requiredIntakes?: string[] }} [ctx]
+ * @returns {{ ok: boolean, errorKey?: string, errorParams?: object }}
+ */
+export function validateMeQuotaRows(rows = [], ctx = {}, totalCap = DEFAULT_ME_QUOTA_TOTAL_CAP) {
+  const cap = normalizeMeQuotaTotalCap(totalCap)
+  const list = (Array.isArray(rows) ? rows : [])
+    .map((r) => normalizeOneMeQuotaRow(r, cap))
+    .filter(Boolean)
+  if (!list.length) {
+    return { ok: false, errorKey: 'courseRegistration.batch.round1MeNoData' }
+  }
+  const sum = meQuotaShareSum(list)
+  if (sum !== 100) {
+    return {
+      ok: false,
+      errorKey: 'courseRegistration.batch.round1MeShareNeed100',
+      errorParams: { sum },
+    }
+  }
+  const countSum = meQuotaCountSum(list)
+  if (countSum > cap) {
+    return {
+      ok: false,
+      errorKey: 'courseRegistration.batch.round1MeCountOverCap',
+      errorParams: { sum: countSum, total: cap },
+    }
+  }
+  if (countSum !== cap) {
+    return {
+      ok: false,
+      errorKey: 'courseRegistration.batch.round1MeCountNeedTotal',
+      errorParams: { sum: countSum, total: cap },
+    }
+  }
+  const dups = findDuplicateMeQuotaIntakes(list)
+  if (dups.length) {
+    return {
+      ok: false,
+      errorKey: 'courseRegistration.schedule.meQuotaIntakeDup',
+      errorParams: { intakes: dups.join(', ') },
+    }
+  }
+  for (const row of list) {
+    if (row.kind === ME_QUOTA_KIND_INTAKE && !row.intakes.length) {
+      return { ok: false, errorKey: 'courseRegistration.schedule.meQuotaIntakeRequired' }
+    }
+  }
+  const specialRow = list.find((r) => r.kind === ME_QUOTA_KIND_SPECIAL)
+  if (ctx.hasSpecialStudents) {
+    if (!specialRow) {
+      return { ok: false, errorKey: 'courseRegistration.schedule.meQuotaSpecialRequired' }
+    }
+    if (!(Number(specialRow?.share) > 0) || !(Number(specialRow?.count) > 0)) {
+      return { ok: false, errorKey: 'courseRegistration.schedule.meQuotaSpecialShareRequired' }
+    }
+  }
+  const required = [
+    ...new Set((ctx.requiredIntakes || []).map((v) => normalizeIntakeKey(v)).filter(Boolean)),
+  ]
+  if (required.length) {
+    const covered = new Set(listMeQuotaIntakeKeys(list))
+    const missing = required.filter((k) => !covered.has(k))
+    if (missing.length) {
+      return {
+        ok: false,
+        errorKey: 'courseRegistration.schedule.meQuotaCoverageMissing',
+        errorParams: { intakes: missing.join(', ') },
+      }
+    }
+  }
+  return { ok: true }
+}
+
+/** 学期全局：仅 GE 衰退因子 */
+export function defaultSessionRound1Quota() {
+  return { decayR: DEFAULT_DECAY_R }
+}
+
+/** ME 批次：新建空表（无默认占比行） */
+export function emptyBatchMeQuota() {
+  return {
+    totalCap: DEFAULT_ME_QUOTA_TOTAL_CAP,
+    meQuotaRows: [],
+  }
+}
+
+/** ME 批次：名额总数 + 占比行 */
+export function defaultBatchMeQuota(academicSession = '') {
+  const totalCap = DEFAULT_ME_QUOTA_TOTAL_CAP
+  return {
+    totalCap,
+    meQuotaRows: defaultMeQuotaRows(academicSession, totalCap),
+  }
+}
+
+export function normalizeSessionRound1Quota(raw) {
+  const r = Number(raw?.decayR)
+  return {
+    decayR: Number.isFinite(r) && r > 0 ? r : DEFAULT_DECAY_R,
+  }
+}
+
+export function normalizeBatchMeQuota(raw, academicSession = '') {
+  const totalCap = normalizeMeQuotaTotalCap(raw?.totalCap)
+  const rawRows = raw?.meQuotaRows ?? raw?.meIntakeShares
+  if (!Array.isArray(rawRows) || !rawRows.length) {
+    return { totalCap, meQuotaRows: [] }
+  }
+  return {
+    totalCap,
+    meQuotaRows: normalizeMeQuotaRows(rawRows, academicSession, {
+      totalCap,
+      fallbackDefault: false,
+      ensureSpecial: false,
+      syncCounts: true,
+    }),
+  }
 }
 
 export function defaultRound1Quota(batchType = 'GE', programme = '', academicSession = '') {
-  return {
-    decayR: DEFAULT_DECAY_R,
-    meYearShares: defaultMeYearShares(academicSession),
+  if (String(batchType || '').toUpperCase() === 'ME') {
+    return defaultBatchMeQuota(academicSession)
   }
-}
-
-function normalizeMeYearShares(raw, academicSession) {
-  const base = defaultMeYearShares(academicSession)
-  if (!raw || typeof raw !== 'object') return base
-  // 兼容旧 meGradeRatios：忽略结构，回退默认三年
-  if (!('meYearShares' in raw) && raw.meGradeRatios) return base
-  const src = raw.meYearShares && typeof raw.meYearShares === 'object' ? raw.meYearShares : raw
-  if (!src || typeof src !== 'object' || Array.isArray(src)) return base
-  const map = {}
-  Object.entries(src).forEach(([year, share]) => {
-    const y = String(year || '').trim()
-    if (!/^\d{4}$/.test(y)) return
-    const n = Math.max(0, Number(share) || 0)
-    map[y] = n
-  })
-  return Object.keys(map).length ? map : base
-}
-
-/** ME 入学年名额占比合计 */
-export function meYearSharePercentSum(meYearShares = {}) {
-  return Object.values(meYearShares || {}).reduce((sum, n) => sum + Math.max(0, Number(n) || 0), 0)
+  return defaultSessionRound1Quota()
 }
 
 export function normalizeRound1Quota(raw, batchType = 'GE', programme = '', academicSession = '') {
-  const base = defaultRound1Quota(batchType, programme, academicSession)
-  if (!raw || typeof raw !== 'object') return base
-  const r = Number(raw.decayR)
-  const decayR = Number.isFinite(r) && r > 0 ? r : base.decayR
-  return {
-    decayR,
-    meYearShares: normalizeMeYearShares(raw, academicSession),
+  const decayR = normalizeSessionRound1Quota(raw).decayR
+  if (String(batchType || '').toUpperCase() === 'ME') {
+    const batch = normalizeBatchMeQuota(raw, academicSession)
+    return { decayR, totalCap: batch.totalCap, meQuotaRows: batch.meQuotaRows }
   }
+  return { decayR, meQuotaRows: [] }
 }
 
 export function getBatchRound1Quota(batch) {
+  if (effectiveRound1QuotaResolver) {
+    return effectiveRound1QuotaResolver(batch)
+  }
   return normalizeRound1Quota(
     batch?.round1Quota,
     batch?.type,
@@ -96,17 +387,21 @@ export function getBatchRound1Quota(batch) {
   )
 }
 
-/** 志愿/学生 intake → 入学年 YYYY */
+let effectiveRound1QuotaResolver = null
+export function setEffectiveRound1QuotaResolver(fn) {
+  effectiveRound1QuotaResolver = typeof fn === 'function' ? fn : null
+}
+
+/** 志愿/学生 intake → 入学年 YYYY（GE/其它兼容） */
 export function intakeYearFromValue(intake) {
   const parsed = parseIntakeBatch(intake)
   if (parsed?.year) return parsed.year
-  const digits = String(intake || '').replace(/\D/g, '')
-  if (digits.length >= 4) return digits.slice(0, 4)
-  if (digits.length === 2) return `20${digits}`
+  const d = String(intake || '').replace(/\D/g, '')
+  if (d.length >= 4) return d.slice(0, 4)
+  if (d.length === 2) return `20${d}`
   return ''
 }
 
-/** W_i = r^(N-i)，i = 1..N */
 export function dayWeights(nDays, r) {
   const N = Math.max(1, Math.floor(nDays) || 1)
   const ratio = Number(r) > 0 ? Number(r) : DEFAULT_DECAY_R
@@ -117,10 +412,6 @@ export function dayWeights(nDays, r) {
   return weights
 }
 
-/**
- * 将剩余容量按权重切成整数日额度（尾差补第 1 天）
- * @returns {number[]}
- */
 export function allocateDayQuotas(remaining, nDays, r) {
   const cap = Math.max(0, Math.floor(Number(remaining) || 0))
   const weights = dayWeights(nDays, r)
@@ -139,7 +430,6 @@ export function allocateDayQuotas(remaining, nDays, r) {
   return quotas
 }
 
-/** 开放天数：按起止日历日差；无效时回退 demo 默认 5 天 */
 export function openDaysFromRange(start, end) {
   if (!start || !end) return DEMO_ROUND1_OPEN_DAYS
   const a = Date.parse(String(start).replace(/-/g, ' '))
@@ -150,53 +440,51 @@ export function openDaysFromRange(start, end) {
 }
 
 /**
- * 按入学年份额切分剩余容量
- * @returns {Record<string, number>} key = 入学年 YYYY
+ * 按占比行切分剩余容量
+ * @returns {Record<string, number>} key = row.id
  */
-export function allocateMeYearQuotas(remaining, meYearShares = {}) {
+export function allocateMeQuotaRows(remaining, meQuotaRows = []) {
   const cap = Math.max(0, Math.floor(Number(remaining) || 0))
-  const entries = Object.entries(meYearShares || {})
-    .map(([year, share]) => ({
-      key: String(year),
-      share: Math.max(0, Number(share) || 0),
-    }))
-    .filter((e) => /^\d{4}$/.test(e.key) && e.share > 0)
-    .sort((a, b) => a.key.localeCompare(b.key))
-
-  if (!cap || !entries.length) {
-    return Object.fromEntries(entries.map((e) => [e.key, 0]))
+  const rows = normalizeMeQuotaRows(meQuotaRows, '', { fallbackDefault: false, syncCounts: false }).filter(
+    (r) => Number(r.share) > 0,
+  )
+  if (!cap || !rows.length) {
+    return Object.fromEntries(rows.map((r) => [r.id, 0]))
   }
-  const sum = entries.reduce((a, e) => a + e.share, 0) || 1
+  const sum = rows.reduce((a, r) => a + Number(r.share), 0) || 1
   const quotas = {}
   let used = 0
-  entries.forEach((e) => {
-    const q = Math.floor((cap * e.share) / sum)
-    quotas[e.key] = q
+  rows.forEach((r) => {
+    const q = Math.floor((cap * Number(r.share)) / sum)
+    quotas[r.id] = q
     used += q
   })
   let rest = cap - used
   let i = 0
-  while (rest > 0 && entries.length) {
-    quotas[entries[i % entries.length].key] += 1
+  while (rest > 0 && rows.length) {
+    quotas[rows[i % rows.length].id] += 1
     rest -= 1
     i += 1
   }
   return quotas
 }
 
-/** @deprecated 兼容旧名 */
-export function allocateMeGradeQuotas(remaining, meYearShares) {
-  return allocateMeYearQuotas(remaining, meYearShares)
+/** @deprecated 旧按年分配；若传入年 map 则忽略，返回空 */
+export function allocateMeYearQuotas(remaining, meYearShares = {}) {
+  if (Array.isArray(meYearShares)) return allocateMeQuotaRows(remaining, meYearShares)
+  return {}
 }
 
-/** 日份额预览（百分比，用于 UI） */
+export function allocateMeGradeQuotas(remaining, meQuotaRows) {
+  return allocateMeQuotaRows(remaining, meQuotaRows)
+}
+
 export function previewDaySharePercents(nDays, r) {
   const weights = dayWeights(nDays, r)
   const sum = weights.reduce((a, b) => a + b, 0) || 1
   return weights.map((w) => Math.round((1000 * w) / sum) / 10)
 }
 
-/** 默认入学年下拉：未到的下一年起往前共 6 年（2026 → 2027–2022），新年在前 */
 export function meYearDefaultPool(academicSession) {
   const anchor = anchorYearFromSession(academicSession)
   const opts = []
@@ -206,8 +494,40 @@ export function meYearDefaultPool(academicSession) {
   return opts
 }
 
-/** 可添加入学年：默认池中尚未占用的年（新年在前） */
+export function meSemesterOptions() {
+  return [...YEAR_INTAKE_MONTHS]
+}
+
+/** 合并 YYYY/MM 入学学期选项（年池 × 02/04/09） */
+export function meIntakeOptionPool() {
+  const opts = []
+  for (const y of ME_INTAKE_YEAR_POOL) {
+    for (const m of YEAR_INTAKE_MONTHS) {
+      opts.push(`${y}/${m}`)
+    }
+  }
+  return opts
+}
+
+/** @deprecated */
 export function meYearAddOptions(academicSession, existingYears = []) {
   const taken = new Set((existingYears || []).map(String))
-  return meYearDefaultPool(academicSession).filter((s) => !taken.has(s))
+  return meYearDefaultPool(academicSession).filter((y) => !taken.has(y))
 }
+
+export function resolveMeQuotaRowForVolunteer(volunteer, rows = [], specialIdSet = null) {
+  const list = normalizeMeQuotaRows(rows, '', { fallbackDefault: false })
+  const sid = String(volunteer?.studentId || '').trim()
+  if (specialIdSet && sid && specialIdSet.has(sid)) {
+    return list.find((r) => r.kind === ME_QUOTA_KIND_SPECIAL) || null
+  }
+  const intake = normalizeIntakeKey(volunteer?.intake)
+  if (!intake) return null
+  return (
+    list.find(
+      (r) => r.kind === ME_QUOTA_KIND_INTAKE && (r.intakes || []).includes(intake),
+    ) || null
+  )
+}
+
+void INTAKE_KEY_RE

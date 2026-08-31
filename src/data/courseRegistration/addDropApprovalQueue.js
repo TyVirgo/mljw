@@ -413,7 +413,7 @@ export function decideAddDropApplication(id, action, comment = '', options = {})
   return { ok: false, errorKey: 'courseRegistration.approval.invalidAction' }
 }
 
-/** 本期申请类型（加退关联先屏蔽） */
+/** 本期申请类型（含加退关联、重修关联） */
 export const addDropTypeOptions = [...ADD_DROP_TYPE_TABS]
 export const ALL_ADD_DROP_ACTIONS = addDropTypeOptions
 
@@ -425,9 +425,14 @@ function actionsFromSupplementEntry(entry, now = new Date()) {
   const doorOk = entryHasActivePermission(entry, 'supplement', now)
   if (!doorOk) return []
   const actions = []
-  if (entryHasActivePermission(entry, 'canAdd', now)) actions.push('Add')
-  if (entryHasActivePermission(entry, 'canDrop', now)) actions.push('Drop')
-  if (entryHasActivePermission(entry, 'canRetake', now)) actions.push('Retake')
+  const canAdd = entryHasActivePermission(entry, 'canAdd', now)
+  const canDrop = entryHasActivePermission(entry, 'canDrop', now)
+  const canRetake = entryHasActivePermission(entry, 'canRetake', now)
+  if (canAdd) actions.push('Add')
+  if (canDrop) actions.push('Drop')
+  if (canRetake) actions.push('Retake')
+  if (canAdd && canDrop) actions.push('AddDrop')
+  if (canRetake && canDrop) actions.push('RetakeDrop')
   return actions
 }
 
@@ -548,11 +553,15 @@ function releaseSeatsForApplication(app) {
 export function submitStudentAddDropApplication(studentFields, items, options = {}) {
   if (!items?.length) return { ok: false, errorKey: 'courseRegistration.student.addDropEmpty' }
 
-  const gate = canStudentSubmitAddDrop(
-    studentFields.studentId,
-    getActiveBatch(),
-    options.type || (items.length > 1 ? 'AddDrop' : items[0]?.action),
-  )
+  const inferredType =
+    options.type ||
+    (items.some((i) => i.action === 'Retake') && items.some((i) => i.action === 'Drop')
+      ? 'RetakeDrop'
+      : items.length > 1
+        ? 'AddDrop'
+        : items[0]?.action)
+
+  const gate = canStudentSubmitAddDrop(studentFields.studentId, getActiveBatch(), inferredType)
   if (!gate.ok) return gate
 
   const seatResult = holdSeatsForAddDropItems(items)
@@ -572,7 +581,7 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
     studentName: studentFields.studentName,
     programme: studentFields.programme,
     intake: studentFields.intake,
-    type: options.type || (items.length > 1 ? 'AddDrop' : items[0].action),
+    type: inferredType,
     status: autoApproveSelfDrop ? 'Approved' : options.status || 'Pending',
     submittedAt: nowDateTimeWithSeconds(),
     academicSession: options.academicSession || '',

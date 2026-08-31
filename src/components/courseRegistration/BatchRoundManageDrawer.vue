@@ -3,27 +3,17 @@ import { ref, watch, computed } from 'vue'
 import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
 import CourseRegistrationCallout from './CourseRegistrationCallout.vue'
 import DatePickerEn from '../common/DatePickerEn.vue'
-import BatchScopeRuleModal from './BatchScopeRuleModal.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { formatDualAudienceRoundsSummary } from '../../data/courseRegistration/registrationBatches.js'
 import {
   roundsToPicker,
   addDropWindowToPicker,
   roundsFromPicker,
-  getBatchScheduleMinDates,
-  clearInvalidBatchScheduleAfter,
+  getManageRoundsScheduleMinDates,
+  clearInvalidManageRoundsScheduleAfter,
   pickerToBatchDate,
   batchDateToPicker,
 } from '../../data/courseRegistration/registrationBatchFormUtils.js'
-import {
-  getBatchScopeRules,
-  cloneScopeRules,
-  scopeLabelsFromRules,
-  formatDimList,
-  collapseScopeRulesOnePerRound,
-} from '../../data/courseRegistration/batchScopeRules.js'
-import { countStudentsForScopeRule } from '../../data/courseRegistration/batchStudentRoster.js'
-import { getBatchRoundSetupGates } from '../../data/courseRegistration/batchRoundSetupGates.js'
 import {
   AUDIENCE_FRESHMAN,
   AUDIENCE_SENIOR,
@@ -47,7 +37,7 @@ const props = defineProps({
   batch: { type: Object, default: null },
 })
 
-const emit = defineEmits(['close', 'save', 'open-student-list'])
+const emit = defineEmits(['close', 'save'])
 
 const { t } = useAppI18n()
 
@@ -56,15 +46,10 @@ const form = ref({
   seniorRounds: roundsToPicker(),
   freshmanRounds: roundsToPicker(),
   seniorResultReleaseAt: '',
-  scopeRules: [],
   addDropWindow: { start: '', end: '' },
   round1Quota: getBatchRound1Quota(null),
 })
 const audienceTab = ref(AUDIENCE_SENIOR)
-const scopeModalVisible = ref(false)
-const scopeModalRound = ref('preselect')
-const editingScopeIndex = ref(null)
-const editingScopeRule = ref(null)
 const preselectExpanded = ref(true)
 const mainExpanded = ref(true)
 const supplementExpanded = ref(true)
@@ -105,9 +90,6 @@ watch(
   () => [props.visible, props.batch],
   () => {
     if (!props.visible || !props.batch) return
-    scopeModalVisible.value = false
-    editingScopeIndex.value = null
-    editingScopeRule.value = null
     preselectExpanded.value = true
     mainExpanded.value = true
     supplementExpanded.value = true
@@ -120,7 +102,6 @@ watch(
       seniorRounds: roundsToPicker(by.senior),
       freshmanRounds: roundsToPicker(by.freshman),
       seniorResultReleaseAt: batchDateToPicker(by.senior.resultReleaseAt || ''),
-      scopeRules: getBatchScopeRules(props.batch),
       addDropWindow: addDropWindowToPicker(props.batch.addDropWindow),
       round1Quota: getBatchRound1Quota(props.batch),
     }
@@ -251,150 +232,67 @@ const title = computed(() =>
   }),
 )
 
-const scheduleMinDates = computed(() => getBatchScheduleMinDates(form.value))
+const includeResultRelease = computed(() => audienceTab.value === AUDIENCE_SENIOR)
+const scheduleOpts = computed(() => ({ includeResultRelease: includeResultRelease.value }))
+const scheduleMinDates = computed(() => getManageRoundsScheduleMinDates(form.value, scheduleOpts.value))
 
-const roundGates = computed(() => {
-  if (!props.batch) return getBatchRoundSetupGates(null)
-  return getBatchRoundSetupGates({
-    volunteerFinalConfirmedAt: props.batch.volunteerFinalConfirmedAt,
-    rounds: {
-      main: {
-        end: pickerToBatchDate(form.value.rounds.main.end) || form.value.rounds.main.end,
-      },
-    },
-  })
+const idx = computed(() => {
+  if (includeResultRelease.value) {
+    return { r1s: 0, r1e: 1, release: 2, r2s: 3, r2e: 4, r3s: 5, r3e: 6 }
+  }
+  return { r1s: 0, r1e: 1, release: -1, r2s: 2, r2e: 3, r3s: 4, r3e: 5 }
 })
 
-const preselectScopeRules = computed(() =>
-  form.value.scopeRules
-    .map((rule, index) => ({ rule, index }))
-    .filter((item) => item.rule.round === 'preselect'),
-)
-
-const mainScopeRules = computed(() =>
-  form.value.scopeRules
-    .map((rule, index) => ({ rule, index }))
-    .filter((item) => item.rule.round === 'main'),
-)
-
-const supplementScopeRules = computed(() =>
-  form.value.scopeRules
-    .map((rule, index) => ({ rule, index }))
-    .filter((item) => item.rule.round === 'supplement'),
-)
-
-function openScopeModal(roundKey, ruleItem = null) {
-  if (roundKey !== 'preselect' && !roundGates.value[roundKey]?.open) return
-  // 每轮至多一条：已有且非编辑时改为编辑该条
-  if (!ruleItem) {
-    const existing = form.value.scopeRules
-      .map((rule, index) => ({ rule, index }))
-      .find((item) => (item.rule.round || '') === roundKey)
-    if (existing) {
-      ruleItem = existing
-    }
-  }
-  scopeModalRound.value = roundKey
-  if (ruleItem) {
-    editingScopeIndex.value = ruleItem.index
-    editingScopeRule.value = { ...ruleItem.rule }
-  } else {
-    editingScopeIndex.value = null
-    editingScopeRule.value = null
-  }
-  scopeModalVisible.value = true
-}
-
-function closeScopeModal() {
-  scopeModalVisible.value = false
-  editingScopeIndex.value = null
-  editingScopeRule.value = null
-}
-
-function handleScopeConfirm(rule) {
-  const next = [...form.value.scopeRules]
-  if (editingScopeIndex.value != null) {
-    next[editingScopeIndex.value] = rule
-  } else {
-    const existingIdx = next.findIndex((r) => (r.round || '') === (rule.round || ''))
-    if (existingIdx >= 0) next[existingIdx] = rule
-    else next.push(rule)
-  }
-  form.value.scopeRules = collapseScopeRulesOnePerRound(next)
-  closeScopeModal()
-}
-
-function removeScopeRule(index) {
-  form.value.scopeRules = form.value.scopeRules.filter((_, i) => i !== index)
-}
-
-/**
- * 某轮是否已有学生范围
- * @param {string} roundKey
- */
-function hasScopeForRound(roundKey) {
-  return form.value.scopeRules.some((rule) => (rule.round || '') === roundKey)
-}
-
-/**
- * 范围匹配学生数
- * @param {object} rule
- */
-function scopeStudentCount(rule) {
-  return countStudentsForScopeRule(rule)
-}
-
-/**
- * 打开批次学生清单并定位到该轮可选学生
- * @param {string} roundKey
- */
-function openRoundStudentList(roundKey) {
-  if (!props.batch) return
-  emit('open-student-list', {
-    batch: {
-      ...props.batch,
-      scopeRules: cloneScopeRules(form.value.scopeRules),
-    },
-    round: roundKey,
-  })
-}
-
-function dimLabel(value) {
-  return formatDimList(Array.isArray(value) ? value : value ? [value] : [], t)
-}
-
 function onScheduleDateChange(index, value) {
-  const setters = [
-    (v) => {
-      form.value.rounds.preselect.start = v
-    },
-    (v) => {
-      form.value.rounds.preselect.end = v
-    },
-    (v) => {
-      form.value.rounds.main.start = v
-    },
-    (v) => {
-      form.value.rounds.main.end = v
-    },
-    (v) => {
-      form.value.rounds.supplement.start = v
-    },
-    (v) => {
-      form.value.rounds.supplement.end = v
-    },
-  ]
+  const includeRelease = includeResultRelease.value
+  const setters = includeRelease
+    ? [
+        (v) => {
+          form.value.rounds.preselect.start = v
+        },
+        (v) => {
+          form.value.rounds.preselect.end = v
+        },
+        (v) => {
+          form.value.seniorResultReleaseAt = v
+        },
+        (v) => {
+          form.value.rounds.main.start = v
+        },
+        (v) => {
+          form.value.rounds.main.end = v
+        },
+        (v) => {
+          form.value.rounds.supplement.start = v
+        },
+        (v) => {
+          form.value.rounds.supplement.end = v
+        },
+      ]
+    : [
+        (v) => {
+          form.value.rounds.preselect.start = v
+        },
+        (v) => {
+          form.value.rounds.preselect.end = v
+        },
+        (v) => {
+          form.value.rounds.main.start = v
+        },
+        (v) => {
+          form.value.rounds.main.end = v
+        },
+        (v) => {
+          form.value.rounds.supplement.start = v
+        },
+        (v) => {
+          form.value.rounds.supplement.end = v
+        },
+      ]
   const setter = setters[index]
   if (!setter) return
-  if (index <= 1) {
-    /* R1 always open */
-  } else if (index <= 3 && !roundGates.value.main.open) {
-    return
-  } else if (index >= 4 && !roundGates.value.supplement.open) {
-    return
-  }
   setter(value || '')
-  clearInvalidBatchScheduleAfter(form.value, index)
+  clearInvalidManageRoundsScheduleAfter(form.value, index, scheduleOpts.value)
 }
 
 function isEmptyTime(value) {
@@ -408,17 +306,47 @@ function handleSave() {
 
   const senior = form.value.seniorRounds
   const freshman = form.value.freshmanRounds
-  const currentRounds = audienceTab.value === AUDIENCE_FRESHMAN ? freshman : senior
 
   if (
     isEmptyTime(senior.preselect.start) ||
     isEmptyTime(senior.preselect.end) ||
-    isEmptyTime(form.value.seniorResultReleaseAt)
+    isEmptyTime(form.value.seniorResultReleaseAt) ||
+    isEmptyTime(senior.main.start) ||
+    isEmptyTime(senior.main.end) ||
+    isEmptyTime(senior.supplement.start) ||
+    isEmptyTime(senior.supplement.end)
   ) {
     roundSaveError.value = t('courseRegistration.batch.roundTimeRequired')
     return
   }
-  if (audienceTab.value === AUDIENCE_FRESHMAN && (isEmptyTime(freshman.preselect.start) || isEmptyTime(freshman.preselect.end))) {
+  const freshmanAny =
+    !isEmptyTime(freshman.preselect.start) ||
+    !isEmptyTime(freshman.preselect.end) ||
+    !isEmptyTime(freshman.main.start) ||
+    !isEmptyTime(freshman.main.end) ||
+    !isEmptyTime(freshman.supplement.start) ||
+    !isEmptyTime(freshman.supplement.end)
+  if (
+    freshmanAny &&
+    (isEmptyTime(freshman.preselect.start) ||
+      isEmptyTime(freshman.preselect.end) ||
+      isEmptyTime(freshman.main.start) ||
+      isEmptyTime(freshman.main.end) ||
+      isEmptyTime(freshman.supplement.start) ||
+      isEmptyTime(freshman.supplement.end))
+  ) {
+    roundSaveError.value = t('courseRegistration.batch.roundTimeRequired')
+    return
+  }
+  if (
+    audienceTab.value === AUDIENCE_FRESHMAN &&
+    (isEmptyTime(freshman.preselect.start) ||
+      isEmptyTime(freshman.preselect.end) ||
+      isEmptyTime(freshman.main.start) ||
+      isEmptyTime(freshman.main.end) ||
+      isEmptyTime(freshman.supplement.start) ||
+      isEmptyTime(freshman.supplement.end))
+  ) {
     roundSaveError.value = t('courseRegistration.batch.roundTimeRequired')
     return
   }
@@ -429,18 +357,6 @@ function handleSave() {
       return
     }
   }
-  if (roundGates.value.main.open && (isEmptyTime(currentRounds.main.start) || isEmptyTime(currentRounds.main.end))) {
-    roundSaveError.value = t('courseRegistration.batch.roundTimeRequired')
-    return
-  }
-  if (
-    roundGates.value.supplement.open &&
-    (isEmptyTime(currentRounds.supplement.start) || isEmptyTime(currentRounds.supplement.end))
-  ) {
-    roundSaveError.value = t('courseRegistration.batch.roundTimeRequired')
-    return
-  }
-
   if (isMeBatch.value) {
     const sum = meShareSum.value
     if (sum !== 100) {
@@ -456,65 +372,25 @@ function handleSave() {
 
   const seniorRounds = {
     preselect: seniorFromForm.preselect,
-    main: roundGates.value.main.open
-      ? seniorFromForm.main
-      : {
-          start: props.batch.roundsByAudience?.senior?.main?.start || props.batch.rounds?.main?.start || '',
-          end: props.batch.roundsByAudience?.senior?.main?.end || props.batch.rounds?.main?.end || '',
-        },
-    supplement: roundGates.value.supplement.open
-      ? seniorFromForm.supplement
-      : {
-          start:
-            props.batch.roundsByAudience?.senior?.supplement?.start ||
-            props.batch.rounds?.supplement?.start ||
-            '',
-          end:
-            props.batch.roundsByAudience?.senior?.supplement?.end ||
-            props.batch.rounds?.supplement?.end ||
-            '',
-        },
+    main: seniorFromForm.main,
+    supplement: seniorFromForm.supplement,
     resultReleaseAt: pickerToBatchDate(String(form.value.seniorResultReleaseAt || '').trim()),
   }
 
   const freshmanRounds = {
     preselect: freshmanFromForm.preselect,
-    main: roundGates.value.main.open
-      ? freshmanFromForm.main
-      : {
-          start: props.batch.roundsByAudience?.freshman?.main?.start || '',
-          end: props.batch.roundsByAudience?.freshman?.main?.end || '',
-        },
-    supplement: roundGates.value.supplement.open
-      ? freshmanFromForm.supplement
-      : {
-          start: props.batch.roundsByAudience?.freshman?.supplement?.start || '',
-          end: props.batch.roundsByAudience?.freshman?.supplement?.end || '',
-        },
+    main: freshmanFromForm.main,
+    supplement: freshmanFromForm.supplement,
   }
 
   const roundsByAudience = { senior: seniorRounds, freshman: freshmanRounds }
   const rounds = syncLegacyRoundsFromAudience(roundsByAudience)
-
-  const fromBatch = getBatchScopeRules(props.batch)
-  const fromForm = cloneScopeRules(form.value.scopeRules)
-  const scopeRules = collapseScopeRulesOnePerRound([
-    ...fromForm.filter((rule) => rule.round === 'preselect'),
-    ...(roundGates.value.main.open
-      ? fromForm.filter((rule) => rule.round === 'main')
-      : fromBatch.filter((rule) => rule.round === 'main')),
-    ...(roundGates.value.supplement.open
-      ? fromForm.filter((rule) => rule.round === 'supplement')
-      : fromBatch.filter((rule) => rule.round === 'supplement')),
-  ])
 
   const addDropWindow = props.batch.addDropWindow || { start: '', end: '' }
 
   emit('save', {
     rounds,
     roundsByAudience,
-    scopeRules,
-    scope: scopeLabelsFromRules(scopeRules, t),
     roundsSummary: formatDualAudienceRoundsSummary(
       { rounds, roundsByAudience, addDropWindow },
       addDropWindow,
@@ -593,8 +469,8 @@ function handleSave() {
                 mode="datetime"
                 :model-value="form.rounds.preselect.start"
                 :placeholder="t('common.pleaseSelectDateTime')"
-                :min-date="scheduleMinDates[0]"
-                @update:model-value="(v) => onScheduleDateChange(0, v)"
+                :min-date="scheduleMinDates[idx.r1s]"
+                @update:model-value="(v) => onScheduleDateChange(idx.r1s, v)"
               />
             </div>
             <div class="form-field">
@@ -605,8 +481,8 @@ function handleSave() {
                 mode="datetime"
                 :model-value="form.rounds.preselect.end"
                 :placeholder="t('common.pleaseSelectDateTime')"
-                :min-date="scheduleMinDates[1]"
-                @update:model-value="(v) => onScheduleDateChange(1, v)"
+                :min-date="scheduleMinDates[idx.r1e]"
+                @update:model-value="(v) => onScheduleDateChange(idx.r1e, v)"
               />
             </div>
             <div v-if="audienceTab === AUDIENCE_SENIOR" class="form-field form-field-full">
@@ -617,7 +493,8 @@ function handleSave() {
                 mode="datetime"
                 :model-value="form.seniorResultReleaseAt"
                 :placeholder="t('courseRegistration.batch.seniorResultReleaseAtPlaceholder')"
-                @update:model-value="(v) => (form.seniorResultReleaseAt = v || '')"
+                :min-date="scheduleMinDates[idx.release]"
+                @update:model-value="(v) => onScheduleDateChange(idx.release, v)"
               />
             </div>
           </div>
@@ -740,57 +617,6 @@ function handleSave() {
               <p v-if="meShareError" class="error-text">{{ meShareError }}</p>
             </template>
           </div>
-
-          <div class="scope-toolbar">
-            <button
-              v-if="!hasScopeForRound('preselect')"
-              type="button"
-              class="btn btn-primary"
-              @click="openScopeModal('preselect')"
-            >
-              + {{ t('courseRegistration.batch.scopeAdd') }}
-            </button>
-          </div>
-          <div class="scope-rules-table-wrap">
-            <table class="data-table scope-rules-table">
-              <thead>
-                <tr>
-                  <th class="col-no">{{ t('common.serialNo') }}</th>
-                  <th>{{ t('courseRegistration.batch.scopeFaculty') }}</th>
-                  <th>{{ t('courseRegistration.batch.scopeProgrammeIntake') }}</th>
-                  <th>{{ t('courseRegistration.batch.scopeStudentCount') }}</th>
-                  <th class="col-actions">{{ t('common.actions') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in preselectScopeRules" :key="`pre-${item.index}`">
-                  <td class="col-no">{{ item.index + 1 }}</td>
-                  <td>{{ dimLabel(item.rule.faculties ?? item.rule.faculty) }}</td>
-                  <td>{{ dimLabel(item.rule.programmeIntakes ?? item.rule.programmeIntake) }}</td>
-                  <td>
-                    <button
-                      type="button"
-                      class="link-btn scope-count-link"
-                      @click="openRoundStudentList('preselect')"
-                    >
-                      {{ t('courseRegistration.batch.scopeStudentCountValue', { count: scopeStudentCount(item.rule) }) }}
-                    </button>
-                  </td>
-                  <td class="col-actions">
-                    <button type="button" class="link-btn" @click="openScopeModal('preselect', item)">
-                      {{ t('common.edit') }}
-                    </button>
-                    <button type="button" class="link-btn danger" @click="removeScopeRule(item.index)">
-                      {{ t('common.delete') }}
-                    </button>
-                  </td>
-                </tr>
-                <tr v-if="!preselectScopeRules.length">
-                  <td colspan="5" class="empty-cell">{{ t('courseRegistration.batch.scopeEmptyHintRound') }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
         </div>
       </div>
     </section>
@@ -814,98 +640,32 @@ function handleSave() {
         </span>
       </button>
       <div v-show="mainExpanded" class="round-section-body">
-        <CourseRegistrationCallout v-if="!roundGates.main.open" variant="warning">
-          <p>{{ t(roundGates.main.lockReasonKey) }}</p>
-        </CourseRegistrationCallout>
-        <div class="round-card" :class="{ 'is-locked': !roundGates.main.open }">
+        <div class="round-card">
           <div class="round-fields">
             <div class="form-field">
               <label class="field-label">
-                <span v-if="roundGates.main.open" class="req">*</span> {{ t('courseRegistration.batch.roundStart') }}
+                <span class="req">*</span> {{ t('courseRegistration.batch.roundStart') }}
               </label>
               <DatePickerEn
                 mode="datetime"
                 :model-value="form.rounds.main.start"
                 :placeholder="t('common.pleaseSelectDateTime')"
-                :min-date="scheduleMinDates[2]"
-                :disabled="!roundGates.main.open"
-                @update:model-value="(v) => onScheduleDateChange(2, v)"
+                :min-date="scheduleMinDates[idx.r2s]"
+                @update:model-value="(v) => onScheduleDateChange(idx.r2s, v)"
               />
             </div>
             <div class="form-field">
               <label class="field-label">
-                <span v-if="roundGates.main.open" class="req">*</span> {{ t('courseRegistration.batch.roundEnd') }}
+                <span class="req">*</span> {{ t('courseRegistration.batch.roundEnd') }}
               </label>
               <DatePickerEn
                 mode="datetime"
                 :model-value="form.rounds.main.end"
                 :placeholder="t('common.pleaseSelectDateTime')"
-                :min-date="scheduleMinDates[3]"
-                :disabled="!roundGates.main.open"
-                @update:model-value="(v) => onScheduleDateChange(3, v)"
+                :min-date="scheduleMinDates[idx.r2e]"
+                @update:model-value="(v) => onScheduleDateChange(idx.r2e, v)"
               />
             </div>
-          </div>
-          <div class="scope-toolbar">
-            <button
-              v-if="!hasScopeForRound('main')"
-              type="button"
-              class="btn btn-primary"
-              :disabled="!roundGates.main.open"
-              @click="openScopeModal('main')"
-            >
-              + {{ t('courseRegistration.batch.scopeAdd') }}
-            </button>
-          </div>
-          <div class="scope-rules-table-wrap">
-            <table class="data-table scope-rules-table">
-              <thead>
-                <tr>
-                  <th class="col-no">{{ t('common.serialNo') }}</th>
-                  <th>{{ t('courseRegistration.batch.scopeFaculty') }}</th>
-                  <th>{{ t('courseRegistration.batch.scopeProgrammeIntake') }}</th>
-                  <th>{{ t('courseRegistration.batch.scopeStudentCount') }}</th>
-                  <th class="col-actions">{{ t('common.actions') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in mainScopeRules" :key="`main-${item.index}`">
-                  <td class="col-no">{{ item.index + 1 }}</td>
-                  <td>{{ dimLabel(item.rule.faculties ?? item.rule.faculty) }}</td>
-                  <td>{{ dimLabel(item.rule.programmeIntakes ?? item.rule.programmeIntake) }}</td>
-                  <td>
-                    <button
-                      type="button"
-                      class="link-btn scope-count-link"
-                      @click="openRoundStudentList('main')"
-                    >
-                      {{ t('courseRegistration.batch.scopeStudentCountValue', { count: scopeStudentCount(item.rule) }) }}
-                    </button>
-                  </td>
-                  <td class="col-actions">
-                    <button
-                      type="button"
-                      class="link-btn"
-                      :disabled="!roundGates.main.open"
-                      @click="roundGates.main.open && openScopeModal('main', item)"
-                    >
-                      {{ t('common.edit') }}
-                    </button>
-                    <button
-                      type="button"
-                      class="link-btn danger"
-                      :disabled="!roundGates.main.open"
-                      @click="roundGates.main.open && removeScopeRule(item.index)"
-                    >
-                      {{ t('common.delete') }}
-                    </button>
-                  </td>
-                </tr>
-                <tr v-if="!mainScopeRules.length">
-                  <td colspan="5" class="empty-cell">{{ t('courseRegistration.batch.scopeEmptyHintRound') }}</td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         </div>
       </div>
@@ -930,98 +690,32 @@ function handleSave() {
         </span>
       </button>
       <div v-show="supplementExpanded" class="round-section-body">
-        <CourseRegistrationCallout v-if="!roundGates.supplement.open" variant="warning">
-          <p>{{ t(roundGates.supplement.lockReasonKey) }}</p>
-        </CourseRegistrationCallout>
-        <div class="round-card" :class="{ 'is-locked': !roundGates.supplement.open }">
+        <div class="round-card">
           <div class="round-fields">
             <div class="form-field">
               <label class="field-label">
-                <span v-if="roundGates.supplement.open" class="req">*</span> {{ t('courseRegistration.batch.roundStart') }}
+                <span class="req">*</span> {{ t('courseRegistration.batch.roundStart') }}
               </label>
               <DatePickerEn
                 mode="datetime"
                 :model-value="form.rounds.supplement.start"
                 :placeholder="t('common.pleaseSelectDateTime')"
-                :min-date="scheduleMinDates[4]"
-                :disabled="!roundGates.supplement.open"
-                @update:model-value="(v) => onScheduleDateChange(4, v)"
+                :min-date="scheduleMinDates[idx.r3s]"
+                @update:model-value="(v) => onScheduleDateChange(idx.r3s, v)"
               />
             </div>
             <div class="form-field">
               <label class="field-label">
-                <span v-if="roundGates.supplement.open" class="req">*</span> {{ t('courseRegistration.batch.roundEnd') }}
+                <span class="req">*</span> {{ t('courseRegistration.batch.roundEnd') }}
               </label>
               <DatePickerEn
                 mode="datetime"
                 :model-value="form.rounds.supplement.end"
                 :placeholder="t('common.pleaseSelectDateTime')"
-                :min-date="scheduleMinDates[5]"
-                :disabled="!roundGates.supplement.open"
-                @update:model-value="(v) => onScheduleDateChange(5, v)"
+                :min-date="scheduleMinDates[idx.r3e]"
+                @update:model-value="(v) => onScheduleDateChange(idx.r3e, v)"
               />
             </div>
-          </div>
-          <div class="scope-toolbar">
-            <button
-              v-if="!hasScopeForRound('supplement')"
-              type="button"
-              class="btn btn-primary"
-              :disabled="!roundGates.supplement.open"
-              @click="openScopeModal('supplement')"
-            >
-              + {{ t('courseRegistration.batch.scopeAdd') }}
-            </button>
-          </div>
-          <div class="scope-rules-table-wrap">
-            <table class="data-table scope-rules-table">
-              <thead>
-                <tr>
-                  <th class="col-no">{{ t('common.serialNo') }}</th>
-                  <th>{{ t('courseRegistration.batch.scopeFaculty') }}</th>
-                  <th>{{ t('courseRegistration.batch.scopeProgrammeIntake') }}</th>
-                  <th>{{ t('courseRegistration.batch.scopeStudentCount') }}</th>
-                  <th class="col-actions">{{ t('common.actions') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in supplementScopeRules" :key="`sup-${item.index}`">
-                  <td class="col-no">{{ item.index + 1 }}</td>
-                  <td>{{ dimLabel(item.rule.faculties ?? item.rule.faculty) }}</td>
-                  <td>{{ dimLabel(item.rule.programmeIntakes ?? item.rule.programmeIntake) }}</td>
-                  <td>
-                    <button
-                      type="button"
-                      class="link-btn scope-count-link"
-                      @click="openRoundStudentList('supplement')"
-                    >
-                      {{ t('courseRegistration.batch.scopeStudentCountValue', { count: scopeStudentCount(item.rule) }) }}
-                    </button>
-                  </td>
-                  <td class="col-actions">
-                    <button
-                      type="button"
-                      class="link-btn"
-                      :disabled="!roundGates.supplement.open"
-                      @click="roundGates.supplement.open && openScopeModal('supplement', item)"
-                    >
-                      {{ t('common.edit') }}
-                    </button>
-                    <button
-                      type="button"
-                      class="link-btn danger"
-                      :disabled="!roundGates.supplement.open"
-                      @click="roundGates.supplement.open && removeScopeRule(item.index)"
-                    >
-                      {{ t('common.delete') }}
-                    </button>
-                  </td>
-                </tr>
-                <tr v-if="!supplementScopeRules.length">
-                  <td colspan="5" class="empty-cell">{{ t('courseRegistration.batch.scopeEmptyHintRound') }}</td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         </div>
       </div>
@@ -1032,14 +726,6 @@ function handleSave() {
       <button type="button" class="btn btn-primary" @click="handleSave">{{ t('common.save') }}</button>
     </template>
   </ApplicationDetailDrawer>
-
-  <BatchScopeRuleModal
-    :visible="scopeModalVisible"
-    :fixed-round="scopeModalRound"
-    :initial-rule="editingScopeRule"
-    @close="closeScopeModal"
-    @confirm="handleScopeConfirm"
-  />
 </template>
 
 <style scoped>
@@ -1193,10 +879,6 @@ function handleSave() {
   background: #fff;
 }
 
-.round-card.is-locked {
-  opacity: 0.72;
-}
-
 .form-field :deep(.date-picker-en) {
   width: 100%;
 }
@@ -1274,15 +956,6 @@ function handleSave() {
 
 .link-btn.danger {
   color: #dc2626;
-}
-
-.scope-count-link {
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.scope-count-link {
-  font-weight: 500;
 }
 
 .btn {

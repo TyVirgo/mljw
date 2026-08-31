@@ -1,6 +1,6 @@
 import { batchDateToPicker, parsePickerDate } from './registrationBatchFormUtils.js'
 
-/** 第二轮结束日（含当天结束）是否已过 */
+/** 第二轮结束日（含当天结束）是否已过（业务判断用；非管理轮次配置闸门） */
 export function isBatchMainRoundEnded(batch, now = new Date()) {
   const by = batch?.roundsByAudience?.senior || batch?.rounds
   const endRaw = by?.main?.end
@@ -17,23 +17,13 @@ export function isBatchVolunteerFinallyConfirmed(batch) {
 }
 
 /**
- * 批次轮次配置闸门（新建 batch=null / 无确认 时仅 R1 / AddDrop 开放）
- * batch.rounds.main.end 可为批次存储或 picker 日期
+ * 批次轮次配置闸门（已废除串行锁定：R1/R2/R3 与加退课均始终可配）
  */
-export function getBatchRoundSetupGates(batch) {
-  const confirmed = batch ? isBatchVolunteerFinallyConfirmed(batch) : false
-  const mainEnded = batch ? isBatchMainRoundEnded(batch) : false
-
+export function getBatchRoundSetupGates(_batch) {
   return {
     preselect: { open: true },
-    main: {
-      open: confirmed,
-      lockReasonKey: confirmed ? '' : 'courseRegistration.batch.roundLockNeedVolunteerConfirm',
-    },
-    supplement: {
-      open: mainEnded,
-      lockReasonKey: mainEnded ? '' : 'courseRegistration.batch.roundLockNeedMainEnded',
-    },
+    main: { open: true, lockReasonKey: '' },
+    supplement: { open: true, lockReasonKey: '' },
     addDrop: { open: true },
   }
 }

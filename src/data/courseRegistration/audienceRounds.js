@@ -26,21 +26,20 @@ export function cloneRounds(rounds = {}) {
 }
 
 /**
- * 演示用老生轮次窗（展示用固定文案；学生端开闭由 demoActiveRound / demoClosedRounds 驱动，不跟系统时钟走）
- * 原邮件 2026/04 表已整体平移到 8 月窗
+ * 演示用老生轮次窗：R1 → 公布 → R2 → R3（严格递增）
  */
 export const DEMO_SENIOR_ROUNDS_202604 = {
   preselect: { start: '30-Jul-2026 00:00:00', end: '15-Aug-2026 18:00:00' },
-  main: { start: '10-Aug-2026 00:00:00', end: '20-Aug-2026 23:59:00' },
-  supplement: { start: '21-Aug-2026 00:00:00', end: '28-Aug-2026 23:59:00' },
-  resultReleaseAt: '25-Aug-2026 19:00:00',
+  resultReleaseAt: '18-Aug-2026 19:00:00',
+  main: { start: '19-Aug-2026 00:00:00', end: '25-Aug-2026 23:59:00' },
+  supplement: { start: '26-Aug-2026 00:00:00', end: '02-Sep-2026 23:59:00' },
 }
 
-/** 演示用新生轮次窗；R1 咬老生 R2 附近 */
+/** 演示用新生轮次窗；可与老生时间线重叠，但本受众内 R1→R2→R3 递增 */
 export const DEMO_FRESHMAN_ROUNDS_202604 = {
   preselect: { start: '12-Aug-2026 00:00:00', end: '18-Aug-2026 12:00:00' },
-  main: { start: '18-Aug-2026 12:00:00', end: '22-Aug-2026 23:59:00' },
-  supplement: { start: '23-Aug-2026 00:00:00', end: '28-Aug-2026 23:59:00' },
+  main: { start: '19-Aug-2026 00:00:00', end: '25-Aug-2026 23:59:00' },
+  supplement: { start: '26-Aug-2026 00:00:00', end: '02-Sep-2026 23:59:00' },
 }
 
 /**
@@ -79,6 +78,24 @@ export function syncLegacyRoundsFromAudience(roundsByAudience) {
 
 export function getAudienceRounds(batch, audience = AUDIENCE_SENIOR) {
   const by = ensureRoundsByAudience(batch)
+  return audience === AUDIENCE_FRESHMAN ? by.freshman : by.senior
+}
+
+/**
+ * 生效受众轮次（学期全局 / 批次覆盖）。由 session 模块注入，避免循环依赖。
+ * @type {null | ((batch: object|null) => object)}
+ */
+let effectiveAudienceRoundsResolver = null
+
+export function setEffectiveAudienceRoundsResolver(fn) {
+  effectiveAudienceRoundsResolver = typeof fn === 'function' ? fn : null
+}
+
+/** 学生端/列表优先走生效解析 */
+export function getEffectiveAudienceRounds(batch, audience = AUDIENCE_SENIOR) {
+  const by = effectiveAudienceRoundsResolver
+    ? effectiveAudienceRoundsResolver(batch)
+    : ensureRoundsByAudience(batch)
   return audience === AUDIENCE_FRESHMAN ? by.freshman : by.senior
 }
 

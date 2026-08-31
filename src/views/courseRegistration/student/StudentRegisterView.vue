@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import StudentPageShell from '../../../components/courseRegistration/StudentPageShell.vue'
 import CourseRegistrationCallout from '../../../components/courseRegistration/CourseRegistrationCallout.vue'
-import StudentRegistrationCartDrawer from '../../../components/courseRegistration/StudentRegistrationCartDrawer.vue'
+import StudentRegistrationRoundStatusPanel from '../../../components/courseRegistration/StudentRegistrationRoundStatusPanel.vue'
 import StudentSchedulePreviewPanel from '../../../components/courseRegistration/StudentSchedulePreviewPanel.vue'
+import StudentPendingRoundPreviewPanel from '../../../components/courseRegistration/StudentPendingRoundPreviewPanel.vue'
 import StudentCourseCatalogDrawer from '../../../components/courseRegistration/StudentCourseCatalogDrawer.vue'
 import CourseCodeSourcePopover from '../../../components/courseRegistration/CourseCodeSourcePopover.vue'
 import ApplicationDetailDrawer from '../../../components/common/ApplicationDetailDrawer.vue'
@@ -25,6 +26,7 @@ import {
   getTermElectiveCreditProgress,
   checkTermCreditCapForCourse,
   getStudentProfileFields,
+  getHardScheduleConflictGate,
 } from '../../../data/courseRegistration/studentRegistrationStore.js'
 import { formatIntakeBatch } from '../../../data/intakeSets.js'
 import {
@@ -34,14 +36,19 @@ import {
   getTermGeCategoryBars,
   getTermGeElectiveCategoryBars,
   getGraduationGeBars,
+  getGraduationMeBars,
+  studentHasGeElectiveRequirement,
 } from '../../../data/courseRegistration/studentRegistrationContext.js'
 import {
   getActiveBatch,
   getBatchById,
   activeBatchTypePreference,
   formatRoundRange,
+  formatResultReleaseAt,
   isBatchRoundOpenForRegistration,
   listStudentSelectableBatchesByType,
+  listStudentRoundTimelineStatuses,
+  listConfiguredRoundKeys,
   setStudentSelectedBatchId,
   studentSelectedBatchId,
   getStudentDefaultRoundKey,
@@ -49,8 +56,7 @@ import {
   resolveBatchForTypeEntry,
 } from '../../../data/courseRegistration/registrationBatches.js'
 import { getStudentAudience } from '../../../data/courseRegistration/studentAudience.js'
-import { getAudienceRounds } from '../../../data/courseRegistration/audienceRounds.js'
-import { getRemainingDaysHours } from '../../../data/courseRegistration/registrationBatchFormUtils.js'
+import { getEffectiveAudienceRounds, AUDIENCE_SENIOR } from '../../../data/courseRegistration/audienceRounds.js'
 import {
   getVolunteerSectionState,
   volunteerCourseStates,
@@ -58,18 +64,35 @@ import {
 import {
   shouldShowVolunteerSheetPanel,
   isVolunteerListLocked,
+  sortedPendingVolunteers,
 } from '../../../data/courseRegistration/studentVolunteerSheet.js'
 import { courseTypeOptions, getRegistrationTypeLabel } from '../../../data/courseRegistration/registrationTypes.js'
 import { displayWeekRange, displayClassTimeVenueLines } from '../../../data/courseRegistration/sectionScheduleFields.js'
 import { getSchoolElectiveCategoryLabel } from '../../../data/departments.js'
+import { resolveSchoolElectiveCategory } from '../../../data/courseRegistration/selectableCourses.js'
 import {
   buildPreviewSchedule,
+  listRoundStatusCoursesForSchedule,
 } from '../../../data/courseRegistration/studentSchedulePreview.js'
+import {
+  getSelectionGroupsForBatch,
+  formatSelectionGroupRemark,
+  getSelectionGroupDisplayLines,
+  selectionGroupToneIndex,
+  sortSectionRowsBySelectionGroup,
+} from '../../../data/courseRegistration/courseSelectionGroups.js'
+import {
+  buildSectionRowsFromCourses,
+  filterCoursesBySectionAvailability,
+  groupSectionRowsByCourse,
+  paginateSectionRowsByCourse,
+  sortRowsByCourseThenSection,
+} from '../../../data/courseRegistration/sectionTableRowSpans.js'
 import '../../../styles/list-page-search.css'
 import '../../../styles/course-registration-list.css'
 import '../../../styles/course-registration-student.css'
 
-const emit = defineEmits(['navigate'])
+const emit = defineEmits(['navigate', 'list-active', 'breadcrumb-extra'])
 
 const { t, isZh } = useAppI18n()
 
@@ -90,39 +113,20 @@ const entryStudentProfile = computed(() => {
   }
 })
 
-/** 同页两步：目录 → 列表 */
+/** 同页三步：目录 → 列表 / 待开放预览 */
 const entryStep = ref('catalog')
+/** 待开放轮次只读预览上下文 */
+const previewContext = ref(null)
 /** 目录卡：各类型选中的批次 id（同类型开放批可下拉切换） */
 const catalogBatchIdByType = ref({ GE: '', ME: '' })
-/** 入口倒计时基准：进页算一次，不随时间刷新 */
-const catalogRemainBaseNow = ref(Date.now())
 
-/**
- * 当前开放轮截止剩余文案（基于进页时刻）
- * @param {string} endRaw 轮次 end
- * @returns {string}
- */
-function formatCatalogRemainText(endRaw) {
-  const remain = getRemainingDaysHours(endRaw, catalogRemainBaseNow.value)
-  if (!remain) return ''
-  if (remain.expired) return t('courseRegistration.student.typeEntry.remainExpired')
-  if (remain.days <= 0) {
-    return t('courseRegistration.student.typeEntry.remainHoursOnly', { hours: Math.max(remain.hours, 1) })
-  }
-  return t('courseRegistration.student.typeEntry.remainDaysHours', {
-    days: remain.days,
-    hours: remain.hours,
-  })
-}
+/** 当前学生专业码（入口批次过滤） */
+const studentProgrammeCode = computed(() => getStudentProfileFields().programme || 'SWE')
 
-/**
- * 轮次 end 是否已过（相对进页基准）
- * @param {string} [endRaw]
- */
-function isCatalogRoundExpired(endRaw) {
-  const remain = getRemainingDaysHours(endRaw, catalogRemainBaseNow.value)
-  return Boolean(remain?.expired)
-}
+/** 培养方案 geRequired > 0 时展示 GE 入口卡；否则仅 ME 且左对齐 */
+const showGeTypeEntry = computed(() => studentHasGeElectiveRequirement(studentProgrammeCode.value))
+
+const entryTypeOrder = computed(() => (showGeTypeEntry.value ? ['GE', 'ME'] : ['ME']))
 
 /**
  * 截止后提示：一二轮等待下一轮；三轮批次结束
@@ -166,9 +170,10 @@ const isRoundRegistrationOpen = canOperateRegistration
 /** 仅在可操作时展示操作列 */
 const showActionsColumn = computed(() => canOperateRegistration.value)
 
-/** 空表 colspan：基础 12 列 + 校选类别 + 条件操作列 */
+/** 空表 colspan：基础 12 列 + 校选类别 + ME 课程组/备注 + 条件操作列 */
 const emptyTableColspan = computed(() => {
-  let n = 13
+  let n = 12
+  if (showSelectionGroupColumn.value) n += 2
   if (showActionsColumn.value) n += 1
   return n
 })
@@ -196,7 +201,7 @@ const listRoundOptions = computed(() => {
   if (!batch) return []
   const openKey = currentOpenRoundKey.value
   const displayKey = openKey || getStudentDefaultRoundKey(batch, audience)
-  const rounds = getAudienceRounds(batch, audience)
+  const rounds = getEffectiveAudienceRounds(batch, audience)
   const range = displayKey ? rounds?.[displayKey] : null
   if (!range) return []
   return [
@@ -231,6 +236,7 @@ function handleListBatchChange(event) {
 watch(
   [activeBatch, currentOpenRoundKey, studentAudience],
   () => {
+    if (entryStep.value === 'preview') return
     const openKey = currentOpenRoundKey.value
     if (openKey) {
       selectedRound.value = openKey
@@ -286,34 +292,65 @@ const courses = computed(() =>
 )
 
 const currentPage = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(50)
 
-/** 一门课多个课程分组 → 多行；无分组仍保留一行（不可立即选课） */
-const sectionRows = computed(() => {
-  const rows = []
-  for (const course of courses.value) {
-    const sections = course.sections?.length ? course.sections : [null]
-    for (const section of sections) {
-      rows.push({ course, section })
-    }
+/** 选课课程组（跨课程约束包）仅 ME 批次展示；GE 为普通扁平选课表 */
+const showSelectionGroupColumn = computed(() => batchTypeTab.value === 'ME')
+
+/** 当前批次选课课程组（跨课程约束包） */
+const selectionGroups = computed(() =>
+  showSelectionGroupColumn.value ? getSelectionGroupsForBatch(activeBatch.value) : [],
+)
+
+/** 课级筛选后展平、排序（同课分组行相邻） */
+const sectionRowsAll = computed(() => {
+  const groups = selectionGroups.value
+  const availabilityFiltered = filterCoursesBySectionAvailability(
+    courses.value,
+    appliedSearch.value.availability,
+  )
+  const rows = buildSectionRowsFromCourses(availabilityFiltered, groups)
+  if (groups.length) {
+    return sortSectionRowsBySelectionGroup(rows, groups)
   }
-  const availability = appliedSearch.value.availability
-  if (availability === 'open') {
-    return rows.filter((row) => row.section && Number(row.section.enrolled) < Number(row.section.capacity))
-  }
-  if (availability === 'full') {
-    return rows.filter(
-      (row) => !row.section || Number(row.section.enrolled) >= Number(row.section.capacity),
-    )
-  }
-  return rows
+  return sortRowsByCourseThenSection(rows)
 })
 
-const totalCourseCount = computed(() => sectionRows.value.length)
-const pagedRows = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return sectionRows.value.slice(start, start + pageSize.value)
-})
+const totalCourseCount = computed(() => groupSectionRowsByCourse(sectionRowsAll.value).length)
+
+const pagedRows = computed(() =>
+  paginateSectionRowsByCourse(sectionRowsAll.value, currentPage.value, pageSize.value, {
+    groupAware: showSelectionGroupColumn.value,
+  }).rows,
+)
+
+function selectionGroupRemarkText(row) {
+  const cell = spanCell(row, 'remark')
+  if (!cell?.show) return ''
+  if (cell.dash) return '—'
+  if (cell.group) return formatSelectionGroupRemark(cell.group, t)
+  return '—'
+}
+
+function selectionGroupDisplayLines(group) {
+  return getSelectionGroupDisplayLines(group, isZh.value)
+}
+
+function courseSchoolElectiveLabel(course) {
+  return getSchoolElectiveCategoryLabel(resolveSchoolElectiveCategory(course), isZh.value)
+}
+
+function selectionGroupRowClass(group) {
+  if (!showSelectionGroupColumn.value || !group) return undefined
+  return [
+    'cr-selection-group-row',
+    `cr-selection-group-row--tone-${selectionGroupToneIndex(group, selectionGroups.value)}`,
+  ]
+}
+
+function spanCell(row, key) {
+  return row._span?.[key]
+}
 
 watch(
   [() => appliedSearch.value, selectedRound, () => pageSize.value, studentSelectedBatchId],
@@ -371,7 +408,8 @@ const submitting = ref(false)
 const message = ref('')
 const catalogVisible = ref(false)
 const scheduleDrawerVisible = ref(false)
-const cartDrawerVisible = ref(false)
+const roundStatusExpanded = ref(false)
+const roundStatusPanelRef = ref(null)
 const confirmRegisterVisible = ref(false)
 const pendingRegister = ref(null)
 
@@ -416,17 +454,47 @@ const termCategoryBars = computed(() =>
   batchTypeTab.value === 'GE' ? getTermGeElectiveCategoryBars() : getTermGeCategoryBars(),
 )
 
+/** 列表工具条：毕业学分文/商/理整组 */
+const graduationCategoryBars = computed(() =>
+  batchTypeTab.value === 'GE' ? getGraduationGeBars() : getGraduationMeBars(),
+)
+
+/** 列表工具条：毕业学分类型总分（在本学期公共/专业选修左侧） */
+const graduationElectiveBars = computed(() => {
+  const cats = graduationCategoryBars.value
+  const current = cats.reduce((sum, bar) => sum + (Number(bar.current) || 0), 0)
+  const max = cats.reduce((sum, bar) => sum + (Number(bar.max) || 0), 0)
+  if (batchTypeTab.value === 'GE') {
+    return [
+      {
+        key: 'ge-grad',
+        labelKey: 'courseRegistration.student.graduationElectiveProgressGe',
+        current,
+        max,
+      },
+    ]
+  }
+  return [
+    {
+      key: 'me-grad',
+      labelKey: 'courseRegistration.student.graduationElectiveProgressMe',
+      current,
+      max,
+    },
+  ]
+})
+
 const CATEGORY_SHORT_KEYS = {
   humanities: 'courseRegistration.student.geDemand.short.humanities',
   business: 'courseRegistration.student.geDemand.short.business',
   science: 'courseRegistration.student.geDemand.short.science',
+  aiOpen: 'courseRegistration.student.geDemand.short.aiOpen',
 }
 
-const ROUND_CONDITION_KEYS = {
-  preselect: 'courseRegistration.student.typeEntry.conditionBody.preselect',
-  main: 'courseRegistration.student.typeEntry.conditionBody.main',
-  supplement: 'courseRegistration.student.typeEntry.conditionBody.supplement',
-  addDrop: 'courseRegistration.student.typeEntry.conditionBody.addDrop',
+const ROUND_STATUS_LABEL_KEYS = {
+  active: 'courseRegistration.student.typeEntry.roundStatusActive',
+  ended: 'courseRegistration.student.typeEntry.roundStatusEnded',
+  pending: 'courseRegistration.student.typeEntry.roundStatusPending',
 }
 
 /** 毕业累计文商理（次要 tip，挂在 ME 列表） */
@@ -445,12 +513,12 @@ function isCatalogBatchLive(batch, audience) {
 }
 
 /**
- * 同类型可选批：全部 active；进行中排前（含已结束，便于下拉切换看关态）
+ * 同类型本专业可选批：进行中排前
  * @param {'GE'|'ME'} type
  * @param {string} audience
  */
 function listCatalogBatchesForType(type, audience) {
-  const all = listStudentSelectableBatchesByType(type)
+  const all = listStudentSelectableBatchesByType(type, studentProgrammeCode.value)
   return [...all].sort((a, b) => {
     const liveA = isCatalogBatchLive(a, audience) ? 0 : 1
     const liveB = isCatalogBatchLive(b, audience) ? 0 : 1
@@ -460,11 +528,11 @@ function listCatalogBatchesForType(type, audience) {
 
 /** 目录卡默认选中各类型当前开放批（优先进行中） */
 watch(
-  studentAudience,
-  (audience) => {
+  [studentAudience, studentProgrammeCode, entryTypeOrder],
+  ([audience]) => {
     const next = { ...catalogBatchIdByType.value }
     let changed = false
-    for (const type of ['GE', 'ME']) {
+    for (const type of entryTypeOrder.value) {
       const options = listCatalogBatchesForType(type, audience)
       if (!options.length) {
         if (next[type]) {
@@ -492,14 +560,16 @@ watch(
 )
 
 /**
- * 目录入口卡：GE / ME（方案 A：轮次仅当前开放轮；关窗只认 demo 标志）
+ * 目录入口卡：毕业/本学期学分 + 本专业批次 + 三轮时间轴
  */
 const typeEntryCards = computed(() => {
   const audience = studentAudience.value
   const term = getTermElectiveCreditProgress()
   const meCategoryBars = getTermGeCategoryBars()
   const geCategoryBars = getTermGeElectiveCategoryBars()
-  return (['GE', 'ME']).map((type) => {
+  const gradGeBars = getGraduationGeBars()
+  const gradMeBars = getGraduationMeBars()
+  return entryTypeOrder.value.map((type) => {
     const batchOptions = listCatalogBatchesForType(type, audience).map((batch) => ({
       id: batch.id,
       name: batch.name,
@@ -508,45 +578,62 @@ const typeEntryCards = computed(() => {
     const selectedId = catalogBatchIdByType.value[type] || batchOptions[0]?.id || ''
     const batch = selectedId ? getBatchById(selectedId) : null
     const demoOpenKey = batch ? getStudentCurrentOpenRoundKey(batch, audience) : null
-    const displayRoundKey =
-      demoOpenKey || (batch ? getStudentDefaultRoundKey(batch, audience) : '')
-    const rounds = batch ? getAudienceRounds(batch, audience) : null
-    const deadlineRange = displayRoundKey && rounds ? rounds[displayRoundKey] : null
     const isOpen = Boolean(demoOpenKey)
-    const roundExpired = Boolean(batch) && !isOpen
-    const calendarRemainExpired = isCatalogRoundExpired(deadlineRange?.end)
-    const roundOptions =
-      displayRoundKey && rounds?.[displayRoundKey]
-        ? [
-            {
-              key: displayRoundKey,
-              label: `${t(ROUND_LABEL_KEYS[displayRoundKey] || ROUND_LABEL_KEYS.main)} ${formatRoundRange(rounds[displayRoundKey])}`,
-            },
-          ]
-        : []
+    const rounds = batch ? getEffectiveAudienceRounds(batch, audience) : null
+    const configured = batch ? listConfiguredRoundKeys(batch, audience) : []
+    const timeline = listStudentRoundTimelineStatuses(batch, audience).map((item) => {
+      const range = rounds?.[item.key]
+      const releaseAt =
+        item.key === 'preselect' && audience === AUDIENCE_SENIOR
+          ? String(rounds?.resultReleaseAt || '').trim()
+          : ''
+      const releaseFormatted = releaseAt ? formatResultReleaseAt(releaseAt) : ''
+      return {
+        key: item.key,
+        status: item.status,
+        statusLabelKey: ROUND_STATUS_LABEL_KEYS[item.status] || ROUND_STATUS_LABEL_KEYS.pending,
+        labelKey: ROUND_LABEL_KEYS[item.key] || ROUND_LABEL_KEYS.main,
+        rangeText: formatRoundRange(range) || '—',
+        releaseSubline:
+          releaseFormatted && releaseFormatted !== '—'
+            ? t('courseRegistration.student.typeEntry.volunteerResultRelease', {
+                at: releaseFormatted,
+              })
+            : '',
+        canEnter: item.status === 'active',
+        canPreview: item.status === 'pending' && configured.includes(item.key),
+      }
+    })
+    const graduationCategoryBars = type === 'GE' ? gradGeBars : gradMeBars
+    const graduationCurrent = graduationCategoryBars.reduce((sum, bar) => sum + (Number(bar.current) || 0), 0)
+    const graduationMax = graduationCategoryBars.reduce((sum, bar) => sum + (Number(bar.max) || 0), 0)
     return {
       type,
       titleKey:
         type === 'GE'
           ? 'courseRegistration.student.typeEntry.geTitle'
           : 'courseRegistration.student.typeEntry.meTitle',
-      conditionKey: displayRoundKey
-        ? ROUND_CONDITION_KEYS[displayRoundKey] || ROUND_CONDITION_KEYS.main
-        : 'courseRegistration.student.typeEntry.noOpenRoundHint',
-      deadline: formatRoundRange(deadlineRange),
-      remainText:
-        isOpen && deadlineRange?.end && !calendarRemainExpired
-          ? formatCatalogRemainText(deadlineRange.end)
-          : '',
       batchOptions,
       selectedBatchId: selectedId,
-      roundOptions,
-      selectedRoundKey: displayRoundKey || '',
       isOpen,
-      roundExpired,
-      closedHintKey: roundExpired && displayRoundKey ? catalogExpiredHintKey(displayRoundKey) : '',
       hasBatch: Boolean(batch) || batchOptions.length > 0,
       canEnter: isOpen,
+      timeline,
+      graduationCreditBar:
+        type === 'GE'
+          ? {
+              key: 'ge-grad',
+              labelKey: 'courseRegistration.student.termElectiveProgressGe',
+              current: graduationCurrent,
+              max: graduationMax,
+            }
+          : {
+              key: 'me-grad',
+              labelKey: 'courseRegistration.student.termElectiveProgressMe',
+              current: graduationCurrent,
+              max: graduationMax,
+            },
+      graduationCategoryBars,
       creditBar:
         type === 'GE'
           ? {
@@ -582,10 +669,11 @@ function handleCatalogBatchChange(type, event) {
  */
 function handleEnterType(type) {
   const audience = studentAudience.value
+  const programmeCode = studentProgrammeCode.value
   const selectedId = catalogBatchIdByType.value[type]
   let batch = selectedId ? getBatchById(selectedId) : null
   if (!batch) {
-    batch = resolveBatchForTypeEntry(type, audience).batch
+    batch = resolveBatchForTypeEntry(type, audience, programmeCode).batch
   }
   if (!batch) {
     message.value = t('courseRegistration.student.typeEntry.noBatch')
@@ -608,17 +696,65 @@ function handleEnterType(type) {
 /** 返回 GE/ME 目录 */
 function handleBackToCatalog() {
   entryStep.value = 'catalog'
+  previewContext.value = null
   message.value = ''
-  cartDrawerVisible.value = false
   cancelRegisterConfirm()
 }
+
+/**
+ * 待开放轮次：只读预览该轮可选课程
+ * @param {'GE'|'ME'} type
+ * @param {string} batchId
+ * @param {string} roundKey
+ */
+function handlePreviewRound(type, batchId, roundKey) {
+  if (!batchId || !roundKey) return
+  const batch = getBatchById(batchId)
+  if (!batch) return
+  message.value = ''
+  catalogBatchIdByType.value = { ...catalogBatchIdByType.value, [type]: batchId }
+  previewContext.value = { type, batchId, roundKey }
+  entryStep.value = 'preview'
+}
+
+/** 列表/预览：面包屑追加批次名 */
+const breadcrumbBatchName = computed(() => {
+  if (entryStep.value === 'list') return activeBatch.value?.name || ''
+  if (entryStep.value === 'preview' && previewContext.value?.batchId) {
+    return getBatchById(previewContext.value.batchId)?.name || ''
+  }
+  return ''
+})
+
+watch(
+  [entryStep, breadcrumbBatchName],
+  () => {
+    const name = breadcrumbBatchName.value
+    emit('breadcrumb-extra', name ? [name] : [])
+  },
+  { immediate: true },
+)
+
+watch(
+  entryStep,
+  (step) => {
+    emit('list-active', step === 'list' || step === 'preview')
+  },
+  { immediate: true },
+)
+
+defineExpose({
+  backToCatalog: handleBackToCatalog,
+})
 
 const schedulePreviewSlots = computed(() =>
   buildPreviewSchedule({
     required: studentRequiredCourses.value,
     confirmed: studentConfirmedCourses.value,
     cart: registrationCart.value || [],
+    wishPreview: listRoundStatusCoursesForSchedule(selectedRound.value, activeBatch.value),
     currentRound: selectedRound.value,
+    batch: activeBatch.value,
   }),
 )
 
@@ -641,7 +777,16 @@ const schedulePreviewHint = computed(() => {
 
 const scheduleToolbarLabel = computed(() => t('courseRegistration.student.scheduleToolbarButton'))
 
-const cartButtonLabel = computed(() => t('courseRegistration.student.cartToolbarButton'))
+watch(
+  shouldOpenRoundStatusDrawer,
+  (open) => {
+    if (!open) return
+    roundStatusExpanded.value = true
+    shouldOpenRoundStatusDrawer.value = false
+    nextTick(() => roundStatusPanelRef.value?.scrollIntoView?.())
+  },
+  { immediate: true },
+)
 
 function openCatalog() {
   catalogVisible.value = true
@@ -650,16 +795,6 @@ function openCatalog() {
 function openScheduleDrawer() {
   scheduleDrawerVisible.value = true
 }
-
-watch(
-  shouldOpenRoundStatusDrawer,
-  (open) => {
-    if (!open) return
-    cartDrawerVisible.value = true
-    shouldOpenRoundStatusDrawer.value = false
-  },
-  { immediate: true },
-)
 
 const cartVisibleRows = computed(() => {
   const list = myRegistrationList.value
@@ -703,13 +838,17 @@ function eligibilityDetailLabel(course, section) {
   if (showVolunteerSheet.value && isVolunteerListLocked()) {
     return t('courseRegistration.student.volunteerSheet.orderLocked')
   }
-  if (isCourseOccupied(course.id)) {
+  if (isCourseOccupied(course.id, section?.id)) {
     return selectedRound.value === 'preselect'
       ? t('courseRegistration.student.alreadyVolunteeredHint')
       : t('courseRegistration.student.alreadyRegisteredHint')
   }
   if (!section) {
     return t('courseRegistration.student.noSectionToRegister')
+  }
+  const scheduleGate = getHardScheduleConflictGate(course, section)
+  if (!scheduleGate.ok && scheduleGate.errorKey) {
+    return t(scheduleGate.errorKey, scheduleGate.errorParams || {})
   }
   if (!course.eligibility) return '—'
   if (!course.eligibility.eligible) {
@@ -741,10 +880,10 @@ const showVolunteerSheet = computed(() =>
   shouldShowVolunteerSheetPanel(selectedRound.value, studentAudience.value),
 )
 
-/** 容量列表头：第一轮为志愿数量/课程容量 */
+/** 容量列表头：第一轮为课程已选百分比 */
 const capacityColumnLabel = computed(() =>
   isPreselectRound.value
-    ? t('courseRegistration.courses.volunteerVsCapacity')
+    ? t('courseRegistration.courses.volunteerSelectedPercent')
     : t('courseRegistration.courses.enrolled'),
 )
 
@@ -763,7 +902,10 @@ function sectionVolunteerCount(course, section) {
 function sectionCapacityLabel(course, section) {
   if (!section) return '—'
   if (isPreselectRound.value) {
-    return `${sectionVolunteerCount(course, section)}/${section.capacity}`
+    const volunteers = sectionVolunteerCount(course, section)
+    const cap = Number(section.capacity) || 0
+    if (cap <= 0) return '—'
+    return `${Math.round((volunteers / cap) * 100)}%`
   }
   return `${section.enrolled}/${section.capacity}`
 }
@@ -796,10 +938,12 @@ function canRegisterRow(course, section) {
   if (!section || !course.eligibility?.eligible) return false
   if (showVolunteerSheet.value) {
     if (isVolunteerListLocked()) return false
-    if (isCourseOccupied(course.id)) return false
+    if (isCourseOccupied(course.id, section.id)) return false
+    if (!getHardScheduleConflictGate(course, section).ok) return false
     return checkTermCreditCapForCourse(course).ok
   }
-  if (isCourseOccupied(course.id)) return false
+  if (isCourseOccupied(course.id, section.id)) return false
+  if (!getHardScheduleConflictGate(course, section).ok) return false
   if (!checkTermCreditCapForCourse(course).ok) return false
   if (selectedRound.value === 'preselect') return true
   return !isSectionFull(section)
@@ -838,10 +982,6 @@ function applyCreditsFilter(value) {
     },
   }
   closeCreditsFilter()
-}
-
-function openCartDrawer() {
-  cartDrawerVisible.value = true
 }
 
 const confirmRegisterMessage = computed(() => {
@@ -940,32 +1080,33 @@ function confirmRegisterSubmit() {
       <section class="cr-type-entry-section">
         <h3 class="cr-type-entry-title">{{ t('courseRegistration.student.typeEntry.title') }}</h3>
         <p class="cr-type-entry-hint">{{ t('courseRegistration.student.typeEntry.hint') }}</p>
-        <div class="cr-type-entry-grid">
+        <div class="cr-type-entry-grid" :class="{ 'is-single': !showGeTypeEntry }">
         <div
           v-for="card in typeEntryCards"
           :key="card.type"
           class="cr-type-entry-card"
-          :class="{ 'is-closed': !card.isOpen }"
         >
           <div class="cr-type-entry-card-head">
             <span class="cr-type-entry-card-title">{{ t(card.titleKey) }}</span>
-            <span class="cr-type-entry-badge" :class="card.isOpen ? 'is-open' : 'is-closed'">
-              {{
-                card.isOpen
-                  ? t('courseRegistration.student.typeEntry.open')
-                  : card.roundExpired
-                    ? t('courseRegistration.student.typeEntry.ended')
-                    : t('courseRegistration.student.typeEntry.closed')
-              }}
-            </span>
           </div>
           <dl class="cr-type-entry-meta">
             <div>
-              <dt>{{ t('courseRegistration.student.typeEntry.deadline') }}</dt>
-              <dd class="cr-type-entry-deadline">
-                <span>{{ card.deadline }}</span>
-                <span v-if="card.remainText" class="cr-type-entry-remain">
-                  {{ t('courseRegistration.student.typeEntry.remainParen', { text: card.remainText }) }}
+              <dt>{{ t('courseRegistration.student.typeEntry.graduationCredits') }}</dt>
+              <dd class="cr-type-entry-credits">
+                <span
+                  class="cr-credit-capsule"
+                  :class="creditCapsuleTone(card.graduationCreditBar)"
+                >
+                  {{ t(card.graduationCreditBar.labelKey) }}
+                  {{ card.graduationCreditBar.current }}/{{ card.graduationCreditBar.max }}
+                </span>
+                <span
+                  v-for="bar in card.graduationCategoryBars"
+                  :key="`grad-${bar.key}`"
+                  class="cr-credit-capsule"
+                  :class="creditCapsuleTone(bar)"
+                >
+                  {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }} {{ bar.current }}/{{ bar.max }}
                 </span>
               </dd>
             </div>
@@ -1007,88 +1148,73 @@ function confirmRegisterSubmit() {
             <div>
               <dt>{{ t('courseRegistration.student.typeEntry.roundLabel') }}</dt>
               <dd>
-                <select
-                  v-if="card.roundOptions.length"
-                  class="cr-type-entry-batch-select"
-                  :value="card.selectedRoundKey"
-                  :aria-label="t('courseRegistration.student.typeEntry.roundLabel')"
-                  @click.stop
-                >
-                  <option v-for="opt in card.roundOptions" :key="opt.key" :value="opt.key">
-                    {{ opt.label }}
-                  </option>
-                </select>
-                <span v-else class="cr-type-entry-hint-text">
-                  {{ t('courseRegistration.student.typeEntry.noOpenRoundHint') }}
-                </span>
+                <ol class="cr-type-entry-timeline" aria-label="registration rounds">
+                  <li
+                    v-for="(round, idx) in card.timeline"
+                    :key="round.key"
+                    class="cr-type-entry-timeline-item"
+                    :class="`is-${round.status}`"
+                  >
+                    <span class="cr-type-entry-timeline-rail" aria-hidden="true">
+                      <span class="cr-type-entry-timeline-dot" />
+                      <span
+                        v-if="idx < card.timeline.length - 1"
+                        class="cr-type-entry-timeline-line"
+                      />
+                    </span>
+                    <div class="cr-type-entry-timeline-body">
+                      <div class="cr-type-entry-timeline-content">
+                        <div class="cr-type-entry-timeline-main">
+                          <span class="cr-type-entry-timeline-title">{{ t(round.labelKey) }}</span>
+                          <span class="cr-type-entry-timeline-range">{{ round.rangeText }}</span>
+                          <span class="cr-type-entry-round-badge" :class="`is-${round.status}`">
+                            {{ t(round.statusLabelKey) }}
+                          </span>
+                        </div>
+                        <p v-if="round.releaseSubline" class="cr-type-entry-timeline-sub">
+                          {{ round.releaseSubline }}
+                        </p>
+                      </div>
+                      <div
+                        v-if="round.canEnter || round.canPreview"
+                        class="cr-type-entry-timeline-actions"
+                      >
+                        <button
+                          v-if="round.canPreview"
+                          type="button"
+                          class="btn btn-default cr-type-entry-row-cta"
+                          @click="handlePreviewRound(card.type, card.selectedBatchId, round.key)"
+                        >
+                          {{ t('courseRegistration.student.typeEntry.viewCourses') }}
+                        </button>
+                        <button
+                          v-if="round.canEnter"
+                          type="button"
+                          class="btn btn-primary cr-type-entry-row-cta"
+                          @click="handleEnterType(card.type)"
+                        >
+                          {{ t('courseRegistration.student.typeEntry.enter') }}
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                </ol>
               </dd>
             </div>
           </dl>
-          <button
-            type="button"
-            class="btn btn-primary cr-type-entry-cta"
-            :disabled="!card.canEnter"
-            @click="handleEnterType(card.type)"
-          >
-            {{
-              card.closedHintKey
-                ? t(card.closedHintKey)
-                : t('courseRegistration.student.typeEntry.enter')
-            }}
-          </button>
         </div>
       </div>
       </section>
     </div>
 
-    <template v-else>
-    <div class="cr-student-register-context">
-      <div class="cr-list-context-bar">
-        <div class="cr-list-context-selects">
-          <label class="cr-list-context-field">
-            <span class="cr-list-context-field-label">{{
-              t('courseRegistration.student.typeEntry.batchLabel')
-            }}</span>
-            <select
-              class="cr-type-entry-batch-select cr-list-context-select"
-              :value="studentSelectedBatchId"
-              :aria-label="t('courseRegistration.student.typeEntry.batchLabel')"
-              @change="handleListBatchChange"
-            >
-              <option v-for="opt in listBatchOptions" :key="opt.id" :value="opt.id">
-                {{ opt.name }}
-              </option>
-            </select>
-          </label>
-          <label v-if="listRoundOptions.length" class="cr-list-context-field">
-            <span class="cr-list-context-field-label">{{
-              t('courseRegistration.student.typeEntry.roundLabel')
-            }}</span>
-            <select
-              class="cr-type-entry-batch-select cr-list-context-select cr-list-context-select--round"
-              :value="listRoundDisplayKey"
-              :aria-label="t('courseRegistration.student.typeEntry.roundLabel')"
-              @click.stop
-            >
-              <option v-for="opt in listRoundOptions" :key="opt.key" :value="opt.key">
-                {{ opt.label }}
-              </option>
-            </select>
-          </label>
-          <span v-else class="cr-type-entry-hint-text">
-            {{ t('courseRegistration.student.typeEntry.noOpenRoundHint') }}
-          </span>
-        </div>
-        <button type="button" class="cr-list-back-btn" @click="handleBackToCatalog">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="19" y1="12" x2="5" y2="12" />
-            <polyline points="12 19 5 12 12 5" />
-          </svg>
-          {{ t('courseRegistration.student.typeEntry.backToCatalog') }}
-        </button>
-      </div>
+    <div v-else-if="entryStep === 'preview' && previewContext" class="page-card">
+      <StudentPendingRoundPreviewPanel
+        :batch-id="previewContext.batchId"
+        :round-key="previewContext.roundKey"
+      />
     </div>
 
+    <template v-else>
     <!-- 学分规则 Callout 已按密度需求移除；校验仍走规则数据 -->
 
     <div class="page-card">
@@ -1177,14 +1303,6 @@ function confirmRegisterSubmit() {
 
         <div class="cr-student-cart-toolbar">
           <div class="cr-student-cart-toolbar-actions">
-            <button
-              type="button"
-              class="btn btn-default cr-student-cart-trigger"
-              :title="myCoursesTip"
-              @click="openCartDrawer"
-            >
-              {{ cartButtonLabel }}
-            </button>
             <button type="button" class="cr-catalog-trigger" @click="openCatalog">
               {{ t('courseRegistration.student.courseCatalogButton') }}
             </button>
@@ -1213,13 +1331,13 @@ function confirmRegisterSubmit() {
                 {{ myCoursesTip }}
               </span>
             </span>
-            <p v-if="message && !cartDrawerVisible" class="cr-student-message cr-student-toolbar-message">
+            <p v-if="message" class="cr-student-message cr-student-toolbar-message">
               {{ message }}
             </p>
           </div>
           <div
             class="cr-list-context-progress"
-            aria-label="term credit progress"
+            aria-label="credit progress"
             :title="
               batchTypeTab === 'ME'
                 ? t('courseRegistration.student.graduationGe.tipCumulative', {
@@ -1228,6 +1346,26 @@ function confirmRegisterSubmit() {
                 : undefined
             "
           >
+            <span
+              v-for="bar in graduationElectiveBars"
+              :key="bar.key"
+              class="cr-credit-capsule"
+              :class="creditCapsuleTone(bar)"
+            >
+              {{ t(bar.labelKey) }} {{ bar.current }}/{{ bar.max }}
+            </span>
+            <template v-if="graduationCategoryBars.length">
+              <span class="cr-list-context-sep" aria-hidden="true">|</span>
+              <span
+                v-for="bar in graduationCategoryBars"
+                :key="`grad-${bar.key}`"
+                class="cr-credit-capsule"
+                :class="creditCapsuleTone(bar)"
+              >
+                {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }} {{ bar.current }}/{{ bar.max }}
+              </span>
+            </template>
+            <span class="cr-list-context-sep" aria-hidden="true">|</span>
             <span
               v-for="bar in termElectiveBars"
               :key="bar.key"
@@ -1250,6 +1388,14 @@ function confirmRegisterSubmit() {
           </div>
         </div>
 
+        <StudentRegistrationRoundStatusPanel
+          ref="roundStatusPanelRef"
+          v-model:expanded="roundStatusExpanded"
+          :round-open="isRoundRegistrationOpen"
+          :show-volunteer-order="showVolunteerSheet"
+          :message="message"
+        />
+
         <div class="table-section">
           <div class="table-scroll">
             <div class="table-wrap">
@@ -1259,7 +1405,6 @@ function confirmRegisterSubmit() {
                   <th>{{ t('common.serialNo') }}</th>
                   <th>{{ t('courseRegistration.courses.code') }}</th>
                   <th>{{ t('courseRegistration.courses.name') }}</th>
-                  <th>{{ t('courseRegistration.courses.sectionCode') }}</th>
                   <th>{{ t('courseRegistration.courses.type') }}</th>
                   <th class="th-with-tip">
                     <span class="th-label-with-tip">
@@ -1335,33 +1480,101 @@ function confirmRegisterSubmit() {
                       </span>
                     </span>
                   </th>
+                  <th>{{ t('courseRegistration.courses.sectionCode') }}</th>
+                  <th v-if="showSelectionGroupColumn" class="th-with-tip">
+                    <span class="th-label-with-tip">
+                      {{ t('courseRegistration.courses.selectionGroup') }}
+                      <span
+                        class="hint-popover-wrap"
+                        :title="t('courseRegistration.courses.selectionGroupTip')"
+                      >
+                        <span
+                          class="hint-popover-trigger"
+                          tabindex="0"
+                          role="button"
+                          :aria-label="t('courseRegistration.courses.selectionGroupTip')"
+                        >
+                          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                            <path
+                              d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 3a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zm-1.25 3.5a.75.75 0 0 1 1.5 0v3.5a.75.75 0 0 1-1.5 0v-3.5z"
+                            />
+                          </svg>
+                        </span>
+                        <span
+                          class="hint-popover-content hint-popover-content--sm"
+                          role="tooltip"
+                        >
+                          {{ t('courseRegistration.courses.selectionGroupTip') }}
+                        </span>
+                      </span>
+                    </span>
+                  </th>
                   <th>{{ t('courseRegistration.courses.lecturer') }}</th>
                   <th>{{ t('courseRegistration.courses.weekRange') }}</th>
                   <th>{{ t('courseRegistration.courses.classTimeVenue') }}</th>
                   <th>{{ t('courseRegistration.courses.prerequisites') }}</th>
                   <th class="th-capacity">{{ capacityColumnLabel }}</th>
+                  <th v-if="showSelectionGroupColumn">{{ t('courseRegistration.courses.remark') }}</th>
                   <th v-if="showActionsColumn">{{ t('common.actions') }}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr
-                  v-for="(row, index) in pagedRows"
+                  v-for="row in pagedRows"
                   :key="`${row.course.id}-${row.section?.id || 'none'}`"
+                  :class="selectionGroupRowClass(row.selectionGroup)"
                 >
-                  <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
-                  <td class="nowrap">
-                    <CourseCodeSourcePopover :code="row.course.code" />
+                  <td v-if="spanCell(row, 'serial')?.show" :rowspan="spanCell(row, 'serial').rowspan">
+                    {{ spanCell(row, 'serial').value }}
                   </td>
-                  <td class="nowrap">{{ row.course.name }}</td>
+                  <td
+                    v-if="spanCell(row, 'code')?.show"
+                    class="nowrap"
+                    :rowspan="spanCell(row, 'code').rowspan"
+                  >
+                    <CourseCodeSourcePopover :code="row.course.code" :course="row.course" />
+                  </td>
+                  <td
+                    v-if="spanCell(row, 'name')?.show"
+                    class="nowrap"
+                    :rowspan="spanCell(row, 'name').rowspan"
+                  >
+                    {{ row.course.name }}
+                  </td>
+                  <td
+                    v-if="spanCell(row, 'type')?.show"
+                    class="nowrap"
+                    :rowspan="spanCell(row, 'type').rowspan"
+                  >
+                    {{ getRegistrationTypeLabel(row.course.type, t) }}
+                  </td>
+                  <td
+                    v-if="spanCell(row, 'schoolCat')?.show"
+                    class="nowrap"
+                    :rowspan="spanCell(row, 'schoolCat').rowspan"
+                  >
+                    {{ courseSchoolElectiveLabel(row.course) }}
+                  </td>
+                  <td v-if="spanCell(row, 'credits')?.show" :rowspan="spanCell(row, 'credits').rowspan">
+                    {{ row.course.credits }}
+                  </td>
                   <td class="nowrap">{{ sectionGroupName(row.section) }}</td>
-                  <td class="nowrap">{{ getRegistrationTypeLabel(row.course.type, t) }}</td>
-                  <td class="nowrap">
-                    {{
-                      getSchoolElectiveCategoryLabel(row.course.schoolElectiveCategory, isZh)
-                    }}
+                  <td
+                    v-if="showSelectionGroupColumn && spanCell(row, 'selectionGroup')?.show"
+                    class="cr-selection-group-cell"
+                    :rowspan="spanCell(row, 'selectionGroup').rowspan"
+                  >
+                    <template v-if="row.selectionGroup">
+                      <div class="cr-selection-group-title">
+                        {{ selectionGroupDisplayLines(row.selectionGroup).title }}
+                      </div>
+                      <div class="cr-selection-group-intake">
+                        {{ selectionGroupDisplayLines(row.selectionGroup).intakeLine }}
+                      </div>
+                    </template>
+                    <template v-else>—</template>
                   </td>
-                  <td>{{ row.course.credits }}</td>
-                  <td class="nowrap">{{ row.section?.lecturer || '—' }}</td>
+                  <td class="nowrap td-lecturer">{{ row.section?.lecturer || '—' }}</td>
                   <td class="nowrap">{{ row.section ? displayWeekRange(row.section) : '—' }}</td>
                   <td class="cr-time-venue">
                     <template v-if="row.section">
@@ -1375,7 +1588,13 @@ function confirmRegisterSubmit() {
                     </template>
                     <template v-else>—</template>
                   </td>
-                  <td class="nowrap">{{ row.course.prerequisites?.join(', ') || '—' }}</td>
+                  <td
+                    v-if="spanCell(row, 'prerequisites')?.show"
+                    class="nowrap"
+                    :rowspan="spanCell(row, 'prerequisites').rowspan"
+                  >
+                    {{ row.course.prerequisites?.join(', ') || '—' }}
+                  </td>
                   <td class="nowrap td-capacity">
                     <span
                       v-if="row.section"
@@ -1385,6 +1604,13 @@ function confirmRegisterSubmit() {
                       {{ sectionCapacityLabel(row.course, row.section) }}
                     </span>
                     <template v-else>—</template>
+                  </td>
+                  <td
+                    v-if="showSelectionGroupColumn && spanCell(row, 'remark')?.show"
+                    class="cr-selection-group-remark"
+                    :rowspan="spanCell(row, 'remark').rowspan"
+                  >
+                    {{ selectionGroupRemarkText(row) }}
                   </td>
                   <td v-if="showActionsColumn" class="cr-student-actions">
                     <div class="actions-inner">
@@ -1454,25 +1680,19 @@ function confirmRegisterSubmit() {
       :title="t('courseRegistration.student.schedulePreviewTitle')"
       :subtitle="schedulePreviewHint"
       dense
+      fill-body
       @close="scheduleDrawerVisible = false"
     >
-      <StudentSchedulePreviewPanel embedded :schedule="resolvedScheduleSlots" />
+      <StudentSchedulePreviewPanel
+        embedded
+        :schedule="resolvedScheduleSlots"
+      />
       <template #footer>
         <button type="button" class="btn btn-primary" @click="scheduleDrawerVisible = false">
           {{ t('common.close') }}
         </button>
       </template>
     </ApplicationDetailDrawer>
-
-    <StudentRegistrationCartDrawer
-      :visible="cartDrawerVisible"
-      :credit-min="creditSummary.min"
-      :credit-max="creditSummary.max"
-      :message="message"
-      :round-open="isRoundRegistrationOpen"
-      :show-volunteer-order="showVolunteerSheet"
-      @close="cartDrawerVisible = false"
-    />
 
     <ConfirmDialog
       :visible="confirmRegisterVisible"
@@ -1489,9 +1709,14 @@ function confirmRegisterSubmit() {
 
 <style scoped>
 .table-scroll {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: min(70vh, 720px);
   border: 1px solid #f3f4f6;
   border-radius: 8px;
+}
+
+.table-section .data-table td[rowspan] {
+  vertical-align: middle;
 }
 
 .th-label-with-tip {
@@ -1508,51 +1733,76 @@ function confirmRegisterSubmit() {
 }
 
 .table-section .data-table {
-  min-width: 1280px;
+  min-width: 1240px;
 }
 
 .table-section .data-table th,
 .table-section .data-table td {
-  padding: 5px 10px;
-  line-height: 1.35;
+  padding: 4px 7px;
+  line-height: 1.3;
   vertical-align: middle;
 }
 
-.table-section .data-table th {
-  padding-top: 6px;
-  padding-bottom: 6px;
-}
-
-.nowrap {
+.table-section .data-table .nowrap {
   white-space: nowrap;
 }
 
-.th-capacity {
-  background: #f1f5f9 !important;
-}
-
-.td-capacity {
+.cr-selection-group-cell {
+  font-weight: 500;
+  color: #374151;
   text-align: center;
+  line-height: 1.3;
+  min-width: 132px;
+  max-width: 140px;
+  padding-left: 4px;
+  padding-right: 4px;
 }
 
-.capacity-pill {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
+.cr-selection-group-title {
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.cr-selection-group-intake {
+  font-size: 10px;
+  font-weight: 400;
+  color: #4b5563;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.td-lecturer {
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cr-selection-group-remark {
+  min-width: 108px;
+  max-width: 132px;
   font-size: 12px;
-  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  vertical-align: middle;
+  white-space: normal;
+  word-break: break-word;
+  color: #374151;
 }
 
 .cr-time-venue {
-  min-width: 200px;
-  max-width: 320px;
+  min-width: 160px;
+  max-width: 228px;
   font-size: 12px;
   line-height: 1.35;
-  white-space: normal;
+  white-space: nowrap;
 }
 
-.cr-time-venue-line + .cr-time-venue-line {
-  margin-top: 2px;
+.cr-time-venue-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
 }
 
 .capacity-open {
@@ -1568,6 +1818,42 @@ function confirmRegisterSubmit() {
 .capacity-full {
   color: #b91c1c;
   background: #fee2e2;
+}
+
+/* 选课课程组：浅蓝 / 浅黄交替底色；无左边条 */
+.cr-selection-group-row--tone-0 > td {
+  background: #dbeafe;
+}
+
+.cr-selection-group-row--tone-1 > td {
+  background: #fef9c3;
+}
+
+.cr-time-venue-line + .cr-time-venue-line {
+  margin-top: 2px;
+}
+
+.table-section .data-table th {
+  padding-top: 5px;
+  padding-bottom: 5px;
+  white-space: nowrap;
+}
+
+.th-capacity {
+  background: #f1f5f9 !important;
+  min-width: 7.5em;
+}
+
+.td-capacity {
+  text-align: center;
+}
+
+.capacity-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .th-credits-filter {
@@ -1931,10 +2217,10 @@ function confirmRegisterSubmit() {
 }
 
 .cr-type-entry-profile thead th {
-  background: #2563eb;
-  color: #fff;
+  background: #eff6ff;
+  color: #1d4ed8;
   font-weight: 600;
-  border-color: #1d4ed8;
+  border-color: #bfdbfe;
 }
 
 .cr-type-entry-profile tbody td {
@@ -1959,6 +2245,11 @@ function confirmRegisterSubmit() {
   align-items: stretch;
 }
 
+.cr-type-entry-grid.is-single {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: calc(50% - 8px);
+}
+
 .cr-type-entry-card {
   display: flex;
   flex-direction: column;
@@ -1977,10 +2268,6 @@ function confirmRegisterSubmit() {
   box-shadow: 0 1px 4px rgba(37, 99, 235, 0.12);
 }
 
-.cr-type-entry-card.is-closed {
-  background: #f9fafb;
-}
-
 .cr-type-entry-card-head {
   display: flex;
   align-items: center;
@@ -1992,39 +2279,6 @@ function confirmRegisterSubmit() {
   font-size: 15px;
   font-weight: 600;
   color: #1f2937;
-}
-
-.cr-type-entry-badge {
-  flex-shrink: 0;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.cr-type-entry-deadline {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 6px;
-}
-
-.cr-type-entry-remain {
-  font-size: 12px;
-  font-weight: 500;
-  color: #6b7280;
-  white-space: nowrap;
-}
-
-.cr-type-entry-badge.is-open {
-  color: #047857;
-  background: #d1fae5;
-}
-
-.cr-type-entry-badge.is-closed {
-  color: #92400e;
-  background: #fef3c7;
 }
 
 .cr-type-entry-meta {
@@ -2083,21 +2337,150 @@ function confirmRegisterSubmit() {
   max-width: 380px;
 }
 
-.cr-type-entry-cta {
-  margin-top: auto;
-  align-self: stretch;
-  width: 100%;
-  padding: 11px 14px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  text-align: center;
+.cr-type-entry-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.cr-type-entry-cta:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  filter: grayscale(0.35);
+.cr-type-entry-timeline-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+  min-height: 44px;
+}
+
+.cr-type-entry-timeline-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  align-self: stretch;
+  min-height: 100%;
+  padding-top: 0;
+}
+
+.cr-type-entry-timeline-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  margin-bottom: 0;
+  border-radius: 50%;
+  background: #9ca3af;
+  flex-shrink: 0;
+}
+
+.cr-type-entry-timeline-item.is-active .cr-type-entry-timeline-dot {
+  background: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.16);
+}
+
+.cr-type-entry-timeline-item.is-ended .cr-type-entry-timeline-dot {
+  background: #9ca3af;
+}
+
+.cr-type-entry-timeline-item.is-pending .cr-type-entry-timeline-dot {
+  background: #3b82f6;
+}
+
+.cr-type-entry-timeline-line {
+  flex: 1;
+  width: 2px;
+  margin-top: 4px;
+  margin-bottom: 0;
+  background: #e5e7eb;
+  min-height: 12px;
+}
+
+.cr-type-entry-timeline-body {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 12px;
+  min-width: 0;
+}
+
+.cr-type-entry-timeline-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.cr-type-entry-timeline-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.cr-type-entry-timeline-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  line-height: 1.4;
+}
+
+.cr-type-entry-timeline-range {
+  font-size: 13px;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+.cr-type-entry-timeline-sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  line-height: 1.45;
+}
+
+.cr-type-entry-row-cta {
+  margin-top: 2px;
+}
+
+.cr-type-entry-timeline-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.cr-type-entry-round-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.cr-type-entry-round-badge.is-active {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.cr-type-entry-round-badge.is-ended {
+  color: #4b5563;
+  background: #e5e7eb;
+}
+
+.cr-type-entry-round-badge.is-pending {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.cr-type-entry-row-cta {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 @media (max-width: 860px) {
@@ -2105,8 +2488,16 @@ function confirmRegisterSubmit() {
     grid-template-columns: 1fr;
   }
 
+  .cr-type-entry-grid.is-single {
+    max-width: none;
+  }
+
   .cr-type-entry-card {
     min-height: 0;
+  }
+
+  .cr-type-entry-timeline-body {
+    flex-wrap: wrap;
   }
 
   .cr-list-context-bar {

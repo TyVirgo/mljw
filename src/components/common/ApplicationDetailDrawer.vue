@@ -7,6 +7,8 @@ defineProps({
   subtitle: { type: String, default: '' },
   /** 课表等场景：收紧内边距，减少底部空白与滚动条 */
   dense: { type: Boolean, default: false },
+  /** 内容区撑满剩余高度（课表抽屉） */
+  fillBody: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close'])
@@ -30,7 +32,7 @@ function handleClose() {
           <button type="button" class="drawer-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
-        <div class="drawer-scroll">
+        <div class="drawer-scroll" :class="{ 'is-fill': fillBody }">
           <slot />
         </div>
 
@@ -98,6 +100,20 @@ function handleClose() {
   flex: 1;
   overflow-y: auto;
   padding: 20px 24px;
+}
+
+.drawer-scroll.is-fill {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.drawer-scroll.is-fill > :deep(*) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .drawer-overlay.is-dense .drawer-header {

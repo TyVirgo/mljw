@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { getCurrentStudent } from '../mockCurrentStudent.js'
-import { getActiveBatch } from './registrationBatches.js'
+import { getActiveBatch, getBatchById } from './registrationBatches.js'
 import { isReleaseCrossAudienceOnRound3 } from './registrationRuleSettings.js'
 import {
   getCoursesByBatch,
@@ -33,9 +33,14 @@ import {
 } from './waitlistQueue.js'
 import {
   hasStudentVolunteeredCourse,
+  hasStudentVolunteeredSection,
   submitStudentPreselectVolunteer,
   removeStudentPreselectVolunteer,
 } from './preselectVolunteerConfirm.js'
+import {
+  buildHardConflictBaseline,
+  checkHardScheduleConflict,
+} from './studentRegistrationScheduleConflict.js'
 import {
   getRegistrationSemesterIndex,
   getStudentAudience,
@@ -48,6 +53,7 @@ import { studentPendingAssignCourses } from './studentPendingAssignState.js'
 import {
   assertVolunteerListEditable,
   assignNextPreferenceOrder,
+  syncVolunteerOrderAfterPendingChange,
 } from './studentVolunteerSheet.js'
 
 export { studentPendingAssignCourses }
@@ -122,22 +128,55 @@ export const studentFailedRegistrations = ref([])
 /** 学生主动取消排队的记录 */
 export const studentCancelledRegistrations = ref([])
 
-export function isCourseOccupied(courseId) {
+export function isCourseOccupied(courseId, sectionId = null) {
   if (!courseId) return false
-  if (pendingRegistration.value?.courseId === courseId) return true
+  const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
+  const r1 = roundKey === 'preselect'
+
+  const pending = pendingRegistration.value
+  if (pending?.courseId === courseId) {
+    if (!r1 || !sectionId || pending.sectionId === sectionId) return true
+  }
+
+  if (r1 && sectionId) {
+    if (
+      studentPendingAssignCourses.value.some(
+        (item) => item.courseId === courseId && item.sectionId === sectionId,
+      )
+    ) {
+      return true
+    }
+    if (hasStudentVolunteeredSection(courseId, sectionId)) return true
+    return false
+  }
+
   if (hasStudentVolunteeredCourse(courseId)) return true
   if (studentPendingAssignCourses.value.some((item) => item.courseId === courseId)) return true
   return studentConfirmedCourses.value.some((item) => item.courseId === courseId)
 }
 
+/** 行级/提交前：与必修、已确认课表硬冲突检测 */
+export function getHardScheduleConflictGate(course, section) {
+  if (!section) return { ok: true }
+  const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
+  const baseline = buildHardConflictBaseline(
+    roundKey,
+    studentRequiredCourses.value,
+    studentConfirmedCourses.value,
+  )
+  return checkHardScheduleConflict(section, baseline)
+}
+
 export const myRegistrationList = computed(() => {
   const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
+  const batch = getActiveBatch()
+  const batchId = batch?.id
+  const batchType = batch?.type === 'GE' ? 'GE' : batch?.type === 'ME' ? 'ME' : ''
   const list = []
   if (pendingRegistration.value) {
     list.push({ ...pendingRegistration.value, status: 'queued' })
   }
   if (roundKey === 'preselect') {
-    const batchId = getActiveBatch()?.id
     for (const item of studentPendingAssignCourses.value) {
       if (batchId && item.batchId && item.batchId !== batchId) continue
       list.push({ ...item, status: 'pendingAssign' })
@@ -145,9 +184,14 @@ export const myRegistrationList = computed(() => {
     return list
   }
   for (const item of studentConfirmedCourses.value) {
+    // 本轮选课情况：按当前批次隔离，避免 GE/ME、R2/R3 串 demo
+    if (batchId && item.batchId && item.batchId !== batchId) continue
+    if (!item.batchId && batchType && item.type && item.type !== batchType) continue
     list.push({ ...item, status: 'success' })
   }
   for (const item of studentFailedRegistrations.value) {
+    if (batchId && item.batchId && item.batchId !== batchId) continue
+    if (!item.batchId && batchType && item.type && item.type !== batchType) continue
     list.push({ ...item, status: 'failed' })
   }
   return list
@@ -284,11 +328,13 @@ function parseSectionSchedule(time, courseCode) {
   }
 }
 
-function assertEligibleAndNotInCart(course) {
+function assertEligibleAndNotInCart(course, section) {
   if (!course) return { ok: false }
-  if (isCourseOccupied(course.id)) {
+  if (isCourseOccupied(course.id, section?.id)) {
     return { ok: false, errorKey: 'courseRegistration.student.cartDuplicate' }
   }
+  const scheduleGate = getHardScheduleConflictGate(course, section)
+  if (!scheduleGate.ok) return scheduleGate
   const batch = getActiveBatch()
   const context = buildEligibilityContext(getCurrentStudent(), batch, {
     roundKey: normalizeCartRoundKey(activeCartRoundKey.value),
@@ -333,7 +379,7 @@ function buildCartCourseItem(course, section) {
 /** 单课确认选课：第二/三轮进队列；第一轮提交志愿并进队列，结束后为待分配 */
 export function submitSingleCourseRegistration(course, section) {
   if (!course || !section) return { ok: false }
-  const gate = assertEligibleAndNotInCart(course)
+  const gate = assertEligibleAndNotInCart(course, section)
   if (!gate.ok) return gate
 
   const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
@@ -373,7 +419,7 @@ export function submitSingleCourseRegistration(course, section) {
     }
 
     void runRegistrationQueue(queueContext, {
-      silent: false,
+      silent: true,
       showSuccess: true,
       resultKind: 'pendingAssign',
       onComplete: () => {
@@ -413,7 +459,7 @@ export function submitSingleCourseRegistration(course, section) {
   }
 
   void runRegistrationQueue(queueContext, {
-    silent: false,
+    silent: true,
     showSuccess: true,
     onComplete: () => {
       const failed = Math.random() < 0.15
@@ -481,36 +527,12 @@ export function hideMyCourseQueueProgress() {
   hideQueueOverlay()
 }
 
-/** 查看排队进度：若已有静默队列则揭开展示，否则演示进度界面 */
+/** 查看排队进度：静默入队后由用户主动打开全屏进度 */
 export function openMyCourseQueueProgress(item) {
   if (!item) return
   if (isRegistrationQueueWaiting()) {
     revealQueueOverlay()
-    return
   }
-
-  const studentFields = getStudentProfileFields()
-  const batch = getActiveBatch()
-  void runRegistrationQueue(
-    {
-      ...studentFields,
-      batchName: batch?.name,
-      academicSession: batch?.academicSession,
-      courses: [item],
-      courseCode: item.courseCode,
-      courseName: item.courseName,
-      credits: item.credits,
-      section: item.sectionCode,
-      time: item.time || item.classTime,
-      room: item.room,
-      lecturer: item.lecturer,
-    },
-    {
-      silent: false,
-      showSuccess: false,
-      onComplete: () => ({ ok: true }),
-    },
-  ).catch(() => {})
 }
 
 export function dismissFailedRegistration(id) {
@@ -750,26 +772,28 @@ function upsertMonitorRow(studentFields, batch, historyAction) {
     termElectiveProgress: existing?.termElectiveProgress ?? {
       ge: 4,
       me: 6,
-      geMax: 12,
-      meMax: 16,
+      geMax: 18,
+      meMax: 22,
     },
     termGeCategories: existing?.termGeCategories ?? {
-      humanities: 0,
-      business: 4,
-      science: 2,
-      required: { humanities: 6, business: 5, science: 5 },
+      humanities: 6,
+      business: 7,
+      science: 5,
+      required: { humanities: 7, business: 8, science: 7 },
     },
     graduationGeProgress: existing?.graduationGeProgress ?? {
-      humanities: 4,
-      business: 3,
-      science: 2,
-      required: { humanities: 6, business: 6, science: 6 },
+      humanities: 5,
+      business: 2,
+      science: 3,
+      aiOpen: 3,
+      required: { humanities: 12, business: 12, science: 12, aiOpen: 12 },
     },
     g1Progress: existing?.g1Progress ?? {
-      humanities: 4,
-      business: 3,
-      science: 2,
-      required: { humanities: 6, business: 6, science: 6 },
+      humanities: 5,
+      business: 2,
+      science: 3,
+      aiOpen: 3,
+      required: { humanities: 12, business: 12, science: 12, aiOpen: 12 },
     },
     schedule,
     issues: credits === 0 ? ['notRegistered'] : credits < creditMin ? ['creditBelowMin'] : [],
@@ -812,7 +836,9 @@ function applyPendingAssignRegistration(courses) {
   const merged = [...studentPendingAssignCourses.value]
   const selectedAt = nowSelectedAt()
   for (const course of courses) {
-    if (!merged.some((item) => item.courseId === course.courseId)) {
+    const isDup = (item) =>
+      item.courseId === course.courseId && item.sectionId === course.sectionId
+    if (!merged.some(isDup)) {
       const next = assignNextPreferenceOrder({
         ...course,
         id: course.id || `pending-${course.courseId}-${Date.now()}`,
@@ -826,6 +852,7 @@ function applyPendingAssignRegistration(courses) {
     }
   }
   studentPendingAssignCourses.value = merged
+  syncVolunteerOrderAfterPendingChange(getActiveBatch()?.id)
 }
 
 function removeConfirmedCourseRecord(removed, historyAction) {
@@ -867,6 +894,7 @@ export function unselectConfirmedCourse(courseId) {
       .sort((a, b) => (Number(a.preferenceOrder) || 0) - (Number(b.preferenceOrder) || 0))
       .map((item, index) => ({ ...item, preferenceOrder: index + 1 }))
     studentPendingAssignCourses.value = [...keptOther, ...remaining]
+    syncVolunteerOrderAfterPendingChange(batchId)
     return { ok: true }
   }
 
@@ -1069,8 +1097,12 @@ export function getStudentEnrolledCourses(studentId = getStudentProfileFields().
   return []
 }
 
-export function getSelectableCoursesForStudent(roundKey) {
-  const batch = getActiveBatch()
+/**
+ * @param {string} [roundKey] 轮次
+ * @param {{ batchId?: string }} [options] 可选指定批次（待开放预览等）
+ */
+export function getSelectableCoursesForStudent(roundKey, options = {}) {
+  const batch = options.batchId ? getBatchById(options.batchId) : getActiveBatch()
   const preferredType = batch?.type === 'GE' ? 'GE' : 'ME'
   const studentCat =
     getStudentProfileFields().schoolElectiveCategory || getDefaultStudentSchoolElectiveCategory()

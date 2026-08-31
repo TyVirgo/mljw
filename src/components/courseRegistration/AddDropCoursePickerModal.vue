@@ -90,6 +90,7 @@ const CATEGORY_SHORT_KEYS = {
   humanities: 'courseRegistration.student.geDemand.short.humanities',
   business: 'courseRegistration.student.geDemand.short.business',
   science: 'courseRegistration.student.geDemand.short.science',
+  aiOpen: 'courseRegistration.student.geDemand.short.aiOpen',
 }
 
 const creditFilterOptions = computed(() => {

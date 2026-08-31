@@ -206,9 +206,6 @@ function isSelected(studentId) {
           />
 
           <p v-if="errorKey" class="field-error">{{ t(errorKey) }}</p>
-          <p v-if="selectedRow" class="selected-hint">
-            {{ selectedRow.studentName }}（{{ selectedRow.studentId }}）
-          </p>
         </div>
 
         <div class="pick-footer">
@@ -377,12 +374,6 @@ function isSelected(studentId) {
   margin: 0;
   font-size: 13px;
   color: #dc2626;
-}
-
-.selected-hint {
-  margin: 0;
-  font-size: 13px;
-  color: #6b7280;
 }
 
 .pick-footer {

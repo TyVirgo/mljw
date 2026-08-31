@@ -34,8 +34,8 @@ const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII']
 /** @param {string} action */
 export function getVisibleAddDropSections(action) {
   const showII = action === 'Add' || action === 'AddDrop'
-  const showIII = action === 'Drop' || action === 'AddDrop'
-  const showIV = action === 'Retake'
+  const showIII = action === 'Drop' || action === 'AddDrop' || action === 'RetakeDrop'
+  const showIV = action === 'Retake' || action === 'RetakeDrop'
   return { showI: true, showII, showIII, showIV, showV: true }
 }
 
@@ -106,7 +106,9 @@ export function clearHiddenSectionFields(form, action) {
     previouslyTakenCourse: '',
     gradeEarned: '',
     academicSessionTaken:
-      action === 'Retake' ? getPreviousAcademicSession(form.academicSession) : '',
+      action === 'Retake' || action === 'RetakeDrop'
+        ? getPreviousAcademicSession(form.academicSession)
+        : '',
     retakeType: '',
     transcriptId: '',
     eligibilitySource: '',
@@ -142,8 +144,10 @@ export function createEmptyAddDropSectionForm(overrides = {}) {
     declarationAgreed: false,
     ...overrides,
   }
-  if (next.action === 'Retake' && !String(next.academicSessionTaken || '').trim()) {
-    next.academicSessionTaken = getPreviousAcademicSession(next.academicSession)
+  if (next.action === 'Retake' || next.action === 'RetakeDrop') {
+    if (!String(next.academicSessionTaken || '').trim()) {
+      next.academicSessionTaken = getPreviousAcademicSession(next.academicSession)
+    }
   }
   return next
 }
@@ -307,11 +311,18 @@ export function validateAddDropSectionForm(form) {
   }
 
   if (showIII) {
-    const dropId = form.action === 'AddDrop' ? form.dropCourseId : form.courseId
+    const dropId =
+      form.action === 'AddDrop' || form.action === 'RetakeDrop'
+        ? form.dropCourseId
+        : form.courseId
     if (!dropId) {
       return { ok: false, errorKey: 'courseRegistration.student.addDropSelectCourse' }
     }
-    if (form.action === 'AddDrop' ? !hasSection(form, 'drop') : !hasSection(form, '')) {
+    if (
+      form.action === 'AddDrop' || form.action === 'RetakeDrop'
+        ? !hasSection(form, 'drop')
+        : !hasSection(form, '')
+    ) {
       return { ok: false, errorKey: 'courseRegistration.student.sectionRequired' }
     }
     if (!String(form.dropReason || '').trim()) {
@@ -354,6 +365,15 @@ export function validateAddDropSectionForm(form) {
     }
   }
 
+  if (form.action === 'RetakeDrop') {
+    if (!form.dropCourseId || !form.courseId) {
+      return { ok: false, errorKey: 'courseRegistration.student.retakeDropSelectBothCourses' }
+    }
+    if (form.dropCourseId === form.courseId) {
+      return { ok: false, errorKey: 'courseRegistration.student.retakeDropSameCourse' }
+    }
+  }
+
   if (!form.declarationAgreed) {
     return { ok: false, errorKey: 'courseRegistration.student.declarationRequired' }
   }
@@ -364,7 +384,7 @@ export function validateAddDropSectionForm(form) {
 /** 提交时写入申请单的分节字段快照 */
 export function buildAddDropSectionPayload(form, snapshots = {}, feeEstimate = null) {
   const reason =
-    form.action === 'Drop' || form.action === 'AddDrop'
+    form.action === 'Drop' || form.action === 'AddDrop' || form.action === 'RetakeDrop'
       ? String(form.dropReason || '').trim()
       : String(form.addNotes || form.dropReason || '').trim()
 

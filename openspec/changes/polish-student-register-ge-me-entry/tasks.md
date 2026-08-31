@@ -93,3 +93,56 @@
 - [x] 17.1 种子：GE HUM/BUS/MPU 钉 R1/R2/R3 进行中；SCI (I) 改为 active 关窗；ME SWE/CST/CYS 钉 R1/R2/R3；COS 三轮关闭
 - [x] 17.2 入口/列表：开闭与可否提交只认 demo 开放轮；下拉含关窗批（进行中排前）；日历 end 不把开放批打成关窗
 - [x] 17.3 更新 proposal/design/spec；勾选本 tasks
+
+## 18. 入口按专业过滤 + 三轮时间轴（增量）
+
+- [x] 18.1 种子：同专业（默认 SWE）GE/ME 各三档 R1/R2/R3 进行中 demo；命名含专业；三轮时间齐全；毕业学分 demo 数字加大
+- [x] 18.2 `listStudentSelectableBatchesByType`（及入口/列表）按学生 programmeCode 过滤
+- [x] 18.3 入口卡：毕业学分 + 本学期学分；去掉卡片徽章/截止/轮次下拉/倒计时；三轮纵向时间轴 + 状态胶囊；进入选课挂进行中行最右
+- [x] 18.4 i18n（zh/en）；更新 proposal/design/spec；勾选本 tasks
+
+## 19. 学分求和一致 + 时间轴/教师名打磨（增量）
+
+- [x] 19.1 首次选课 demo：毕业已选 ≡ 本学期已选；总分=文+商+理；入口与列表工具条同源
+- [x] 19.2 入口时间轴：字号加大；圆点与轮次文字垂直同行对齐
+- [x] 19.3 `buildActiveBatchDemoCourses` 任课教师改为外籍姓名（去掉 Demo Lecturer A/B/C）
+- [x] 19.4 更新 proposal/design/spec；勾选本 tasks
+
+## 20. 列表去批轮条 + 面包屑返回 + 工具条重排（增量）
+
+- [x] 20.1 删除列表批/轮下拉；禁止页内切批切轮
+- [x] 20.2 返回入口移至面包屑最右；仅 crs-register 隐藏页面说明
+- [x] 20.3 工具条移到搜索下、本轮选课上；毕业学分整组在本学期类型学分左侧
+- [x] 20.4 i18n；更新 proposal/design/spec；勾选本 tasks
+
+## 21. 学分文案 + 课号教学目标弹层（增量）
+
+- [x] 21.1 i18n：毕业学分要求 / 学期学分要求（GE·ME）
+- [x] 21.2 CourseCodeSourcePopover：批次名与 Library 行之间插入教学目标表；GE/ME 按课种子
+- [x] 21.3 本轮选课情况课号改为可点蓝链（与主表/课程一览一致）
+- [x] 21.4 更新 proposal/design/spec；勾选本 tasks
+
+## 22. 课表块 / 抽屉条 / 入口时间轴（增量）
+
+- [x] 22.1 WeekScheduleGrid：绿色虚线；信息齐全；块内居中；叠显不藏 meta
+- [x] 22.2 本轮抽屉条：仅「展开更多」「收起更多」
+- [x] 22.3 入口时间轴：R1 与 R2 间插结果公布；圆点与轮次行对齐
+- [x] 22.4 更新 proposal/design/spec；勾选本 tasks
+
+## 23. 入口时间轴公布附属行（增量）
+
+- [x] 23.1 回退独立 resultRelease 节点；R1 下展示志愿结果公布
+- [x] 23.2 三轮三点对齐、竖线连贯
+- [x] 23.3 更新 proposal/design/spec；勾选本 tasks
+
+## 24. 课表行高均摊与左轴不换行（增量）
+
+- [x] 24.1 WeekScheduleGrid：14 行不变；ROW_H 均摊抬高；不增 hours
+- [x] 24.2 左轴与课块 nowrap；更新 proposal/design/spec；勾选本 tasks
+
+## 25. GE 第四类文案 + 无 GE 专业入口（增量）
+
+- [x] 25.1 i18n：`geDemand.short.aiOpen` / `graduationGe.aiOpen` 等统一为「AI与开放选修」
+- [x] 25.2 `studentRegistrationContext`：`getProgrammeCreditTargets` + `studentHasGeElectiveRequirement`
+- [x] 25.3 `StudentRegisterView`：`geRequired > 0` 才渲染 GE 卡；仅 ME 时 grid `is-single` 左对齐
+- [x] 25.4 更新 proposal/design/spec；demo SWE 仍双卡

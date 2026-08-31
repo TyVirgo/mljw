@@ -1,13 +1,13 @@
 import { batchDateToPicker, parseBatchDateTime } from './registrationBatchFormUtils.js'
 import { getActiveBatch } from './registrationBatches.js'
+import { resolveEffectiveAddDropWindow } from './sessionRegistrationSchedules.js'
 
 /**
- * 是否处于「加退课申请」窗口内。
+ * 是否处于「加退课申请」窗口内（学期全局申请窗）。
  * 起止皆空：视为未配置，允许申请（避免草稿批次误伤）。
- * 仅一端有值：按该端约束。比较精确到时分秒（旧纯日期：开始 00:00:00，结束 23:59:59）。
  */
 export function isWithinAddDropApplicationWindow(batch = getActiveBatch(), now = new Date()) {
-  const window = batch?.addDropWindow || {}
+  const window = resolveEffectiveAddDropWindow(batch)
   const startRaw = String(window.start || '').trim()
   const endRaw = String(window.end || '').trim()
   if (!startRaw && !endRaw) return true
@@ -15,7 +15,6 @@ export function isWithinAddDropApplicationWindow(batch = getActiveBatch(), now =
   let start = startRaw ? parseBatchDateTime(startRaw) : null
   let end = endRaw ? parseBatchDateTime(endRaw) : null
 
-  // 旧数据仅日期：结束日按日末
   if (startRaw && start && !/\d{1,2}:\d{2}/.test(startRaw)) {
     start = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0)
   }

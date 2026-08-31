@@ -441,9 +441,56 @@ const initialCourses = [
     quotaSummary: 'Total 70',
     prerequisites: [],
     g1Category: null,
+    schoolElectiveCategory: 'arts',
     sections: [
       { id: 'sec-web210-1', code: '01', time: 'Tue 14:00–16:00', room: 'D5-4-201', lecturer: 'Ms. Low', enrolled: 23, capacity: 35 },
       { id: 'sec-web210-2', code: '02', time: 'Fri 10:00–12:00', room: 'D5-4-202', lecturer: 'Mr. Sim', enrolled: 23, capacity: 35 },
+    ],
+    quota: { total: 70, senior: 40, freshman: 30, releaseToFreshman: true, byIntake: {} },
+    visibleFromRound: 'main',
+  },
+  {
+    id: 'course-se201',
+    batchId: 'batch-2504-m1',
+    code: 'SE201',
+    name: 'Intro to Software Engineering',
+    credits: 3,
+    type: 'ME',
+    isHot: false,
+    rating: 4,
+    sectionCount: 2,
+    totalCapacity: 70,
+    remainingCapacity: 22,
+    quotaSummary: 'Total 70',
+    prerequisites: [],
+    g1Category: null,
+    schoolElectiveCategory: 'arts',
+    sections: [
+      { id: 'sec-se201-1', code: '01', time: 'Wed 14:00–16:00', room: 'D5-1-301', lecturer: 'Dr. Lee', enrolled: 24, capacity: 35 },
+      { id: 'sec-se201-2', code: '02', time: 'Fri 10:00–12:00', room: 'D5-1-302', lecturer: 'Dr. Yap', enrolled: 24, capacity: 35 },
+    ],
+    quota: { total: 70, senior: 40, freshman: 30, releaseToFreshman: true, byIntake: {} },
+    visibleFromRound: 'main',
+  },
+  {
+    id: 'course-web220',
+    batchId: 'batch-2504-m1',
+    code: 'WEB220',
+    name: 'Web Application Development',
+    credits: 4,
+    type: 'ME',
+    isHot: false,
+    rating: 4,
+    sectionCount: 2,
+    totalCapacity: 70,
+    remainingCapacity: 20,
+    quotaSummary: 'Total 70',
+    prerequisites: [],
+    g1Category: null,
+    schoolElectiveCategory: 'arts',
+    sections: [
+      { id: 'sec-web220-1', code: '01', time: 'Tue 16:00–18:00', room: 'D5-3-104', lecturer: 'Dr. Koh', enrolled: 25, capacity: 35 },
+      { id: 'sec-web220-2', code: '02', time: 'Thu 16:00–18:00', room: 'D5-3-105', lecturer: 'Dr. Huang', enrolled: 25, capacity: 35 },
     ],
     quota: { total: 70, senior: 40, freshman: 30, releaseToFreshman: true, byIntake: {} },
     visibleFromRound: 'main',
@@ -736,6 +783,51 @@ const initialCourses = [
     ['Practice Studio I', 'Design Thinking Lab', 'Industry Seminar', 'Portfolio Workshop'],
     { codeStart: 301 },
   ),
+  {
+    id: 'course-ai101',
+    batchId: 'batch-2504-g1',
+    code: 'AI101',
+    name: 'Introduction to Artificial Intelligence',
+    credits: 3,
+    type: 'GE',
+    isHot: true,
+    rating: 4,
+    sectionCount: 2,
+    totalCapacity: 80,
+    remainingCapacity: 32,
+    quotaSummary: 'Total 80 · GE AI & Open',
+    prerequisites: [],
+    g1Category: 'Science',
+    schoolElectiveCategory: 'ai_open',
+    sections: [
+      {
+        id: 'sec-ai101-1',
+        code: '01',
+        time: 'Wed 09:00–12:00',
+        room: 'B1-3-201',
+        weekRange: '1-18',
+        lecturer: 'Dr. Chen',
+        enrolled: 24,
+        capacity: 40,
+        meetings: [{ time: 'Wed 09:00–12:00', room: 'B1-3-201', weekRange: '1-18' }],
+      },
+      {
+        id: 'sec-ai101-2',
+        code: '02',
+        time: 'Fri 14:00–17:00',
+        room: 'B1-3-202',
+        weekRange: '1-18',
+        lecturer: 'Dr. Wong',
+        enrolled: 24,
+        capacity: 40,
+        meetings: [
+          { time: 'Fri 14:00–17:00', room: 'B1-3-202', weekRange: '1-18' },
+          { time: 'Tue 16:00–18:00', room: 'B1-3-101', weekRange: '1-18' },
+        ],
+      },
+    ],
+    quota: { total: 80, senior: 45, freshman: 35, releaseToFreshman: true, byIntake: {} },
+  },
   // —— GE 批次课：HUM(g1) / BUS(g2) / MPU(g3) 分挂，切换批次列表不同 ——
   {
     id: 'course-mpu318',
@@ -1120,13 +1212,29 @@ const initialCourses = [
   ], { codeStart: 101 }),
 ]
 
-/** 列表 demo：为批次生成轻量课程种子（每课 2 个教学分组） */
+/** 列表 demo：为批次生成轻量课程种子（每课 2 个教学分组）
+ * 时段池避开演示生 R1/必修占用（Mon 09–11、Wed 09–11、Thu 14–16、Fri 10–12、Sat 18–20、Tue 14–17）
+ */
 function buildActiveBatchDemoCourses(batchId, codePrefix, titles, options = {}) {
-  const lecturers = ['Demo Lecturer A', 'Demo Lecturer B', 'Demo Lecturer C']
+  const lecturers = [
+    'Dr. James Whitfield',
+    'Dr. Emily Harrington',
+    "Prof. Michael O'Brien",
+    'Dr. Sophia Andersson',
+    'Dr. William Carter',
+    'Prof. Olivia Bennett',
+  ]
   const times = [
-    ['Wed 10:00–12:00', 'Fri 14:00–16:00'],
-    ['Mon 08:00–10:00', 'Thu 16:00–18:00'],
-    ['Tue 14:00–16:00', 'Fri 09:00–11:00'],
+    ['Tue 08:00–10:00', 'Fri 14:00–16:00'],
+    ['Tue 10:00–12:00', 'Thu 16:00–18:00'],
+    ['Mon 14:00–16:00', 'Fri 16:00–18:00'],
+    ['Mon 16:00–18:00', 'Wed 14:00–16:00'],
+    ['Thu 08:00–10:00', 'Wed 16:00–18:00'],
+    ['Thu 10:00–12:00', 'Fri 08:00–10:00'],
+    ['Mon 11:00–13:00', 'Tue 16:00–18:00'],
+    ['Wed 11:00–13:00', 'Thu 11:00–13:00'],
+    ['Fri 13:00–15:00', 'Mon 13:00–15:00'],
+    ['Tue 13:00–15:00', 'Wed 13:00–15:00'],
   ]
   const type =
     options.type ||
@@ -1870,6 +1978,46 @@ export function getCoursesByBatch(batchId) {
 
 export function getCourseById(id) {
   return selectableCourses.value.find((item) => item.id === id) || null
+}
+
+/**
+ * 将确认半池的上课时间写回课库对应教学分组（保持目录/预览/选课器一致）
+ * @param {Array<object>} confirmedCourses
+ */
+export function syncSelectableSectionsFromConfirmed(confirmedCourses = []) {
+  for (const item of confirmedCourses || []) {
+    const courseId = item.courseId || item.id
+    if (!courseId) continue
+    const idx = selectableCourses.value.findIndex((c) => c.id === courseId)
+    if (idx < 0) continue
+    const course = selectableCourses.value[idx]
+    const sectionCode = String(item.sectionCode || item.section || '01')
+    const time = item.time || item.meetings?.[0]?.time || ''
+    if (!time) continue
+    const weekRange = item.weekRange || item.meetings?.[0]?.weekRange || '1-18'
+    const room = item.room || item.meetings?.[0]?.room || course.sections?.[0]?.room || ''
+    const lecturer = item.lecturer || item.meetings?.[0]?.lecturer || course.sections?.[0]?.lecturer || ''
+    const meetings =
+      Array.isArray(item.meetings) && item.meetings.length
+        ? item.meetings.map((m) => ({ ...m }))
+        : [{ time, room, weekRange }]
+    const sections = (course.sections || []).map((sec) => {
+      if (String(sec.code) !== sectionCode && sec.id !== item.sectionId) return sec
+      return enrichSectionScheduleFields({
+        ...sec,
+        time,
+        weekRange,
+        room,
+        lecturer,
+        meetings,
+      })
+    })
+    selectableCourses.value[idx] = enrichCourse({
+      ...course,
+      sections,
+    })
+  }
+  selectableCourses.value = [...selectableCourses.value]
 }
 
 export function countCoursesByBatch(batchId) {

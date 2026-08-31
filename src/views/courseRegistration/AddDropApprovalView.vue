@@ -131,6 +131,7 @@ function typeClass(type) {
     Retake: 'type-retake',
     Replace: 'type-replace',
     AddDrop: 'type-mixed',
+    RetakeDrop: 'type-mixed',
   }
   return map[type] || ''
 }
@@ -211,7 +212,7 @@ function listRetakeType(row) {
 }
 
 function feeWaiverLabel(row) {
-  if (row.type !== 'Drop' && row.type !== 'AddDrop') return '—'
+  if (row.type !== 'Drop' && row.type !== 'AddDrop' && row.type !== 'RetakeDrop') return '—'
   if (row.feeWaiver === true) return t('courseRegistration.student.feeWaiverYes')
   if (row.feeWaiver === false) return t('courseRegistration.student.feeWaiverNo')
   return '—'

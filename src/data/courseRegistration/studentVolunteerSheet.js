@@ -2,8 +2,8 @@
  * 老生第一轮志愿：逐次提交进待分配 → 调序 → 我的选课确认锁死至公示
  */
 import { computed, ref } from 'vue'
-import { getActiveBatch, getBatchById } from './registrationBatches.js'
-import { getAudienceRounds, AUDIENCE_SENIOR, DEMO_SENIOR_ROUNDS_202604 } from './audienceRounds.js'
+import { getActiveBatch, getBatchById, getStudentCurrentOpenRoundKey } from './registrationBatches.js'
+import { getEffectiveAudienceRounds, AUDIENCE_SENIOR, DEMO_SENIOR_ROUNDS_202604 } from './audienceRounds.js'
 import { getStudentAudience } from './studentAudience.js'
 import { studentPendingAssignCourses } from './studentPendingAssignState.js'
 
@@ -124,12 +124,12 @@ export function parseResultReleaseAt(raw) {
  * @param {string} [audience]
  */
 export function getResultReleaseAt(batch = getActiveBatch(), audience = getStudentAudience()) {
-  const rounds = getAudienceRounds(batch, audience)
+  const rounds = getEffectiveAudienceRounds(batch, audience)
   return rounds?.resultReleaseAt || batch?.resultReleaseAt || DEMO_SENIOR_ROUNDS_202604.resultReleaseAt || ''
 }
 
 /**
- * 是否已到公示时间
+ * 是否已到公示时间（固定 demo：只认显式 releaseMode，不跟系统时钟）
  * @param {object} [batch]
  */
 export function isVolunteerResultReleased(batch = getActiveBatch()) {
@@ -142,19 +142,52 @@ export function isVolunteerResultReleased(batch = getActiveBatch()) {
     if (demoVolunteerReleaseMode.value === 'waiting') return false
     if (demoVolunteerReleaseMode.value === 'released') return true
   }
-  const raw = getResultReleaseAt(batch)
-  const results =
-    sheet?.results ||
-    (batchId && batchId === liveBatchId ? volunteerReleaseResults.value : [])
-  if (!raw) return Boolean(results?.length)
-  const at = parseResultReleaseAt(raw)
-  if (!at) return Boolean(results?.length)
-  return Date.now() >= at.getTime()
+  // 不按 resultReleaseAt / Date.now 自动公示，避免固定 demo 日期把 R1 误锁
+  return false
 }
 
-/** 确认后且未公示：列表锁死 */
+/** 确认后且未公示：列表锁死（已改为按轮次窗口 + 公示判定） */
 export function isVolunteerListLocked(batch = getActiveBatch()) {
-  return preferenceOrderConfirmed.value && !isVolunteerResultReleased(batch)
+  // 在线选课锁只认全局 demo 公示；不认结果页按批 sheet.releaseMode（否则 m1 公示 demo 会误锁 R1 待分配）
+  if (demoVolunteerReleaseMode.value === 'released') return true
+  const audience = getStudentAudience()
+  const openKey = getStudentCurrentOpenRoundKey(batch, audience)
+  return openKey !== 'preselect'
+}
+
+function syncVolunteerOrderSnapshotFromPending(batchId = getActiveBatch()?.id || '') {
+  const list = sortedPendingVolunteers(batchId)
+  if (!list.length) {
+    if (volunteerOrderSnapshot.value?.batchId === batchId) {
+      volunteerOrderSnapshot.value = null
+    }
+    if (batchId) {
+      const sheet = getVolunteerSheet(batchId)
+      upsertVolunteerSheet(batchId, {
+        snapshot: null,
+        results: sheet?.results || [],
+        releaseMode: sheet?.releaseMode ?? null,
+      })
+    }
+    return
+  }
+  const renumbered = renumberPreferenceOrders(list)
+  replacePendingForBatch(batchId, renumbered)
+  const snapshot = {
+    confirmedAt: volunteerOrderSnapshot.value?.confirmedAt || new Date().toISOString(),
+    batchId,
+    slots: renumbered.map((item, index) => ({
+      slot: index + 1,
+      item: { ...item },
+    })),
+  }
+  volunteerOrderSnapshot.value = snapshot
+  const sheet = getVolunteerSheet(batchId)
+  upsertVolunteerSheet(batchId, {
+    snapshot,
+    results: sheet?.results || [],
+    releaseMode: sheet?.releaseMode ?? null,
+  })
 }
 
 function pendingMatchesBatch(row, batchId) {
@@ -208,7 +241,7 @@ export function assignNextPreferenceOrder(item) {
  * @param {'up'|'down'} direction
  */
 export function movePendingVolunteerOrder(courseId, direction) {
-  if (isVolunteerListLocked() || preferenceOrderConfirmed.value) {
+  if (isVolunteerListLocked()) {
     return { ok: false, errorKey: 'courseRegistration.student.volunteerSheet.orderLocked' }
   }
   const batchId = getActiveBatch()?.id || ''
@@ -230,7 +263,7 @@ export function movePendingVolunteerOrder(courseId, direction) {
  * @param {string[]} courseIds
  */
 export function applyPendingVolunteerOrder(courseIds) {
-  if (isVolunteerListLocked() || preferenceOrderConfirmed.value) {
+  if (isVolunteerListLocked()) {
     return { ok: false, errorKey: 'courseRegistration.student.volunteerSheet.orderLocked' }
   }
   const batchId = getActiveBatch()?.id || ''
@@ -250,6 +283,7 @@ export function applyPendingVolunteerOrder(courseIds) {
     next.push({ ...row })
   }
   replacePendingForBatch(batchId, renumberPreferenceOrders(next))
+  syncVolunteerOrderSnapshotFromPending(batchId)
   return { ok: true, count: next.length }
 }
 
@@ -287,6 +321,11 @@ export function confirmVolunteerPreferenceOrder() {
     releaseMode: demoVolunteerReleaseMode.value === 'waiting' ? 'waiting' : null,
   })
   return { ok: true, count: renumbered.length }
+}
+
+/** 待分配变更后同步快照（顺序即确认） */
+export function syncVolunteerOrderAfterPendingChange(batchId) {
+  syncVolunteerOrderSnapshotFromPending(batchId || getActiveBatch()?.id || '')
 }
 
 /**
@@ -353,7 +392,7 @@ export function buildVolunteerResultRows(batch = getActiveBatch()) {
 }
 
 /**
- * demo：ME 五门 + GE 四门待分配未确认（ME/GE 各含一对同槽课，便于验收互撞提示 + 调序）
+ * demo：ME 五门 + GE 四门待分配未确认（ME：COMP201/SE201 周三互撞；NET110/AI110 避开 R2/R3 已确认硬撞）
  * 确认后可再切 demoVolunteerReleaseMode / volunteerReleaseResults 演示公示
  */
 export function seedVolunteerSheetDemo() {
@@ -380,6 +419,7 @@ export function seedVolunteerSheetDemo() {
       sourceType: 'preselect',
       roundKey: 'preselect',
       meetings: [{ time: 'Wed 14:00–16:00', room: 'D5-3-202', weekRange: '1-14' }],
+      schoolElectiveCategory: 'arts',
     },
     {
       id: 'pending-vol-course-net110',
@@ -391,8 +431,8 @@ export function seedVolunteerSheetDemo() {
       type: 'ME',
       sectionId: 'sec-net110-1',
       sectionCode: '01',
-      time: 'Mon 10:00–12:00',
-      classTime: 'Mon 10:00–12:00',
+      time: 'Mon 13:00–15:00',
+      classTime: 'Mon 13:00–15:00',
       weekRange: '1-18',
       room: 'D5-5-101',
       lecturer: '蔡博士',
@@ -402,7 +442,8 @@ export function seedVolunteerSheetDemo() {
       selectedAt: '2026-04-01T09:05:00.000Z',
       sourceType: 'preselect',
       roundKey: 'preselect',
-      meetings: [{ time: 'Mon 10:00–12:00', room: 'D5-5-101', weekRange: '1-18' }],
+      meetings: [{ time: 'Mon 13:00–15:00', room: 'D5-5-101', weekRange: '1-18' }],
+      schoolElectiveCategory: 'arts',
     },
     {
       id: 'pending-vol-course-se201',
@@ -426,6 +467,7 @@ export function seedVolunteerSheetDemo() {
       sourceType: 'preselect',
       roundKey: 'preselect',
       meetings: [{ time: 'Wed 14:00–16:00', room: 'D5-1-301', weekRange: '1-14' }],
+      schoolElectiveCategory: 'arts',
     },
     {
       id: 'pending-vol-course-ai110',
@@ -437,8 +479,8 @@ export function seedVolunteerSheetDemo() {
       type: 'ME',
       sectionId: 'sec-ai110-1',
       sectionCode: '01',
-      time: 'Fri 10:00–12:00',
-      classTime: 'Fri 10:00–12:00',
+      time: 'Fri 14:00–16:00',
+      classTime: 'Fri 14:00–16:00',
       weekRange: '1-14',
       room: 'D5-2-210',
       lecturer: '赵博士',
@@ -448,7 +490,8 @@ export function seedVolunteerSheetDemo() {
       selectedAt: '2026-04-01T09:15:00.000Z',
       sourceType: 'preselect',
       roundKey: 'preselect',
-      meetings: [{ time: 'Fri 10:00–12:00', room: 'D5-2-210', weekRange: '1-14' }],
+      meetings: [{ time: 'Fri 14:00–16:00', room: 'D5-2-210', weekRange: '1-14' }],
+      schoolElectiveCategory: 'arts',
     },
     {
       id: 'pending-vol-course-web220',
@@ -472,6 +515,7 @@ export function seedVolunteerSheetDemo() {
       sourceType: 'preselect',
       roundKey: 'preselect',
       meetings: [{ time: 'Thu 16:00–18:00', room: 'D5-3-105', weekRange: '1-18' }],
+      schoolElectiveCategory: 'arts',
     },
   ]
   const gePending = [
@@ -485,18 +529,18 @@ export function seedVolunteerSheetDemo() {
       type: 'GE',
       sectionId: 'sec-hum-demo-1-1',
       sectionCode: '01',
-      time: 'Wed 10:00–12:00',
-      classTime: 'Wed 10:00–12:00',
+      time: 'Thu 10:00–12:00',
+      classTime: 'Thu 10:00–12:00',
       weekRange: '1-18',
       room: 'B2-2-201',
-      lecturer: 'Demo Lecturer A',
-      lecturerEn: 'Demo Lecturer A',
+      lecturer: 'Dr. James Whitfield',
+      lecturerEn: 'Dr. James Whitfield',
       batchId: 'batch-2504-g1',
       preferenceOrder: 1,
       selectedAt: '2026-04-01T09:00:00.000Z',
       sourceType: 'preselect',
       roundKey: 'preselect',
-      meetings: [{ time: 'Wed 10:00–12:00', room: 'B2-2-201', weekRange: '1-18' }],
+      meetings: [{ time: 'Thu 10:00–12:00', room: 'B2-2-201', weekRange: '1-18' }],
     },
     {
       id: 'pending-vol-course-hum-demo-2',
@@ -512,8 +556,8 @@ export function seedVolunteerSheetDemo() {
       classTime: 'Mon 08:00–10:00',
       weekRange: '1-18',
       room: 'B2-2-201',
-      lecturer: 'Demo Lecturer B',
-      lecturerEn: 'Demo Lecturer B',
+      lecturer: 'Dr. Emily Harrington',
+      lecturerEn: 'Dr. Emily Harrington',
       batchId: 'batch-2504-g1',
       preferenceOrder: 2,
       selectedAt: '2026-04-01T09:05:00.000Z',
@@ -531,18 +575,18 @@ export function seedVolunteerSheetDemo() {
       type: 'GE',
       sectionId: 'sec-hum-demo-3-1',
       sectionCode: '01',
-      time: 'Tue 14:00–16:00',
-      classTime: 'Tue 14:00–16:00',
+      time: 'Fri 14:00–16:00',
+      classTime: 'Fri 14:00–16:00',
       weekRange: '1-18',
       room: 'B2-2-201',
-      lecturer: 'Demo Lecturer C',
-      lecturerEn: 'Demo Lecturer C',
+      lecturer: "Prof. Michael O'Brien",
+      lecturerEn: "Prof. Michael O'Brien",
       batchId: 'batch-2504-g1',
       preferenceOrder: 3,
       selectedAt: '2026-04-01T09:10:00.000Z',
       sourceType: 'preselect',
       roundKey: 'preselect',
-      meetings: [{ time: 'Tue 14:00–16:00', room: 'B2-2-201', weekRange: '1-18' }],
+      meetings: [{ time: 'Fri 14:00–16:00', room: 'B2-2-201', weekRange: '1-18' }],
     },
     {
       id: 'pending-vol-course-hum-demo-4',
@@ -554,18 +598,18 @@ export function seedVolunteerSheetDemo() {
       type: 'GE',
       sectionId: 'sec-hum-demo-4-1',
       sectionCode: '01',
-      time: 'Wed 10:00–12:00',
-      classTime: 'Wed 10:00–12:00',
+      time: 'Thu 10:00–12:00',
+      classTime: 'Thu 10:00–12:00',
       weekRange: '1-18',
       room: 'B2-2-201',
-      lecturer: 'Demo Lecturer A',
-      lecturerEn: 'Demo Lecturer A',
+      lecturer: 'Dr. James Whitfield',
+      lecturerEn: 'Dr. James Whitfield',
       batchId: 'batch-2504-g1',
       preferenceOrder: 4,
       selectedAt: '2026-04-01T09:15:00.000Z',
       sourceType: 'preselect',
       roundKey: 'preselect',
-      meetings: [{ time: 'Wed 10:00–12:00', room: 'B2-2-201', weekRange: '1-18' }],
+      meetings: [{ time: 'Thu 10:00–12:00', room: 'B2-2-201', weekRange: '1-18' }],
     },
   ]
   volunteerOrderSnapshot.value = null
@@ -577,7 +621,7 @@ export function seedVolunteerSheetDemo() {
 
 /**
  * demo：仅写入「结果页」按批快照（不锁死在线选课志愿）
- * - 主批：已公示五门成败
+ * - 主批：已公示五门成败（releaseMode 仅结果页认；在线课表 R1 不认）
  * - 另批：未到公布时间
  */
 export function seedVolunteerResultSheetsDemo() {

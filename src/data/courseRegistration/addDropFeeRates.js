@@ -6,6 +6,7 @@ export const CREDIT_FEE_RATES = {
   arts: 500,
   science: 550,
   business: 600,
+  aiOpen: 550,
 }
 
 /** GE 类别 / 校选文商理 → 收费科类 */
@@ -22,6 +23,7 @@ export function resolveFeeStream(course = {}) {
   if (school === 'humanities' || school === 'arts') return 'arts'
   if (school === 'business') return 'business'
   if (school === 'science') return 'science'
+  if (school === 'ai_open') return 'aiOpen'
 
   // ME 未标注时与选课列表一致：默认文科
   if (String(course.type || '').toUpperCase() === 'ME') return 'arts'
@@ -33,6 +35,7 @@ export function resolveFeeStream(course = {}) {
 export function feeStreamToTermCategoryKey(feeStream) {
   if (feeStream === 'arts') return 'humanities'
   if (feeStream === 'business') return 'business'
+  if (feeStream === 'aiOpen') return 'aiOpen'
   return 'science'
 }
 
@@ -44,7 +47,7 @@ export function resolveTermCategoryKey(course = {}) {
 /**
  * @param {object} planRemaining
  * @param {'GE'|'ME'} type
- * @param {string} categoryKey humanities|business|science
+ * @param {string} categoryKey humanities|business|science|aiOpen
  */
 function remainingForTypeCategory(planRemaining, type, categoryKey) {
   const bucket = type === 'GE' ? planRemaining?.geCategory : planRemaining?.meCategory
@@ -57,12 +60,12 @@ function remainingForTypeCategory(planRemaining, type, categoryKey) {
 
 /**
  * @param {object} opts
- * @param {'Add'|'Drop'|'Retake'|'AddDrop'} opts.action
+ * @param {'Add'|'Drop'|'Retake'|'AddDrop'|'RetakeDrop'} opts.action
  * @param {object} opts.course
  * @param {{
  *   geRemaining?: number,
  *   meRemaining?: number,
- *   geCategory?: { humanities?: number, business?: number, science?: number },
+ *   geCategory?: { humanities?: number, business?: number, science?: number, aiOpen?: number },
  *   meCategory?: { humanities?: number, business?: number, science?: number },
  * }} [opts.planRemaining]
  * @param {string} [opts.eligibilitySource] prior_drop | deferment_gap
