@@ -169,6 +169,134 @@ GE/ME 加课超额：
 - **[旧申请无新字段]** → 列表/详情缺省「—」。
 - **[商/文/理映射不准]** → demo 课程显式挂 `feeStream`。
 
+## 增量 §22
+
+- 弹窗学分展示：`clampCreditBar` + 监控行类别快照；胶囊 tone 与 R1 一致（无 `is-over`）。
+- 加课资格课时段：约半数组挪到确认课表空档（Wed/Thu/Fri 空档），保留若干冲突组。
+
+## 增量 §25
+
+- 资格课（COMP201/STAT201/HUM110/SCI110/FIN110）每个教学组显式 `meetings: [{ time }]`，避免 `synthesizeDemoMeetings` 追加段导致冲突面失控。
+- 演示确认课压缩至学期帽内（约 17/20），使 3 学分「空档」行可选；COMP201（4 学分）保留一无冲突组演示「超出学期学分」。
+- 11 行矩阵：5 可选（有余量）+ 6 不可选（时间冲突 / 已满 / 超出学期学分 均至少 1 行）。
+
+## 增量 §26
+
+- 表单加/退/重修清单：`displayClassTimeVenueLines` 分行渲染；单元格 `vertical-align: middle`；时间列去掉 nowrap。
+- 选课弹窗：`attachCourseLevelRowSpans` 合并序号/代码/名称/学分/校选/类型；时间一行一段且允许换行；对齐在线选课 rowspan 居中。
+- `projectAddDropCreditGroups`：baseline − 拟退 + 弹窗勾选拟加；弹窗内 `creditDisplayGroups` 用投影结果。
+
+## 增量 §27
+
+- 展示：`displayPrimaryType` / 列表已有映射；详情基本信息类型改为主类型三选一文案。
+- `getAddDropApprovalListColumns`：去掉 APPROVAL_WIDE_MIDDLE 课程列。
+- `AddDropApplicationDetailBody`：删除 items 清单表；按 action 分组渲染 SECTION 内多课卡片；卡片内行决策；页脚整单审批不变。
+
+## 增量 §28
+
+- 申请表单：`lines-table` 三节统一。
+- 详情：SECTION 内 `items` 表格化；原因/附件在表后；详情只读；附件空显示「无」。
+- 审批弹窗：传入单条 `application` 时展示汇总表 + 操作列（文案「操作」）+ 一键同意/不同意全部；确认时带回 `lineDecisions`。
+- i18n：`lineDecision` →「操作」/ Operation。
+
+## 增量 §29
+
+- 清单表 `td` / 时间列：`white-space: nowrap`；去掉 `word-break: break-word`。
+- 表 `min-width` + wrap `overflow-x: auto` 横滑。
+- 多时段仍用多个 `.cr-time-venue-line`，每段自身不折。
+
+## 增量 §30
+
+- `AddDropApprovalModal`：行勾选 + 表头全选；一键仅改勾选行；标题「申请课程汇总」，下一行左对齐「批量同意 / 批量不同意」；去掉提交前引导句。
+- 汇总列增：起止周 / 上课时间地点 / 任课教师；时间用 `displayClassTimeVenueFromFields`。
+
+## 增量 §31
+
+- 汇总表：去掉强制 `min-width` 横滑；`table-layout: fixed` + nowrap + ellipsis；字号约 12px、紧 padding；弹窗加宽。
+- 标题：`section-bar`；批量按钮独立 toolbar 行，outline 小按钮。
+
+## 增量 §32
+
+- 学期帽按 session 月码：`09`→`LONG_SEMESTER_CREDIT_MAX`(20)；`02`/`04`→`SHORT_SEMESTER_CREDIT_MAX`(7，待补常量)。
+- 加退 demo / 选课弹窗「约 17/20」类场景明确为**长学期例子**；若演示短学期须改已选与帽为 7 档。
+
+## 增量 §33
+
+- 申请弹窗顶部学分条：`current` / `afterDrop` / `afterNet`；传入 `currentCredits`、`creditMax`；与费用「超出学分」分离。
+
+## 增量 §34
+
+- `RETAKE_TYPE_OPTIONS` 去掉 `other`；类型控件移到重修节顶部；未选禁用选课。
+- 选课池按课**最新一条**成绩：`F`/`M`→挂科；其余→提升。
+- 已选表：挂科列「最近成绩」、提升列「原成绩」；切换类型清空 `addLines` 与曾修回填；`retakeHistoryFromCourse` 不再覆盖 `retakeType`。
+
+## 增量 §35
+
+- 色态：`is-short`=未满绿；`is-met`=刚好满橙；`is-over`=超额红（`current > max`）。
+- 弹窗 `pickerCreditGroups` 顺序：`ge-grad` → `ge` → `me-grad` → `me`。
+- 弹窗学分区字号约 13–14px、行宽吃满；`StudentRegisterView` 同源 CSS/tone 同步。
+
+## 增量 §36
+
+- GE / ME 各用 CSS Grid（总分 + 4 类共 5 列），毕业行与学期行上下列对齐、胶囊同高。
+- `showCreditProgress` 含 `Retake`；投影仍为基线 − 拟退 + 勾选拟加/重修（§38 起含 Drop）。
+
+## 增量 §37
+
+- 重修：申请信息行「重修类型 | 是否需要退课」；SECTION 重修只保留选课表。
+- 成绩单分池各 ≥3 `retakeCourseId`；每课 ≥2 分组有余量 + 错开确认课表 + 3 学分可过学期帽；可保留 1 冲突行对照。
+- 加课 §25 COMP201 超帽/冲突 demo 不因重修池改坏。
+
+## 增量 §38
+
+- `showCreditProgress` 含 `Drop`；退课弹窗仍传 `termCreditGate`。
+- 投影：`基线 − 拟退 + 拟加/重修`。退课弹窗：拟退=弹窗勾选（无勾选则用表单 dropLines），拟加=表单 addLines；加课/重修弹窗：拟退=表单 dropLines，拟加=弹窗勾选（无勾选则用表单 addLines）。
+- 白名单新增：`SupplementEntryDrawer` 选人区改为 tag-field + chip（仅姓名）+ ×清除 +「选择/更换」，对齐 `BatchSpecialStudentAddModal`。
+
+## 增量 §39
+
+- 学期 GE/ME 分类已选一律由确认课（`sumLive*`）汇总；毕业行已选≡学期分类（要求用毕业配额）。
+- `getTermGeCategoryBars` / `getTermGeElectiveCategoryBars` 走 `getStudentCreditLayers` 活数据，不再优先监控行写死 `termGeCategories`。
+- 演示生种子：去掉 ME `7/5/3/3` 固定值，与 GE 一样按确认课写入监控行。
+
+## 增量 §40
+
+- 加退弹窗 `getStudentCreditLayers({ scope: 'confirmed' })`：只汇总确认课，不含篮/待分配。
+- 去掉弹窗 `clampCreditBar`；已选保持真值，超额靠 §35 红态。
+- `pickerCreditGroups` 各行 `total.current/max` = Σ 该行 categories。
+
+## 增量 §41
+
+- 加退表单选课「选择」：可操作时 `btn-primary`，禁用时保持灰。
+- 在线选课 `termElectiveBars` / 入口卡 `creditBar`：current/max 取自 Σ 分类，不再单独用 type 汇总顶掉。
+- `projectAddDropCreditGroups`：投影用完整课字段；结束后 `total.current = Σ categories.current`。
+
+## 增量 §42
+
+- 对标 `AddDropApprovalModal` 汇总表：`overflow-x: hidden`；去掉 `min-width: 720px`；`table-layout: fixed`；字号 12px；padding 约 5–6px。
+- 短列（课号/分组/学分/周次/操作）定宽或百分比；课名与上课时间地点吃剩余宽度；单元格 nowrap + ellipsis + title。
+- 触及：`AddDropApplicationFormSections`、`AddDropApplicationDetailBody`、`AddDropCoursePickerModal` 主表。
+- §29「允许横滑」仅保留对学生/审批**主列表**等宽表；清单课表改走无横滑。
+
+## 增量 §43
+
+- 选课弹窗表头 checkbox：对齐审批汇总；全选范围 = `filteredRows` 中未禁用行；支持 indeterminate。
+- 新增 `preselectedLines`（或等价）由父组件传入当前 `dropLines`/`addLines`；`visible` 打开时按 sectionId/courseId 匹配 `rowKey` 预勾。
+- `StudentAddDropView` 确认：该侧清单改为 **replace**（`incoming` 直接写回），不再 `mergeLines` 并集。
+- 页脚：`bypassCreditMax` + 净学分超学期帽 → 长文案（白名单内 / 允许超分提交 / 仍需审批）；与费用超额 hint 互斥优先级：白名单学期超分优先。
+- 演示：主演示生白名单补 `bypassCreditMax`，便于加课超学期帽冒烟。
+
+## 增量 §44
+
+- 页脚触发改绑：`creditGroupsHaveTermCategoryOver(projected)` — GE/ME **本学期**行（`ge`/`me`）总分或任一类 `current > max` 且 `bypassCreditMax`。
+- 表单超出学分：`computeTermCreditExcess(已选, dropLines, addLines, creditMax)`，不再用 `feeEstimate.billableCredits`。
+- 退课分节增只读「退课总学分」；加课/重修分节标签改「加课总学分」「重修总学分」。
+
+## 增量 §23
+
+- 弹窗学分区：GE/ME 毕业与本学期各总分+四类（行序见 §35）。
+- `buildAddDropPlanRemaining` 改为毕业类别剩余；`estimateCourseFee` 仅超毕业类别计费；ME 用课程组键。
+
 ## Migration Plan
 
 纯前端；回滚还原本变更。localStorage 旧单只读降级。

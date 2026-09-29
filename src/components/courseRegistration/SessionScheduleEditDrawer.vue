@@ -3,6 +3,7 @@ import { ref, watch, computed } from 'vue'
 import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
 import CourseRegistrationCallout from './CourseRegistrationCallout.vue'
 import DatePickerEn from '../common/DatePickerEn.vue'
+import AcademicSessionMonthPicker from './AcademicSessionMonthPicker.vue'
 import YnSwitch from '../common/YnSwitch.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
@@ -14,7 +15,6 @@ import {
   clearInvalidManageRoundsScheduleAfter,
   pickerToBatchDate,
   batchDateToPicker,
-  registrationAcademicSessionOptions,
 } from '../../data/courseRegistration/registrationBatchFormUtils.js'
 import {
   AUDIENCE_FRESHMAN,
@@ -28,7 +28,7 @@ import {
   DEMO_ROUND1_OPEN_DAYS,
   DEFAULT_DECAY_R,
 } from '../../data/courseRegistration/batchRound1Quota.js'
-import { emptySchedule, getSessionSchedule, formatUnitLabel, listUsedAcademicSessions } from '../../data/courseRegistration/sessionRegistrationSchedules.js'
+import { emptySchedule, getSessionSchedule, formatUnitLabel, listUsedAcademicSessions, normalizeUnitCourseType } from '../../data/courseRegistration/sessionRegistrationSchedules.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -38,6 +38,8 @@ const props = defineProps({
   batch: { type: Object, default: null },
   unitCode: { type: String, default: '' },
   unitCodes: { type: Array, default: () => [] },
+  /** 单位覆盖课程类型 GE | ME */
+  courseType: { type: String, default: 'GE' },
   /** 新建学期时可选项（已占用学期应在外部过滤） */
   sessionOptions: { type: Array, default: () => [] },
 })
@@ -51,6 +53,7 @@ const form = ref({
   seniorRounds: roundsToPicker(),
   freshmanRounds: roundsToPicker(),
   seniorResultReleaseAt: '',
+  crossReleaseAt: '',
   addDropWindow: { start: '', end: '' },
   enabled: true,
   round1Quota: normalizeSessionRound1Quota(null),
@@ -77,12 +80,6 @@ const sessionKey = computed(() => {
 
 const isCreateSession = computed(() => isSessionMode.value && !props.schedule)
 
-const createSessionOptions = computed(() => {
-  if (props.sessionOptions?.length) return props.sessionOptions
-  const used = new Set(listUsedAcademicSessions())
-  return registrationAcademicSessionOptions.filter((opt) => !used.has(opt))
-})
-
 const title = computed(() => {
   if (isUnitMode.value) {
     const codes =
@@ -91,15 +88,19 @@ const title = computed(() => {
         : props.unitCode
           ? [props.unitCode]
           : []
+    const typeKey = normalizeUnitCourseType(props.courseType || props.schedule?.courseType)
+    const typeLabel = t(`courseRegistration.schedule.courseType.${typeKey}`)
     if (codes.length > 1) {
-      return t('courseRegistration.schedule.editTitleUnitsBulk', {
+      return t('courseRegistration.schedule.editTitleUnitsBulkTyped', {
         count: codes.length,
+        type: typeLabel,
         session: sessionKey.value || '—',
       })
     }
     const unitLabel = formatUnitLabel(codes[0] || props.unitCode, locale.value === 'zh')
-    return t('courseRegistration.schedule.editTitleUnit', {
+    return t('courseRegistration.schedule.editTitleUnitTyped', {
       unit: unitLabel,
+      type: typeLabel,
       session: sessionKey.value || '—',
     })
   }
@@ -203,6 +204,11 @@ watch(
       seniorRounds: roundsToPicker(by.senior),
       freshmanRounds: roundsToPicker(by.freshman),
       seniorResultReleaseAt: batchDateToPicker(by.senior?.resultReleaseAt || ''),
+      crossReleaseAt: batchDateToPicker(
+        isUnitMode.value
+          ? props.schedule?.crossReleaseAt || ''
+          : sched.crossReleaseAt || '',
+      ),
       addDropWindow: addDropWindowToPicker(addDropSource),
       enabled: props.schedule?.enabled !== false,
       round1Quota,
@@ -352,6 +358,8 @@ function handleSave() {
       academicSession: sessionKey.value,
       unitCode: props.unitCode || '',
       unitCodes: props.unitCodes?.length ? [...props.unitCodes] : props.unitCode ? [props.unitCode] : [],
+      courseType: normalizeUnitCourseType(props.courseType || props.schedule?.courseType),
+      crossReleaseAt: pickerToBatchDate(String(form.value.crossReleaseAt || '').trim()),
       roundsByAudience: {
         senior: {
           preselect: seniorFromForm.preselect,
@@ -404,6 +412,10 @@ function handleSave() {
       roundSaveError.value = t('courseRegistration.schedule.addDropRequired')
       return
     }
+    if (isEmptyTime(form.value.crossReleaseAt)) {
+      roundSaveError.value = t('courseRegistration.schedule.crossReleaseRequired')
+      return
+    }
   } else if (
     freshmanAny &&
     (isEmptyTime(freshman.preselect.start) ||
@@ -450,6 +462,7 @@ function handleSave() {
       id: props.schedule?.id,
       enabled: form.value.enabled !== false,
       roundsByAudience,
+      crossReleaseAt: pickerToBatchDate(String(form.value.crossReleaseAt || '').trim()),
       round1Quota: normalizeSessionRound1Quota(form.value.round1Quota),
       addDropWindow: addDropWindowFromPicker(form.value.addDropWindow),
     })
@@ -485,23 +498,22 @@ function handleSave() {
       <p>{{ roundSaveError }}</p>
     </CourseRegistrationCallout>
 
-    <div v-if="isSessionMode" class="session-adddrop-row">
-      <div class="session-adddrop-session form-field compact">
-        <label class="field-label session-label">
-          <span v-if="isCreateSession" class="req">*</span>
-          {{ t('courseRegistration.batch.academicSession') }}
-        </label>
-        <select v-if="isCreateSession" v-model="localSession" class="session-select">
-          <option value="">{{ t('common.pleaseSelect') }}</option>
-          <option v-for="opt in createSessionOptions" :key="opt" :value="opt">
-            {{ opt }}
-          </option>
-        </select>
-        <select v-else class="session-select" disabled :value="sessionKey">
-          <option :value="sessionKey">{{ sessionKey }}</option>
-        </select>
-      </div>
-      <div class="session-adddrop-fields">
+    <div v-if="isSessionMode" class="session-global-block">
+      <div class="session-adddrop-row">
+        <div class="session-adddrop-session form-field compact">
+          <label class="field-label session-label">
+            <span v-if="isCreateSession" class="req">*</span>
+            {{ t('courseRegistration.batch.academicSession') }}
+          </label>
+          <AcademicSessionMonthPicker
+            v-if="isCreateSession"
+            v-model="localSession"
+            :has-error="Boolean(roundSaveError && !localSession)"
+          />
+          <select v-else class="session-select" disabled :value="sessionKey">
+            <option :value="sessionKey">{{ sessionKey }}</option>
+          </select>
+        </div>
         <div class="form-field compact">
           <label class="field-label">
             <span class="req">*</span> {{ t('courseRegistration.batch.addDropWindow') }}
@@ -525,9 +537,42 @@ function handleSave() {
             @update:model-value="(v) => (form.addDropWindow.end = v || '')"
           />
         </div>
+      </div>
+      <div class="session-cross-row">
+        <div class="form-field compact session-cross-field">
+          <label class="field-label">
+            <span class="req">*</span> {{ t('courseRegistration.schedule.crossReleaseAt') }}
+          </label>
+          <DatePickerEn
+            mode="datetime"
+            :model-value="form.crossReleaseAt"
+            :placeholder="t('common.pleaseSelectDateTime')"
+            @update:model-value="(v) => (form.crossReleaseAt = v || '')"
+          />
+        </div>
         <div class="form-field compact session-enabled-field">
           <label class="field-label">{{ t('courseRegistration.schedule.colEnabled') }}</label>
-          <YnSwitch v-model="form.enabled" />
+          <div class="session-enabled-control">
+            <YnSwitch
+              v-model="form.enabled"
+              :on-label="t('common.yes')"
+              :off-label="t('common.no')"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="isUnitMode" class="session-global-block unit-cross-block">
+      <div class="session-cross-row">
+        <div class="form-field compact session-cross-field">
+          <label class="field-label">{{ t('courseRegistration.schedule.crossReleaseAt') }}</label>
+          <DatePickerEn
+            mode="datetime"
+            :model-value="form.crossReleaseAt"
+            :placeholder="t('common.pleaseSelectDateTime')"
+            @update:model-value="(v) => (form.crossReleaseAt = v || '')"
+          />
         </div>
       </div>
     </div>
@@ -768,14 +813,39 @@ function handleSave() {
   max-width: 280px;
 }
 
-.session-adddrop-row {
-  display: grid;
-  grid-template-columns: minmax(0, 148px) minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 12px 14px;
-  align-items: end;
+.session-global-block {
   margin-bottom: 20px;
   padding-bottom: 16px;
   border-bottom: 1px solid #f3f4f6;
+}
+
+.session-adddrop-row {
+  display: grid;
+  grid-template-columns: minmax(0, 148px) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px 14px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.session-cross-row {
+  display: grid;
+  grid-template-columns: minmax(0, 148px) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px 14px;
+  align-items: end;
+}
+
+.session-cross-field {
+  grid-column: 1 / 3;
+  max-width: none;
+  min-width: 0;
+}
+
+.unit-cross-block .session-cross-row {
+  grid-template-columns: minmax(0, 360px);
+}
+
+.unit-cross-block .session-cross-field {
+  grid-column: auto;
 }
 
 .session-adddrop-session {
@@ -787,24 +857,34 @@ function handleSave() {
   margin-bottom: 6px;
 }
 
-.session-adddrop-fields {
-  display: contents;
-}
-
 .form-field.compact {
   min-width: 0;
 }
 
-.session-adddrop-row :deep(.date-picker-en),
-.session-adddrop-row :deep(.date-picker-en-input),
-.session-adddrop-row :deep(input[type='text']) {
+.session-global-block :deep(.date-picker-en),
+.session-global-block :deep(.date-picker-en-input),
+.session-global-block :deep(input[type='text']) {
   width: 100%;
   max-width: none;
 }
 
 .session-enabled-field {
-  min-width: 72px;
-  padding-bottom: 2px;
+  grid-column: 3;
+  min-width: 0;
+}
+
+.session-enabled-field .field-label {
+  white-space: nowrap;
+}
+
+.session-enabled-control {
+  display: flex;
+  align-items: center;
+  height: 32px;
+}
+
+.unit-cross-block .session-enabled-field {
+  grid-column: auto;
 }
 
 .session-select {

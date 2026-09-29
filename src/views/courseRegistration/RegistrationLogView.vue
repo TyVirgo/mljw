@@ -12,9 +12,11 @@ import {
   formatRegistrationLogResultLabel,
   getRegistrationLogStats,
   normalizeTimeRange,
+  listRegistrationLogBatches,
+  pickRegistrationLogDefaultBatchId,
+  pickRegistrationLogRoundKey,
 } from '../../data/courseRegistration/registrationLog.js'
 import {
-  registrationBatches,
   getBatchById,
   getStudentDefaultRoundKey,
   formatRoundRange,
@@ -43,18 +45,21 @@ const emptyFilters = () => ({
 })
 
 /**
- * 默认批次：优先 active，否则列表首项
+ * 默认批次：日志演示集内优先 ME 主批
  * @returns {string}
  */
 function pickDefaultBatchId() {
-  const list = registrationBatches.value
-  const active = list.find((b) => b.status === 'active')
-  return active?.id || list[0]?.id || ''
+  return pickRegistrationLogDefaultBatchId()
 }
 
 /** 页顶选中批次（先批次后轮次） */
 const selectedBatchId = ref(pickDefaultBatchId())
-const selectedRound = ref(getStudentDefaultRoundKey(getBatchById(selectedBatchId.value)))
+const selectedRound = ref(
+  pickRegistrationLogRoundKey(
+    selectedBatchId.value,
+    getStudentDefaultRoundKey(getBatchById(selectedBatchId.value)),
+  ),
+)
 
 const searchForm = ref(emptyFilters())
 const appliedSearch = ref(emptyFilters())
@@ -63,7 +68,8 @@ const pageSize = ref(20)
 const exportModalVisible = ref(false)
 const searchExpanded = ref(true)
 
-const batchOptions = computed(() => registrationBatches.value)
+/** 仅 GE + ME 有日志行的演示批次 */
+const batchOptions = computed(() => listRegistrationLogBatches())
 
 const activeBatch = computed(() => getBatchById(selectedBatchId.value))
 
@@ -146,7 +152,8 @@ watch(selectedRound, () => {
 
 watch(selectedBatchId, (id) => {
   const batch = getBatchById(id)
-  selectedRound.value = getStudentDefaultRoundKey(batch)
+  const preferred = getStudentDefaultRoundKey(batch)
+  selectedRound.value = pickRegistrationLogRoundKey(id, preferred)
   currentPage.value = 1
   nextTick(() => {
     measureBatchSelectWidth()
@@ -159,7 +166,10 @@ watch(
   (opts) => {
     nextTick(measureRoundSelectWidth)
     if (opts.length && !opts.some((opt) => opt.key === selectedRound.value)) {
-      selectedRound.value = getStudentDefaultRoundKey(activeBatch.value)
+      selectedRound.value = pickRegistrationLogRoundKey(
+        selectedBatchId.value,
+        getStudentDefaultRoundKey(activeBatch.value),
+      )
     }
   },
   { immediate: true },

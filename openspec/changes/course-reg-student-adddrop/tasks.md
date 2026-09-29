@@ -49,6 +49,39 @@
 - [x] 9.1 成绩/学期改为必填下拉；时间地点与教师可手填并带示例提示
 - [x] 9.2 校验必填；不单独展示曾修课名
 
+## 增量（2026-09）：PDF 主类型分支 + 列表去 Tab
+
+- [x] 10.1 去掉类型 Tab；列表公共列 + 搜索类型筛选；个性字段仅详情
+- [x] 10.2 表单：主类型加/退/重修 +「是否同时退课」推导 AddDrop/RetakeDrop；禁止加+重修
+- [x] 10.3 `getVisibleAddDropSections` / 校验 / i18n 对齐；冒烟五类路径
+
+## 增量（2026-09）：主类型三字展示 + 去抵免 + 请选择
+
+- [x] 11.1 列表/筛选类型映射为加课/退课/重修（AddDrop→加课，RetakeDrop→重修）
+- [x] 11.2 「是否需要退课」文案；申请类型默认请选择
+- [x] 11.3 去掉退费抵免（表单/校验/详情/费用抵扣）
+
+## 增量（2026-09）：审批费用列前移
+
+- [x] 12.1 超出学分 / 预估费用 / 账单移到学号前
+
+## 增量（2026-09）：审批历史账单明细 / 催缴 / 延期
+
+- [x] 13.1 数据：按申请聚合课级已缴/未缴 + 剩余时间 + 延期写回 API
+- [x] 13.2 历史 Tab：缴费剩余列；账单明细抽屉；&lt;24h 催缴；超时重新生成订单
+- [x] 13.3 demo 相对截止日 + i18n；冒烟三种状态行
+
+## 增量（2026-09）：审批历史缴费 UI 打磨
+
+- [x] 14.1 列名「缴费剩余时间」；时长统一为天/时/分且去掉「剩余」
+- [x] 14.2 Teleport 弹窗底栏按钮样式对齐列表页
+- [x] 14.3 操作列同一行不换行并加宽
+
+## 增量（2026-09）：加课选择器学分分行 + 学生列表解冻
+
+- [x] 15.1 选择课程弹窗 GE/ME 学分胶囊分行，去掉 `|`
+- [x] 15.2 学生加退课列表取消左右 sticky 冻结列
+
 ## 历史来源任务摘要
 
 ### add-adddrop-course-picker
@@ -104,3 +137,106 @@
 - [x] 1.1 搜索区 + toolbar 发起申请 + callout/演示周同行
 - [x] 1.2 分页、筛选、退课通道「非退课申请」、demo 数据加厚
 ```
+
+## 增量（2026-09）：选课器状态 tip + 拟退动态冲突 + 退课操作列
+
+- [x] 16.1 拟退排除键同时匹配 courseId 与 courseCode；基线剔除同步支持 id/课号
+- [x] 16.2 加课选课器不可选状态提供 tip（冲突点名课+时段；学分点名类别）
+- [x] 16.3 退课清单表头空列改为「操作」
+
+## 增量（2026-09）：退课空确认 + 类型列 + 学分行布局
+
+- [x] 17.1 退课选课器允许空确认并清空清单；父级接受空 selections；再开回显
+- [x] 17.2 退课清单增加课程类型列
+- [x] 17.3 退课总学分 / 专业选修 / 公共选修同一行；加课与重修三字段同行
+
+## 增量（2026-09）：名额数字 + 退课学分投影
+
+- [x] 18.1 选课器有余量状态改为剩余/容量数字
+- [x] 18.2 退课/加课投影仅跟当前勾选；空勾选=基线
+- [x] 18.3 投影分类键对齐基线并默认桶；总分与分类一致；GE 无校选类别计入默认桶
+
+## 增量（2026-09）：退课投影批次同源 + 选择计数
+
+- [x] 19.1 mapEnrolledToPickerCourse 透传 batchId；投影用同批次 selectionGroups
+- [x] 19.2 coursePickerSelected 文案改为带 {count} 动态计数
+
+## 增量（2026-09）：状态表头 + 同课程单分组
+
+- [x] 20.1 选课器状态列表头改为「可选名额/总名额」
+- [x] 20.2 加课/重修同课程选一个分组后其余置灰不可勾选
+
+## 增量（2026-09）：重修选课器展示曾修成绩
+
+- [x] 21.1 重修选课器传入往期成绩；最后一列改为「曾修学期/成绩」并课级 rowspan
+- [x] 21.2 保留分组/教师/时间地点列；i18n + 样式
+
+## 增量（2026-09）：重修选课器扁平逐行展示
+
+- [x] 22.1 `attachCourseLevelRowSpans` 支持 `flat` 选项：每行独立块、序号按行、课级列 rowspan=1 全部 show
+- [x] 22.2 重修模式 `paginatedRows` 传 `{ flat: true }` 并按行号计序号；移除 anchor 方案
+- [x] 22.3 提案/spec/tasks 同步 §22
+
+## 增量（2026-09）：重修一次选多门 + 学分帽不阻断
+
+- [x] 23.1 `termGateForRow` 对 `Retake` action 跳过闸门；`isRowCreditBlocked` 对重修行返回 false
+- [x] 23.2 `handleCoursePicked` 重修分支按每门课解析 `retakeHistoryFromCourse`，挂 latestGrade 到对应行；首课历史用于顶部摘要
+- [x] 23.3 提案/spec/tasks 同步 §23
+
+## 增量（2026-09）：重修候选池 demo 增加不同课程种类
+
+- [x] 24.1 `studentTranscript.js` 提升池补齐 COMP201 / MATH201 / PHYS101 / BUS201 / AI110 / GE201 / EMB210 等；挂科池补齐 SE201 / WEB210
+- [x] 24.2 提案/spec/tasks 同步 §24
+
+## 增量（2026-09）：重修选课器每课只展一行 + 关闭同课单分组锁
+
+- [x] 25.1 `sectionRowsForCourse` 重修模式只取 `sections[0]`，不展开全部分组
+- [x] 25.2 `isRowDisabledBySibling` 对 `Retake` action 返回 false，关闭同课单分组锁
+- [x] 25.3 修订 §21「重修仍需选教学分组」语义；提案/spec/tasks 同步 §25
+
+## 增量（2026-09）：重修选课器「超出学分」提示改为基于学期学分超限
+
+- [x] 26.1 `AddDropCoursePickerModal.vue` `showFooterExcessHint`：重修模式改为基于 `computeNetCreditsAfterLines(currentCredits, dropLines, pickedLines) > creditMax` 判断（减 dropLines、不叠加 addLines，与 `termGateForRow` 同源）；加课模式保持 `billableCredits > 0`
+- [x] 26.2 提案/spec/tasks 同步 §26
+
+## 增量（2026-09）：重修关联描述措辞优化 + 同步 §23/§26 语义
+
+- [x] 27.1 `zh.js`：`formNotesTitleRetakeDrop` / `formNotesDropThenRetake` / `declarationExtraRetakeDrop` / `retakeDropLinkedHint` 4 处文案优化
+- [x] 27.2 `en.js` 对应 4 处 key 同步翻译
+- [x] 27.3 提案/spec/tasks 同步 §27
+
+## 增量（2026-09）：去掉提交成功后「可在管理端查看进度」提示
+
+- [x] 28.1 `StudentAddDropView.vue` `finishOk`：移除 `message.value = t('...addDropSubmitted')`，提交后仅关闭表单 + 刷新列表
+- [x] 28.2 `zh.js` / `en.js` 删除 `addDropSubmitted` key
+- [x] 28.3 提案/spec/tasks 同步 §28
+
+## 增量（2026-09）：详情声明勾选框蓝色已勾选效果
+
+- [x] 29.1 `AddDropApplicationDetailBody.vue` `.checkbox-row input`：`appearance: none` + `:checked` 自定义蓝色底白对勾样式，`opacity: 1` 覆盖 disabled 灰
+- [x] 29.2 提案/spec/tasks 同步 §29
+
+## 增量（2026-09）：详情回显是否退课/退课学分 + 超出学分与费用同源
+
+- [x] 30.1 `AddDropApplicationFormSections.vue` `sectionExcessCredits`：改为优先 `feeEstimate.billableCredits`，与费用同源
+- [x] 30.2 `AddDropApplicationDetailBody.vue`：回显「是否需要退课」只读蓝勾选单选；退课 SECTION 回显学分三字段；超出学分优先计费学分
+- [x] 30.3 `addDropScheduleDemo.js` `deriveExcessCredits` / `reconcileExcessFeeBill`：计费/账单优先，避免 excess=0 清零正数账单
+- [x] 30.4 列表 `listExcessCredits`（学生端/审批端）与费用计费学分对齐
+- [x] 30.5 提案/spec/tasks 同步 §30
+
+## 增量（2026-09）：统一毕业计费 + 学期帽闸门；废除退费抵免
+
+- [x] 31.1 `addDropFeeRates.js`：重修与加课统一毕业类别计费；废除 feeWaiverOffset；新增 clone/boost/consume planRemaining
+- [x] 31.2 `StudentAddDropView.vue` feeEstimate：加/重修逐课扣减毕业剩余；含退课先 boost；去掉退费抵免 wiring
+- [x] 31.3 `AddDropCoursePickerModal.vue`：重修恢复学期帽闸门；缴费提示仅 billable>0；去掉退费抵免 props
+- [x] 31.4 i18n：去掉「退课学分抵扣重修费用」文案
+- [x] 31.5 提案/spec/tasks 同步 §31
+
+## 增量（2026-09）：重修切换保留 + 学期超分类提示 + 曾修入表
+
+- [x] 32.1 `applyPrimaryTypePatch`：仅 needDrop 切换时选择性清空（是→否清退课节；否→是保留重修等）
+- [x] 32.2 `retakeType` 切换：保留电话/退课/备注；跨池时仅清重修课清单；select 样式与申请类型对齐
+- [x] 32.3 选课器白名单 footer：按超限学期类别拼「已经超出本学期{类别}学分要求」
+- [x] 32.4 表单「超出学分」跟学期类别超额实时同步；费用仍仅毕业超额（`billableCredits`）
+- [x] 32.5 重修表：曾修成绩并入列；操作列表头「操作」；去掉独立曾修块；详情同步
+- [x] 32.6 提案/spec/tasks 同步 §32

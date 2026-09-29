@@ -4,6 +4,7 @@
  * meetings（1–3）供「上课时间地点」多行展示。
  */
 import { deriveClassTime, getSectionMeetings } from './sectionScheduleFields.js'
+import { resolveAddDropExcessCredits } from './addDropFeeRates.js'
 
 /** 图示样本池（含多段 meetings） */
 export const ADD_DROP_SCHEDULE_SAMPLES = [
@@ -111,29 +112,23 @@ function netCreditDelta(app) {
   }, 0)
 }
 
-/** 超出学分：显式字段或「当前 + 净加 − 上限」；不得用账单金额反推 */
+/** 超出学分：与费用计费学分同源；有计费/账单时不以显式 excessCredits:0 覆盖 */
 function deriveExcessCredits(app) {
   if (app?.type === 'Drop') return 0
+  const fromBillable = resolveAddDropExcessCredits(app)
+  if (fromBillable > 0) return fromBillable
   if (app?.excessCredits != null && app.excessCredits !== '') {
     return Math.max(0, Number(app.excessCredits) || 0)
   }
-  if (app?.billableCredits != null && app.billableCredits !== '') {
-    return Math.max(0, Number(app.billableCredits) || 0)
-  }
-  const fromEst = app?.feeEstimate?.billableCredits
-  if (fromEst != null && fromEst !== '') return Math.max(0, Number(fromEst) || 0)
-  const fromItems = (app?.feeEstimate?.items || []).reduce(
-    (s, i) => s + (Number(i.billableCredits) || 0),
-    0,
-  )
-  if (fromItems > 0) return fromItems
   const current = Number(app?.currentCredits) || 0
   const max = Number(app?.creditMax) || 20
   return Math.max(0, current + netCreditDelta(app) - max)
 }
 
 function reconcileExcessFeeBill(app, excessCredits) {
-  if (excessCredits <= 0) {
+  const seededAmount = Number(app?.billAmount)
+  const hasSeededBill = Number.isFinite(seededAmount) && seededAmount > 0
+  if (excessCredits <= 0 && !hasSeededBill) {
     return {
       excessCredits: 0,
       billableCredits: 0,
@@ -141,11 +136,14 @@ function reconcileExcessFeeBill(app, excessCredits) {
       billStatus: 'none',
     }
   }
-  const seededAmount = Number(app?.billAmount)
+  const billable =
+    excessCredits > 0
+      ? excessCredits
+      : Math.max(0, Number(app?.billableCredits) || Number(app?.feeEstimate?.billableCredits) || 0)
   return {
-    excessCredits,
-    billableCredits: app?.billableCredits ?? excessCredits,
-    billAmount: Number.isFinite(seededAmount) && seededAmount > 0 ? seededAmount : excessCredits * 500,
+    excessCredits: billable,
+    billableCredits: app?.billableCredits ?? billable,
+    billAmount: hasSeededBill ? seededAmount : billable * 500,
     billStatus: !app?.billStatus || app.billStatus === 'none' ? 'pending' : app.billStatus,
   }
 }

@@ -7,17 +7,30 @@ import {
   openMyCourseQueueProgress,
   cancelMyCourseQueue,
   isRegistrationPhaseForUnselect,
+  formatSelectedAt,
 } from '../../data/courseRegistration/studentRegistrationStore.js'
 import {
   applyPendingVolunteerOrder,
   isVolunteerListLocked,
+  pendingVolunteerRowKey,
   sortedPendingVolunteers,
 } from '../../data/courseRegistration/studentVolunteerSheet.js'
 import { displayClassTimeVenueLines } from '../../data/courseRegistration/sectionScheduleFields.js'
-import { listPendingVolunteerTimeConflicts } from '../../data/courseRegistration/volunteerPendingConflict.js'
+import { listPendingVolunteerTimeConflicts, listPendingVolunteerMultiSections, volunteerRowHasMultiSection } from '../../data/courseRegistration/volunteerPendingConflict.js'
 import { getCourseById, resolveSchoolElectiveCategory } from '../../data/courseRegistration/selectableCourses.js'
+import {
+  getSectionVolunteerDisplayCount,
+  volunteerCourseStates,
+} from '../../data/courseRegistration/preselectVolunteerConfirm.js'
+import { hydrateSelectedCourseDisplay } from '../../data/courseRegistration/resolveSelectedCourseDisplay.js'
 import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
 import { getSchoolElectiveCategoryLabel } from '../../data/departments.js'
+import { getActiveBatch } from '../../data/courseRegistration/registrationBatches.js'
+import {
+  getSelectionGroupsForBatch,
+  resolveSelectionGroup,
+  getSelectionGroupDisplayLines,
+} from '../../data/courseRegistration/courseSelectionGroups.js'
 import CourseCodeSourcePopover from './CourseCodeSourcePopover.vue'
 import '../../styles/course-registration-list.css'
 
@@ -77,13 +90,19 @@ function rowCanDrag(item) {
   return (item?.status || 'pendingAssign') === 'pendingAssign'
 }
 
+function hydrateRow(item) {
+  return hydrateSelectedCourseDisplay(item, { locale: isZh.value ? 'zh' : 'en' })
+}
+
 /** R1 待分配志愿 */
 const allVolunteerRows = computed(() => {
   if (!props.showVolunteerOrder) return []
-  return sortedPendingVolunteers().map((item) => ({
-    ...item,
-    status: item.status || 'pendingAssign',
-  }))
+  return sortedPendingVolunteers().map((item) =>
+    hydrateRow({
+      ...item,
+      status: item.status || 'pendingAssign',
+    }),
+  )
 })
 
 /** R2/R3 已选（非排队） */
@@ -91,12 +110,14 @@ const allPrimaryRows = computed(() => {
   if (props.showVolunteerOrder) return []
   const list = myRegistrationList.value || []
   const filtered = props.roundOpen ? list : list.filter((item) => item.status !== 'queued')
-  return filtered.filter((item) => item.status !== 'queued')
+  return filtered.filter((item) => item.status !== 'queued').map(hydrateRow)
 })
 
 const queuedRows = computed(() => {
   if (!props.roundOpen) return []
-  return (myRegistrationList.value || []).filter((item) => item.status === 'queued')
+  return (myRegistrationList.value || [])
+    .filter((item) => item.status === 'queued')
+    .map(hydrateRow)
 })
 
 const primaryRows = computed(() =>
@@ -120,9 +141,25 @@ const volunteerTimeConflicts = computed(() =>
   listPendingVolunteerTimeConflicts(allVolunteerRows.value),
 )
 
-const hasAnyContent = computed(
-  () => primaryRows.value.length > 0 || queuedRows.value.length > 0,
+const volunteerMultiSections = computed(() =>
+  listPendingVolunteerMultiSections(allVolunteerRows.value),
 )
+
+/** ME 展示课程组列（与主选课表一致） */
+const showSelectionGroupColumn = computed(() => getActiveBatch()?.type === 'ME')
+
+const selectionGroups = computed(() =>
+  showSelectionGroupColumn.value ? getSelectionGroupsForBatch(getActiveBatch()) : [],
+)
+
+/** 空表 colspan：与当前表头列数一致 */
+const emptyColspan = computed(() => {
+  let n = props.showVolunteerOrder ? 13 : 12
+  if (showSelectionGroupColumn.value) n += 1
+  if (showActionsColumn.value) n += 1
+  if (props.showVolunteerOrder) n += 1 // 课程已选百分比列
+  return n
+})
 
 const panelTitle = computed(() => {
   if (props.showVolunteerOrder) {
@@ -145,8 +182,40 @@ function volunteerClashPeers(item) {
   return volunteerTimeConflicts.value.byCourseId[item?.courseId] || []
 }
 
+function volunteerHasMultiSection(item) {
+  return volunteerRowHasMultiSection(item, volunteerMultiSections.value)
+}
+
+/** 行内 ! tip 文案（时间冲突 / 同课多分组，可并存） */
+function volunteerWarningTips(item) {
+  const tips = []
+  const peers = volunteerClashPeers(item)
+  if (peers.length) {
+    tips.push(
+      t('courseRegistration.student.volunteerSheet.clashRowTip', {
+        courses: formatCourseList(peers),
+      }),
+    )
+  }
+  if (volunteerHasMultiSection(item)) {
+    tips.push(t('courseRegistration.student.volunteerSheet.multiSectionRowTip'))
+  }
+  return tips
+}
+
 function formatCourseList(codes) {
   return (codes || []).filter(Boolean).join(isZh.value ? '、' : ', ')
+}
+
+function selectionGroupDisplay(item) {
+  if (!showSelectionGroupColumn.value) return null
+  const lib = getCourseById(item?.courseId)
+  const course = { ...(lib || {}), code: item?.courseCode || lib?.code }
+  return resolveSelectionGroup(course, selectionGroups.value)
+}
+
+function selectionGroupLines(item) {
+  return getSelectionGroupDisplayLines(selectionGroupDisplay(item), isZh.value)
 }
 
 function rowKey(item) {
@@ -186,9 +255,47 @@ function statusClass(status) {
   return 'tag-gray'
 }
 
+/** 第一轮：课程已选百分比（志愿人数 / 分组容量） */
+function sectionSelectedPercent(item) {
+  void volunteerCourseStates.value
+  const courseId = item?.courseId
+  const sectionId = item?.sectionId
+  if (!courseId || !sectionId) return '—'
+  const course = getCourseById(courseId)
+  const section = course?.sections?.find((s) => s.id === sectionId)
+  if (!section) return '—'
+  const cap = Number(section.capacity) || 0
+  if (cap <= 0) return '—'
+  const volunteers = getSectionVolunteerDisplayCount(courseId, sectionId)
+  return `${Math.round((volunteers / cap) * 100)}%`
+}
+
+/** 容量胶囊色：第一轮按志愿热度绿/黄/红（与选课列表同源） */
+function sectionCapacityClass(item) {
+  if (!props.showVolunteerOrder) return ''
+  const courseId = item?.courseId
+  const sectionId = item?.sectionId
+  if (!courseId || !sectionId) return ''
+  const course = getCourseById(courseId)
+  const section = course?.sections?.find((s) => s.id === sectionId)
+  if (!section) return ''
+  void volunteerCourseStates.value
+  const cap = Number(section.capacity) || 0
+  if (cap <= 0) return 'capacity-open'
+  const volunteers = getSectionVolunteerDisplayCount(courseId, sectionId)
+  if (volunteers < cap) return 'capacity-open'
+  if (volunteers <= cap * 2) return 'capacity-warn'
+  return 'capacity-full'
+}
+
 function preferenceLabel(item, index) {
   const n = Number(item.preferenceOrder) || index + 1
   return t('courseRegistration.student.volunteerSheet.slotLabel', { n })
+}
+
+/** 提交时间展示（志愿/选课写入的 selectedAt） */
+function submissionTimeLabel(item) {
+  return formatSelectedAt(item?.selectedAt || item?.submittedAt)
 }
 
 function toggleExpanded() {
@@ -200,13 +307,16 @@ function handleUnselect(item) {
     !window.confirm(
       t('courseRegistration.student.unselectConfirm', {
         code: item.courseCode || item.courseId,
-        name: item.courseName || '',
+        name: hydrateRow(item).courseName || item.courseName || '',
       }),
     )
   ) {
     return
   }
-  const result = unselectConfirmedCourse(item.courseId)
+  const result = unselectConfirmedCourse(item.courseId, {
+    sectionId: item.sectionId,
+    sectionCode: item.sectionCode || item.section,
+  })
   if (!result.ok && result.errorKey) {
     window.alert(t(result.errorKey))
   }
@@ -255,7 +365,7 @@ function onDropAtFullIndex(toFullIndex, event) {
   if (!rowCanDrag(next[fromFull]) || !rowCanDrag(next[toFullIndex])) return
   const [moved] = next.splice(fromFull, 1)
   next.splice(toFullIndex, 0, moved)
-  const result = applyPendingVolunteerOrder(next.map((row) => row.courseId))
+  const result = applyPendingVolunteerOrder(next.map((row) => pendingVolunteerRowKey(row)))
   if (!result.ok && result.errorKey) {
     localMessage.value = t(result.errorKey, result.errorParams || {})
   } else {
@@ -275,7 +385,7 @@ defineExpose({ scrollIntoView })
 </script>
 
 <template>
-  <section v-if="hasAnyContent" ref="rootEl" class="cr-round-status-panel">
+  <section ref="rootEl" class="cr-round-status-panel">
     <header class="cr-round-status-header">
       <div>
         <h3 class="cr-round-status-title">
@@ -285,10 +395,13 @@ defineExpose({ scrollIntoView })
       </div>
     </header>
 
-    <div v-if="visiblePrimaryRows.length" class="table-wrap">
+    <div class="table-wrap">
       <table
         class="data-table"
-        :class="showVolunteerOrder ? 'data-table--pref' : 'data-table--flat'"
+        :class="[
+          showVolunteerOrder ? 'data-table--pref' : 'data-table--flat',
+          { 'has-capacity-col': showVolunteerOrder },
+        ]"
       >
         <thead>
           <tr>
@@ -304,17 +417,26 @@ defineExpose({ scrollIntoView })
             <th class="sticky-left sticky-code">{{ t('courseRegistration.courses.code') }}</th>
             <th class="sticky-left sticky-name">{{ t('courseRegistration.courses.name') }}</th>
             <th>{{ t('courseRegistration.courses.sectionCode') }}</th>
+            <th v-if="showSelectionGroupColumn">{{ t('courseRegistration.courses.selectionGroup') }}</th>
             <th>{{ t('courseRegistration.courses.category') }}</th>
             <th>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</th>
             <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
             <th>{{ t('courseRegistration.courses.lecturer') }}</th>
             <th>{{ t('courseRegistration.courses.weekRange') }}</th>
             <th>{{ t('courseRegistration.courses.classTimeVenue') }}</th>
+            <th class="col-submitted-at">{{ t('courseRegistration.student.selectedAt') }}</th>
             <th
               class="sticky-right sticky-status"
               :class="{ 'sticky-status--flushright': !showActionsColumn }"
             >
               {{ t('common.status') }}
+            </th>
+            <th
+              v-if="showVolunteerOrder"
+              class="sticky-right sticky-capacity"
+              :class="{ 'sticky-capacity--flushright': !showActionsColumn }"
+            >
+              {{ t('courseRegistration.courses.volunteerSelectedPercent') }}
             </th>
             <th v-if="showActionsColumn" class="col-actions sticky-right sticky-actions">
               {{ t('common.actions') }}
@@ -322,6 +444,11 @@ defineExpose({ scrollIntoView })
           </tr>
         </thead>
         <tbody>
+          <tr v-if="!visiblePrimaryRows.length">
+            <td :colspan="emptyColspan" class="empty-cell">
+              {{ t('courseRegistration.student.roundStatusPanel.emptyNoCourses') }}
+            </td>
+          </tr>
           <tr
             v-for="(item, index) in visiblePrimaryRows"
             :key="rowKey(item)"
@@ -329,7 +456,7 @@ defineExpose({ scrollIntoView })
             :class="{
               'is-dragging': rowCanDrag(item) && dragFromIndex === index,
               'is-draggable': rowCanDrag(item),
-              'is-time-conflict': volunteerClashPeers(item).length > 0,
+              'is-time-conflict': volunteerWarningTips(item).length > 0,
             }"
             @dragstart="onDragStart(index, $event)"
             @dragover="onDragOver"
@@ -355,32 +482,41 @@ defineExpose({ scrollIntoView })
               />
               <template v-else>—</template>
               <span
-                v-if="volunteerClashPeers(item).length"
+                v-if="volunteerWarningTips(item).length"
                 class="hint-popover-wrap cr-vol-clash-mark"
               >
                 <span
                   class="hint-popover-trigger cr-vol-clash-icon"
                   tabindex="0"
                   role="img"
-                  :aria-label="
-                    t('courseRegistration.student.volunteerSheet.clashRowTip', {
-                      courses: formatCourseList(volunteerClashPeers(item)),
-                    })
-                  "
+                  :aria-label="volunteerWarningTips(item).join(' ')"
                 >
                   !
                 </span>
                 <span class="hint-popover-content hint-popover-content--sm" role="tooltip">
-                  {{
-                    t('courseRegistration.student.volunteerSheet.clashRowTip', {
-                      courses: formatCourseList(volunteerClashPeers(item)),
-                    })
-                  }}
+                  <span
+                    v-for="(tip, tipIdx) in volunteerWarningTips(item)"
+                    :key="tipIdx"
+                    class="cr-vol-warn-line"
+                  >
+                    {{ tip }}
+                  </span>
                 </span>
               </span>
             </td>
             <td class="sticky-left sticky-name nowrap">{{ item.courseName || '—' }}</td>
             <td class="nowrap">{{ groupName(item) }}</td>
+            <td v-if="showSelectionGroupColumn" class="cr-selection-group-cell">
+              <template v-if="selectionGroupDisplay(item)">
+                <div class="cr-selection-group-title">
+                  {{ selectionGroupLines(item).title }}
+                </div>
+                <div class="cr-selection-group-intake">
+                  {{ selectionGroupLines(item).intakeLine }}
+                </div>
+              </template>
+              <template v-else>—</template>
+            </td>
             <td class="nowrap">{{ courseCategoryLabel(item) }}</td>
             <td class="nowrap">{{ schoolElectiveCategoryLabel(item) }}</td>
             <td class="col-credits nowrap">{{ item.credits ?? '—' }}</td>
@@ -395,12 +531,22 @@ defineExpose({ scrollIntoView })
                 {{ line }}
               </div>
             </td>
+            <td class="col-submitted-at nowrap">{{ submissionTimeLabel(item) }}</td>
             <td
               class="sticky-right sticky-status"
               :class="{ 'sticky-status--flushright': !showActionsColumn }"
             >
               <span class="status-tag" :class="statusClass(item.status)">
                 {{ statusLabel(item.status) }}
+              </span>
+            </td>
+            <td
+              v-if="showVolunteerOrder"
+              class="sticky-right sticky-capacity"
+              :class="{ 'sticky-capacity--flushright': !showActionsColumn }"
+            >
+              <span class="capacity-pill" :class="sectionCapacityClass(item)">
+                {{ sectionSelectedPercent(item) }}
               </span>
             </td>
             <td v-if="showActionsColumn" class="col-actions sticky-right sticky-actions">
@@ -428,7 +574,10 @@ defineExpose({ scrollIntoView })
           </h4>
           <table
             class="data-table"
-            :class="showVolunteerOrder ? 'data-table--pref data-table--queue' : 'data-table--flat data-table--queue'"
+            :class="[
+              showVolunteerOrder ? 'data-table--pref data-table--queue' : 'data-table--flat data-table--queue',
+              { 'has-capacity-col': showVolunteerOrder },
+            ]"
           >
             <thead>
               <tr>
@@ -449,11 +598,19 @@ defineExpose({ scrollIntoView })
                 <th>{{ t('courseRegistration.courses.lecturer') }}</th>
                 <th>{{ t('courseRegistration.courses.weekRange') }}</th>
                 <th>{{ t('courseRegistration.courses.classTimeVenue') }}</th>
+                <th class="col-submitted-at">{{ t('courseRegistration.student.selectedAt') }}</th>
                 <th
                   class="sticky-right sticky-status"
                   :class="{ 'sticky-status--flushright': !showActionsColumn }"
                 >
                   {{ t('common.status') }}
+                </th>
+                <th
+                  v-if="showVolunteerOrder"
+                  class="sticky-right sticky-capacity"
+                  :class="{ 'sticky-capacity--flushright': !showActionsColumn }"
+                >
+                  {{ t('courseRegistration.courses.volunteerSelectedPercent') }}
                 </th>
                 <th v-if="showActionsColumn" class="col-actions sticky-right sticky-actions">
                   {{ t('common.actions') }}
@@ -494,6 +651,7 @@ defineExpose({ scrollIntoView })
                     {{ line }}
                   </div>
                 </td>
+                <td class="col-submitted-at nowrap">{{ submissionTimeLabel(item) }}</td>
                 <td
                   class="sticky-right sticky-status"
                   :class="{ 'sticky-status--flushright': !showActionsColumn }"
@@ -501,6 +659,15 @@ defineExpose({ scrollIntoView })
                   <span class="status-tag tag-blue">
                     <span class="queue-spinner" aria-hidden="true" />
                     {{ statusLabel('queued') }}
+                  </span>
+                </td>
+                <td
+                  v-if="showVolunteerOrder"
+                  class="sticky-right sticky-capacity"
+                  :class="{ 'sticky-capacity--flushright': !showActionsColumn }"
+                >
+                  <span class="capacity-pill" :class="sectionCapacityClass(item)">
+                    {{ sectionSelectedPercent(item) }}
                   </span>
                 </td>
                 <td v-if="showActionsColumn" class="col-actions sticky-right sticky-actions">
@@ -691,6 +858,13 @@ defineExpose({ scrollIntoView })
   min-width: 64px;
 }
 
+.col-submitted-at {
+  width: 148px;
+  min-width: 136px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .col-actions {
   width: 148px;
   min-width: 148px;
@@ -761,9 +935,50 @@ td.sticky-code:has(.hint-popover-wrap:focus-within) {
 .data-table--flat .sticky-status--flushright {
   right: 0;
 }
+.data-table--pref .sticky-capacity,
+.data-table--flat .sticky-capacity {
+  right: 148px;
+  min-width: 96px;
+  width: 96px;
+  padding-left: 8px;
+  padding-right: 8px;
+  text-align: center;
+  box-shadow: -4px 0 8px -6px rgba(0, 0, 0, 0.18);
+}
+.data-table--pref .sticky-capacity--flushright,
+.data-table--flat .sticky-capacity--flushright {
+  right: 0;
+  box-shadow: none;
+}
+/* 有容量列时，状态列右偏移让位 */
+.data-table--pref.has-capacity-col .sticky-status,
+.data-table--flat.has-capacity-col .sticky-status {
+  right: 244px;
+}
+.data-table--pref.has-capacity-col .sticky-status--flushright,
+.data-table--flat.has-capacity-col .sticky-status--flushright {
+  right: 96px;
+}
 
-.data-table.data-table--pref tbody tr.is-time-conflict > td {
-  background: #fffbeb;
+/* 课程已选百分比胶囊（与选课列表同源） */
+.capacity-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.capacity-open {
+  color: #047857;
+  background: #d1fae5;
+}
+.capacity-warn {
+  color: #b45309;
+  background: #fef3c7;
+}
+.capacity-full {
+  color: #b91c1c;
+  background: #fee2e2;
 }
 
 .cr-round-drawer {
@@ -913,6 +1128,44 @@ td.sticky-code:has(.hint-popover-wrap:focus-within) {
   z-index: 50;
   min-width: 200px;
   max-width: min(320px, 70vw);
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  white-space: normal;
+}
+
+.cr-vol-clash-mark:hover .hint-popover-content,
+.cr-vol-clash-mark:focus-within .hint-popover-content {
+  display: flex;
+}
+
+.cr-vol-warn-line {
+  display: block;
+  line-height: 1.4;
+}
+
+.cr-selection-group-cell {
+  font-weight: 500;
+  color: #374151;
+  text-align: left;
+  vertical-align: middle;
+  line-height: 1.3;
+  min-width: 120px;
+  max-width: 140px;
+}
+
+.cr-selection-group-title {
+  white-space: nowrap;
+  text-align: left;
+}
+
+.cr-selection-group-intake {
+  font-size: 10px;
+  font-weight: 400;
+  color: #4b5563;
+  margin-top: 2px;
+  white-space: nowrap;
+  text-align: left;
 }
 
 .cr-vol-clash-mark::after {

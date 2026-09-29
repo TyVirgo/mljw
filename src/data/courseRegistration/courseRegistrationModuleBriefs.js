@@ -69,6 +69,12 @@ export const courseRegistrationModuleBriefs = {
     featuresKey: 'courseRegistration.briefs.studentResult.features',
     variant: 'info',
   },
+  'crs-payment': {
+    sourceKey: 'courseRegistration.briefs.studentPayment.source',
+    requirementsKey: 'courseRegistration.briefs.studentPayment.requirements',
+    featuresKey: 'courseRegistration.briefs.studentPayment.features',
+    variant: 'info',
+  },
 }
 
 export function getModuleBrief(pageId) {

@@ -5,4 +5,5 @@
 export {
   isReleaseCrossAudienceOnRound3,
   isCampusReleaseCrossAudienceOnRound3,
+  isCrossAudienceReleaseActive,
 } from './registrationRuleSettings.js'

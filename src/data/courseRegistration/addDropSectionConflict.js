@@ -22,11 +22,12 @@ export function parseSectionTimeToConflictSlot(time) {
  * @param {string[]} [pendingDropCodes]
  */
 export function buildScheduleBaselineFromEnrolled(enrolled = [], pendingDropCodes = []) {
-  const dropSet = new Set(pendingDropCodes.map(String))
+  const dropSet = new Set((pendingDropCodes || []).map(String).filter(Boolean))
   const slots = []
   for (const item of enrolled) {
     const code = item.courseCode || item.code
-    if (dropSet.has(String(code))) continue
+    const id = item.courseId || item.id
+    if ((code && dropSet.has(String(code))) || (id && dropSet.has(String(id)))) continue
     const meetings = getSectionMeetings(item)
     const times = meetings.length
       ? meetings
@@ -47,6 +48,7 @@ export function buildScheduleBaselineFromEnrolled(enrolled = [], pendingDropCode
           course: code,
           label: slot.label,
           time: meeting.time,
+          sourceType: item.sourceType || '',
         })
       }
     }
@@ -57,7 +59,7 @@ export function buildScheduleBaselineFromEnrolled(enrolled = [], pendingDropCode
 /**
  * @param {string} sectionTime
  * @param {object[]} baselineSlots
- * @returns {{ conflict: boolean, withCourse?: string, withTime?: string }}
+ * @returns {{ conflict: boolean, withCourse?: string, withTime?: string, withSourceType?: string }}
  */
 export function getSectionConflictInfo(sectionTime, baselineSlots = []) {
   const addSlot = parseSectionTimeToConflictSlot(sectionTime)
@@ -68,6 +70,7 @@ export function getSectionConflictInfo(sectionTime, baselineSlots = []) {
         conflict: true,
         withCourse: slot.course || slot.label || '',
         withTime: slot.time || `${slot.day} ${slot.start}:00`,
+        withSourceType: slot.sourceType || '',
       }
     }
   }

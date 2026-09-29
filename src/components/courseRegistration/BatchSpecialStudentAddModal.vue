@@ -1,12 +1,17 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { addBatchSpecialStudent } from '../../data/courseRegistration/batchStudentRoster.js'
+import {
+  addBatchSpecialStudent,
+  normalizeSelectionCreditMax,
+} from '../../data/courseRegistration/batchStudentRoster.js'
 import BatchSpecialStudentPickModal from './BatchSpecialStudentPickModal.vue'
 
 const props = defineProps({
   visible: Boolean,
   batchId: { type: String, default: '' },
+  /** 批次类型 GE / ME 等 */
+  batchType: { type: String, default: '' },
 })
 
 const emit = defineEmits(['close', 'saved'])
@@ -17,6 +22,11 @@ const form = ref(emptyForm())
 const formError = ref('')
 const pickerOpen = ref(false)
 
+const needsCreditMax = computed(() => {
+  const type = String(props.batchType || '').toUpperCase()
+  return type === 'GE' || type === 'ME'
+})
+
 function emptyForm() {
   return {
     studentId: '',
@@ -25,6 +35,7 @@ function emptyForm() {
     intake: '',
     faculty: '',
     selectable: true,
+    selectionCreditMax: '',
     remark: '',
   }
 }
@@ -39,13 +50,17 @@ watch(
   },
 )
 
-const selectedLabel = computed(() => {
-  if (!form.value.studentId) return ''
-  return `${form.value.studentName}（${form.value.studentId}）`
-})
-
 function openPicker() {
   pickerOpen.value = true
+}
+
+function clearStudent() {
+  form.value.studentId = ''
+  form.value.studentName = ''
+  form.value.programme = ''
+  form.value.intake = ''
+  form.value.faculty = ''
+  formError.value = ''
 }
 
 function onPickStudent(row) {
@@ -62,6 +77,14 @@ function handleConfirm() {
     formError.value = t('courseRegistration.batch.specialStudentRequired')
     return
   }
+  let creditMax = null
+  if (needsCreditMax.value) {
+    creditMax = normalizeSelectionCreditMax(form.value.selectionCreditMax)
+    if (creditMax == null) {
+      formError.value = t('courseRegistration.batch.specialCreditMaxRequired')
+      return
+    }
+  }
   const result = addBatchSpecialStudent(props.batchId, {
     studentId: form.value.studentId,
     studentName: form.value.studentName,
@@ -69,6 +92,7 @@ function handleConfirm() {
     intake: form.value.intake,
     faculty: form.value.faculty,
     selectable: form.value.selectable,
+    selectionCreditMax: needsCreditMax.value ? creditMax : null,
     remark: form.value.remark,
   })
   if (!result.ok) {
@@ -97,15 +121,37 @@ function handleConfirm() {
             <span class="req">*</span>
           </label>
           <div class="field-control with-btn">
-            <input
-              type="text"
-              class="form-input"
-              readonly
-              :value="selectedLabel"
-              :placeholder="t('courseRegistration.batch.specialPickPlaceholder')"
-            />
+            <div
+              class="tag-field"
+              :class="{ 'tag-field--empty': !form.studentId }"
+              @click="openPicker"
+            >
+              <span
+                v-if="form.studentId"
+                class="tag-chip"
+                :title="`${form.studentName}（${form.studentId}）`"
+                @click.stop
+              >
+                <span class="tag-chip-text">{{ form.studentName }}</span>
+                <button
+                  type="button"
+                  class="tag-chip-remove"
+                  :aria-label="t('common.delete')"
+                  @click.stop="clearStudent"
+                >
+                  ×
+                </button>
+              </span>
+              <span v-else class="tag-placeholder">
+                {{ t('courseRegistration.batch.specialPickPlaceholder') }}
+              </span>
+            </div>
             <button type="button" class="btn btn-default" @click="openPicker">
-              {{ t('studentSelect.selectButton') }}
+              {{
+                form.studentId
+                  ? t('courseRegistration.batch.specialChangeStudent')
+                  : t('studentSelect.selectButton')
+              }}
             </button>
           </div>
         </div>
@@ -124,6 +170,23 @@ function handleConfirm() {
               <input v-model="form.selectable" type="radio" :value="false" />
               <span>{{ t('common.no') }}</span>
             </label>
+          </div>
+        </div>
+
+        <div v-if="needsCreditMax" class="form-row">
+          <label class="field-label">
+            {{ t('courseRegistration.batch.specialCreditMax') }}
+            <span class="req">*</span>
+          </label>
+          <div class="field-control">
+            <input
+              v-model="form.selectionCreditMax"
+              type="number"
+              min="0.5"
+              step="0.5"
+              class="form-input"
+              :placeholder="t('courseRegistration.batch.specialCreditMaxPlaceholder')"
+            />
           </div>
         </div>
 
@@ -202,7 +265,7 @@ function handleConfirm() {
 }
 .form-row {
   display: grid;
-  grid-template-columns: 110px 1fr;
+  grid-template-columns: 120px 1fr;
   gap: 10px 12px;
   align-items: center;
   margin-bottom: 14px;
@@ -219,6 +282,67 @@ function handleConfirm() {
 .field-control.with-btn {
   display: flex;
   gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+.tag-field {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.tag-field--empty {
+  align-items: center;
+}
+.tag-placeholder {
+  font-size: 13px;
+  color: #9ca3af;
+  line-height: 24px;
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 4px 0 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background: #f3f4f6;
+  font-size: 12px;
+  color: #374151;
+  line-height: 1;
+}
+.tag-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag-chip-remove {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tag-chip-remove:hover {
+  color: #111827;
+  background: #e5e7eb;
 }
 .form-input {
   flex: 1;
@@ -237,10 +361,6 @@ function handleConfirm() {
   color: #9ca3af;
   font-size: 13px;
   font-weight: 400;
-}
-.form-input[readonly] {
-  cursor: pointer;
-  background: #fff;
 }
 .radio-row {
   display: flex;
@@ -276,6 +396,7 @@ function handleConfirm() {
   font-weight: 500;
   cursor: pointer;
   border: 1px solid transparent;
+  flex-shrink: 0;
 }
 .btn-primary {
   background: #2563eb;

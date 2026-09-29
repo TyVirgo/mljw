@@ -147,6 +147,13 @@ function resultReleaseSummary(row) {
   return String(picker).replace(/(\d{2}:\d{2}):\d{2}/g, '$1')
 }
 
+function crossReleaseSummary(row) {
+  const at = row.crossReleaseAt
+  if (!at) return t('courseRegistration.batch.roundNotConfigured')
+  const picker = batchDateToPicker(at) || at
+  return String(picker).replace(/(\d{2}:\d{2}):\d{2}/g, '$1')
+}
+
 function addDropSummary(row) {
   return formatRoundRangeCompact(row.addDropWindow)
 }
@@ -218,6 +225,7 @@ function addDropTitle(row) {
                 <th class="col-round">{{ t('courseRegistration.batch.roundColMain') }}</th>
                 <th class="col-round">{{ t('courseRegistration.batch.roundColSupplement') }}</th>
                 <th class="col-result-release">{{ t('courseRegistration.schedule.colResultRelease') }}</th>
+                <th class="col-cross-release">{{ t('courseRegistration.schedule.colCrossRelease') }}</th>
                 <th class="col-compact">{{ t('courseRegistration.batch.roundColAddDrop') }}</th>
                 <th class="col-enabled">{{ t('courseRegistration.schedule.colEnabled') }}</th>
                 <th class="col-actions col-sticky-right">{{ t('common.actions') }}</th>
@@ -261,10 +269,15 @@ function addDropTitle(row) {
                 <td class="col-result-release" :title="resultReleaseSummary(row)">
                   {{ resultReleaseSummary(row) }}
                 </td>
+                <td class="col-cross-release" :title="crossReleaseSummary(row)">
+                  {{ crossReleaseSummary(row) }}
+                </td>
                 <td class="col-compact" :title="addDropTitle(row)">{{ addDropSummary(row) }}</td>
                 <td class="col-enabled">
                   <YnSwitch
                     :model-value="row.enabled !== false"
+                    :on-label="t('common.yes')"
+                    :off-label="t('common.no')"
                     @update:model-value="(v) => toggleEnabled(row, v)"
                   />
                 </td>
@@ -374,6 +387,14 @@ function addDropTitle(row) {
 }
 
 .schedule-data-table .col-result-release {
+  min-width: 128px;
+  max-width: 148px;
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.schedule-data-table .col-cross-release {
   min-width: 128px;
   max-width: 148px;
   font-size: 12px;

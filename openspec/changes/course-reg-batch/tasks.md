@@ -467,3 +467,41 @@
 - [x] 1.1 编辑批次「查看清单」跳转 BatchScopeRuleRosterDrawer · 全局选课名单
 - [x] 1.2 去掉表单内独立 BatchGlobalParticipantRosterDrawer
 ```
+
+## 增量 2026-09：特殊学生 chip 与学分上限
+
+- [x] 1. `batchStudentRoster` special 增 `selectionCreditMax`；CRUD/demo
+- [x] 2. `BatchSpecialStudentAddModal`：tag-chip 选中态；GE/ME 学分上限必填
+- [x] 3. `BatchSpecialStudentEditModal`：GE/ME 可改学分上限
+- [x] 4. `BatchScopeRuleRosterDrawer` 主表列 + i18n；更新 proposal/spec
+
+## 增量 2026-09：移除批次级是否可选
+
+- [x] 1. 列表去掉是否可选列与 YnSwitch；表单去掉单选与 hint
+- [x] 2. 创建/保存 payload 不再写 `isSelectable`；清理批次级 i18n
+- [x] 3. 更新 proposal/spec；勾选本 tasks
+
+## 增量 2026-09：特殊学生是否可选开关
+
+- [x] 1. `BatchScopeRuleRosterDrawer` 列内 YnSwitch + 即时更新；只读禁用
+- [x] 2. 更新 proposal；勾选本 tasks
+
+## 增量 2026-09：选课范围 GE/ME
+
+- [x] 1. i18n：专业范围设置 → 选课范围设置；ME 锁定提示
+- [x] 2. `BatchCourseProgrammeScopeModal`：ME 锁定 programme；仅改后两维
+- [x] 3. `BatchCoursesDrawer`：ME 列只读本批专业；传 batchType/programme
+- [x] 4. 更新 proposal/spec；勾选本 tasks
+
+## 增量 2026-09：选课范围去掉校选类型
+
+- [x] 1. `BatchCourseProgrammeScopeModal` 去掉校选课类型 UI 与校验
+- [x] 2. `updateCoursesAudienceScope` 按需写入；弹窗保存清除 audience 校选残留
+- [x] 3. i18n/help + proposal/spec；勾选本 tasks
+
+## 增量 2026-09：课程级老生年级占比
+
+- [x] 1. `selectableCourses`：`round1SeniorQuota` CRUD；senior 变更同步；解析优先级 API
+- [x] 2. 抽签 `drawOptsForSection` 优先课级 meQuotaRows
+- [x] 3. `BatchCourseRound1SeniorQuotaModal` + ME 工具条按钮；复用 MeQuotaRowsEditor
+- [x] 4. i18n；更新 proposal/spec；勾选本 tasks

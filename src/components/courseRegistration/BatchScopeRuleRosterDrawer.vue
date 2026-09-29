@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
 import TablePagination from '../common/TablePagination.vue'
+import YnSwitch from '../common/YnSwitch.vue'
 import BatchSpecialStudentAddModal from './BatchSpecialStudentAddModal.vue'
 import BatchSpecialStudentEditModal from './BatchSpecialStudentEditModal.vue'
 import BatchSpecialStudentImportModal from './BatchSpecialStudentImportModal.vue'
@@ -13,6 +14,7 @@ import {
   filterBatchRosterStudents,
   formatRosterIntake,
   removeBatchSpecialStudents,
+  updateBatchSpecialStudents,
 } from '../../data/courseRegistration/batchStudentRoster.js'
 import '../../styles/list-page-search.css'
 
@@ -43,6 +45,8 @@ const specialRefreshKey = ref(0)
 
 const batchId = computed(() => props.batch?.id || '')
 const batchName = computed(() => props.batch?.name || '')
+const batchType = computed(() => String(props.batch?.type || '').toUpperCase())
+const showSpecialCreditMax = computed(() => batchType.value === 'GE' || batchType.value === 'ME')
 
 const title = computed(() =>
   batchName.value
@@ -68,6 +72,16 @@ const batchReadOnlyHint = computed(() =>
     : t('courseRegistration.batch.activeReadOnlyHint'),
 )
 const showSpecialSelection = computed(() => isSpecialTab.value && !batchReadOnly.value)
+
+const specialTableColspan = computed(() => {
+  let n = 6
+  if (showSpecialSelection.value) n += 1
+  n += 2
+  if (showSpecialCreditMax.value) n += 1
+  return n
+})
+
+const eligibleTableColspan = 6
 
 const eligibleRows = computed(() => listGlobalBatchParticipants(props.batch))
 
@@ -182,10 +196,17 @@ function openEditSelectable() {
   editVisible.value = true
 }
 
-function selectableLabel(row) {
-  return row.selectable === false
-    ? t('common.no')
-    : t('common.yes')
+function handleSelectableToggle(row, value) {
+  if (batchReadOnly.value || !row?.studentId) return
+  const payload = {
+    selectable: value !== false,
+    remark: row.remark || '',
+  }
+  if (showSpecialCreditMax.value) {
+    payload.selectionCreditMax = row.selectionCreditMax
+  }
+  updateBatchSpecialStudents(batchId.value, [row.studentId], payload)
+  bumpSpecial()
 }
 
 function onSpecialSaved() {
@@ -336,6 +357,9 @@ function onSpecialImported() {
                   <th>{{ t('courseRegistration.batch.rosterFaculty') }}</th>
                   <template v-if="isSpecialTab">
                     <th>{{ t('courseRegistration.batch.specialSelectable') }}</th>
+                    <th v-if="showSpecialCreditMax">
+                      {{ t('courseRegistration.batch.specialCreditMax') }}
+                    </th>
                     <th>{{ t('courseRegistration.batch.specialRemark') }}</th>
                   </template>
                 </tr>
@@ -356,12 +380,30 @@ function onSpecialImported() {
                   <td>{{ formatRosterIntake(row.intake) }}</td>
                   <td>{{ row.faculty || '—' }}</td>
                   <template v-if="isSpecialTab">
-                    <td>{{ selectableLabel(row) }}</td>
+                    <td class="col-selectable">
+                      <YnSwitch
+                        :model-value="row.selectable !== false"
+                        :disabled="batchReadOnly"
+                        :on-label="t('common.yes')"
+                        :off-label="t('common.no')"
+                        @update:model-value="(v) => handleSelectableToggle(row, v)"
+                      />
+                    </td>
+                    <td v-if="showSpecialCreditMax">
+                      {{
+                        row.selectionCreditMax != null && row.selectionCreditMax !== ''
+                          ? row.selectionCreditMax
+                          : '—'
+                      }}
+                    </td>
                     <td>{{ row.remark || '—' }}</td>
                   </template>
                 </tr>
                 <tr v-if="!paginatedRows.length">
-                  <td :colspan="isSpecialTab ? (showSpecialSelection ? 9 : 8) : 6" class="empty-cell">
+                  <td
+                    :colspan="isSpecialTab ? specialTableColspan : eligibleTableColspan"
+                    class="empty-cell"
+                  >
                     <div class="empty-block">
                       <p class="empty-title">{{ t('common.noData') }}</p>
                     </div>
@@ -392,6 +434,7 @@ function onSpecialImported() {
   <BatchSpecialStudentAddModal
     :visible="addVisible"
     :batch-id="batchId"
+    :batch-type="batchType"
     @close="addVisible = false"
     @saved="onSpecialSaved"
   />
@@ -399,6 +442,7 @@ function onSpecialImported() {
   <BatchSpecialStudentEditModal
     :visible="editVisible"
     :batch-id="batchId"
+    :batch-type="batchType"
     :student-ids="selectedIds"
     :seed="editSeed"
     @close="editVisible = false"
@@ -600,6 +644,11 @@ function onSpecialImported() {
 
 .col-check {
   width: 40px;
+}
+
+.col-selectable {
+  width: 88px;
+  text-align: center;
 }
 
 .empty-cell {

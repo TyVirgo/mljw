@@ -52,3 +52,13 @@ src/i18n/locales/zh.js / en.js
 ## 增量：第三轮互释校级开关（align-ge-me）
 
 「第三轮选课新老生名额互释」作为规则表一行（`CR205`，flag，默认开），与 CR201–CR204、CR107 同表；必须NOT 独立卡片。批次可经 `localRules.releaseCrossAudienceOnRound3` 覆盖。第一轮容量细分在管理轮次 · 老生第一轮。详见 `align-ge-me-senior-freshman-model`。
+
+## 增量：长短学期本学期学分上限（2026-09）
+
+| 决策 | 说明 |
+|------|------|
+| 长学期 09 | 本学期上限 **20**（要求点与 demo 例子统一用 20，如 17/20） |
+| 短学期 02、04 | 本学期上限 **7** |
+| 代码 | 已有 `LONG_SEMESTER_CREDIT_MAX=20`；缺 `SHORT_SEMESTER_CREDIT_MAX=7`；须按 `academicSession` 月码选用 |
+| 最低学分 | 暂不改：长 12 / 短 4（`SHORT_SEMESTER_CREDIT_MIN`） |
+| 联动 | 加退学期帽见 `enrich-adddrop-section-fees` §32；在线选课见 `course-reg-student-register` §20 补充 |

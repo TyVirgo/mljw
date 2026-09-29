@@ -6,6 +6,112 @@
 - [x] 2. 保留合并来源列表便于需求文档回溯
 - [x] 3. 删除已被合并的旧变更目录
 
+## 增量（2026-09 课程组对齐 / 课表预览 / 时段排序）
+
+- [x] 课程组列：Group 左对齐 + Intake 下一行，单元格上下居中
+- [x] `getSectionMeetings`：多段按时段 Mon→Sun、早→晚排序
+- [x] `buildPreviewSchedule`：预览去重含教学分组，同课多分组均上表
+- [x] `WeekScheduleGrid`：虚线冲突课块右上角 `!` + clashRowTip
+
+## 增量（2026-09 退选按教学分组）
+
+- [x] `unselectConfirmedCourse` / 已确认移除：按 `courseId + sectionId` 只删该行
+- [x] `removeStudentPreselectVolunteer` 支持按分组撤销
+- [x] 本轮选课情况 / 选课篮退选传分组；志愿调序键行级化
+
+## 增量（2026-09 R2/R3 可选名额）
+
+- [x] 分组级可选名额/总名额计算（R2 本池、R3 互释）
+- [x] 主表/筛选/分组选择器文案与判满对齐；R1 不变
+
+## 增量（2026-09 入口查看课程）
+
+- [x] 入口按钮矩阵：R1 未开始/公布后可查看；R1 进行中进入选课；R2/R3 待开放屏蔽查看
+- [x] `demoActiveRound: null` 无开放轮；GE/ME 增加 R1 未开放 demo 批
+- [x] 同专业 4 档时间序（去掉 0b）；未开放批复用 R1 课表数据
+- [x] `demoCatalogPhase` 固定 (0) 置顶；查看课程对齐正式 R1（ME 课程组/样式；隐藏容量列）
+
+## 增量（2026-09 入口卡毕业学分文案与 GE tip）
+
+- [x] `graduationCreditBar` 改用 `graduationElectiveProgressGe/Me`
+- [x] GE 标题旁 tip（i18n zh/en）+ 图标可见尺寸
+
+## 增量（2026-09 ME 课程组学分细分）
+
+- [x] ME 进度改为 group4of3 / group3of2 / group2of1 / ordinary
+- [x] 入口卡 / 列表工具条 / 监控 / 加退选 short keys + demo 同步
+
+## 增量（2026-09 本轮选课情况课程组列与志愿软提示）
+
+- [x] ME 本轮选课情况 / 选课篮志愿表加课程组列
+- [x] `clashRowTip` 加长；新增同课多分组 tip；两者并存同 tip 展示
+- [x] 课表冲突 tip 同步时间冲突长文案
+
+## 增量（2026-09 ME tip 与本轮选课情况文案）
+
+- [x] ME 标题 tip（培养方案过滤）
+- [x] 标题改为「已提交 N 个志愿」；副标题同一行三条说明
+
+## 增量（2026-09 学分胶囊文案与实时已选）
+
+- [x] i18n：胶囊「(已选/要求)」+ 类型后缀；行标题去掉括号说明
+- [x] 学期/毕业已选分子含待分配志愿；GE 分类与 ME 课程组按课实时汇总
+- [x] 入口卡与列表工具条随退选刷新
+
+## 增量（2026-09 列表顶栏本轮同源与右栏两行）
+
+- [x] `listRoundStatusCreditCourses`：列表顶栏已选与本轮表同源
+- [x] 列表工具条学分区：同一工具条行内毕业上/学期下，右栏限宽
+- [x] 每行内总分+分类 nowrap 横排（分类不单独换行）
+
+## 增量（2026-09 学分列对齐、入口同步与无超分色）
+
+- [x] 毕业/学期两行列对齐；列表学分块再收窄
+- [x] 入口卡按所选批次与列表顶栏同源
+- [x] 无超分红色；demo 志愿学分降至 1～2 并挂入课程组
+
+## 增量（2026-09 提交学分帽同源与入口四行）
+
+- [x] `assertTermCreditCap` / 相关校验改本轮口径，与顶栏一致
+- [x] 入口卡恢复标签+胶囊各两行的四行布局
+
+## 增量（2026-09 本学期分类学分上限拦截）
+
+- [x] `checkTermCategoryCreditCapForCourse`（本轮；GE 校选类别 / ME 课程组）+ 修正 `wouldExceedTermGeCategory`
+- [x] 接入 `canRegisterRow` / tip / 提交门禁；i18n「学分超过上限不允许提交」
+- [x] Demo：某分类满额使同类型提交钮置灰可见
+
+## 增量（2026-09 列表查询条与学分工具栏冻结）
+
+- [x] 包裹查询条 + 学分工具栏为 sticky chrome；白底/层级；GE/ME 同布局
+- [x] 「本轮选课情况」不纳入冻结；冒烟：主内容区滚动时筛选与学分仍可操作
+
+## 增量（2026-09 学分总分与分类明细分隔符）
+
+- [x] 列表学分矩阵总分与分类之间加 `|`（跨行）；入口卡同步；GE/ME 同改
+
+## 增量（2026-09 提交时间列）
+
+- [x] `formatSelectedAt` 展示为 DD/MM/YYYY HH:mm:ss；存储仍用可解析时间戳；i18n「提交时间」
+- [x] 本轮选课情况主表 + 排队中：状态前列「提交时间」
+- [x] 我的选课·第一轮志愿结果：上课时间地点与志愿次序之间加列；历史 Tab 文案/格式对齐
+
+## 增量（2026-09 ME 课程组 demo 对齐与退选百分比）
+
+- [x] `selectionGroups` 改为真 4选3 / 3选2 / 2选1；组外普通选课行保留
+- [x] demo 待分配志愿与组内课码对齐；退选同步撤志愿名单以刷新百分比
+
+## 增量（2026-09 在线选课列表范围小字提醒）
+
+- [x] 主表上方小字：选课页面只展示当前学期符合该学生类型选课的课程列表；GE/ME 同页
+
+## 增量（2026-09 本轮选课情况课程已选百分比冻结列）
+
+- [x] `StudentRegistrationRoundStatusPanel` 主表与排队表在状态/操作间加「课程已选百分比」冻结列；`sectionSelectedPercent` 取志愿人数/分组容量
+- [x] CSS：`sticky-capacity` 右冻结；`has-capacity-col` 限定时 `sticky-status` 右偏移让位；仅 `showVolunteerOrder` 展示；emptyColspan 同步
+- [x] 百分比包胶囊 `capacity-pill` + `sectionCapacityClass`（绿/黄/红与选课列表同源）；数据同源同步
+- [x] 提案/spec/tasks 同步 §26
+
 ## 增量（2026-07）
 
 - [x] 专业选修表增加「校选类别」列（文/商/理混杂展示）+ 表头 tooltip

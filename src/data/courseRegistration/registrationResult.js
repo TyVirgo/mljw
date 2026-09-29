@@ -7,6 +7,8 @@ import { getBatchById, registrationBatches } from './registrationBatches.js'
 import { DEFAULT_MOCK_CURRENT_STUDENT_ID } from '../mockCurrentStudent.js'
 import { deriveClassTime } from './sectionScheduleFields.js'
 import { formatIntakeBatch } from '../intakeSets.js'
+import { resolveSchoolElectiveCategory } from './selectableCourses.js'
+import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 
 /** Demo：管理端代选操作人 */
 export const DEMO_ADMIN_OPERATOR_NAME = 'AC Lee'
@@ -65,7 +67,7 @@ export function buildStudentRegistrationResults(monitorRows = registrationMonito
 }
 
 /**
- * 为每个选课批次补若干学生×课程明细（演示用）
+ * 为每个选课批次补学生×课程明细（演示用；每批约 25 行，保证学生维切换非空且可翻页）
  * @param {number} startIndex 用于轮转 courseSource / isRetake
  * @returns {object[]}
  */
@@ -74,23 +76,25 @@ function buildBatchCoverageStudentResults(startIndex = 0) {
   if (!candidates.length) return []
   const out = []
   let rowIndex = startIndex
-  const primaryBatchId = 'batch-2504-m1'
+  const ROWS_PER_BATCH = 25
   for (const batch of registrationBatches.value) {
-    const limit = batch.id === primaryBatchId ? 6 : 4
-    const courses = selectableCourses.value.filter((c) => c.batchId === batch.id).slice(0, limit)
-    courses.forEach((course, courseIndex) => {
-      const profile = candidates[(rowIndex + courseIndex) % candidates.length]
-      const section = course.sections?.[courseIndex % (course.sections?.length || 1)] || course.sections?.[0]
+    const courses = selectableCourses.value.filter((c) => c.batchId === batch.id)
+    if (!courses.length) continue
+    for (let i = 0; i < ROWS_PER_BATCH; i += 1) {
+      const course = courses[i % courses.length]
+      const profile = candidates[(rowIndex + i) % candidates.length]
+      const sectionList = course.sections?.length ? course.sections : [null]
+      const section = sectionList[i % sectionList.length]
       out.push({
-        id: `result-stu-batch-${batch.id}-${course.code}-${profile.studentId}`,
+        id: `result-stu-batch-${batch.id}-${course.code}-${profile.studentId}-${i}`,
         studentId: profile.studentId,
         studentName: profile.studentName,
         programme: profile.programme,
         intake: profile.intake || (profile.grade === '2025' ? '2504' : '2409'),
         batchId: batch.id,
         batchName: batch.name || resolveBatchName(batch.id),
-        courseSource: demoCourseSource(rowIndex),
-        isRetake: rowIndex % 5 === 2,
+        courseSource: demoCourseSource(rowIndex + i),
+        isRetake: (rowIndex + i) % 5 === 2,
         courseCode: course.code,
         courseName: course.name,
         credits: Number(course.credits) || 0,
@@ -98,8 +102,8 @@ function buildBatchCoverageStudentResults(startIndex = 0) {
         sectionCode: section?.code || '',
         status: 'confirmed',
       })
-      rowIndex += 1
-    })
+    }
+    rowIndex += ROWS_PER_BATCH
   }
   return out
 }
@@ -215,13 +219,17 @@ export function listTargetCourseSectionOptions(courseId = '', options = {}) {
         courseCode: course.code,
         courseName: course.name,
         credits: course.credits,
+        courseType: course.type || '',
+        schoolElectiveCategory: resolveSchoolElectiveCategory(course),
         sectionCode: section.code,
+        sectionName: formatCourseSectionName(section),
         batchId: course.batchId || '',
         enrolled,
         capacity,
         remaining,
         isFull,
-        label: `${course.code} ${course.name} · ${section.code}（${enrolled}/${capacity || '—'}）`,
+        // 不限额代选：不展示已选/容量；分组展示用「分组名称{code}」
+        label: `${course.code} ${course.name} · ${formatCourseSectionName(section)}`,
       })
     }
   }
@@ -539,6 +547,127 @@ const DEMO_CANDIDATE_STUDENTS = [
     studentCategory: 'International',
     relativeSemester: 5,
   },
+  // 白名单选人池扩容（未入初始白名单，保证可选 ≥10）
+  {
+    studentId: 'COS2504021',
+    studentName: 'Kevin Lim',
+    gender: 'M',
+    faculty: 'School of Information',
+    grade: '2025',
+    programme: 'COS',
+    intake: '2504',
+    groupName: 'COS2504-G2',
+    studentCategory: 'Local',
+    relativeSemester: 2,
+  },
+  {
+    studentId: 'DSA2504018',
+    studentName: 'Maya Chen',
+    gender: 'F',
+    faculty: 'School of Information',
+    grade: '2025',
+    programme: 'DSA',
+    intake: '2504',
+    groupName: 'DSA2504-G2',
+    studentCategory: 'Local',
+    relativeSemester: 2,
+  },
+  {
+    studentId: 'SWE2504022',
+    studentName: 'Owen Park',
+    gender: 'M',
+    faculty: 'School of Information',
+    grade: '2025',
+    programme: 'SWE',
+    intake: '2504',
+    groupName: 'SWE2504-G2',
+    studentCategory: 'International',
+    relativeSemester: 2,
+  },
+  {
+    studentId: 'BUS2504015',
+    studentName: 'Rachel Teo',
+    gender: 'F',
+    faculty: 'School of Business',
+    grade: '2025',
+    programme: 'BUS',
+    intake: '2504',
+    groupName: 'BUS2504-G1',
+    studentCategory: 'Local',
+    relativeSemester: 2,
+  },
+  {
+    studentId: 'ACC2504016',
+    studentName: 'Samuel Goh',
+    gender: 'M',
+    faculty: 'School of Business',
+    grade: '2025',
+    programme: 'ACC',
+    intake: '2504',
+    groupName: 'BUS2504-G1',
+    studentCategory: 'Local',
+    relativeSemester: 2,
+  },
+  {
+    studentId: 'FIN2504017',
+    studentName: 'Tina Ng',
+    gender: 'F',
+    faculty: 'School of Business',
+    grade: '2025',
+    programme: 'FIN',
+    intake: '2504',
+    groupName: 'BUS2504-G2',
+    studentCategory: 'Local',
+    relativeSemester: 2,
+  },
+  {
+    studentId: 'AIT2504020',
+    studentName: 'Victor Tan',
+    gender: 'M',
+    faculty: 'School of Information',
+    grade: '2025',
+    programme: 'AIT',
+    intake: '2504',
+    groupName: 'AIT2504-G1',
+    studentCategory: 'Local',
+    relativeSemester: 2,
+  },
+  {
+    studentId: 'ENG2504007',
+    studentName: 'Wendy Loh',
+    gender: 'F',
+    faculty: 'School of Humanities',
+    grade: '2025',
+    programme: 'ENG',
+    intake: '2504',
+    groupName: 'ENG2504-G1',
+    studentCategory: 'Local',
+    relativeSemester: 2,
+  },
+  {
+    studentId: 'CHE2504005',
+    studentName: 'Xavier Ong',
+    gender: 'M',
+    faculty: 'School of Energy and Chemical Engineering',
+    grade: '2025',
+    programme: 'CHE',
+    intake: '2504',
+    groupName: 'CHE2504-G1',
+    studentCategory: 'International',
+    relativeSemester: 2,
+  },
+  {
+    studentId: 'MAT2504012',
+    studentName: 'Yvonne Koh',
+    gender: 'F',
+    faculty: 'School of Energy and Chemical Engineering',
+    grade: '2025',
+    programme: 'MAT',
+    intake: '2504',
+    groupName: 'MAT2504-G1',
+    studentCategory: 'Local',
+    relativeSemester: 2,
+  },
 ]
 
 export function listAdminAddStudentCandidates() {
@@ -577,15 +706,18 @@ function findTargetSection(targetValue) {
 
 /**
  * 管理端代选：为多名学生挂上目标课程班
- * @param {{ targetValue: string, studentIds: string[] }} payload targetValue=courseId::sectionId；studentIds 学号列表
- * @returns {{ ok: boolean, added?: number, errorKey?: string }}
+ * @param {{ targetValue: string, studentIds: string[], allowOverCapacity?: boolean }} payload
+ *   targetValue=courseId::sectionId；studentIds 学号列表；
+ *   allowOverCapacity=true 时跳过满员校验（仅学生维度「新增」）
+ * @returns {{ ok: boolean, added?: number, errorKey?: string, overCapacity?: boolean }}
  */
-export function addAdminStudentRegistrations({ targetValue, studentIds }) {
+export function addAdminStudentRegistrations({ targetValue, studentIds, allowOverCapacity = false }) {
   const target = findTargetSection(targetValue)
   if (!target) return { ok: false, errorKey: 'courseRegistration.result.addTargetRequired' }
   if (!studentIds?.length) return { ok: false, errorKey: 'courseRegistration.result.addStudentRequired' }
-  // 提交时再校验满员：满员不可代选
-  if (target.isFull || !isTargetSectionAvailable(targetValue)) {
+  const overCapacity = Boolean(target.isFull)
+  // 默认满员不可代选；学生维度不限额入口传 allowOverCapacity
+  if (!allowOverCapacity && (target.isFull || !isTargetSectionAvailable(targetValue))) {
     return { ok: false, errorKey: 'courseRegistration.result.addCourseFull' }
   }
 
@@ -595,8 +727,7 @@ export function addAdminStudentRegistrations({ targetValue, studentIds }) {
   let added = 0
 
   for (const studentId of studentIds) {
-    // 多人代选时按人次复核容量，避免超额
-    if (!isTargetSectionAvailable(targetValue)) {
+    if (!allowOverCapacity && !isTargetSectionAvailable(targetValue)) {
       if (!added) return { ok: false, errorKey: 'courseRegistration.result.addCourseFull' }
       break
     }
@@ -695,7 +826,7 @@ export function addAdminStudentRegistrations({ targetValue, studentIds }) {
   if (!added) {
     return { ok: false, errorKey: 'courseRegistration.result.addStudentRequired' }
   }
-  return { ok: true, added }
+  return { ok: true, added, overCapacity }
 }
 
 export function removeAdminStudentRegistrations(ids = []) {

@@ -52,3 +52,16 @@
 - 含 **名额总数**、行 **名额占比** 与 **名额数**，三者可编辑并联动；占比合计 100%，名额数合计 = 总数。
 - 新建批次类型默认「请选择」；编辑 ME 批：③ 名额占比 → ④ 参与范围。
 - 有特殊名单时 special 占比/名额数 > 0；抽签逻辑不变（仍按 share 切分运行时容量）。
+
+## 增量：单位覆盖区分 GE/ME（2026-09）
+
+- 学期全局选课时间仍不区分课程类型。
+- 单位批次时间覆盖唯一键改为 `(unitCode, academicSession, courseType)`，`courseType ∈ {GE, ME}`。
+- 单位覆盖列表增加「课程类型」列；同一学院可同时存在 GE、ME 两行。
+- 新增单位：`UnitPickModal` 必选课程类型（单选）+ 多选学院；置灰键为「单位|类型」已配置组合，非整单位禁用。
+- 生效解析：`resolveEffectiveAudienceRounds` / `resolveEffectiveCrossReleaseAt` 按批次 `type`（GE/ME）匹配单位覆盖；无覆盖则回退学期全局。
+- Demo：同学期同单位提供 GE/ME 分时样例（如 2026/09 的 CAMS、SCDS）。
+
+## 增量：UnitPickModal 弹窗壳对齐（2026-09）
+
+- `UnitPickModal` 视觉对齐批次「特殊学生新增」等同模块弹窗：头/身/底分区、标题 16/600、圆角 10、底栏按钮 32px/6px；逻辑不变。

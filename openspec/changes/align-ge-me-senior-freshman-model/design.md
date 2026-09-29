@@ -56,7 +56,8 @@ batch.roundsByAudience = {
 - R3「第三轮选课新老生名额互释」：
   - 校级：规则表 `CR205`（flag，默认开），与其它选课规则同行展示，必须NOT 另起独立卡片。
   - 批次：`localRules.releaseCrossAudienceOnRound3`（新建默认勾选）；`isReleaseCrossAudienceOnRound3(batch)` 批次有显式字段时优先，否则回退 CR205。
-  - 学生 R3 有效空位 = 本池剩余 +（互释开时）对方池剩余（`getRound3EffectiveRemaining`）。
+  - **生效时刻**：学期/学院选课时间 `crossReleaseAt`（见 `add-session-registration-schedule`）；`isCrossAudienceReleaseActive(batch)` = 开关开且 `now ≥` 解析后的时刻。
+  - 学生 R3 有效空位 = 本池剩余 +（**互释已生效**时）对方池剩余（`getRound3EffectiveRemaining`）。
 
 ### 4. 第一轮容量细分与录取（批次配置，无校级 r）
 

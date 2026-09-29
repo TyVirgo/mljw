@@ -1,8 +1,13 @@
 /**
- * 第一轮待分配志愿之间的上课时间互撞（软提示，不挡提交/确认）
+ * 第一轮待分配志愿：上课时间互撞 + 同课多教学分组（软提示，不挡提交/确认）
+ * 另：相对必修的硬冲突扫描（挡确认志愿顺序）
  */
 import { detectScheduleConflict } from './registrationRules.js'
 import { getSectionMeetings } from './sectionScheduleFields.js'
+import {
+  buildScheduleBaselineFromEnrolled,
+  getSectionMeetingsConflictInfo,
+} from './addDropSectionConflict.js'
 
 /**
  * @param {string} time
@@ -38,6 +43,14 @@ export function volunteerRowsTimeConflict(a, b) {
     if (detectScheduleConflict(slotA, slotsB)) return true
   }
   return false
+}
+
+function rowCourseKey(row) {
+  return String(row?.courseId || row?.courseCode || '').trim()
+}
+
+function rowSectionKey(row) {
+  return String(row?.sectionId || row?.id || row?.sectionCode || '').trim()
 }
 
 /**
@@ -86,4 +99,83 @@ export function listPendingVolunteerTimeConflicts(rows = []) {
     }
   }
   return { groups, byCourseId }
+}
+
+/**
+ * 同一课程下提交了 ≥2 个不同教学分组志愿
+ * @param {object[]} rows
+ * @returns {{ multiCourseKeys: Set<string>, byCourseKey: Record<string, boolean> }}
+ */
+export function listPendingVolunteerMultiSections(rows = []) {
+  /** @type {Map<string, Set<string>>} */
+  const sectionsByCourse = new Map()
+  for (const row of rows || []) {
+    const courseKey = rowCourseKey(row)
+    const sectionKey = rowSectionKey(row)
+    if (!courseKey || !sectionKey) continue
+    if (!sectionsByCourse.has(courseKey)) sectionsByCourse.set(courseKey, new Set())
+    sectionsByCourse.get(courseKey).add(sectionKey)
+  }
+  const multiCourseKeys = new Set()
+  const byCourseKey = {}
+  for (const [courseKey, sections] of sectionsByCourse) {
+    if (sections.size >= 2) {
+      multiCourseKeys.add(courseKey)
+      byCourseKey[courseKey] = true
+    }
+  }
+  return { multiCourseKeys, byCourseKey }
+}
+
+/**
+ * 行是否属于同课多分组志愿
+ * @param {object} row
+ * @param {{ byCourseKey?: Record<string, boolean> }} multi
+ */
+export function volunteerRowHasMultiSection(row, multi) {
+  if (!row || !multi?.byCourseKey) return false
+  return Boolean(multi.byCourseKey[rowCourseKey(row)])
+}
+
+/**
+ * R1 待分配相对必修（硬基线）：任一门撞必修则不可确认志愿顺序
+ * @param {object[]} rows
+ * @param {object[]} required
+ * @returns {{ ok: boolean, conflict?: boolean, withCourse?: string, withTime?: string, errorKey?: string, errorParams?: object, courseCode?: string }}
+ */
+export function getPendingVolunteersHardConflictGate(rows = [], required = []) {
+  const baseline = buildScheduleBaselineFromEnrolled(
+    (required || []).map((item) => ({
+      ...item,
+      sourceType: item.sourceType || 'required',
+    })),
+  )
+  for (const row of rows || []) {
+    const info = getSectionMeetingsConflictInfo(
+      {
+        time: row.time || row.classTime,
+        meetings: row.meetings,
+      },
+      baseline,
+    )
+    if (info.conflict) {
+      const src = String(info.withSourceType || '')
+      const required = src === 'required' || src === 'programme'
+      return {
+        ok: false,
+        conflict: true,
+        withCourse: info.withCourse,
+        withTime: info.withTime,
+        errorKey: required
+          ? 'courseRegistration.student.scheduleConflictHardRequired'
+          : 'courseRegistration.student.scheduleConflictHardElective',
+        errorParams: {
+          course: info.withCourse || '—',
+          time: info.withTime || '—',
+        },
+        courseCode: String(row.courseCode || row.code || ''),
+      }
+    }
+  }
+  return { ok: true }
 }

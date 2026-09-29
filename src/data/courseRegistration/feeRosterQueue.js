@@ -814,11 +814,11 @@ const initialPaidRows = [
   },
 ]
 
-/** 缴费名单课程明细（含未缴费 paid=N 与已缴费 paid=Y） */
+/** 缴费名单课程明细（含未缴费 paid=N 与已缴费 paid=Y）；不含学生端缴费自动灌入行 */
 export const feeRosterRows = ref([
   ...initialUnpaidRows.map((row) => ({ ...row, paid: 'N', paidAt: '' })),
   ...initialPaidRows.map((row) => ({ ...row })),
-])
+].filter((row) => row.entrySource !== 'student_payment' && String(row.studentName || '').trim()))
 
 /**
  * @deprecated 已缴费改由 feeRosterRows.paid==='Y' 聚合；保留空数组避免旧引用报错
@@ -913,27 +913,31 @@ export function calcBillableCredits(enrolledCredits, creditMin) {
 }
 
 /**
- * 按学生聚合；已选学分 = 同缴费状态下该生课程学分之和
+ * 按学生聚合；同一学生按 isPaid 分行（避免混排时 Y/N 互相覆盖）
  * 超最低学分，或人工补录（manual/import）均展示；已缴费行不过滤超学分
  * @param {object[]} detailRows 已按 paid 等条件过滤的明细
- * @param {object[]} allRows 同状态全集（默认用 detailRows）
+ * @param {object[]} allRows 同筛选全集（默认用 detailRows）
  */
 export function aggregateFeeRosterStudents(detailRows = [], allRows = detailRows) {
   const map = new Map()
   for (const row of detailRows) {
-    if (map.has(row.studentId)) continue
-    const courses = allRows.filter((item) => item.studentId === row.studentId)
+    const paid = isFeeRosterRowPaid(row)
+    const key = `${row.studentId}::${paid ? 'Y' : 'N'}`
+    if (map.has(key)) continue
+    const courses = allRows.filter(
+      (item) => item.studentId === row.studentId && isFeeRosterRowPaid(item) === paid,
+    )
     const realCourses = courses.filter((item) => String(item.courseCode || '').trim())
     const enrolledCredits = courses.reduce((sum, item) => sum + (Number(item.courseCredits) || 0), 0)
     const creditMin = Number(row.creditMin) || LONG_SEMESTER_CREDIT_MIN
-    const paid = isFeeRosterRowPaid(row)
     const forceInclude = courses.some(
       (item) =>
         item.entrySource === 'manual' ||
         item.entrySource === 'import' ||
-        item.entrySource === 'sync',
+        item.entrySource === 'sync' ||
+        item.entrySource === 'student_payment',
     )
-    map.set(row.studentId, {
+    map.set(key, {
       studentId: row.studentId,
       studentName: row.studentName,
       programme: row.programme,
@@ -955,10 +959,14 @@ export function aggregateFeeRosterStudents(detailRows = [], allRows = detailRows
   )
 }
 
-export function getFeeRosterCoursesByStudent(studentId, detailRows = feeRosterRows.value) {
-  return detailRows.filter(
-    (row) => row.studentId === studentId && String(row.courseCode || '').trim(),
-  )
+export function getFeeRosterCoursesByStudent(studentId, detailRows = feeRosterRows.value, opts = {}) {
+  const paidFilter = opts.paid
+  return detailRows.filter((row) => {
+    if (row.studentId !== studentId || !String(row.courseCode || '').trim()) return false
+    if (paidFilter === 'Y' && !isFeeRosterRowPaid(row)) return false
+    if (paidFilter === 'N' && isFeeRosterRowPaid(row)) return false
+    return true
+  })
 }
 
 export function feeCourseSourceLabel(source, t) {
@@ -1317,4 +1325,15 @@ export function appendFeeRosterFromApproval(app) {
     count += 1
   }
   return { ok: true, count }
+}
+
+/**
+ * 学生端课程缴费 → 缴费名单的挂钩点（演示期默认不灌数）。
+ * 流转说明：选课结果/缴费明细 →（可选）本函数 → 未缴费明细 → 导入已缴费。
+ * 正式对接时可恢复写入；当前避免把学生端演示明细污染教务缴费名单 demo。
+ * @param {object[]} lines
+ */
+export function upsertFeeRosterFromPaymentLines(lines = []) {
+  void lines
+  return { ok: true, count: 0, skipped: true }
 }

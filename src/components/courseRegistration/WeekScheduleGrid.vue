@@ -5,6 +5,7 @@ import {
   formatHourRangeLabel,
   formatVenueDisplay,
 } from '../../data/courseRegistration/sectionScheduleFields.js'
+import '../../styles/course-registration-list.css'
 
 const props = defineProps({
   schedule: { type: Array, default: () => [] },
@@ -116,10 +117,23 @@ function placeSlotsForDay(day) {
   }
 
   for (const slot of placed) {
-    const peers = placed.filter(
+    const timePeers = placed.filter(
       (other) => other.startH < slot.endH && other.endH > slot.startH,
     )
-    slot.laneCount = Math.max(...peers.map((p) => p.lane), 0) + 1
+    slot.laneCount = Math.max(...timePeers.map((p) => p.lane), 0) + 1
+    slot.conflictPeers = [
+      ...new Set(
+        timePeers
+          .filter(
+            (other) =>
+              other !== slot &&
+              (other.course !== slot.course ||
+                String(other.sectionCode || '') !== String(slot.sectionCode || '')),
+          )
+          .map((p) => p.course)
+          .filter(Boolean),
+      ),
+    ]
   }
 
   return placed
@@ -215,6 +229,25 @@ function hourLabel(hour) {
 function slotKey(slot) {
   return `${slot.course}-${slot.sectionCode || ''}-${slot.startH}-${slot.lane}`
 }
+
+function isDashedSlot(slot) {
+  const layer = slot.layer || (slot.preview ? 'preview' : 'confirmed')
+  return slot.stroke === 'dashed' || layer === 'preview'
+}
+
+function showConflictMark(slot) {
+  return isDashedSlot(slot) && Array.isArray(slot.conflictPeers) && slot.conflictPeers.length > 0
+}
+
+function formatConflictCourses(codes) {
+  return (codes || []).filter(Boolean).join(isZh.value ? '、' : ', ')
+}
+
+function conflictTip(slot) {
+  return t('courseRegistration.student.volunteerSheet.clashRowTip', {
+    courses: formatConflictCourses(slot.conflictPeers),
+  })
+}
 </script>
 
 <template>
@@ -289,6 +322,23 @@ function slotKey(slot) {
                 :style="blockStyle(slot)"
                 :title="blockTitle(slot)"
               >
+                <span
+                  v-if="showConflictMark(slot)"
+                  class="hint-popover-wrap cell-conflict-mark"
+                  @click.stop
+                >
+                  <span
+                    class="hint-popover-trigger cell-conflict-icon"
+                    tabindex="0"
+                    role="img"
+                    :aria-label="conflictTip(slot)"
+                  >
+                    !
+                  </span>
+                  <span class="hint-popover-content hint-popover-content--sm" role="tooltip">
+                    {{ conflictTip(slot) }}
+                  </span>
+                </span>
                 <div class="cell-code">{{ displayCourseCode(slot) }}</div>
                 <div v-if="displayName(slot)" class="cell-name">{{ displayName(slot) }}</div>
                 <div v-if="displayLecturer(slot)" class="cell-meta">{{ displayLecturer(slot) }}</div>
@@ -489,7 +539,7 @@ function slotKey(slot) {
   pointer-events: auto;
   padding: 2px 3px;
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -500,6 +550,43 @@ function slotKey(slot) {
   line-height: 1.2;
   gap: 0;
   min-width: 0;
+}
+
+.cell-conflict-mark {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cell-conflict-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #d97706;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85);
+}
+
+.cell-conflict-mark .hint-popover-content {
+  top: auto;
+  bottom: calc(100% + 6px);
+  left: auto;
+  right: 0;
+  transform: none;
+  z-index: 50;
+  min-width: 160px;
+  max-width: min(280px, 50vw);
+  text-align: left;
+  white-space: normal;
 }
 
 .cell-block.is-required.is-solid {

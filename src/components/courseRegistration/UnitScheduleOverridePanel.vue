@@ -12,6 +12,7 @@ import {
   upsertUnitScheduleOverride,
   removeUnitScheduleOverride,
   formatUnitLabel,
+  normalizeUnitCourseType,
 } from '../../data/courseRegistration/sessionRegistrationSchedules.js'
 
 const props = defineProps({
@@ -26,6 +27,7 @@ const { t, locale } = useAppI18n()
 const pickModalVisible = ref(false)
 const editUnitCode = ref('')
 const editUnitCodes = ref([])
+const editCourseType = ref('GE')
 const editSchedule = ref(null)
 const editDrawerVisible = ref(false)
 
@@ -37,12 +39,17 @@ const title = computed(() =>
 
 const overrides = computed(() => listUnitOverridesForSession(sessionKey.value))
 
-const configuredUnitCodes = computed(() => overrides.value.map((o) => o.unitCode))
+/** 已配置：单位|类型 */
+const configuredUnitTypeKeys = computed(() =>
+  overrides.value.map((o) => `${o.unitCode}|${normalizeUnitCourseType(o.courseType)}`),
+)
 
 const tableRows = computed(() =>
   overrides.value.map((ov) => ({
     ...ov,
+    courseType: normalizeUnitCourseType(ov.courseType),
     unitLabel: formatUnitLabel(ov.unitCode, locale.value === 'zh'),
+    courseTypeLabel: t(`courseRegistration.schedule.courseType.${normalizeUnitCourseType(ov.courseType)}`),
   })),
 )
 
@@ -53,6 +60,7 @@ watch(
     pickModalVisible.value = false
     editUnitCode.value = ''
     editUnitCodes.value = []
+    editCourseType.value = 'GE'
     editSchedule.value = null
     editDrawerVisible.value = false
   },
@@ -62,10 +70,11 @@ function openPickModal() {
   pickModalVisible.value = true
 }
 
-function handleUnitsPicked(codes) {
+function handleUnitsPicked({ unitCodes, courseType }) {
   pickModalVisible.value = false
   editUnitCode.value = ''
-  editUnitCodes.value = codes
+  editUnitCodes.value = unitCodes || []
+  editCourseType.value = normalizeUnitCourseType(courseType)
   editSchedule.value = null
   editDrawerVisible.value = true
 }
@@ -73,18 +82,27 @@ function handleUnitsPicked(codes) {
 function openEditOverride(row) {
   editUnitCode.value = row.unitCode
   editUnitCodes.value = []
+  editCourseType.value = normalizeUnitCourseType(row.courseType)
   editSchedule.value = { ...row }
   editDrawerVisible.value = true
 }
 
 function handleDelete(row) {
-  const name = row.unitLabel || row.unitCode
+  const typeLabel = t(`courseRegistration.schedule.courseType.${normalizeUnitCourseType(row.courseType)}`)
+  const name = `${row.unitLabel || row.unitCode} · ${typeLabel}`
   if (!window.confirm(t('courseRegistration.schedule.deleteUnitOverrideConfirm', { name }))) return
-  removeUnitScheduleOverride(row.unitCode, sessionKey.value)
+  removeUnitScheduleOverride(row.unitCode, sessionKey.value, row.courseType)
 }
 
 function resultReleaseSummary(row) {
   const at = row.roundsByAudience?.senior?.resultReleaseAt
+  if (!at) return t('courseRegistration.batch.roundNotConfigured')
+  const picker = batchDateToPicker(at) || at
+  return String(picker).replace(/(\d{2}:\d{2}):\d{2}/g, '$1')
+}
+
+function crossReleaseSummary(row) {
+  const at = row.crossReleaseAt
   if (!at) return t('courseRegistration.batch.roundNotConfigured')
   const picker = batchDateToPicker(at) || at
   return String(picker).replace(/(\d{2}:\d{2}):\d{2}/g, '$1')
@@ -102,18 +120,26 @@ function handleSave(payload) {
             ? [editUnitCode.value]
             : []
 
+  const courseType = normalizeUnitCourseType(payload.courseType || editCourseType.value)
+
   for (const unitCode of codes) {
     upsertUnitScheduleOverride({
       unitCode,
       academicSession: sessionKey.value,
-      id: unitCode === editUnitCode.value ? editSchedule.value?.id : undefined,
+      courseType,
+      id:
+        unitCode === editUnitCode.value && courseType === normalizeUnitCourseType(editSchedule.value?.courseType)
+          ? editSchedule.value?.id
+          : undefined,
       roundsByAudience: payload.roundsByAudience,
+      crossReleaseAt: payload.crossReleaseAt ?? '',
     })
   }
 
   editDrawerVisible.value = false
   editUnitCode.value = ''
   editUnitCodes.value = []
+  editCourseType.value = 'GE'
   editSchedule.value = null
 }
 </script>
@@ -135,16 +161,19 @@ function handleSave(payload) {
         <thead>
           <tr>
             <th class="col-unit">{{ t('courseRegistration.schedule.colUnit') }}</th>
+            <th class="col-type">{{ t('courseRegistration.schedule.colCourseType') }}</th>
             <th class="col-round">{{ t('courseRegistration.batch.roundColPreselect') }}</th>
             <th class="col-round">{{ t('courseRegistration.batch.roundColMain') }}</th>
             <th class="col-round">{{ t('courseRegistration.batch.roundColSupplement') }}</th>
             <th class="col-result-release">{{ t('courseRegistration.schedule.colResultRelease') }}</th>
+            <th class="col-cross-release">{{ t('courseRegistration.schedule.colCrossRelease') }}</th>
             <th class="col-actions col-sticky-right">{{ t('common.actions') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="row in tableRows" :key="row.id">
             <td class="col-unit" :title="row.unitLabel">{{ row.unitCode }}</td>
+            <td class="col-type">{{ row.courseTypeLabel }}</td>
             <td class="col-round">
               <AudienceRoundDualCell
                 compact
@@ -169,6 +198,9 @@ function handleSave(payload) {
             <td class="col-result-release" :title="resultReleaseSummary(row)">
               {{ resultReleaseSummary(row) }}
             </td>
+            <td class="col-cross-release" :title="crossReleaseSummary(row)">
+              {{ crossReleaseSummary(row) }}
+            </td>
             <td class="col-actions col-sticky-right">
               <button type="button" class="link-btn" @click="openEditOverride(row)">
                 {{ t('common.edit') }}
@@ -179,7 +211,7 @@ function handleSave(payload) {
             </td>
           </tr>
           <tr v-if="!tableRows.length">
-            <td colspan="6" class="empty-cell">{{ t('courseRegistration.schedule.noUnitOverrides') }}</td>
+            <td colspan="8" class="empty-cell">{{ t('courseRegistration.schedule.noUnitOverrides') }}</td>
           </tr>
         </tbody>
       </table>
@@ -187,7 +219,7 @@ function handleSave(payload) {
 
     <UnitPickModal
       :visible="pickModalVisible"
-      :disabled-unit-codes="configuredUnitCodes"
+      :disabled-unit-type-keys="configuredUnitTypeKeys"
       @close="pickModalVisible = false"
       @confirm="handleUnitsPicked"
     />
@@ -199,6 +231,7 @@ function handleSave(payload) {
       :schedule="editSchedule"
       :unit-code="editUnitCode"
       :unit-codes="editUnitCodes"
+      :course-type="editCourseType"
       @close="editDrawerVisible = false"
       @save="handleSave"
     />
@@ -243,11 +276,24 @@ function handleSave(payload) {
   color: #374151;
 }
 
+.unit-override-table .col-type {
+  width: 1%;
+  white-space: nowrap;
+  color: #4b5563;
+}
+
 .unit-override-table .col-round {
   white-space: nowrap;
 }
 
 .unit-override-table .col-result-release {
+  min-width: 128px;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.unit-override-table .col-cross-release {
   min-width: 128px;
   white-space: nowrap;
   font-size: 12px;

@@ -32,6 +32,36 @@ export function buildHardConflictBaseline(roundKey, required = [], confirmed = [
 }
 
 /**
+ * 硬冲突对方是否为培养方案必修
+ * @param {string} [sourceType]
+ */
+export function isRequiredConflictSource(sourceType) {
+  const src = String(sourceType || '')
+  return src === 'required' || src === 'programme'
+}
+
+/**
+ * @param {{ withCourse?: string, withTime?: string, withSourceType?: string }} info
+ * @returns {{ ok: false, conflict: true, withCourse?: string, withTime?: string, errorKey: string, errorParams: object }}
+ */
+export function buildHardScheduleConflictResult(info) {
+  const required = isRequiredConflictSource(info.withSourceType)
+  return {
+    ok: false,
+    conflict: true,
+    withCourse: info.withCourse,
+    withTime: info.withTime,
+    errorKey: required
+      ? 'courseRegistration.student.scheduleConflictHardRequired'
+      : 'courseRegistration.student.scheduleConflictHardElective',
+    errorParams: {
+      course: info.withCourse || '—',
+      time: info.withTime || '—',
+    },
+  }
+}
+
+/**
  * @param {object} section
  * @param {object[]} baselineSlots
  * @returns {{ ok: boolean, conflict?: boolean, withCourse?: string, withTime?: string, errorKey?: string, errorParams?: object }}
@@ -39,17 +69,7 @@ export function buildHardConflictBaseline(roundKey, required = [], confirmed = [
 export function checkHardScheduleConflict(section, baselineSlots = []) {
   const info = getSectionMeetingsConflictInfo(section, baselineSlots)
   if (!info.conflict) return { ok: true }
-  return {
-    ok: false,
-    conflict: true,
-    withCourse: info.withCourse,
-    withTime: info.withTime,
-    errorKey: 'courseRegistration.student.scheduleConflictHard',
-    errorParams: {
-      course: info.withCourse || '—',
-      time: info.withTime || '—',
-    },
-  }
+  return buildHardScheduleConflictResult(info)
 }
 
 /**

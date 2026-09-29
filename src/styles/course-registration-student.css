@@ -206,12 +206,35 @@
   min-width: 0;
 }
 
+/* 查询条 + 学分工具栏：相对 main-content 滚动冻结（GE/ME 同布局） */
+.cr-register-sticky-chrome {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: -12px -16px 0;
+  padding: 12px 16px 10px;
+  background: #fff;
+  box-shadow: 0 1px 0 #f3f4f6;
+}
+
+.cr-register-sticky-chrome .search-bar {
+  margin-bottom: 0;
+}
+
 .cr-list-page.cr-student-page .page-card {
   padding: 12px 16px 12px;
 }
 
 .cr-list-page.cr-student-page .search-bar {
   margin-bottom: 10px;
+  padding-bottom: 10px;
+}
+
+.cr-list-page.cr-student-page .cr-register-sticky-chrome .search-bar {
+  margin-bottom: 0;
   padding-bottom: 10px;
 }
 
@@ -229,7 +252,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px 16px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .cr-student-cart-toolbar-actions {
@@ -249,6 +272,30 @@
   font-size: 13px;
   line-height: 1;
   border-radius: 6px;
+}
+
+.cr-catalog-trigger {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  background: #eff6ff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  color: #1d4ed8;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.cr-catalog-trigger:hover {
+  background: #dbeafe;
+  border-color: #60a5fa;
 }
 
 .cr-student-cart-trigger {

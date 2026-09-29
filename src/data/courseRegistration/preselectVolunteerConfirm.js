@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { selectableCourses } from './selectableCourses.js'
+import { selectableCourses, getCourseById } from './selectableCourses.js'
 import { registrationBatches } from './registrationBatches.js'
 import { getCurrentStudent } from '../mockCurrentStudent.js'
 import { isGraduateStudent } from './studentAudience.js'
@@ -44,6 +44,34 @@ function isMeBatch(batch) {
 
 export function usesSelectedRoster(state) {
   return Boolean(state?.isGeRound1 || state?.isMeRound1)
+}
+
+/** demo：当前学生提交志愿时额外计入的热度人数（真实 1 + 本值 ≈ 可见步进） */
+export const DEMO_SELECTED_PERCENT_HEAT = 3
+
+/**
+ * 课库「课程已选百分比」用人数 = 真实志愿 + demo 热度
+ * @param {object|null|undefined} state
+ * @returns {number}
+ */
+export function getVolunteerDisplayCount(state) {
+  if (!state) return 0
+  const base = Array.isArray(state.volunteers) ? state.volunteers.length : 0
+  const heatMap = state.demoHeatByStudent || {}
+  let heat = 0
+  for (const n of Object.values(heatMap)) {
+    heat += Math.max(0, Number(n) || 0)
+  }
+  return base + heat
+}
+
+/**
+ * @param {string} courseId
+ * @param {string} sectionId
+ * @returns {number}
+ */
+export function getSectionVolunteerDisplayCount(courseId, sectionId) {
+  return getVolunteerDisplayCount(getVolunteerSectionState(courseId, sectionId))
 }
 
 function formatAtRoundDay(roundStart, dayIndex, salt) {
@@ -227,6 +255,8 @@ function pickVolunteers(seed, count, academicSession, opts = {}) {
       relativeSemester: volunteerRelativeSemester(profile.intake, academicSession),
       submittedAt: formatSubmittedAt(seed * 11 + i * 5),
       isGraduate: Boolean(profile.isGraduate),
+      // 1=第一志愿，2=第二志愿（demo：约 2/3 第一志愿）
+      preferenceRank: i % 3 === 0 ? 2 : 1,
     })
   }
   const seen = new Set()
@@ -265,8 +295,11 @@ function seedSectionStates() {
         const seniorCapacity = getSectionSeniorCapacity(course, section.id, capacity)
         let seedCount
         if (isGe || isMe) {
-          const cap = seniorCapacity || capacity
-          seedCount = Math.max(cap + 10, Math.floor(cap * 1.7) + (seed % 6))
+          // demo：约 90%–120% 热度，避免 ~170% 导致 ±1 人选退不可感
+          const cap = Math.max(1, seniorCapacity || capacity)
+          const low = Math.ceil(cap * 0.92)
+          const high = Math.floor(cap * 1.2)
+          seedCount = Math.min(high, Math.max(low, Math.floor(cap * 1.0) + (seed % 5)))
         } else {
           seedCount = Math.max(2, Math.min(8, Math.floor(capacity * 0.25) + (seed % 3)))
         }
@@ -284,6 +317,7 @@ function seedSectionStates() {
             nDays,
             roundStart: start,
             decayR: quota.decayR ?? DEFAULT_DECAY_R,
+            graduateCapRatio: quota.graduateCapRatio,
             rand,
           })
         } else if (isMe) {
@@ -321,6 +355,7 @@ function seedSectionStates() {
           isMeRound1: isMe,
           batchType: batch.type || '',
           volunteers,
+          demoHeatByStudent: {},
           pendingDraftVolunteers: null,
           dirty: false,
         })
@@ -759,6 +794,7 @@ export function buildVolunteerDraftAfterAdd(courseId, sectionId, draftVolunteers
       submittedAt,
       sectionCode: state.sectionCode,
       isGraduate: isGraduateStudent(profile.studentId) || Boolean(profile.isGraduate),
+      preferenceRank: Number(profile.preferenceRank) > 0 ? Number(profile.preferenceRank) : 2,
       ...(lottery ? { selected: true } : {}),
     }
     if (lottery) draft.splice(selectedEnd + i, 0, row)
@@ -773,6 +809,21 @@ export function submitStudentPreselectVolunteer({ course, section, studentFields
   }
   if (hasStudentVolunteeredSection(course.id, section.id, studentFields.studentId)) {
     return { ok: false, errorKey: 'courseRegistration.student.volunteerDuplicate' }
+  }
+  return ensureVolunteerSeatAndHeat(course, section, studentFields)
+}
+
+/**
+ * 将学生写入分组志愿名单并设 demo 热度（幂等）。
+ * 供 UI 提交与 pending sync 共用；不检查 pending 判重。
+ * @param {object} course
+ * @param {object} section
+ * @param {object} studentFields
+ * @returns {{ ok: boolean, volunteered?: boolean, errorKey?: string }}
+ */
+export function ensureVolunteerSeatAndHeat(course, section, studentFields) {
+  if (!course || !section || !studentFields?.studentId) {
+    return { ok: false, errorKey: 'courseRegistration.student.volunteerSubmitFailed' }
   }
 
   let index = volunteerCourseStates.value.findIndex(
@@ -803,6 +854,7 @@ export function submitStudentPreselectVolunteer({ course, section, studentFields
         isMeRound1: isMe,
         batchType: batch?.type || '',
         volunteers: [],
+        demoHeatByStudent: {},
         pendingDraftVolunteers: null,
         dirty: false,
       },
@@ -811,60 +863,121 @@ export function submitStudentPreselectVolunteer({ course, section, studentFields
   }
 
   const state = volunteerCourseStates.value[index]
-  if (state.volunteers.some((v) => v.studentId === studentFields.studentId)) {
-    studentVolunteerCourseIds.value = [...new Set([...studentVolunteerCourseIds.value, course.id])]
-    return { ok: true, volunteered: true }
-  }
-  // 第一轮志愿不受容量限制（仍排队）；原满员拒绝逻辑保留注释备查
-  // if (state.volunteers.length >= state.capacity) {
-  //   return {
-  //     ok: false,
-  //     errorKey: 'courseRegistration.student.volunteerCourseFull',
-  //     errorParams: { cap: state.capacity },
-  //   }
-  // }
+  const alreadyOnList = state.volunteers.some((v) => v.studentId === studentFields.studentId)
+  let nextVolunteers = state.volunteers
 
-  const now = new Date()
-  const submittedAt = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`
-  const batchForVolunteer = registrationBatches.value.find((b) => b.id === course.batchId)
-  const volunteer = {
-    id: `vol-${studentFields.studentId}-${section.id}-${Date.now()}`,
-    studentId: studentFields.studentId,
-    studentName: studentFields.studentName,
-    programme: studentFields.programme,
-    intake: studentFields.intake,
-    relativeSemester: volunteerRelativeSemester(studentFields.intake, batchForVolunteer?.academicSession),
-    submittedAt,
-    sectionCode: section.code,
-    isGraduate: isGraduateStudent(studentFields.studentId),
-    ...(usesSelectedRoster(state) ? { selected: false } : {}),
+  if (!alreadyOnList) {
+    // 第一轮志愿不受容量限制（仍排队）；原满员拒绝逻辑保留注释备查
+    // if (state.volunteers.length >= state.capacity) {
+    //   return {
+    //     ok: false,
+    //     errorKey: 'courseRegistration.student.volunteerCourseFull',
+    //     errorParams: { cap: state.capacity },
+    //   }
+    // }
+
+    const now = new Date()
+    const submittedAt = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`
+    const batchForVolunteer = registrationBatches.value.find((b) => b.id === course.batchId)
+    const volunteer = {
+      id: `vol-${studentFields.studentId}-${section.id}-${Date.now()}`,
+      studentId: studentFields.studentId,
+      studentName: studentFields.studentName,
+      programme: studentFields.programme,
+      intake: studentFields.intake,
+      relativeSemester: volunteerRelativeSemester(studentFields.intake, batchForVolunteer?.academicSession),
+      submittedAt,
+      sectionCode: section.code,
+      isGraduate: isGraduateStudent(studentFields.studentId),
+      preferenceRank: 1,
+      ...(usesSelectedRoster(state) ? { selected: false } : {}),
+    }
+    nextVolunteers = usesSelectedRoster(state)
+      ? [...state.volunteers, volunteer]
+      : sortVolunteers([...state.volunteers, volunteer])
+  }
+
+  const nextHeat = {
+    ...(state.demoHeatByStudent || {}),
+    [studentFields.studentId]: DEMO_SELECTED_PERCENT_HEAT,
   }
 
   volunteerCourseStates.value[index] = {
     ...state,
-    volunteers: usesSelectedRoster(state)
-      ? [...state.volunteers, volunteer]
-      : sortVolunteers([...state.volunteers, volunteer]),
+    volunteers: nextVolunteers,
+    demoHeatByStudent: nextHeat,
   }
   studentVolunteerCourseIds.value = [...new Set([...studentVolunteerCourseIds.value, course.id])]
   return { ok: true, volunteered: true }
 }
 
-/** 学生撤销某课志愿（任意分组） */
-export function removeStudentPreselectVolunteer(courseId, studentId) {
+/** 学生撤销某课志愿；传 sectionId 时仅撤该分组，否则撤该课下全部志愿 */
+export function removeStudentPreselectVolunteer(courseId, studentId, sectionId = null) {
   if (!courseId || !studentId) return { ok: false }
   let changed = false
   volunteerCourseStates.value = volunteerCourseStates.value.map((state) => {
     if (state.courseId !== courseId) return state
+    if (sectionId && state.sectionId && state.sectionId !== sectionId) return state
     const next = state.volunteers.filter((v) => v.studentId !== studentId)
-    if (next.length === state.volunteers.length) return state
+    const heatMap = { ...(state.demoHeatByStudent || {}) }
+    const hadHeat = Object.prototype.hasOwnProperty.call(heatMap, studentId)
+    if (hadHeat) delete heatMap[studentId]
+    if (next.length === state.volunteers.length && !hadHeat) return state
     changed = true
-    return { ...state, volunteers: next, dirty: false }
+    return { ...state, volunteers: next, demoHeatByStudent: heatMap, dirty: false }
   })
   if (changed) {
-    studentVolunteerCourseIds.value = studentVolunteerCourseIds.value.filter((id) => id !== courseId)
+    const stillOnCourse = volunteerCourseStates.value.some(
+      (state) =>
+        state.courseId === courseId && state.volunteers.some((v) => v.studentId === studentId),
+    )
+    const stillPending = studentPendingAssignCourses.value.some(
+      (item) => item.courseId === courseId,
+    )
+    if (!stillOnCourse && !stillPending) {
+      studentVolunteerCourseIds.value = studentVolunteerCourseIds.value.filter((id) => id !== courseId)
+    }
   }
   return { ok: changed }
+}
+
+/**
+ * demo：把本轮待分配志愿写入志愿名单+热度，便于退选时「课程已选百分比」实时下降。
+ * 必须走 ensure（旁路 pending 判重）；不可直接 submit。
+ */
+export function syncPendingAssignIntoVolunteerStates() {
+  const student = getCurrentStudent()
+  const basic = student?.basicInfo || {}
+  const enrollment = student?.enrollment || {}
+  const studentFields = {
+    studentId: basic.studentId || '',
+    studentName: basic.fullName || basic.chineseName || '',
+    programme: enrollment.programmeCode || enrollment.programme || '',
+    intake: enrollment.intake || enrollment.academicSession || '',
+    isGraduate: isGraduateStudent(basic.studentId),
+  }
+  if (!studentFields.studentId) return
+  for (const item of studentPendingAssignCourses.value || []) {
+    if (!item?.courseId || !item?.sectionId) continue
+    const lib = getCourseById(item.courseId)
+    const course = {
+      id: item.courseId,
+      code: item.courseCode || lib?.code,
+      name: item.courseName || lib?.name,
+      credits: item.credits ?? lib?.credits,
+      type: item.type || lib?.type,
+      batchId: item.batchId || lib?.batchId,
+      sections: lib?.sections || [],
+    }
+    const section =
+      (course.sections || []).find((s) => s.id === item.sectionId) ||
+      {
+        id: item.sectionId,
+        code: item.sectionCode || '01',
+        capacity: 40,
+      }
+    ensureVolunteerSeatAndHeat(course, section, studentFields)
+  }
 }
 
 export function computeDraftDirty(courseId, sectionId, draftVolunteers) {

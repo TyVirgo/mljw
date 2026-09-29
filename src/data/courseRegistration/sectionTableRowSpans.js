@@ -3,6 +3,7 @@
  */
 
 import { resolveSelectionGroup } from './courseSelectionGroups.js'
+import { isSectionFullForAudience } from './selectableCourses.js'
 
 /** @param {{ id?: string, code?: string }} course */
 export function courseRowKey(course) {
@@ -13,20 +14,36 @@ export function courseRowKey(course) {
  * 有余量/已满：任一分组符合条件则保留该课全部分组行
  * @param {object[]} courses
  * @param {'open'|'full'|''} availability
+ * @param {{ audience?: 'senior'|'freshman', roundKey?: string, releaseCross?: boolean, useAudienceSeats?: boolean }} [opts]
  */
-export function filterCoursesBySectionAvailability(courses, availability) {
+export function filterCoursesBySectionAvailability(courses, availability, opts = {}) {
   if (!availability || availability === '') return courses
+  const useAudience = opts.useAudienceSeats !== false && opts.roundKey && opts.roundKey !== 'preselect'
   return (courses || []).filter((course) => {
     const sections = course.sections?.length ? course.sections : [null]
     if (availability === 'open') {
-      return sections.some(
-        (section) => section && Number(section.enrolled) < Number(section.capacity),
-      )
+      return sections.some((section) => {
+        if (!section) return false
+        if (useAudience) {
+          return !isSectionFullForAudience(section, opts.audience || 'senior', {
+            roundKey: opts.roundKey,
+            releaseCross: opts.releaseCross,
+          })
+        }
+        return Number(section.enrolled) < Number(section.capacity)
+      })
     }
     if (availability === 'full') {
-      return sections.some(
-        (section) => !section || Number(section.enrolled) >= Number(section.capacity),
-      )
+      return sections.some((section) => {
+        if (!section) return true
+        if (useAudience) {
+          return isSectionFullForAudience(section, opts.audience || 'senior', {
+            roundKey: opts.roundKey,
+            releaseCross: opts.releaseCross,
+          })
+        }
+        return Number(section.enrolled) >= Number(section.capacity)
+      })
     }
     return true
   })
@@ -220,8 +237,37 @@ export function attachTableRowSpans(rows, firstCourseIndex = 0, options = {}) {
  * @param {object[]} rows 单页内连续行
  * @param {number} firstCourseIndex 0-based 全局课程序号起点
  */
-export function attachCourseLevelRowSpans(rows, firstCourseIndex = 0) {
+export function attachCourseLevelRowSpans(rows, firstCourseIndex = 0, opts = {}) {
+  const flat = Boolean(opts?.flat)
   const out = (rows || []).map((row) => ({ ...row, _span: { ...(row._span || {}) } }))
+  const courseKeys = [
+    'serial',
+    'code',
+    'name',
+    'type',
+    'schoolCat',
+    'credits',
+    'selectionGroup',
+    'prerequisites',
+    'retakeHistory',
+    // 管理端结果·第一轮融合表课级列
+    'batch',
+    'effectiveCap',
+    'freshmanCap',
+    'seniorCap',
+    'specialAdded',
+  ]
+  if (flat) {
+    for (let i = 0; i < out.length; i += 1) {
+      const cellSpan = { ...(out[i]._span || {}) }
+      for (const field of courseKeys) {
+        cellSpan[field] = { show: true, rowspan: 1 }
+      }
+      cellSpan.serial = { show: true, rowspan: 1, value: firstCourseIndex + i + 1 }
+      out[i]._span = cellSpan
+    }
+    return out
+  }
   let i = 0
   let courseOffset = 0
   while (i < out.length) {
@@ -230,16 +276,6 @@ export function attachCourseLevelRowSpans(rows, firstCourseIndex = 0) {
     while (j < out.length && courseRowKey(out[j].course) === key) j += 1
     const span = j - i
     const serial = firstCourseIndex + courseOffset + 1
-    const courseKeys = [
-      'serial',
-      'code',
-      'name',
-      'type',
-      'schoolCat',
-      'credits',
-      'selectionGroup',
-      'prerequisites',
-    ]
     for (let k = i; k < j; k += 1) {
       const cellSpan = { ...(out[k]._span || {}) }
       for (const field of courseKeys) {

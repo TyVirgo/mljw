@@ -2,6 +2,11 @@ import { ref } from 'vue'
 import { enrichSectionScheduleFields } from './sectionScheduleFields.js'
 import { schoolElectiveCategoryOptions } from '../departments.js'
 import { DEMO_HEADCOUNT, splitQuotaByHeadcount } from './audienceRounds.js'
+import {
+  getBatchRound1Quota,
+  normalizeMeQuotaRows,
+  syncMeQuotaRowCounts,
+} from './batchRound1Quota.js'
 
 /** 校选类别：ME demo 默认文科；GE 可混杂文商理 */
 export function resolveSchoolElectiveCategory(course) {
@@ -108,6 +113,7 @@ const initialCourses = [
         lecturer: 'Dr. Sarah',
         enrolled: 28,
         capacity: 30,
+        /** demo：多段与已选选修冲突，便于展示「时间冲突」 */
         meetings: [
           { time: 'Mon 14:00–16:00', room: 'A3-509', weekRange: '1-5' },
           { time: 'Tue 10:00–12:00', room: 'A4-105', weekRange: '1-5' },
@@ -117,26 +123,26 @@ const initialCourses = [
       {
         id: 'sec-engl201-2',
         code: '02',
-        time: 'Tue 14:00–16:00',
+        time: 'Fri 14:00–16:00',
         room: 'A1-G01',
-        weekRange: '1-5',
+        weekRange: '1-18',
         lecturer: 'Dr. Brown',
         enrolled: 20,
         capacity: 30,
-        meetings: [
-          { time: 'Tue 14:00–16:00', room: 'A1-G01', weekRange: '1-5' },
-          { time: 'Wed 09:00–11:00', room: 'A4-G01', weekRange: '1-5' },
-          { time: 'Thu 09:00–11:00', room: 'A3-602', weekRange: '1-5' },
-        ],
+        /** demo：错开课表选修，可选 */
+        meetings: [{ time: 'Fri 14:00–16:00', room: 'A1-G01', weekRange: '1-18' }],
       },
       {
         id: 'sec-engl201-3',
         code: '03',
-        time: 'Fri 09:00–12:00',
+        time: 'Wed 09:00–12:00',
         room: 'A2-2-105',
+        weekRange: '1-18',
         lecturer: 'Ms. Chan',
         enrolled: 15,
         capacity: 30,
+        /** demo：周三上午相对选修基线空闲 */
+        meetings: [{ time: 'Wed 09:00–12:00', room: 'A2-2-105', weekRange: '1-18' }],
       },
     ],
     quota: { total: 90, senior: 50, freshman: 40, releaseToFreshman: false, byIntake: {} },
@@ -158,11 +164,150 @@ const initialCourses = [
     prerequisites: ['COMP101'],
     g1Category: null,
     sections: [
-      { id: 'sec-1', code: '01', time: 'Mon 16:00–18:00', room: 'D5-3-201', lecturer: 'Dr. Lee', enrolled: 22, capacity: 25 },
-      { id: 'sec-2', code: '02', time: 'Wed 14:00–16:00', room: 'D5-3-202', lecturer: 'Dr. Tan', enrolled: 20, capacity: 25 },
-      { id: 'sec-comp201-3', code: '03', time: 'Fri 10:00–12:00', room: 'D5-3-203', lecturer: 'Dr. Yap', enrolled: 20, capacity: 25 },
+      /**
+       * 加课选课 demo（§25）：写死单段 meetings。
+       * 01/02 与确认课表冲突（加退不可选）；03 空档（R1 中签绑此班）但 4 学分超学期帽 →「超出学期学分」
+       */
+      {
+        id: 'sec-1',
+        code: '01',
+        time: 'Tue 14:00–16:00',
+        room: 'D5-3-201',
+        lecturer: 'Dr. Lee',
+        enrolled: 22,
+        capacity: 25,
+        meetings: [{ time: 'Tue 14:00–16:00', room: 'D5-3-201', weekRange: '1-18' }],
+      },
+      {
+        id: 'sec-2',
+        code: '02',
+        time: 'Fri 10:00–12:00',
+        room: 'D5-3-202',
+        lecturer: 'Dr. Tan',
+        enrolled: 20,
+        capacity: 25,
+        meetings: [{ time: 'Fri 10:00–12:00', room: 'D5-3-202', weekRange: '1-18' }],
+      },
+      {
+        id: 'sec-comp201-3',
+        code: '03',
+        time: 'Wed 11:00–13:00',
+        room: 'D5-3-203',
+        lecturer: 'Dr. Yap',
+        enrolled: 20,
+        capacity: 25,
+        meetings: [{ time: 'Wed 11:00–13:00', room: 'D5-3-203', weekRange: '1-18' }],
+      },
     ],
     quota: { total: 75, senior: 45, freshman: 30, releaseToFreshman: true, byIntake: { '2409': 20, '2504': 25, '2509': 30 } },
+  },
+  /**
+   * §37 重修挂科池：3 学分，每门 ≥2 空档有余量分组（错开确认课表）
+   * 确认课占用：Mon 09–18 / Tue 14–17 / Wed 16–18 / Thu 14–16 / Fri 10–12
+   */
+  {
+    id: 'course-algo210',
+    batchId: 'batch-2504-m1',
+    code: 'ALGO210',
+    name: 'Algorithms',
+    credits: 3,
+    type: 'ME',
+    isHot: false,
+    rating: 4,
+    sectionCount: 3,
+    totalCapacity: 90,
+    remainingCapacity: 40,
+    quotaSummary: 'Total 90 · Retake demo',
+    prerequisites: [],
+    g1Category: null,
+    schoolElectiveCategory: 'science',
+    feeStream: 'science',
+    sections: [
+      {
+        id: 'sec-algo210-1',
+        code: '01',
+        time: 'Tue 14:00–16:00',
+        room: 'D5-4-101',
+        lecturer: 'Dr. Ng',
+        enrolled: 20,
+        capacity: 30,
+        meetings: [{ time: 'Tue 14:00–16:00', room: 'D5-4-101', weekRange: '1-18' }],
+      },
+      {
+        id: 'sec-algo210-2',
+        code: '02',
+        time: 'Tue 10:00–12:00',
+        room: 'D5-4-102',
+        lecturer: 'Dr. Ho',
+        enrolled: 18,
+        capacity: 30,
+        meetings: [{ time: 'Tue 10:00–12:00', room: 'D5-4-102', weekRange: '1-18' }],
+      },
+      {
+        id: 'sec-algo210-3',
+        code: '03',
+        time: 'Thu 10:00–12:00',
+        room: 'D5-4-103',
+        lecturer: 'Dr. Teo',
+        enrolled: 12,
+        capacity: 30,
+        meetings: [{ time: 'Thu 10:00–12:00', room: 'D5-4-103', weekRange: '1-18' }],
+      },
+    ],
+    quota: { total: 90, senior: 50, freshman: 40, releaseToFreshman: true, byIntake: {} },
+    visibleFromRound: 'main',
+  },
+  {
+    id: 'course-os210',
+    batchId: 'batch-2504-m1',
+    code: 'OS210',
+    name: 'Operating Systems',
+    credits: 3,
+    type: 'ME',
+    isHot: false,
+    rating: 4,
+    sectionCount: 3,
+    totalCapacity: 90,
+    remainingCapacity: 38,
+    quotaSummary: 'Total 90 · Retake demo',
+    prerequisites: [],
+    g1Category: null,
+    schoolElectiveCategory: 'science',
+    feeStream: 'science',
+    sections: [
+      {
+        id: 'sec-os210-1',
+        code: '01',
+        time: 'Fri 10:00–12:00',
+        room: 'D5-4-201',
+        lecturer: 'Dr. Goh',
+        enrolled: 22,
+        capacity: 30,
+        meetings: [{ time: 'Fri 10:00–12:00', room: 'D5-4-201', weekRange: '1-18' }],
+      },
+      {
+        id: 'sec-os210-2',
+        code: '02',
+        time: 'Wed 11:00–13:00',
+        room: 'D5-4-202',
+        lecturer: 'Dr. Tan',
+        enrolled: 16,
+        capacity: 30,
+        meetings: [{ time: 'Wed 11:00–13:00', room: 'D5-4-202', weekRange: '1-18' }],
+      },
+      {
+        id: 'sec-os210-3',
+        code: '03',
+        time: 'Thu 16:00–18:00',
+        room: 'D5-4-203',
+        lecturer: 'Dr. Low',
+        enrolled: 14,
+        capacity: 30,
+        meetings: [{ time: 'Thu 16:00–18:00', room: 'D5-4-203', weekRange: '1-18' }],
+      },
+    ],
+    quota: { total: 90, senior: 50, freshman: 40, releaseToFreshman: true, byIntake: {} },
+    visibleFromRound: 'main',
   },
   {
     id: 'course-phys101',
@@ -314,33 +459,48 @@ const initialCourses = [
     type: 'ME',
     isHot: false,
     rating: 4,
-    sectionCount: 2,
-    totalCapacity: 70,
-    remainingCapacity: 28,
-    quotaSummary: 'Total 70',
+    sectionCount: 3,
+    totalCapacity: 105,
+    remainingCapacity: 45,
+    quotaSummary: 'Total 105 · Retake improve demo',
     prerequisites: [],
     g1Category: null,
+    schoolElectiveCategory: 'science',
+    feeStream: 'science',
     sections: [
+      /** §37 提升池：≥2 组错开确认课表可选（3 学分）；可保留冲突对照 */
       {
         id: 'sec-stat201-1',
         code: '01',
-        time: 'Mon 14:00–16:00',
+        time: 'Tue 08:00–10:00',
         room: 'D5-1-110',
         lecturer: 'Dr. Koh',
         enrolled: 22,
         capacity: 35,
+        meetings: [{ time: 'Tue 08:00–10:00', room: 'D5-1-110', weekRange: '1-18' }],
       },
       {
         id: 'sec-stat201-2',
         code: '02',
-        time: 'Wed 16:00–18:00',
+        time: 'Thu 16:00–18:00',
         room: 'D5-1-111',
         lecturer: 'Dr. Yeo',
         enrolled: 20,
         capacity: 35,
+        meetings: [{ time: 'Thu 16:00–18:00', room: 'D5-1-111', weekRange: '1-18' }],
+      },
+      {
+        id: 'sec-stat201-3',
+        code: '03',
+        time: 'Wed 10:00–12:00',
+        room: 'D5-1-112',
+        lecturer: 'Dr. Sim',
+        enrolled: 18,
+        capacity: 35,
+        meetings: [{ time: 'Wed 10:00–12:00', room: 'D5-1-112', weekRange: '1-18' }],
       },
     ],
-    quota: { total: 70, senior: 40, freshman: 30, releaseToFreshman: true, byIntake: {} },
+    quota: { total: 105, senior: 60, freshman: 45, releaseToFreshman: true, byIntake: {} },
     visibleFromRound: 'main',
   },
   // —— 先修未修读 demo：ECE101 不在 passed/failed ——
@@ -420,7 +580,7 @@ const initialCourses = [
     prerequisites: [],
     g1Category: null,
     sections: [
-      { id: 'sec-ai110-1', code: '01', time: 'Mon 10:00–12:00', room: 'D5-4-101', lecturer: 'Dr. Foo', enrolled: 22, capacity: 40 },
+      { id: 'sec-ai110-1', code: '01', time: 'Fri 08:00–10:00', room: 'D5-4-101', lecturer: 'Dr. Foo', enrolled: 22, capacity: 40 },
       { id: 'sec-ai110-2', code: '02', time: 'Wed 10:00–12:00', room: 'D5-4-102', lecturer: 'Dr. Teo', enrolled: 22, capacity: 40 },
     ],
     quota: { total: 80, senior: 45, freshman: 35, releaseToFreshman: true, byIntake: {} },
@@ -577,10 +737,42 @@ const initialCourses = [
     prerequisites: ['COMP201'],
     g1Category: null,
     sections: [
-      { id: 'sec-db110-1', code: '01', time: 'Wed 14:00–16:00', room: 'D5-5-201', lecturer: 'Dr. Ong', enrolled: 27, capacity: 35 },
-      { id: 'sec-db110-2', code: '02', time: 'Fri 14:00–16:00', room: 'D5-5-202', lecturer: 'Dr. Lim', enrolled: 27, capacity: 35 },
+      /** §37 重修：01 冲突对照；02/03 空档有余量 */
+      {
+        id: 'sec-db110-1',
+        code: '01',
+        time: 'Tue 14:00–16:00',
+        room: 'D5-5-201',
+        lecturer: 'Dr. Ong',
+        enrolled: 20,
+        capacity: 35,
+        meetings: [{ time: 'Tue 14:00–16:00', room: 'D5-5-201', weekRange: '1-18' }],
+      },
+      {
+        id: 'sec-db110-2',
+        code: '02',
+        time: 'Wed 14:00–16:00',
+        room: 'D5-5-202',
+        lecturer: 'Dr. Lim',
+        enrolled: 18,
+        capacity: 35,
+        meetings: [{ time: 'Wed 14:00–16:00', room: 'D5-5-202', weekRange: '1-18' }],
+      },
+      {
+        id: 'sec-db110-3',
+        code: '03',
+        time: 'Fri 14:00–16:00',
+        room: 'D5-5-203',
+        lecturer: 'Dr. Chua',
+        enrolled: 15,
+        capacity: 35,
+        meetings: [{ time: 'Fri 14:00–16:00', room: 'D5-5-203', weekRange: '1-18' }],
+      },
     ],
-    quota: { total: 70, senior: 40, freshman: 30, releaseToFreshman: true, byIntake: {} },
+    quota: { total: 105, senior: 60, freshman: 45, releaseToFreshman: true, byIntake: {} },
+    sectionCount: 3,
+    totalCapacity: 105,
+    remainingCapacity: 52,
     visibleFromRound: 'main',
   },
   {
@@ -594,33 +786,48 @@ const initialCourses = [
     rating: 4,
     sectionCount: 2,
     totalCapacity: 70,
-    remainingCapacity: 30,
+    remainingCapacity: 20,
     quotaSummary: 'Total 70 · GE Humanities',
     prerequisites: [],
     g1Category: 'Humanities',
     schoolElectiveCategory: 'arts',
     sections: [
+      /** §37 提升池：01 冲突；02/03 空档有余量 */
       {
         id: 'sec-hum110-1',
         code: '01',
-        time: 'Wed 14:00–17:00',
+        time: 'Tue 14:00–16:00',
         room: 'A2-2-201',
         lecturer: 'Dr. Lim',
-        enrolled: 25,
+        enrolled: 20,
         capacity: 35,
+        meetings: [{ time: 'Tue 14:00–16:00', room: 'A2-2-201', weekRange: '1-18' }],
       },
       {
         id: 'sec-hum110-2',
         code: '02',
-        time: 'Fri 16:00–18:00',
+        time: 'Fri 14:00–16:00',
         room: 'A2-2-202',
         lecturer: 'Dr. Park',
         enrolled: 15,
         capacity: 35,
+        meetings: [{ time: 'Fri 14:00–16:00', room: 'A2-2-202', weekRange: '1-18' }],
+      },
+      {
+        id: 'sec-hum110-3',
+        code: '03',
+        time: 'Thu 10:00–12:00',
+        room: 'A2-2-203',
+        lecturer: 'Dr. Wei',
+        enrolled: 12,
+        capacity: 35,
+        meetings: [{ time: 'Thu 10:00–12:00', room: 'A2-2-203', weekRange: '1-18' }],
       },
     ],
-    quota: { total: 70, senior: 40, freshman: 30, releaseToFreshman: true, byIntake: {} },
-    isSelectable: false,
+    sectionCount: 3,
+    totalCapacity: 105,
+    remainingCapacity: 58,
+    quota: { total: 105, senior: 60, freshman: 45, releaseToFreshman: true, byIntake: {} },
   },
   {
     id: 'course-sci110',
@@ -639,23 +846,26 @@ const initialCourses = [
     g1Category: 'Science',
     schoolElectiveCategory: 'science',
     sections: [
+      /** 01 撞 BUS301 → 冲突；02 空档可选 */
       {
         id: 'sec-sci110-1',
         code: '01',
-        time: 'Mon 16:00–18:00',
+        time: 'Mon 14:00–16:00',
         room: 'S1-1-101',
         lecturer: 'Dr. Ong',
         enrolled: 22,
         capacity: 35,
+        meetings: [{ time: 'Mon 14:00–16:00', room: 'S1-1-101', weekRange: '1-18' }],
       },
       {
         id: 'sec-sci110-2',
         code: '02',
-        time: 'Wed 16:00–18:00',
+        time: 'Fri 08:00–10:00',
         room: 'S1-1-102',
         lecturer: 'Dr. Teo',
         enrolled: 20,
         capacity: 35,
+        meetings: [{ time: 'Fri 08:00–10:00', room: 'S1-1-102', weekRange: '1-18' }],
       },
     ],
     quota: { total: 70, senior: 40, freshman: 30, releaseToFreshman: true, byIntake: {} },
@@ -677,23 +887,26 @@ const initialCourses = [
     g1Category: 'Business',
     schoolElectiveCategory: 'business',
     sections: [
+      /** 01 撞 BUS302 → 冲突；02 空档可选 */
       {
         id: 'sec-fin110-1',
         code: '01',
-        time: 'Tue 09:00–12:00',
+        time: 'Mon 16:00–18:00',
         room: 'B3-1-101',
         lecturer: 'Dr. Lim',
         enrolled: 20,
         capacity: 35,
+        meetings: [{ time: 'Mon 16:00–18:00', room: 'B3-1-101', weekRange: '1-18' }],
       },
       {
         id: 'sec-fin110-2',
         code: '02',
-        time: 'Thu 09:00–12:00',
+        time: 'Wed 14:00–16:00',
         room: 'B3-1-102',
         lecturer: 'Ms. Tan',
         enrolled: 20,
         capacity: 35,
+        meetings: [{ time: 'Wed 14:00–16:00', room: 'B3-1-102', weekRange: '1-18' }],
       },
     ],
     quota: { total: 70, senior: 40, freshman: 30, releaseToFreshman: true, byIntake: {} },
@@ -1240,6 +1453,8 @@ function buildActiveBatchDemoCourses(batchId, codePrefix, titles, options = {}) 
     options.type ||
     (/^batch-ge-/.test(batchId) || /^batch-2504-g/.test(batchId) ? 'GE' : 'ME')
   const codeStart = options.codeStart || 201
+  /** GE 演示课轮转校选类别，便于顶栏文/商/理/AI 与列表同源 */
+  const geCats = ['business', 'ai_open', 'arts', 'science']
   return titles.map((name, index) => {
     const n = index + 1
     const perCap = 30 + (index % 3) * 5
@@ -1261,6 +1476,7 @@ function buildActiveBatchDemoCourses(batchId, codePrefix, titles, options = {}) 
       quotaSummary: `Total ${perCap * 2}`,
       prerequisites: [],
       g1Category: type === 'GE' ? 'General' : null,
+      ...(type === 'GE' ? { schoolElectiveCategory: geCats[index % geCats.length] } : {}),
       sections: [
         {
           id: `sec-${codePrefix.toLowerCase()}-demo-${n}-1`,
@@ -1636,6 +1852,7 @@ export function updateCoursesAudienceQuota(courseIds = [], quota = {}) {
       },
     }
   })
+  syncCourseRound1SeniorQuotaCaps([...idSet])
   return count
 }
 
@@ -1708,6 +1925,158 @@ export function updateSectionsAudienceQuota(sectionIds = [], quota = {}) {
     }
   })
 
+  const touchedCourseIds = selectableCourses.value
+    .filter((c) => (c.sections || []).some((sec) => idSet.has(sec.id)))
+    .map((c) => c.id)
+  syncCourseRound1SeniorQuotaCaps(touchedCourseIds)
+  return count
+}
+
+/**
+ * 课级同步名额数：允许 totalCap=0（不回落到批次默认 100）
+ * @param {object[]} rows
+ * @param {number} totalCap
+ */
+function syncCourseMeQuotaRowCounts(rows = [], totalCap = 0) {
+  const cap = Math.max(0, Math.floor(Number(totalCap) || 0))
+  if (cap <= 0) {
+    return (Array.isArray(rows) ? rows : []).map((r) => ({ ...r, count: 0 }))
+  }
+  return syncMeQuotaRowCounts(rows, cap)
+}
+
+/**
+ * 课级老生容量合计（新老生名额分配写入的 senior）
+ * @param {object|null|undefined} course
+ */
+export function getCourseSeniorQuotaTotal(course) {
+  if (!course) return 0
+  const sections = course.sections || []
+  if (sections.length) {
+    return sections.reduce(
+      (sum, sec) => sum + Math.max(0, Math.floor(Number(sec.quota?.senior) || 0)),
+      0,
+    )
+  }
+  return Math.max(0, Math.floor(Number(course.quota?.senior) || 0))
+}
+
+/**
+ * 读取课级第一轮老生年级占比（无配置时 meQuotaRows 为空）
+ * @param {object|null|undefined} course
+ */
+export function getCourseRound1SeniorQuota(course) {
+  const totalCap = getCourseSeniorQuotaTotal(course)
+  const rawRows = course?.round1SeniorQuota?.meQuotaRows
+  if (!Array.isArray(rawRows) || !rawRows.length) {
+    return { totalCap, meQuotaRows: [], hasOverride: false }
+  }
+  return {
+    totalCap,
+    meQuotaRows: syncCourseMeQuotaRowCounts(
+      normalizeMeQuotaRows(rawRows, '', {
+        totalCap: totalCap || undefined,
+        fallbackDefault: false,
+        syncCounts: false,
+      }),
+      totalCap,
+    ),
+    hasOverride: true,
+  }
+}
+
+/**
+ * 抽签解析：课级有配置则用课级；否则继承批次 meQuotaRows
+ * @param {object|null|undefined} course
+ * @param {object|null|undefined} batch
+ */
+export function resolveMeQuotaRowsForCourse(course, batch) {
+  const totalCap = getCourseSeniorQuotaTotal(course)
+  const courseRows = course?.round1SeniorQuota?.meQuotaRows
+  if (Array.isArray(courseRows) && courseRows.length) {
+    return syncCourseMeQuotaRowCounts(
+      normalizeMeQuotaRows(courseRows, '', {
+        totalCap: totalCap || undefined,
+        fallbackDefault: false,
+        syncCounts: false,
+      }),
+      totalCap,
+    )
+  }
+  const batchRows = getBatchRound1Quota(batch)?.meQuotaRows || []
+  if (!batchRows.length) return []
+  if (totalCap <= 0) {
+    return normalizeMeQuotaRows(batchRows, '', { fallbackDefault: false, syncCounts: false })
+  }
+  return syncCourseMeQuotaRowCounts(
+    normalizeMeQuotaRows(batchRows, '', { fallbackDefault: false, syncCounts: false }),
+    totalCap,
+  )
+}
+
+/**
+ * 写回课级第一轮老生年级占比；rows 为空则清除覆盖（回退批次）
+ * @param {string} courseId
+ * @param {{ meQuotaRows?: object[] }|object[]} payload
+ */
+export function updateCourseRound1SeniorQuota(courseId, payload = {}) {
+  if (!courseId) return false
+  const rowsRaw = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.meQuotaRows)
+      ? payload.meQuotaRows
+      : []
+  let updated = false
+  selectableCourses.value = selectableCourses.value.map((course) => {
+    if (course.id !== courseId) return course
+    updated = true
+    if (!rowsRaw.length) {
+      const { round1SeniorQuota: _drop, ...rest } = course
+      return rest
+    }
+    const totalCap = getCourseSeniorQuotaTotal(course)
+    const meQuotaRows = syncCourseMeQuotaRowCounts(
+      normalizeMeQuotaRows(rowsRaw, '', {
+        totalCap: totalCap || undefined,
+        fallbackDefault: false,
+        syncCounts: false,
+      }),
+      totalCap,
+    )
+    return {
+      ...course,
+      round1SeniorQuota: { totalCap, meQuotaRows },
+    }
+  })
+  return updated
+}
+
+/**
+ * 新老生名额变更后：按最新 senior 同步课级年级占比名额数
+ * @param {string[]|null} courseIds null=全部有覆盖的课
+ */
+export function syncCourseRound1SeniorQuotaCaps(courseIds = null) {
+  const idSet = courseIds == null ? null : new Set(courseIds)
+  let count = 0
+  selectableCourses.value = selectableCourses.value.map((course) => {
+    if (idSet && !idSet.has(course.id)) return course
+    const rawRows = course?.round1SeniorQuota?.meQuotaRows
+    if (!Array.isArray(rawRows) || !rawRows.length) return course
+    const totalCap = getCourseSeniorQuotaTotal(course)
+    const meQuotaRows = syncCourseMeQuotaRowCounts(
+      normalizeMeQuotaRows(rawRows, '', {
+        totalCap: totalCap || undefined,
+        fallbackDefault: false,
+        syncCounts: false,
+      }),
+      totalCap,
+    )
+    count += 1
+    return {
+      ...course,
+      round1SeniorQuota: { totalCap, meQuotaRows },
+    }
+  })
   return count
 }
 
@@ -1730,6 +2099,88 @@ export function getRound3EffectiveRemaining(course, audience, releaseCross = tru
     peerRemaining: allow ? peerRemaining : 0,
     effective: ownRemaining + (allow ? peerRemaining : 0),
   }
+}
+
+/**
+ * 分组级新老名额（展示/可选计算）
+ * @param {object|null|undefined} section
+ */
+export function getSectionAudienceCapacity(section) {
+  const capacity = Math.max(0, Number(section?.capacity) || 0)
+  const freshmanCap = Math.max(0, Number(section?.quota?.freshman) || 0)
+  const seniorCap = Math.max(0, Number(section?.quota?.senior) || 0)
+  const enrolled = Number(section?.enrolled) || 0
+  const splitSum = freshmanCap + seniorCap
+  let enrolledFreshman =
+    section?.enrolledFreshman != null
+      ? Number(section.enrolledFreshman)
+      : splitSum > 0
+        ? Math.min(freshmanCap, Math.round((enrolled * freshmanCap) / splitSum))
+        : 0
+  let enrolledSenior =
+    section?.enrolledSenior != null
+      ? Number(section.enrolledSenior)
+      : Math.max(0, enrolled - enrolledFreshman)
+  if (!Number.isFinite(enrolledFreshman)) enrolledFreshman = 0
+  if (!Number.isFinite(enrolledSenior)) enrolledSenior = Math.max(0, enrolled - enrolledFreshman)
+  return { capacity, freshmanCap, seniorCap, enrolledFreshman, enrolledSenior, enrolled }
+}
+
+/**
+ * R2/R3 分组可选名额：R2 本池剩余；R3 互释开则两池剩余之和；无新老拆分时退回总余量
+ * @param {object|null|undefined} section
+ * @param {'senior'|'freshman'} audience
+ * @param {{ roundKey?: string, releaseCross?: boolean }} [opts]
+ * @returns {{ available: number, capacity: number, ownRemaining: number, peerRemaining: number }}
+ */
+export function getSectionAvailableSeats(section, audience = 'senior', opts = {}) {
+  const { capacity, freshmanCap, seniorCap, enrolledFreshman, enrolledSenior, enrolled } =
+    getSectionAudienceCapacity(section)
+  if (!section || capacity <= 0) {
+    return { available: 0, capacity: 0, ownRemaining: 0, peerRemaining: 0 }
+  }
+  if (freshmanCap + seniorCap <= 0) {
+    const rem = Math.max(0, capacity - enrolled)
+    return { available: rem, capacity, ownRemaining: rem, peerRemaining: 0 }
+  }
+  const seniorRem = Math.max(0, seniorCap - enrolledSenior)
+  const freshRem = Math.max(0, freshmanCap - enrolledFreshman)
+  const ownRemaining = audience === 'freshman' ? freshRem : seniorRem
+  const peerRemaining = audience === 'freshman' ? seniorRem : freshRem
+  const roundKey = String(opts.roundKey || '')
+  const releaseCross = opts.releaseCross !== false
+  const poolAvailable =
+    roundKey === 'supplement' && releaseCross ? ownRemaining + peerRemaining : ownRemaining
+  // 不得超过物理总余量
+  const totalRem = Math.max(0, capacity - enrolled)
+  const available = Math.min(poolAvailable, totalRem)
+  return {
+    available,
+    capacity,
+    ownRemaining,
+    peerRemaining: roundKey === 'supplement' && releaseCross ? peerRemaining : 0,
+  }
+}
+
+/**
+ * @param {object|null|undefined} section
+ * @param {'senior'|'freshman'} audience
+ * @param {{ roundKey?: string, releaseCross?: boolean }} [opts]
+ */
+export function formatSectionAvailableCapacityLabel(section, audience, opts = {}) {
+  const { available, capacity } = getSectionAvailableSeats(section, audience, opts)
+  if (!capacity) return '—'
+  return `${available}/${capacity}`
+}
+
+/**
+ * @param {object|null|undefined} section
+ * @param {'senior'|'freshman'} audience
+ * @param {{ roundKey?: string, releaseCross?: boolean }} [opts]
+ */
+export function isSectionFullForAudience(section, audience, opts = {}) {
+  if (!section) return true
+  return getSectionAvailableSeats(section, audience, opts).available <= 0
 }
 
 /** 往期新老占比 demo（课详情） */
@@ -1896,7 +2347,7 @@ export function getCourseAudienceSchoolElectiveCategories(course) {
 }
 
 /**
- * 批量设置课程 audience：专业范围 + 学生类别 + 校选类别（本轮仅存档）
+ * 批量设置课程 audience：专业范围 + 学生类别（可选：校选类别，仅当 payload 显式传入时写入）
  * @param {string[]} courseIds
  * @param {{ programmes?: string[], studentCategories?: string[], schoolElectiveCategories?: string[] }} payload
  * @returns {number} 更新门数
@@ -1907,7 +2358,13 @@ export function updateCoursesAudienceScope(courseIds = [], payload = {}) {
     (code) => code && code !== 'All' && code !== '__unlimited__',
   )
   const studentCategories = (payload.studentCategories || []).filter(Boolean)
-  const schoolElectiveCategories = (payload.schoolElectiveCategories || []).filter(Boolean)
+  const touchSchoolElective = Object.prototype.hasOwnProperty.call(
+    payload,
+    'schoolElectiveCategories',
+  )
+  const schoolElectiveCategories = touchSchoolElective
+    ? (payload.schoolElectiveCategories || []).filter(Boolean)
+    : null
   let count = 0
 
   selectableCourses.value = selectableCourses.value.map((course) => {
@@ -1922,8 +2379,10 @@ export function updateCoursesAudienceScope(courseIds = [], payload = {}) {
     if (!studentCategories.length) delete nextAudience.studentCategories
     else nextAudience.studentCategories = [...studentCategories]
 
-    if (!schoolElectiveCategories.length) delete nextAudience.schoolElectiveCategories
-    else nextAudience.schoolElectiveCategories = [...schoolElectiveCategories]
+    if (touchSchoolElective) {
+      if (!schoolElectiveCategories.length) delete nextAudience.schoolElectiveCategories
+      else nextAudience.schoolElectiveCategories = [...schoolElectiveCategories]
+    }
 
     const hasKeys = Object.keys(nextAudience).some((key) => {
       const val = nextAudience[key]
@@ -1940,7 +2399,7 @@ export function updateCoursesAudienceScope(courseIds = [], payload = {}) {
 
 /**
  * 批量设置专业范围。programmes 为空或仅含不限哨兵时清除限制。
- * @deprecated 请使用 updateCoursesAudienceScope（可同时写学生类别/校选类别）
+ * @deprecated 请使用 updateCoursesAudienceScope
  * @param {string[]} courseIds
  * @param {string[]} programmes
  */

@@ -9,6 +9,7 @@ import {
   decideAddDropApplication,
   getAddDropApplicationById,
   addDropApplicationHasBillableFee,
+  ensureApplicationItems,
 } from '../../data/courseRegistration/addDropApprovalQueue.js'
 import { buildAddDropTimelineNodes } from '../../utils/buildApprovalTimelineNodes.js'
 
@@ -25,8 +26,9 @@ const { t, tr } = useAppI18n()
 const approvalModalVisible = ref(false)
 
 const liveApp = computed(() => {
-  if (!props.application?.id) return props.application
-  return getAddDropApplicationById(props.application.id) || props.application
+  if (!props.application?.id) return ensureApplicationItems(props.application)
+  const raw = getAddDropApplicationById(props.application.id) || props.application
+  return ensureApplicationItems(raw)
 })
 
 const timelineNodes = computed(() => buildAddDropTimelineNodes(liveApp.value))
@@ -38,7 +40,11 @@ const subtitle = computed(() => {
   return [app.applicationNo, app.studentName].filter(Boolean).join(' · ')
 })
 
-const canReview = computed(() => props.mode === 'approve' && liveApp.value?.status === 'Pending')
+const canReview = computed(
+  () =>
+    props.mode === 'approve' &&
+    (liveApp.value?.status === 'Pending' || liveApp.value?.status === 'In Review'),
+)
 
 const showGenerateBill = computed(() => addDropApplicationHasBillableFee(liveApp.value))
 
@@ -53,11 +59,23 @@ function openApprovalModal() {
   approvalModalVisible.value = true
 }
 
-async function handleApprovalConfirm({ action, comment, generateBill }) {
+async function handleApprovalConfirm({ action, comment, generateBill, lineDecisions }) {
   const app = liveApp.value
   if (!app) return
 
-  const result = decideAddDropApplication(app.id, action, comment, { generateBill })
+  let resolvedLineDecisions = lineDecisions
+  if (!resolvedLineDecisions && (action === 'Approved' || action === 'Rejected')) {
+    resolvedLineDecisions = {}
+    for (const [idx] of (app.items || []).entries()) {
+      resolvedLineDecisions[idx] = action === 'Rejected' ? 'rejected' : 'approved'
+    }
+  }
+
+  const result = decideAddDropApplication(app.id, action, comment, {
+    generateBill,
+    lineDecisions:
+      action === 'Approved' || action === 'Rejected' ? resolvedLineDecisions : undefined,
+  })
   if (!result.ok) {
     window.alert(tr(result.errorKey || 'common.error'))
     return
@@ -73,7 +91,10 @@ async function handleApprovalConfirm({ action, comment, generateBill }) {
     <template v-if="liveApp">
       <ApprovalTimeline :nodes="timelineNodes" />
 
-      <AddDropApplicationDetailBody :application="liveApp" :show-attachment-export="true" />
+      <AddDropApplicationDetailBody
+        :application="liveApp"
+        :show-attachment-export="true"
+      />
     </template>
 
     <template #footer>
@@ -89,6 +110,7 @@ async function handleApprovalConfirm({ action, comment, generateBill }) {
     approval-stage="Academic Coordinator"
     :target-count="1"
     :show-generate-bill="showGenerateBill"
+    :application="liveApp"
     @close="approvalModalVisible = false"
     @confirm="handleApprovalConfirm"
   />

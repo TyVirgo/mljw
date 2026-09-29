@@ -6,6 +6,7 @@ import BatchCourseOptionalSettingsModal from './BatchCourseOptionalSettingsModal
 import BatchCourseCapacitySettingsModal from './BatchCourseCapacitySettingsModal.vue'
 import BatchCourseQuotaAllocateModal from './BatchCourseQuotaAllocateModal.vue'
 import BatchCourseProgrammeScopeModal from './BatchCourseProgrammeScopeModal.vue'
+import BatchCourseRound1SeniorQuotaModal from './BatchCourseRound1SeniorQuotaModal.vue'
 import ExternalDataHint from './ExternalDataHint.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
@@ -38,11 +39,15 @@ const optionalSettingsVisible = ref(false)
 const capacitySettingsVisible = ref(false)
 const quotaAllocateVisible = ref(false)
 const programmeScopeVisible = ref(false)
+const round1SeniorQuotaVisible = ref(false)
 /** 勾选的课程分组 id @type {import('vue').Ref<string[]>} */
 const selectedIds = ref([])
 
 const batchId = computed(() => props.batch?.id || '')
 const batchName = computed(() => props.batch?.name || '')
+const batchType = computed(() => String(props.batch?.type || '').toUpperCase())
+const batchProgramme = computed(() => String(props.batch?.programme || '').trim())
+const isMeBatch = computed(() => batchType.value === 'ME')
 const batchReadOnly = computed(
   () => props.batch?.status === 'active' || props.batch?.status === 'closed',
 )
@@ -191,6 +196,7 @@ watch(
     capacitySettingsVisible.value = false
     quotaAllocateVisible.value = false
     programmeScopeVisible.value = false
+    round1SeniorQuotaVisible.value = false
     selectedIds.value = []
   },
 )
@@ -224,6 +230,11 @@ function openQuotaAllocate() {
 function openProgrammeScopeSettings() {
   if (batchReadOnly.value || !selectedIds.value.length) return
   programmeScopeVisible.value = true
+}
+
+function openRound1SeniorQuota() {
+  if (batchReadOnly.value || !isMeBatch.value || selectedCourses.value.length !== 1) return
+  round1SeniorQuotaVisible.value = true
 }
 
 function selectableLabel(value) {
@@ -264,6 +275,9 @@ function capacityPercentLabel(row) {
 }
 
 function programmeScopeLabel(row) {
+  if (isMeBatch.value) {
+    return batchProgramme.value || '—'
+  }
   const codes = getCourseProgrammeScopeCodes(row.course || row)
   if (!codes.length) return t('courseRegistration.courses.programmeScopeUnlimited')
   return codes.join('、')
@@ -401,6 +415,22 @@ function handleProgrammeScopeSaved() {
               @click="openProgrammeScopeSettings"
             >
               {{ t('courseRegistration.courses.programmeScopeSettings') }}
+            </button>
+            <button
+              v-if="isMeBatch"
+              type="button"
+              class="btn btn-default"
+              :disabled="batchReadOnly || selectedCourses.length !== 1"
+              :title="
+                batchReadOnly
+                  ? batchReadOnlyHint
+                  : selectedCourses.length !== 1
+                    ? t('courseRegistration.courses.round1SeniorQuotaNeedOne')
+                    : undefined
+              "
+              @click="openRound1SeniorQuota"
+            >
+              {{ t('courseRegistration.courses.round1SeniorQuota') }}
             </button>
           </div>
           <span class="drawer-meta">
@@ -576,8 +606,18 @@ function handleProgrammeScopeSaved() {
   <BatchCourseProgrammeScopeModal
     :visible="programmeScopeVisible"
     :courses="selectedCourses"
+    :batch-type="batchType"
+    :batch-programme="batchProgramme"
     @close="programmeScopeVisible = false"
     @saved="handleProgrammeScopeSaved"
+  />
+
+  <BatchCourseRound1SeniorQuotaModal
+    :visible="round1SeniorQuotaVisible"
+    :courses="selectedCourses"
+    :batch="batch"
+    @close="round1SeniorQuotaVisible = false"
+    @saved="handleCapacitySaved"
   />
 </template>
 

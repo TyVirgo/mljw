@@ -79,3 +79,27 @@ ME 批次 `round1Quota` 必须 含 `totalCap`（名额总数）与 `meQuotaRows[
 #### Scenario: 特殊学生行不可删
 - **WHEN** 管理员在 ME 名额表操作 special 行
 - **THEN** 无删除操作；表末始终有一行「特殊学生（包含特殊名单）」
+
+### Requirement: 单位覆盖按课程类型区分
+
+单位批次时间覆盖 MUST 带 `courseType`（`GE` 或 `ME`）。同一学年学期下，同一单位 MUST 可分别配置 GE 与 ME 覆盖行。唯一键 MUST 为 `(unitCode, academicSession, courseType)`。学期全局配置 MUSTNOT 因本增量拆分课程类型。
+
+#### Scenario: 同单位 GE/ME 可并存
+
+- **WHEN** 管理员为同一学院在同学期分别新增 GE 与 ME 单位覆盖
+- **THEN** 列表出现两行且课程类型列分别显示 GE、ME；互不覆盖
+
+#### Scenario: 新增必选课程类型
+
+- **WHEN** 管理员打开选单位弹窗未选课程类型或未选学院
+- **THEN** 不可确认；提示必填
+
+#### Scenario: 置灰按单位加类型
+
+- **WHEN** 某单位已配置 GE 覆盖、未配置 ME
+- **THEN** 选择 GE 时该单位置灰；切换为 ME 后该单位可选
+
+#### Scenario: 解析按批次类型命中
+
+- **WHEN** 同学期同学院存在 GE 与 ME 两套单位覆盖且时间不同，且存在对应类型批次
+- **THEN** GE 批次生效 GE 覆盖轮次；ME 批次生效 ME 覆盖轮次；无覆盖的类型回退学期全局

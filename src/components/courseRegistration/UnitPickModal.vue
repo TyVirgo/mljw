@@ -1,11 +1,16 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { listUnitScheduleSchoolOptions } from '../../data/courseRegistration/sessionRegistrationSchedules.js'
+import {
+  listUnitScheduleSchoolOptions,
+  UNIT_SCHEDULE_COURSE_TYPES,
+  normalizeUnitCourseType,
+} from '../../data/courseRegistration/sessionRegistrationSchedules.js'
 
 const props = defineProps({
   visible: Boolean,
-  disabledUnitCodes: {
+  /** 已配置的「单位|课程类型」键，如 CAMS|GE */
+  disabledUnitTypeKeys: {
     type: Array,
     default: () => [],
   },
@@ -16,23 +21,45 @@ const emit = defineEmits(['close', 'confirm'])
 const { t, locale } = useAppI18n()
 
 const selected = ref([])
+const courseType = ref('GE')
 const error = ref('')
 
-const disabledSet = computed(() => new Set(props.disabledUnitCodes.map(String)))
+const disabledSet = computed(() => new Set(props.disabledUnitTypeKeys.map(String)))
 
 const options = computed(() => listUnitScheduleSchoolOptions(locale.value === 'zh'))
+
+const courseTypeOptions = computed(() =>
+  UNIT_SCHEDULE_COURSE_TYPES.map((type) => ({
+    value: type,
+    label: t(`courseRegistration.schedule.courseType.${type}`),
+  })),
+)
 
 watch(
   () => props.visible,
   (visible) => {
     if (!visible) return
     selected.value = []
+    courseType.value = 'GE'
     error.value = ''
   },
 )
 
+watch(courseType, () => {
+  selected.value = selected.value.filter((code) => !isUnitDisabled(code))
+  error.value = ''
+})
+
+function unitTypeKey(code, type = courseType.value) {
+  return `${code}|${normalizeUnitCourseType(type)}`
+}
+
+function isUnitDisabled(code) {
+  return disabledSet.value.has(unitTypeKey(code))
+}
+
 function toggle(code) {
-  if (disabledSet.value.has(code)) return
+  if (isUnitDisabled(code)) return
   const idx = selected.value.indexOf(code)
   if (idx === -1) {
     selected.value.push(code)
@@ -43,11 +70,18 @@ function toggle(code) {
 }
 
 function handleConfirm() {
+  if (!courseType.value) {
+    error.value = t('courseRegistration.schedule.pickCourseTypeRequired')
+    return
+  }
   if (!selected.value.length) {
     error.value = t('courseRegistration.schedule.pickUnitRequired')
     return
   }
-  emit('confirm', [...selected.value])
+  emit('confirm', {
+    unitCodes: [...selected.value],
+    courseType: normalizeUnitCourseType(courseType.value),
+  })
 }
 
 function handleClose() {
@@ -72,6 +106,16 @@ function handleOverlayClick(event) {
 
         <div class="modal-body">
           <label class="field-label">
+            <span class="req">*</span> {{ t('courseRegistration.schedule.pickCourseTypeField') }}
+          </label>
+          <div class="type-radios">
+            <label v-for="opt in courseTypeOptions" :key="opt.value" class="type-option">
+              <input v-model="courseType" type="radio" :value="opt.value" />
+              <span>{{ opt.label }}</span>
+            </label>
+          </div>
+
+          <label class="field-label field-label--spaced">
             <span class="req">*</span> {{ t('courseRegistration.schedule.pickUnitField') }}
           </label>
           <div class="unit-list">
@@ -79,12 +123,12 @@ function handleOverlayClick(event) {
               v-for="opt in options"
               :key="opt.code"
               class="unit-option"
-              :class="{ disabled: disabledSet.has(opt.code) }"
+              :class="{ disabled: isUnitDisabled(opt.code) }"
             >
               <input
                 type="checkbox"
                 :checked="selected.includes(opt.code)"
-                :disabled="disabledSet.has(opt.code)"
+                :disabled="isUnitDisabled(opt.code)"
                 @change="toggle(opt.code)"
               />
               <span>{{ opt.label }}</span>
@@ -107,80 +151,104 @@ function handleOverlayClick(event) {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  z-index: 1100;
+  background: rgba(15, 23, 42, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1100;
   padding: 24px;
 }
 
 .modal-panel {
-  width: 100%;
-  max-width: 560px;
+  width: min(520px, 96vw);
   background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
-  padding: 24px 28px 20px;
+  border-radius: 10px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
 }
 
 .modal-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .modal-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #111827;
   margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
 }
 
 .modal-close {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  font-size: 22px;
-  color: #6b7280;
-  flex-shrink: 0;
   border: none;
   background: none;
+  font-size: 22px;
+  line-height: 1;
+  color: #6b7280;
   cursor: pointer;
+  padding: 0 2px;
 }
 
 .modal-close:hover {
-  background: #f3f4f6;
+  color: #374151;
+}
+
+.modal-body {
+  padding: 18px;
+  overflow: auto;
 }
 
 .field-label {
   display: block;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: #374151;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+}
+
+.field-label--spaced {
+  margin-top: 14px;
 }
 
 .req {
-  color: #ef4444;
+  color: #dc2626;
   margin-right: 2px;
+}
+
+.type-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+
+.type-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
 }
 
 .unit-list {
   max-height: 280px;
   overflow-y: auto;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 4px 0;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 2px 0;
+  background: #fff;
 }
 
 .unit-option {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 8px;
+  padding: 8px 12px;
   font-size: 13px;
   color: #374151;
   cursor: pointer;
@@ -206,24 +274,26 @@ function handleOverlayClick(event) {
 
 .field-error {
   margin: 8px 0 0;
-  font-size: 12px;
-  color: #ef4444;
+  font-size: 13px;
+  color: #dc2626;
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid #f3f4f6;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid #e5e7eb;
 }
 
 .btn {
-  height: 36px;
-  padding: 0 18px;
-  border-radius: 8px;
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 6px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   border: 1px solid transparent;
@@ -238,5 +308,6 @@ function handleOverlayClick(event) {
 .btn-primary {
   background: #2563eb;
   color: #fff;
+  border-color: #2563eb;
 }
 </style>

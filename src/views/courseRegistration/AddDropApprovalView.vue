@@ -1,9 +1,12 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import AddDropApprovalDetailDrawer from '../../components/courseRegistration/AddDropApprovalDetailDrawer.vue'
 import AddDropApprovalModal from '../../components/courseRegistration/AddDropApprovalModal.vue'
+import AddDropBillDetailDrawer from '../../components/courseRegistration/AddDropBillDetailDrawer.vue'
+import AddDropOrderRegenModal from '../../components/courseRegistration/AddDropOrderRegenModal.vue'
+import MonitorRemindModal from '../../components/courseRegistration/MonitorRemindModal.vue'
 import CourseRegistrationCallout from '../../components/courseRegistration/CourseRegistrationCallout.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
@@ -12,6 +15,8 @@ import {
   addDropTypeOptions,
   decideAddDropApplication,
   addDropApplicationHasBillableFee,
+  incrementPaymentRemindCount,
+  ensureApplicationItems,
 } from '../../data/courseRegistration/addDropApprovalQueue.js'
 import { approvalExportFields } from '../../data/courseRegistration/courseRegistrationExportFields.js'
 import {
@@ -26,7 +31,19 @@ import {
 import { getAddDropApprovalListColumns, isShieldedAddDropType } from '../../data/courseRegistration/addDropListColumns.js'
 import { addDropStatusBadgeClass } from '../../data/courseRegistration/addDropStatusBadge.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
-import { formatAmountRmb } from '../../data/courseRegistration/addDropFeeRates.js'
+import {
+  formatAmountRmb,
+  resolveAddDropExcessCredits,
+} from '../../data/courseRegistration/addDropFeeRates.js'
+import {
+  ensureHistoryPaymentDueDemo,
+  getPaymentRemainingInfo,
+  formatRemainingDuration,
+  canShowBillDetail,
+  canRemindPayment,
+  canRegeneratePaymentOrder,
+  buildPaymentRemindDraft,
+} from '../../data/courseRegistration/adminAddDropPaymentInsight.js'
 import '../../styles/list-page-search.css'
 import '../../styles/course-registration-list.css'
 import '../../styles/movement-status-badge.css'
@@ -35,7 +52,6 @@ const { t, tr, isZh } = useAppI18n()
 
 const APPROVAL_TABS = [
   { id: 'pending', labelKey: 'courseRegistration.approval.tabs.pending' },
-  { id: 'submitted', labelKey: 'courseRegistration.approval.tabs.submitted' },
   { id: 'history', labelKey: 'courseRegistration.approval.tabs.history' },
 ]
 
@@ -50,14 +66,30 @@ const detailMode = ref('readonly')
 const exportModalVisible = ref(false)
 const approvalModalVisible = ref(false)
 const pendingApprovalIds = ref([])
+const billDetailApp = ref(null)
+const remindApp = ref(null)
+const regenApp = ref(null)
+const pageToast = ref('')
+const nowTick = ref(Date.now())
+let tickTimer = null
+
+onMounted(() => {
+  ensureHistoryPaymentDueDemo()
+  tickTimer = setInterval(() => {
+    nowTick.value = Date.now()
+  }, 30_000)
+})
+
+onBeforeUnmount(() => {
+  if (tickTimer) clearInterval(tickTimer)
+})
 
 const tabCounts = computed(() => {
-  const counts = { pending: 0, submitted: 0, history: 0 }
+  const counts = { pending: 0, history: 0 }
   for (const row of addDropApprovalQueue.value) {
     if (isShieldedAddDropType(row.type)) continue
-    if (row.status === 'Pending') counts.pending += 1
-    else if (row.status === 'In Review') counts.submitted += 1
-    else if (['Approved', 'Rejected', 'Cancelled'].includes(row.status)) counts.history += 1
+    if (row.status === 'Pending' || row.status === 'In Review') counts.pending += 1
+    else if (['Approved', 'Rejected', 'Cancelled', 'PartiallyApproved'].includes(row.status)) counts.history += 1
   }
   return counts
 })
@@ -72,6 +104,7 @@ const paginatedRows = computed(() => {
 })
 
 const showApproveToolbar = computed(() => activeTab.value === 'pending')
+const isHistoryTab = computed(() => activeTab.value === 'history')
 
 const allPageSelected = computed(() => {
   if (!paginatedRows.value.length) return false
@@ -81,7 +114,12 @@ const allPageSelected = computed(() => {
 const selectedRows = computed(() =>
   selectedIds.value
     .map((id) => addDropApprovalQueue.value.find((row) => row.id === id))
-    .filter((row) => row && row.status === 'Pending' && !isShieldedAddDropType(row.type)),
+    .filter(
+      (row) =>
+        row &&
+        (row.status === 'Pending' || row.status === 'In Review') &&
+        !isShieldedAddDropType(row.type),
+    ),
 )
 
 const canApproveSelection = computed(
@@ -91,6 +129,7 @@ const canApproveSelection = computed(
 const listColumns = computed(() =>
   getAddDropApprovalListColumns(appliedSearch.value.type || '', {
     showCheck: showApproveToolbar.value,
+    showPaymentRemaining: isHistoryTab.value,
   }),
 )
 const tableColspan = computed(() => listColumns.value.length)
@@ -102,9 +141,10 @@ const batchShowGenerateBill = computed(() =>
   }),
 )
 
-watch(activeTab, () => {
+watch(activeTab, (tab) => {
   currentPage.value = 1
   selectedIds.value = []
+  if (tab === 'history') ensureHistoryPaymentDueDemo()
 })
 
 function handleSearch() {
@@ -121,24 +161,45 @@ function handleReset() {
 }
 
 function typeLabel(type) {
-  return t(`courseRegistration.approval.type.${type}`)
+  const primary =
+    type === 'AddDrop' ? 'Add' : type === 'RetakeDrop' ? 'Retake' : type
+  return t(`courseRegistration.approval.type.${primary}`)
 }
 
 function typeClass(type) {
+  const primary =
+    type === 'AddDrop' ? 'Add' : type === 'RetakeDrop' ? 'Retake' : type
   const map = {
     Add: 'type-add',
     Drop: 'type-drop',
     Retake: 'type-retake',
     Replace: 'type-replace',
-    AddDrop: 'type-mixed',
-    RetakeDrop: 'type-mixed',
   }
-  return map[type] || ''
+  return map[primary] || ''
 }
 
 function billLabel(status) {
   if (!status || status === 'none') return '—'
   return t(`courseRegistration.approval.bill.${status}`)
+}
+
+function paymentRemainingText(row) {
+  void nowTick.value
+  const info = getPaymentRemainingInfo(row, nowTick.value)
+  if (info.kind === 'none' || info.kind === 'settled') return '—'
+  if (info.kind === 'overdue') return t('courseRegistration.approval.paymentOverdue')
+  if (info.kind === 'unknown') return t(info.labelKey)
+  if (info.kind === 'remaining') return formatRemainingDuration(info.remainingMs, t)
+  return '—'
+}
+
+function paymentRemainingClass(row) {
+  void nowTick.value
+  const info = getPaymentRemainingInfo(row, nowTick.value)
+  if (info.kind === 'overdue') return 'pay-remain is-overdue'
+  if (info.urgent) return 'pay-remain is-urgent'
+  if (info.warn) return 'pay-remain is-warn'
+  return 'pay-remain'
 }
 
 function courseColumns(row) {
@@ -192,13 +253,17 @@ function listFee(row) {
 }
 
 function listExcessCredits(row) {
-  const n =
-    row.excessCredits ??
-    row.billableCredits ??
-    row.feeEstimate?.billableCredits ??
-    (row.feeEstimate?.items || []).reduce((s, i) => s + (Number(i.billableCredits) || 0), 0)
-  if (n == null || n === '') return '—'
-  return Number(n) || 0
+  if (!row || row.type === 'Drop') return '—'
+  const n = resolveAddDropExcessCredits(row)
+  if (
+    n <= 0 &&
+    (row.excessCredits == null || row.excessCredits === '') &&
+    row.billableCredits == null &&
+    row.feeEstimate?.billableCredits == null
+  ) {
+    return '—'
+  }
+  return n
 }
 
 function listRetakeType(row) {
@@ -211,10 +276,7 @@ function listRetakeType(row) {
   )
 }
 
-function feeWaiverLabel(row) {
-  if (row.type !== 'Drop' && row.type !== 'AddDrop' && row.type !== 'RetakeDrop') return '—'
-  if (row.feeWaiver === true) return t('courseRegistration.student.feeWaiverYes')
-  if (row.feeWaiver === false) return t('courseRegistration.student.feeWaiverNo')
+function feeWaiverLabel(_row) {
   return '—'
 }
 
@@ -242,6 +304,8 @@ const COLUMN_HEADER_KEYS = {
   feeWaiver: 'courseRegistration.student.feeWaiverLabel',
   credits: 'courseRegistration.monitor.credits',
   bill: 'courseRegistration.approval.billLabel',
+  paymentRemindCount: 'courseRegistration.approval.paymentRemindCount',
+  paymentRemaining: 'courseRegistration.approval.paymentRemainingLabel',
   submittedAt: 'courseRegistration.approval.submittedAt',
   actions: 'common.actions',
 }
@@ -257,7 +321,11 @@ function columnClass(col) {
   if (col === 'applicationNo') return 'sticky-left sticky-no nowrap'
   if (col === 'status') return 'col-status nowrap'
   if (col === 'classTimeVenue') return 'col-time-venue'
-  if (col === 'actions') return 'sticky-right sticky-actions'
+  if (col === 'actions') {
+    return isHistoryTab.value
+      ? 'sticky-right sticky-actions sticky-actions--history nowrap'
+      : 'sticky-right sticky-actions sticky-actions--simple nowrap'
+  }
   if (col === 'addCourse' || col === 'dropCourse' || col === 'retakeCourse') return 'col-course nowrap'
   return 'nowrap'
 }
@@ -281,6 +349,13 @@ function cellText(col, row, index) {
   if (col === 'feeWaiver') return feeWaiverLabel(row)
   if (col === 'credits') return `${row.currentCredits}/${row.creditMax}`
   if (col === 'bill') return billLabel(row.billStatus)
+  if (col === 'paymentRemindCount') {
+    if (row.billStatus === 'none' || row.billStatus == null) return '—'
+    const n = Number(row.paymentRemindCount) || 0
+    if (n <= 0) return t('courseRegistration.approval.paymentRemindCountZero')
+    return t('courseRegistration.approval.paymentRemindCountTimes', { n })
+  }
+  if (col === 'paymentRemaining') return paymentRemainingText(row)
   if (col === 'submittedAt') return row.submittedAt
   return ''
 }
@@ -290,8 +365,40 @@ function resolveDetailMode(tab) {
 }
 
 function openDetail(row) {
-  detailApp.value = row
+  detailApp.value = ensureApplicationItems(row) || row
   detailMode.value = resolveDetailMode(activeTab.value)
+}
+
+function openBillDetail(row) {
+  billDetailApp.value = row
+}
+
+function openPaymentRemind(row) {
+  remindApp.value = row
+}
+
+function openOrderRegen(row) {
+  regenApp.value = row
+}
+
+function handlePaymentRemindConfirm({ row }) {
+  if (row?.id) incrementPaymentRemindCount(row.id)
+  remindApp.value = null
+  pageToast.value = t('courseRegistration.approval.paymentRemindSent', {
+    name: row?.studentName || '',
+  })
+  window.setTimeout(() => {
+    if (pageToast.value) pageToast.value = ''
+  }, 3200)
+}
+
+function handleOrderRegenConfirm() {
+  regenApp.value = null
+  nowTick.value = Date.now()
+  pageToast.value = t('courseRegistration.approval.regenSuccess')
+  window.setTimeout(() => {
+    if (pageToast.value) pageToast.value = ''
+  }, 3200)
 }
 
 function toggleSelectAll(event) {
@@ -311,21 +418,36 @@ function toggleSelect(id) {
   }
 }
 
+const singleApprovalApp = computed(() => {
+  if (pendingApprovalIds.value.length !== 1) return null
+  const id = pendingApprovalIds.value[0]
+  const row = addDropApprovalQueue.value.find((r) => r.id === id)
+  return ensureApplicationItems(row)
+})
+
 function openBatchApproval() {
   if (!canApproveSelection.value) {
     window.alert(tr('Please select one or more applications that can be approved.'))
     return
   }
-  pendingApprovalIds.value = selectedRows.value.map((r) => r.id)
+  pendingApprovalIds.value = selectedRows.value.map((r) => {
+    ensureApplicationItems(r)
+    return r.id
+  })
   approvalModalVisible.value = true
 }
 
-function handleBatchApprovalConfirm({ action, comment, generateBill }) {
+function handleBatchApprovalConfirm({ action, comment, generateBill, lineDecisions }) {
   let failed = 0
+  const singleId =
+    pendingApprovalIds.value.length === 1 ? pendingApprovalIds.value[0] : null
   for (const id of pendingApprovalIds.value) {
     const row = addDropApprovalQueue.value.find((r) => r.id === id)
-    if (!row || row.status !== 'Pending') continue
-    const result = decideAddDropApplication(id, action, comment, { generateBill })
+    if (!row || (row.status !== 'Pending' && row.status !== 'In Review')) continue
+    const result = decideAddDropApplication(id, action, comment, {
+      generateBill,
+      lineDecisions: id === singleId ? lineDecisions : undefined,
+    })
     if (!result.ok) failed += 1
   }
   pendingApprovalIds.value = []
@@ -358,6 +480,7 @@ function handleExportConfirm({ selectedFields }) {
       <CourseRegistrationCallout variant="rule">
         <p>{{ t('courseRegistration.approval.mainFlowHint') }}</p>
       </CourseRegistrationCallout>
+      <p v-if="pageToast" class="approval-toast">{{ pageToast }}</p>
 
       <div class="tab-bar">
         <button
@@ -471,10 +594,39 @@ function handleExportConfirm({ selectedFields }) {
                       </div>
                     </div>
                   </template>
+                  <template v-else-if="col === 'paymentRemaining'">
+                    <span :class="paymentRemainingClass(row)">{{ paymentRemainingText(row) }}</span>
+                  </template>
                   <template v-else-if="col === 'actions'">
-                    <button type="button" class="link-btn" @click="openDetail(row)">
-                      {{ t('common.details') }}
-                    </button>
+                    <div class="action-links">
+                      <button type="button" class="link-btn" @click="openDetail(row)">
+                        {{ t('common.details') }}
+                      </button>
+                      <button
+                        v-if="isHistoryTab && canShowBillDetail(row)"
+                        type="button"
+                        class="link-btn"
+                        @click="openBillDetail(row)"
+                      >
+                        {{ t('courseRegistration.approval.billDetail') }}
+                      </button>
+                      <button
+                        v-if="isHistoryTab && canRemindPayment(row, nowTick)"
+                        type="button"
+                        class="btn btn-primary btn-sm"
+                        @click="openPaymentRemind(row)"
+                      >
+                        {{ t('courseRegistration.approval.sendPaymentRemind') }}
+                      </button>
+                      <button
+                        v-if="isHistoryTab && canRegeneratePaymentOrder(row, nowTick)"
+                        type="button"
+                        class="btn btn-outline btn-sm"
+                        @click="openOrderRegen(row)"
+                      >
+                        {{ t('courseRegistration.approval.regenOrder') }}
+                      </button>
+                    </div>
                   </template>
                   <template v-else>
                     {{ cellText(col, row, index) }}
@@ -505,11 +657,34 @@ function handleExportConfirm({ selectedFields }) {
       @updated="detailApp = null"
     />
 
+    <AddDropBillDetailDrawer
+      :visible="!!billDetailApp"
+      :application="billDetailApp"
+      @close="billDetailApp = null"
+    />
+
+    <MonitorRemindModal
+      :visible="!!remindApp"
+      :row="remindApp"
+      :draft-builder="buildPaymentRemindDraft"
+      title-key="courseRegistration.approval.paymentRemindModalTitle"
+      @close="remindApp = null"
+      @confirm="handlePaymentRemindConfirm"
+    />
+
+    <AddDropOrderRegenModal
+      :visible="!!regenApp"
+      :application="regenApp"
+      @close="regenApp = null"
+      @confirm="handleOrderRegenConfirm"
+    />
+
     <AddDropApprovalModal
       :visible="approvalModalVisible"
       approval-stage="Academic Coordinator"
       :target-count="pendingApprovalIds.length"
       :show-generate-bill="batchShowGenerateBill"
+      :application="singleApprovalApp"
       @close="approvalModalVisible = false"
       @confirm="handleBatchApprovalConfirm"
     />
@@ -634,8 +809,80 @@ function handleExportConfirm({ selectedFields }) {
 
 .sticky-actions {
   right: 0;
-  min-width: 72px;
+  width: 1%;
+  white-space: nowrap;
+  vertical-align: middle;
   box-shadow: -4px 0 8px -6px rgba(15, 23, 42, 0.25);
+}
+
+/* 待审批：仅「详情」，按内容收缩 */
+.sticky-actions--simple {
+  min-width: 0;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+/* 历史：按行内操作内容自适应，不强制过宽 */
+.sticky-actions--history {
+  min-width: 0;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.action-links {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 6px 8px;
+  align-items: center;
+  white-space: nowrap;
+  width: max-content;
+  max-width: none;
+}
+
+.action-links .btn-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.action-links .btn-primary {
+  background: #2563eb;
+  color: #fff;
+  border: 1px solid #2563eb;
+}
+
+.action-links .btn-outline {
+  background: #fff;
+  border: 1px solid #2563eb;
+  color: #2563eb;
+}
+
+.pay-remain.is-warn {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.pay-remain.is-urgent,
+.pay-remain.is-overdue {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.approval-toast {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  background: #ecfdf5;
+  color: #047857;
+  border-radius: 6px;
+  font-size: 13px;
 }
 
 thead .sticky-left,

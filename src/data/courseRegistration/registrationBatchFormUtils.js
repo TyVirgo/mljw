@@ -191,7 +191,7 @@ export function addDaysToDateTime(days, from = new Date()) {
   return formatLocalDateTimeWithSeconds(d)
 }
 
-function formatLocalDateTimeWithSeconds(d) {
+export function formatLocalDateTimeWithSeconds(d) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${normalizeTimeParts(
     d.getHours(),
     d.getMinutes(),

@@ -1,25 +1,19 @@
 <script setup>
 /**
- * 学生维度「新增」代选弹窗：一次一名学生 + 当前批次未满员教学分组
+ * 学生维度「新增」代选：批次只读 + 选择课程班/学生按钮 → 选择器回填（可超额；学生可多选）
  */
 import { ref, computed, watch } from 'vue'
-import TablePagination from '../common/TablePagination.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { formatIntakeBatch } from '../../data/intakeSets.js'
 import { getBatchById } from '../../data/courseRegistration/registrationBatches.js'
 import {
   listTargetCourseSectionOptions,
-  listAdminAddStudentCandidates,
-  getAdminAddStudentFilterOptions,
-  filterAdminAddStudentCandidates,
   addAdminStudentRegistrations,
-} from '../../data/courseRegistration/registrationResult.js'  
-import '../../styles/list-page-search.css'
+} from '../../data/courseRegistration/registrationResult.js'
+import AdminAddSectionPickModal from './AdminAddSectionPickModal.vue'
+import AdminAddStudentPickModal from './AdminAddStudentPickModal.vue'
 
 const props = defineProps({
-  /** 是否显示弹窗 */
   visible: Boolean,
-  /** 页顶当前选课批次，限制可选教学分组范围 */
   batchId: { type: String, default: '' },
 })
 
@@ -27,38 +21,21 @@ const emit = defineEmits(['close', 'success'])
 
 const { t } = useAppI18n()
 
-const filtersExpanded = ref(false)
-const searchForm = ref(emptySearch())
-const appliedSearch = ref(emptySearch())
-/** 单选学号 */
-const selectedStudentId = ref('')
-/** 目标课×分组 value：courseId::sectionId */
-const targetValue = ref('')
-const currentPage = ref(1)
-const pageSize = ref(10)
+const selectedStudents = ref([])
+const selectedSection = ref(null)
+const sectionPickerOpen = ref(false)
+const studentPickerOpen = ref(false)
 const errorKey = ref('')
 
-const filterOptions = computed(() => getAdminAddStudentFilterOptions())
-
-const allCandidates = computed(() => listAdminAddStudentCandidates())
-const filteredRows = computed(() =>
-  filterAdminAddStudentCandidates(allCandidates.value, appliedSearch.value),
-)
-const totalCount = computed(() => filteredRows.value.length)
-const paginatedRows = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return filteredRows.value.slice(start, start + pageSize.value)
-})
-
-/** 当前批次下未满员教学分组选项（批次取页顶只读） */
 const sectionOptions = computed(() =>
   listTargetCourseSectionOptions('', {
     batchId: props.batchId || '',
-    onlyAvailable: true,
+    onlyAvailable: false,
   }),
 )
 
-/** 页顶批次只读展示名 */
+const selectedSectionFull = computed(() => Boolean(selectedSection.value?.isFull))
+
 const batchDisplayName = computed(() => {
   const id = String(props.batchId || '').trim()
   if (!id) return '—'
@@ -66,91 +43,80 @@ const batchDisplayName = computed(() => {
   return batch?.name || id
 })
 
+const sectionLabel = computed(() => selectedSection.value?.label || '')
+
+function removeStudent(studentId) {
+  selectedStudents.value = selectedStudents.value.filter((s) => s.studentId !== studentId)
+  errorKey.value = ''
+}
+
 watch(
   () => [props.visible, props.batchId],
   ([visible]) => {
     if (!visible) return
-    searchForm.value = emptySearch()
-    appliedSearch.value = emptySearch()
-    selectedStudentId.value = ''
-    targetValue.value = ''
-    currentPage.value = 1
-    pageSize.value = 10
-    filtersExpanded.value = false
+    selectedStudents.value = []
+    selectedSection.value = null
+    sectionPickerOpen.value = false
+    studentPickerOpen.value = false
     errorKey.value = ''
   },
 )
 
-/** 批次变更时清空已选课程班（页顶切换后重新打开也会走 reset） */
 watch(
   () => props.batchId,
   () => {
-    targetValue.value = ''
+    selectedSection.value = null
   },
 )
 
-/** 空搜索条件 */
-function emptySearch() {
-  return {
-    studentId: '',
-    studentName: '',
-    faculty: '',
-  }
-}
-
-/**
- * 点击遮罩关闭
- * @param {MouseEvent} event
- */
 function handleOverlayClick(event) {
   if (event.target === event.currentTarget) emit('close')
 }
 
-/** 应用搜索 */
-function handleSearch() {
-  appliedSearch.value = { ...searchForm.value }
-  currentPage.value = 1
+function openSectionPicker() {
+  if (!props.batchId || !sectionOptions.value.length) return
+  sectionPickerOpen.value = true
 }
 
-/** 重置搜索 */
-function handleReset() {
-  searchForm.value = emptySearch()
-  appliedSearch.value = emptySearch()
-  currentPage.value = 1
+function openStudentPicker() {
+  studentPickerOpen.value = true
 }
 
-/**
- * 单选学生
- * @param {string} studentId
- */
-function selectStudent(studentId) {
-  selectedStudentId.value = studentId
+function onPickSection(row) {
+  selectedSection.value = row
+  errorKey.value = ''
 }
 
-/**
- * 性别文案
- * @param {string} gender
- */
-function genderLabel(gender) {
-  if (gender === 'M') return t('courseRegistration.result.genderMale')
-  if (gender === 'F') return t('courseRegistration.result.genderFemale')
-  return gender || '—'
+function onPickStudents(rows) {
+  selectedStudents.value = Array.isArray(rows) ? rows : []
+  errorKey.value = ''
 }
 
-/** 确认代选提交 */
 function handleConfirm() {
   errorKey.value = ''
-  if (!selectedStudentId.value) {
-    errorKey.value = 'courseRegistration.result.addStudentOneRequired'
+  if (!selectedStudents.value.length) {
+    errorKey.value = 'courseRegistration.result.addStudentRequired'
     return
   }
-  if (!targetValue.value) {
+  if (!selectedSection.value?.value) {
     errorKey.value = 'courseRegistration.result.addSectionRequired'
     return
   }
+  if (selectedSectionFull.value) {
+    const opt = selectedSection.value
+    const ok = window.confirm(
+      t('courseRegistration.result.addOverCapacityConfirm', {
+        section: opt?.label || opt?.value,
+        enrolled: opt?.enrolled ?? '—',
+        capacity: opt?.capacity || '—',
+      }),
+    )
+    if (!ok) return
+  }
   const result = addAdminStudentRegistrations({
-    targetValue: targetValue.value,
-    studentIds: [selectedStudentId.value],
+    targetValue: selectedSection.value.value,
+    studentIds: selectedStudents.value.map((s) => s.studentId),
+    allowOverCapacity: true,
   })
   if (!result.ok) {
     errorKey.value = result.errorKey
@@ -173,142 +139,116 @@ function handleConfirm() {
         </div>
 
         <div class="add-reg-body">
-          <!-- 先确认页顶批次（只读），再选该批次下课×分组 -->
-          <div class="target-block">
-            <div class="search-item target-item">
-              <label>{{ t('courseRegistration.batch.name') }}</label>
-              <div class="readonly-field" :title="batchDisplayName">{{ batchDisplayName }}</div>
-            </div>
-            <div class="search-item target-item">
-              <label>{{ t('courseRegistration.result.targetSection') }}</label>
-              <select
-                v-model="targetValue"
-                class="search-select"
+          <div class="form-row">
+            <label class="field-label">{{ t('courseRegistration.batch.name') }}</label>
+            <div class="readonly-field" :title="batchDisplayName">{{ batchDisplayName }}</div>
+          </div>
+
+          <div class="form-row">
+            <label class="field-label">
+              {{ t('courseRegistration.result.targetSection') }}
+              <span class="req">*</span>
+            </label>
+            <div class="field-control with-btn">
+              <input
+                type="text"
+                class="form-input"
+                readonly
+                :value="sectionLabel"
+                :placeholder="t('courseRegistration.result.pickSectionPlaceholder')"
+              />
+              <button
+                type="button"
+                class="btn btn-default"
                 :disabled="!batchId || !sectionOptions.length"
+                @click="openSectionPicker"
               >
-                <option value="">{{ t('common.pleaseSelect') }}</option>
-                <option v-for="opt in sectionOptions" :key="opt.value" :value="opt.value">
-                  {{ opt.label }}
-                </option>
-              </select>
-              <p v-if="batchId && !sectionOptions.length" class="field-hint">
-                {{ t('courseRegistration.result.addNoAvailableSection') }}
-              </p>
+                {{
+                  sectionLabel
+                    ? t('courseRegistration.result.changeSection')
+                    : t('courseRegistration.result.pickSectionButton')
+                }}
+              </button>
             </div>
+            <p v-if="batchId && !sectionOptions.length" class="field-hint">
+              {{ t('courseRegistration.result.addNoSectionInBatch') }}
+            </p>
+            <p v-else-if="selectedSectionFull" class="field-hint field-hint--warn">
+              {{ t('courseRegistration.result.addOverCapacityHint') }}
+            </p>
           </div>
 
-          <div class="search-bar add-reg-search">
-            <div class="search-row">
-              <div class="search-fields">
-                <div class="search-item">
-                  <label>{{ t('courseRegistration.monitor.studentId') }}</label>
-                  <input
-                    v-model="searchForm.studentId"
-                    type="text"
-                    class="search-input"
-                    @keyup.enter="handleSearch"
-                  />
-                </div>
-                <div class="search-item">
-                  <label>{{ t('courseRegistration.monitor.studentName') }}</label>
-                  <input
-                    v-model="searchForm.studentName"
-                    type="text"
-                    class="search-input"
-                    @keyup.enter="handleSearch"
-                  />
-                </div>
+          <div class="form-row">
+            <label class="field-label">
+              {{ t('courseRegistration.result.pickStudentField') }}
+              <span class="req">*</span>
+            </label>
+            <div class="field-control with-btn">
+              <div
+                class="tag-field"
+                :class="{ 'tag-field--empty': !selectedStudents.length }"
+                @click="openStudentPicker"
+              >
+                <template v-if="selectedStudents.length">
+                  <span
+                    v-for="stu in selectedStudents"
+                    :key="stu.studentId"
+                    class="tag-chip"
+                    :title="`${stu.studentName}（${stu.studentId}）`"
+                    @click.stop
+                  >
+                    <span class="tag-chip-text">{{ stu.studentName }}</span>
+                    <button
+                      type="button"
+                      class="tag-chip-remove"
+                      :aria-label="t('common.delete')"
+                      @click.stop="removeStudent(stu.studentId)"
+                    >
+                      ×
+                    </button>
+                  </span>
+                </template>
+                <span v-else class="tag-placeholder">
+                  {{ t('courseRegistration.result.pickStudentPlaceholder') }}
+                </span>
               </div>
-              <div class="search-actions">
-                <button type="button" class="btn btn-primary" @click="handleSearch">
-                  {{ t('common.search') }}
-                </button>
-                <button type="button" class="btn btn-default" @click="handleReset">
-                  {{ t('common.reset') }}
-                </button>
-                <button type="button" class="link-btn" @click="filtersExpanded = !filtersExpanded">
-                  {{
-                    filtersExpanded
-                      ? t('courseRegistration.result.collapseFilters')
-                      : t('courseRegistration.result.expandFilters')
-                  }}
-                </button>
-              </div>
-            </div>
-            <div v-if="filtersExpanded" class="search-row search-row-secondary">
-              <div class="search-fields">
-                <div class="search-item">
-                  <label>{{ t('courseRegistration.batch.scopeFaculty') }}</label>
-                  <select v-model="searchForm.faculty" class="search-select">
-                    <option value="">{{ t('common.pleaseSelect') }}</option>
-                    <option v-for="opt in filterOptions.faculties" :key="opt" :value="opt">{{ opt }}</option>
-                  </select>
-                </div>
-              </div>
+              <button type="button" class="btn btn-default" @click="openStudentPicker">
+                {{
+                  selectedStudents.length
+                    ? t('courseRegistration.result.changeStudent')
+                    : t('courseRegistration.result.pickStudentButton')
+                }}
+              </button>
             </div>
           </div>
-
-          <p class="field-hint">{{ t('courseRegistration.result.addStudentOneHint') }}</p>
-
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th class="col-check"></th>
-                  <th>{{ t('courseRegistration.monitor.studentId') }}</th>
-                  <th>{{ t('courseRegistration.monitor.studentName') }}</th>
-                  <th>{{ t('courseRegistration.result.gender') }}</th>
-                  <th>{{ t('courseRegistration.batch.scopeFaculty') }}</th>
-                  <th>{{ t('courseRegistration.monitor.intake') }}</th>
-                  <th>{{ t('courseRegistration.result.studentCategory') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="row in paginatedRows"
-                  :key="row.studentId"
-                  class="row-clickable"
-                  @click="selectStudent(row.studentId)"
-                >
-                  <td class="col-check">
-                    <input
-                      type="radio"
-                      name="admin-add-student"
-                      :checked="selectedStudentId === row.studentId"
-                      @change="selectStudent(row.studentId)"
-                      @click.stop
-                    />
-                  </td>
-                  <td>{{ row.studentId }}</td>
-                  <td>{{ row.studentName }}</td>
-                  <td>{{ genderLabel(row.gender) }}</td>
-                  <td>{{ row.faculty }}</td>
-                  <td>{{ formatIntakeBatch(row.intake) }}</td>
-                  <td>{{ row.studentCategory }}</td>
-                </tr>
-                <tr v-if="!paginatedRows.length">
-                  <td colspan="7" class="empty-cell">{{ t('common.noData') }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <TablePagination
-            v-model="currentPage"
-            v-model:page-size="pageSize"
-            :total="totalCount"
-          />
 
           <p v-if="errorKey" class="field-error">{{ t(errorKey) }}</p>
         </div>
 
         <div class="add-reg-footer">
-          <button type="button" class="btn btn-default" @click="emit('close')">{{ t('common.cancel') }}</button>
-          <button type="button" class="btn btn-primary" @click="handleConfirm">{{ t('common.confirm') }}</button>
+          <button type="button" class="btn btn-default" @click="emit('close')">
+            {{ t('common.cancel') }}
+          </button>
+          <button type="button" class="btn btn-primary" @click="handleConfirm">
+            {{ t('common.confirm') }}
+          </button>
         </div>
       </div>
     </div>
   </Teleport>
+
+  <AdminAddSectionPickModal
+    :visible="sectionPickerOpen"
+    :batch-id="batchId"
+    @close="sectionPickerOpen = false"
+    @select="onPickSection"
+  />
+  <AdminAddStudentPickModal
+    :visible="studentPickerOpen"
+    :initial-selected="selectedStudents"
+    @close="studentPickerOpen = false"
+    @select="onPickStudents"
+  />
 </template>
 
 <style scoped>
@@ -324,22 +264,20 @@ function handleConfirm() {
 }
 
 .add-reg-panel {
-  width: min(960px, 96vw);
-  max-height: min(92vh, 860px);
-  display: flex;
-  flex-direction: column;
+  width: min(560px, 96vw);
   background: #fff;
   border-radius: 10px;
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
 }
 
 .add-reg-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 16px 20px;
+  padding: 14px 18px;
   border-bottom: 1px solid #e5e7eb;
 }
 
@@ -347,13 +285,11 @@ function handleConfirm() {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
 }
 
 .add-reg-close {
-  appearance: none;
   border: none;
-  background: transparent;
+  background: none;
   font-size: 22px;
   line-height: 1;
   color: #6b7280;
@@ -361,91 +297,140 @@ function handleConfirm() {
 }
 
 .add-reg-body {
-  padding: 16px 20px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  flex: 1;
-  min-height: 0;
 }
 
-.form-field {
+.form-row {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.form-field label {
-  font-size: 13px;
-  color: #374151;
-  font-weight: 500;
-}
-
-.target-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #f9fafb;
-}
-
-.target-item {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  max-width: none;
-  width: 100%;
-}
-
-.target-item label {
-  flex-shrink: 0;
+.field-label {
   font-size: 13px;
   font-weight: 500;
   color: #374151;
 }
 
-.target-item .search-select {
-  width: 100%;
-  max-width: none;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: #fff;
-  font-size: 13px;
-  color: #111827;
-}
-
-.target-item .search-select:disabled {
-  background: #f3f4f6;
-  color: #9ca3af;
-  cursor: not-allowed;
+.req {
+  color: #ef4444;
 }
 
 .readonly-field {
-  display: flex;
-  align-items: center;
   min-height: 32px;
-  padding: 0 10px;
+  padding: 6px 10px;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
-  background: #f3f4f6;
-  color: #374151;
+  background: #f9fafb;
   font-size: 13px;
+  color: #374151;
   line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.field-control.with-btn {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.form-input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+  color: #111827;
+}
+
+.form-input[readonly] {
+  background: #f9fafb;
+  cursor: default;
+}
+
+.tag-field {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.tag-field--empty {
+  align-items: center;
+}
+
+.tag-placeholder {
+  font-size: 13px;
+  color: #9ca3af;
+  line-height: 24px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 4px 0 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background: #f3f4f6;
+  font-size: 12px;
+  color: #374151;
+  line-height: 1;
+}
+
+.tag-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-chip-remove {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tag-chip-remove:hover {
+  color: #111827;
+  background: #e5e7eb;
+}
+
 .field-hint {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 12px;
   color: #6b7280;
+}
+
+.field-hint--warn {
+  color: #b45309;
 }
 
 .field-error {
@@ -454,65 +439,14 @@ function handleConfirm() {
   color: #dc2626;
 }
 
-.table-wrap {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  overflow: auto;
-  max-height: 360px;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.data-table th,
-.data-table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid #f3f4f6;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.data-table th {
-  background: #f9fafb;
-  font-weight: 600;
-  color: #374151;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-.col-check {
-  width: 48px;
-  text-align: center;
-}
-
-.row-clickable {
-  cursor: pointer;
-}
-
-.row-clickable:hover {
-  background: #f8fafc;
-}
-
-.empty-cell {
-  text-align: center;
-  color: #9ca3af;
-  padding: 24px 10px !important;
-}
-
 .add-reg-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 20px;
+  gap: 10px;
+  padding: 14px 18px;
   border-top: 1px solid #e5e7eb;
-  background: #fafafa;
 }
 
-/* 页脚按钮：不在 search-bar 内，需自带样式 */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -538,13 +472,8 @@ function handleConfirm() {
   color: #374151;
 }
 
-.link-btn {
-  appearance: none;
-  border: none;
-  background: transparent;
-  color: #2563eb;
-  cursor: pointer;
-  font-size: 13px;
-  padding: 0 4px;
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

@@ -3,6 +3,7 @@ import {
   computeCreditsAfterApproval,
   detectScheduleConflict,
   suggestApprovalOrder,
+  resolveTermCreditMax,
 } from './registrationRules.js'
 import {
   confirmCoursesFromAddDropItems,
@@ -24,6 +25,11 @@ import { addDaysToDateTime, nowDateTimeWithSeconds } from './registrationBatchFo
 import { isFreshmanStudent } from './studentAudience.js'
 import { enrichAddDropQueueSchedule, enrichAddDropApplicationSchedule } from './addDropScheduleDemo.js'
 import { ADD_DROP_TYPE_TABS, isShieldedAddDropType } from './addDropListColumns.js'
+import { matchesPrimaryTypeFilter, ADD_DROP_PRIMARY_TYPES } from './addDropFormSections.js'
+import {
+  addDropLineKey,
+  summarizeLineDecisions,
+} from './addDropMultiItems.js'
 
 const initialQueue = [
   {
@@ -125,6 +131,129 @@ const initialQueue = [
     approvalLog: [{ at: '2026-07-05 15:30', actor: 'AC COS', action: 'Approved' }],
   },
   {
+    id: 'adr-hist-01',
+    applicationNo: 'ADR2509101',
+    studentId: 'COS2409018',
+    studentName: 'Chen Wei',
+    programme: 'COS',
+    intake: '2409',
+    type: 'Add',
+    status: 'Approved',
+    submittedAt: '2026-07-18 09:00:00',
+    currentCredits: 22,
+    creditMax: 20,
+    billStatus: 'pending',
+    billAmount: 1166,
+    paymentRemindCount: 1,
+    sstAmount: 66,
+    feeEstimate: {
+      total: 1100,
+      sstAmount: 66,
+      payableTotal: 1166,
+      billableCredits: 2,
+      items: [
+        { courseCode: 'STAT201', billableCredits: 1, amount: 550, feeStream: 'science', rate: 550 },
+        { courseCode: 'ENGL201', billableCredits: 1, amount: 550, feeStream: 'arts', rate: 550 },
+      ],
+    },
+    items: [
+      {
+        action: 'Add',
+        courseCode: 'STAT201',
+        courseName: 'Probability & Statistics',
+        credits: 3,
+        section: '01',
+        time: 'Mon 14:00–16:00',
+        fee: 550,
+        lineDecision: 'approved',
+      },
+      {
+        action: 'Add',
+        courseCode: 'ENGL201',
+        courseName: 'Academic Writing',
+        credits: 3,
+        section: '01',
+        time: 'Tue 10:00–12:00',
+        fee: 550,
+        lineDecision: 'approved',
+      },
+    ],
+    schedule: [],
+    approvalLog: [{ at: '2026-07-18 15:00', actor: 'AC COS', action: 'Approved' }],
+  },
+  {
+    id: 'adr-hist-02',
+    applicationNo: 'ADR2509102',
+    studentId: 'DSA2409011',
+    studentName: 'Nur Aisyah',
+    programme: 'DSA',
+    intake: '2409',
+    type: 'Retake',
+    status: 'PartiallyApproved',
+    submittedAt: '2026-07-17 11:20:00',
+    currentCredits: 18,
+    creditMax: 20,
+    billStatus: 'pending',
+    billAmount: 550,
+    paymentRemindCount: 2,
+    items: [
+      {
+        action: 'Retake',
+        courseCode: 'COMP201',
+        courseName: 'Data Structures',
+        credits: 4,
+        section: '01',
+        time: 'Wed 14:00–16:00',
+        retakeGrade: 'F',
+        fee: 1100,
+        lineDecision: 'rejected',
+      },
+      {
+        action: 'Retake',
+        courseCode: 'MATH201',
+        courseName: 'Linear Algebra',
+        credits: 4,
+        section: '01',
+        time: 'Fri 14:00–16:00',
+        retakeGrade: 'F',
+        fee: 550,
+        lineDecision: 'approved',
+      },
+    ],
+    schedule: [],
+    approvalLog: [{ at: '2026-07-17 16:40', actor: 'AC DSA', action: 'PartiallyApproved' }],
+  },
+  {
+    id: 'adr-hist-03',
+    applicationNo: 'ADR2509103',
+    studentId: 'SWE2409008',
+    studentName: 'Tan Mei Ling',
+    programme: 'SWE',
+    intake: '2409',
+    type: 'Add',
+    status: 'Approved',
+    submittedAt: '2026-07-16 10:00:00',
+    currentCredits: 20,
+    creditMax: 20,
+    billStatus: 'paid',
+    billAmount: 550,
+    paymentRemindCount: 1,
+    items: [
+      {
+        action: 'Add',
+        courseCode: 'AI110',
+        courseName: 'Introduction to AI',
+        credits: 3,
+        section: '01',
+        time: 'Thu 09:00–11:00',
+        fee: 550,
+        lineDecision: 'approved',
+      },
+    ],
+    schedule: [],
+    approvalLog: [{ at: '2026-07-16 14:00', actor: 'AC SWE', action: 'Approved' }],
+  },
+  {
     id: 'adr-005',
     applicationNo: 'ADR2509004',
     studentId: 'COS2409022',
@@ -132,18 +261,41 @@ const initialQueue = [
     programme: 'COS',
     intake: '2409',
     type: 'AddDrop',
-    status: 'In Review',
+    status: 'Pending',
     submittedAt: '2026-07-12 10:00:00',
     currentCredits: 12,
     creditMax: 20,
     billStatus: 'none',
     billAmount: 0,
     items: [
-      { action: 'Drop', courseCode: 'COMP101', credits: 4, section: '01', time: 'Thu 14:00–16:00' },
-      { action: 'Add', courseCode: 'COMP201', credits: 4, section: '02', time: 'Wed 14:00–16:00', fee: 0 },
+      {
+        action: 'Drop',
+        courseCode: 'COMP101',
+        courseName: '程序设计导论',
+        credits: 4,
+        section: '01',
+        weekRange: '1-18',
+        lecturers: 'Dr. Lim',
+        meetings: [{ time: 'Thu 14:00–16:00', room: 'A1#101', weekRange: '1-18' }],
+      },
+      {
+        action: 'Add',
+        courseCode: 'COMP201',
+        courseName: 'Data Structures',
+        credits: 4,
+        section: '02',
+        weekRange: '1-5',
+        lecturers: 'Dr. Sarah',
+        fee: 0,
+        meetings: [
+          { time: 'Mon 14:00–16:00', room: 'A3#509', weekRange: '1-5' },
+          { time: 'Tue 10:00–12:00', room: 'A4#105', weekRange: '1-5' },
+          { time: 'Thu 15:00–17:00', room: 'A3#602', weekRange: '1-5' },
+        ],
+      },
     ],
     schedule: [{ day: 'Thu', start: 14, end: 16, course: 'COMP101' }],
-    approvalLog: [{ at: '2026-07-12 11:00', actor: 'AC COS', action: 'Forwarded' }],
+    approvalLog: [],
   },
   {
     id: 'adr-006',
@@ -214,12 +366,29 @@ const initialQueue = [
   },
 ]
 
-export const addDropApprovalQueue = ref(enrichAddDropQueueSchedule(initialQueue.map((item) => ({ ...item }))))
+export const addDropApprovalQueue = ref(
+  enrichAddDropQueueSchedule(
+    initialQueue.map((item) => {
+      const academicSession = item.academicSession || '2026/09'
+      return {
+        ...item,
+        academicSession,
+        creditMax: item.creditMax ?? resolveTermCreditMax(academicSession),
+      }
+    }),
+  ),
+)
 
 export function classifyAddDropBucket(row, tab) {
-  if (tab === 'pending') return row.status === 'Pending' ? 'pending' : null
-  if (tab === 'submitted') return row.status === 'In Review' ? 'submitted' : null
-  if (tab === 'history') return ['Approved', 'Rejected', 'Cancelled'].includes(row.status) ? 'history' : null
+  // 单级审批：In Review 兼容并入待审批；不再有「已提交」桶
+  if (tab === 'pending') {
+    return row.status === 'Pending' || row.status === 'In Review' ? 'pending' : null
+  }
+  if (tab === 'history') {
+    return ['Approved', 'Rejected', 'Cancelled', 'PartiallyApproved'].includes(row.status)
+      ? 'history'
+      : null
+  }
   return null
 }
 
@@ -229,7 +398,7 @@ export function filterAddDropQueue(rows, tab, filters = {}) {
     list = list.filter((r) => r.programme.toLowerCase().includes(filters.programme.toLowerCase()))
   }
   if (filters.type) {
-    list = list.filter((r) => r.type === filters.type)
+    list = list.filter((r) => matchesPrimaryTypeFilter(r.type, filters.type))
   }
   if (filters.keyword) {
     const kw = filters.keyword.toLowerCase()
@@ -303,66 +472,149 @@ export function addDropApplicationHasBillableFee(app) {
   return Number.isFinite(excess) && excess > 0
 }
 
-export function approveAddDropApplication(id, comment = '', generateBill = true) {
+export function approveAddDropApplication(id, comment = '', generateBill = true, options = {}) {
   const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
   const app = addDropApprovalQueue.value[index]
+
+  const lineDecisions = options.lineDecisions || null
+  const items = (app.items || []).map((item, idx) => {
+    const key = addDropLineKey(item)
+    const fromMap =
+      lineDecisions?.[idx] ??
+      lineDecisions?.[key] ??
+      lineDecisions?.[item.courseCode]
+    const decision = fromMap || item.lineDecision || 'approved'
+    return { ...item, lineDecision: decision === 'rejected' ? 'rejected' : 'approved' }
+  })
+  const status = summarizeLineDecisions(items)
+  const approvedItems = items.filter((i) => i.lineDecision === 'approved')
+
   // 超分为加课常态：不因学分超限拦截，仅核对信息后可通过
   const patch = {
-    status: 'Approved',
+    items,
+    status,
     approvalLog: [
       ...app.approvalLog,
       {
         at: new Date().toISOString().slice(0, 16).replace('T', ' '),
         actor: 'AC Demo',
-        action: 'Approved',
+        action: status === 'PartiallyApproved' ? 'PartiallyApproved' : 'Approved',
         comment,
         stage: 'Academic Coordinator',
       },
     ],
   }
-  const fee = resolveAddDropBillAmount(app)
-  if (generateBill && fee > 0) {
+  const feeBase = { ...app, items: approvedItems }
+  const fee = resolveAddDropBillAmount(feeBase)
+  if (generateBill && fee > 0 && status !== 'Rejected') {
     const graceDays = getPaymentGraceDays()
     patch.billStatus = 'pending'
     patch.billAmount = fee
     patch.paymentGraceDays = graceDays
     patch.paymentDueAt = addDaysToDateTime(graceDays)
+    // 审批通过默认发送一封缴费相关邮件
+    patch.paymentRemindCount = Math.max(1, Number(app.paymentRemindCount) || 0)
   }
   addDropApprovalQueue.value[index] = { ...app, ...patch }
 
-  // 写回选课 / 缴费名单失败不回滚已通过状态（原型侧写）
+  // 写回选课 / 缴费名单失败不回滚已通过状态（原型侧写）；仅生效通过行
   try {
     const currentId = getStudentProfileFields().studentId
-    if (app.studentId === currentId) {
-      for (const item of app.items || []) {
+    if (app.studentId === currentId && approvedItems.length) {
+      for (const item of approvedItems) {
         if (item.action === 'Drop' && item.courseCode) {
           dropConfirmedCourseByCode(item.courseCode)
         }
       }
-      confirmCoursesFromAddDropItems(app.items || [], {
+      confirmCoursesFromAddDropItems(approvedItems, {
         seatAlreadyHeld: Boolean((app.seatHolds || []).length),
       })
     }
-    if (generateBill && fee > 0) {
-      appendFeeRosterFromApproval({ ...app, ...patch })
+    if (generateBill && fee > 0 && status !== 'Rejected') {
+      appendFeeRosterFromApproval({ ...app, ...patch, items: approvedItems })
     }
   } catch {
     /* demo：侧写异常不影响审批通过 */
   }
 
-  return { ok: true }
+  return { ok: true, status }
+}
+
+/** 再次发送缴费提醒邮件：次数 +1 */
+export function incrementPaymentRemindCount(id) {
+  const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
+  if (index === -1) return { ok: false }
+  const app = addDropApprovalQueue.value[index]
+  const next = Math.max(1, (Number(app.paymentRemindCount) || 0) + 1)
+  addDropApprovalQueue.value[index] = { ...app, paymentRemindCount: next }
+  return { ok: true, paymentRemindCount: next }
+}
+
+/**
+ * 保证申请含 items（详情审批弹窗逐课操作依赖）
+ * @param {object|null} app
+ * @returns {object|null}
+ */
+export function ensureApplicationItems(app) {
+  if (!app) return app
+  if (Array.isArray(app.items) && app.items.length) return app
+  const items = []
+  const snap = app.courseSnapshots || {}
+  const pushFromSnap = (action, s) => {
+    if (!s?.courseCode && !s?.code) return
+    items.push({
+      action,
+      courseCode: s.courseCode || s.code || '',
+      courseName: s.courseName || s.name || '',
+      credits: Number(s.credits) || 0,
+      section: s.sectionCode || s.section || s.groupNo || '01',
+      sectionCode: s.sectionCode || s.section || '',
+      sectionName: s.sectionName || '',
+      weekRange: s.weekRange || '',
+      time: s.classTime || s.time || '',
+      classTime: s.classTime || s.time || '',
+      venue: s.venue || s.room || '',
+      lecturers: s.lecturers || s.lecturer || '',
+      meetings: s.meetings || null,
+      lineDecision: 'pending',
+      fee: Number(s.fee) || 0,
+    })
+  }
+  if (snap.drop) pushFromSnap('Drop', snap.drop)
+  if (snap.add) pushFromSnap('Add', snap.add)
+  if (snap.retake) pushFromSnap('Retake', snap.retake)
+  if (!items.length && app.courseCode) {
+    const action =
+      app.type === 'Drop' ? 'Drop' : app.type === 'Retake' || app.type === 'RetakeDrop' ? 'Retake' : 'Add'
+    items.push({
+      action,
+      courseCode: app.courseCode,
+      courseName: app.courseName || app.courseCode,
+      credits: Number(app.credits) || 0,
+      section: app.sectionCode || '01',
+      lineDecision: 'pending',
+      fee: Number(app.billAmount) || 0,
+    })
+  }
+  if (!items.length) return app
+  const next = { ...app, items }
+  const index = addDropApprovalQueue.value.findIndex((a) => a.id === app.id)
+  if (index >= 0) addDropApprovalQueue.value[index] = next
+  return next
 }
 
 export function rejectAddDropApplication(id, comment = '') {
   const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
   const app = addDropApprovalQueue.value[index]
-  if (app.status === 'Pending') {
+  if (app.status === 'Pending' || app.status === 'In Review') {
     releaseSeatsForApplication(app)
   }
+  const items = (app.items || []).map((item) => ({ ...item, lineDecision: 'rejected' }))
   addDropApprovalQueue.value[index] = {
     ...app,
+    items,
     status: 'Rejected',
     seatHolds: [],
     approvalLog: [
@@ -407,15 +659,37 @@ export function requestAddDropUpdate(id, comment = '') {
  */
 export function decideAddDropApplication(id, action, comment = '', options = {}) {
   const generateBill = options.generateBill !== false
-  if (action === 'Approved') return approveAddDropApplication(id, comment, generateBill)
+  if (action === 'Approved') {
+    return approveAddDropApplication(id, comment, generateBill, {
+      lineDecisions: options.lineDecisions,
+    })
+  }
   if (action === 'Rejected') return rejectAddDropApplication(id, comment)
   if (action === 'Update Required') return requestAddDropUpdate(id, comment)
   return { ok: false, errorKey: 'courseRegistration.approval.invalidAction' }
 }
 
-/** 本期申请类型（含加退关联、重修关联） */
-export const addDropTypeOptions = [...ADD_DROP_TYPE_TABS]
-export const ALL_ADD_DROP_ACTIONS = addDropTypeOptions
+/** 行级决策写入（审批详情内点选） */
+export function setAddDropLineDecision(id, itemKeyOrIndex, decision) {
+  const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
+  if (index === -1) return { ok: false }
+  const app = addDropApprovalQueue.value[index]
+  const items = (app.items || []).map((item, idx) => {
+    const key = addDropLineKey(item)
+    const match =
+      itemKeyOrIndex === idx ||
+      itemKeyOrIndex === key ||
+      itemKeyOrIndex === item.courseCode
+    if (!match) return item
+    return { ...item, lineDecision: decision }
+  })
+  addDropApprovalQueue.value[index] = { ...app, items }
+  return { ok: true, items }
+}
+
+/** 本期申请类型（筛选/展示用主类型三选一；关联归入加课/重修） */
+export const addDropTypeOptions = [...ADD_DROP_PRIMARY_TYPES]
+export const ALL_ADD_DROP_ACTIONS = [...ADD_DROP_TYPE_TABS]
 
 let studentAdrSeq = 9005
 
@@ -567,11 +841,16 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
   const seatResult = holdSeatsForAddDropItems(items)
   if (!seatResult.ok) return seatResult
 
+  const normalizedItems = items.map((item) => ({
+    ...item,
+    lineDecision: item.lineDecision || 'pending',
+  }))
+
   studentAdrSeq += 1
   const dropChannel = options.dropChannel || null
   const autoApproveSelfDrop =
     dropChannel === 'self' &&
-    items.every((item) => item.action === 'Drop') &&
+    normalizedItems.every((item) => item.action === 'Drop') &&
     Boolean(options.selfServiceNoApproval)
 
   const app = {
@@ -586,10 +865,14 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
     submittedAt: nowDateTimeWithSeconds(),
     academicSession: options.academicSession || '',
     currentCredits: options.currentCredits ?? 0,
-    creditMax: options.creditMax ?? 20,
+    creditMax: options.creditMax ?? resolveTermCreditMax(options.academicSession),
+    creditMaxBypass: Boolean(options.creditMaxBypass),
+    termCreditOver: Boolean(options.termCreditOver),
     billStatus: 'none',
     billAmount: options.billAmount ?? options.feeEstimate?.total ?? 0,
-    items,
+    items: autoApproveSelfDrop
+      ? normalizedItems.map((i) => ({ ...i, lineDecision: 'approved' }))
+      : normalizedItems,
     schedule: options.schedule || [],
     dropChannel,
     reason: options.reason || '',
@@ -597,12 +880,15 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
     attachments: options.attachments || [],
     teachingWeek: options.teachingWeek,
     contactPhone: options.contactPhone || '',
+    primaryType: options.primaryType || '',
+    needDrop: options.needDrop === 'yes' || options.needDrop === 'no' ? options.needDrop : '',
     addType: options.addType || '',
     addNotes: options.addNotes || '',
     dropReason: options.dropReason || options.reason || '',
     previouslyTakenCourse: options.previouslyTakenCourse || '',
     gradeEarned: options.gradeEarned || '',
     academicSessionTaken: options.academicSessionTaken || '',
+    previousCourseGradesText: options.previousCourseGradesText || '',
     retakeType: options.retakeType || '',
     declarationAgreed: Boolean(options.declarationAgreed),
     courseSnapshots: options.courseSnapshots || null,
@@ -634,6 +920,8 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
     seatHolds: seatResult.holds || [],
     paymentDueAt: '',
     paymentGraceDays: getPaymentGraceDays(),
+    paymentRemindCount: 0,
+    sstAmount: options.sstAmount ?? options.feeEstimate?.sstAmount ?? 0,
     approvalLog: autoApproveSelfDrop
       ? [
           {
@@ -662,7 +950,7 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
 /** 是否已有实质审批动作（自助通过也算已开始，不可再取消） */
 export function hasAddDropApprovalStarted(app) {
   return (app?.approvalLog || []).some((log) =>
-    ['Approved', 'Rejected', 'Update Required'].includes(log.action),
+    ['Approved', 'Rejected', 'Update Required', 'PartiallyApproved'].includes(log.action),
   )
 }
 

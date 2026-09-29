@@ -1,11 +1,13 @@
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import ExportModal from '../../components/common/ExportModal.vue'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import CourseRegistrationCallout from '../../components/courseRegistration/CourseRegistrationCallout.vue'
 import PreselectVolunteerRosterDrawer from '../../components/courseRegistration/PreselectVolunteerRosterDrawer.vue'
+import RoundSpecialAddedRosterDrawer from '../../components/courseRegistration/RoundSpecialAddedRosterDrawer.vue'
 import AdminAddCourseForStudentModal from '../../components/courseRegistration/AdminAddCourseForStudentModal.vue'
+import VolunteerPublishLogModal from '../../components/courseRegistration/VolunteerPublishLogModal.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { formatIntakeBatch } from '../../data/intakeSets.js'
 import { listResultDemoBatches, registrationBatches } from '../../data/courseRegistration/registrationBatches.js'
@@ -24,12 +26,23 @@ import {
 import {
   volunteerCourseStates,
   listVolunteerCourseSummaries,
+  getVolunteerSectionState,
+  usesSelectedRoster,
   isVolunteerBatchReadonly,
   isVolunteerBatchFinalized,
   getVolunteerBatchFinalizedAt,
 } from '../../data/courseRegistration/preselectVolunteerConfirm.js'
 import {
+  sortRowsByCourseThenSection,
+  paginateSectionRowsByCourse,
+} from '../../data/courseRegistration/sectionTableRowSpans.js'
+import {
   formatResultReleaseDisplay,
+  canManualPublishVolunteerBatch,
+  manualPublishVolunteerBatch,
+  tickVolunteerResultPublish,
+  ensureVolunteerPublishLogSeeded,
+  volunteerPublishLogs,
 } from '../../data/courseRegistration/preselectReleaseSync.js'
 import {
   resultStudentExportFields,
@@ -48,7 +61,7 @@ import '../../styles/course-registration-list.css'
 
 const { t } = useAppI18n()
 
-const activeTab = ref('volunteer')
+const activeTab = ref('round')
 const selectedRound = ref('preselect')
 
 const emptyStudentSearch = () => ({
@@ -75,18 +88,16 @@ function pickDefaultBatchId() {
   return list[0]?.id || ''
 }
 
-/** 页顶选中批次，同步过滤三 Tab */
+/** 页顶选中批次，同步过滤两 Tab */
 const selectedBatchId = ref(pickDefaultBatchId())
 
 const studentSearchForm = ref(emptyStudentSearch())
 const studentApplied = ref(emptyStudentSearch())
 const roundSearchForm = ref(emptyCourseSearch())
 const roundApplied = ref(emptyCourseSearch())
-const volunteerSearchForm = ref(emptyCourseSearch())
-const volunteerApplied = ref(emptyCourseSearch())
 
 /**
- * 将页顶批次写入三 Tab 的 search/applied，避免搜索区双源
+ * 将页顶批次写入两 Tab 的 search/applied，避免搜索区双源
  * @param {string} [batchId]
  */
 function syncBatchToFilters(batchId = selectedBatchId.value) {
@@ -95,9 +106,12 @@ function syncBatchToFilters(batchId = selectedBatchId.value) {
   studentApplied.value = { ...studentApplied.value, batchId: id }
   roundSearchForm.value = { ...roundSearchForm.value, batchId: id }
   roundApplied.value = { ...roundApplied.value, batchId: id }
-  volunteerSearchForm.value = { ...volunteerSearchForm.value, batchId: id }
-  volunteerApplied.value = { ...volunteerApplied.value, batchId: id }
 }
+
+/** 是否课程维度·第一轮（志愿融合表） */
+const isRound1CourseView = computed(
+  () => activeTab.value === 'round' && selectedRound.value === 'preselect',
+)
 
 // 进入页即按默认批次过滤
 syncBatchToFilters()
@@ -116,38 +130,131 @@ const volunteerDrawerVisible = ref(false)
 const volunteerCourseId = ref('')
 const volunteerSectionId = ref('')
 const volunteerTableTick = ref(0)
+const specialRosterVisible = ref(false)
+const specialRosterCourseId = ref('')
+const specialRosterCourseCode = ref('')
+const specialRosterCourseName = ref('')
 /** 结果页 demo 批次公布文案固定，不随真实时间刷新 */
 const batchOptions = computed(() => listResultDemoBatches())
 
 const studentRows = computed(() => adminStudentRegistrationResults.value)
 
+/** R2/R3：一行一课 */
 const roundCourseRows = computed(() => {
   void roundCourseRosters.value
-  if (activeTab.value !== 'round') return []
+  if (activeTab.value !== 'round' || selectedRound.value === 'preselect') return []
   return listRoundCourseSummaries(selectedRound.value, roundApplied.value)
 })
 
-const volunteerRows = computed(() => {
+/**
+ * 分组「选上」人数：GE/ME 看 selected；否则容量内人数
+ * @param {object} volunteerRow listVolunteerCourseSummaries 行
+ */
+function sectionSelectedCount(volunteerRow) {
+  const state = getVolunteerSectionState(volunteerRow.courseId, volunteerRow.sectionId)
+  if (state && usesSelectedRoster(state)) {
+    return (state.volunteers || []).filter((v) => v.selected).length
+  }
+  const count = Number(volunteerRow.volunteerCount) || 0
+  const cap = Number(volunteerRow.seniorCapacity) || 0
+  return cap > 0 ? Math.min(count, cap) : count
+}
+
+/**
+ * 第一轮：志愿分组行 + 课级容量（与志愿选上同源，口径 A）
+ * @returns {object[]}
+ */
+function buildRound1MergedSectionRows() {
   void volunteerCourseStates.value
   void volunteerTableTick.value
-  if (activeTab.value !== 'volunteer') return []
-  return listVolunteerCourseSummaries(volunteerApplied.value)
+  void roundCourseRosters.value
+  const volunteers = listVolunteerCourseSummaries(roundApplied.value)
+  const specialByCourse = new Map(
+    listRoundCourseSummaries('preselect', roundApplied.value).map((r) => [
+      r.courseId,
+      Number(r.specialAddedCount) || 0,
+    ]),
+  )
+
+  /** @type {Map<string, { selected: number, seniorCap: number }>} */
+  const courseAgg = new Map()
+  for (const v of volunteers) {
+    const selected = sectionSelectedCount(v)
+    const seniorCap = Number(v.seniorCapacity) || 0
+    const prev = courseAgg.get(v.courseId) || { selected: 0, seniorCap: 0 }
+    courseAgg.set(v.courseId, {
+      selected: prev.selected + selected,
+      seniorCap: prev.seniorCap + seniorCap,
+    })
+  }
+
+  const rows = volunteers.map((v) => {
+    const agg = courseAgg.get(v.courseId) || { selected: 0, seniorCap: 0 }
+    const seniorLabel = `${agg.selected}/${agg.seniorCap}`
+    return {
+      ...v,
+      course: {
+        id: v.courseId,
+        code: v.courseCode,
+        name: v.courseName,
+        type: v.courseType,
+        credits: v.credits,
+      },
+      section: {
+        id: v.sectionId,
+        code: v.sectionCode,
+      },
+      // 口径 A：有效最大 = 老生；无新生列
+      effectiveCapacityLabel: seniorLabel,
+      seniorCapacityLabel: seniorLabel,
+      freshmanCapacityLabel: '',
+      specialAddedCount: specialByCourse.get(v.courseId) || 0,
+    }
+  })
+  return sortRowsByCourseThenSection(rows)
+}
+
+const round1SectionRowsAll = computed(() => {
+  if (!isRound1CourseView.value) return []
+  return buildRound1MergedSectionRows()
+})
+
+const round1Paged = computed(() => {
+  if (!isRound1CourseView.value) {
+    return { rows: [], totalCourses: 0, firstCourseIndex: 0 }
+  }
+  return paginateSectionRowsByCourse(
+    round1SectionRowsAll.value,
+    currentPage.value,
+    pageSize.value,
+    { groupAware: false },
+  )
 })
 
 const rows = computed(() => {
   if (activeTab.value === 'student') {
     return filterStudentResults(studentRows.value, studentApplied.value)
   }
-  if (activeTab.value === 'volunteer') return volunteerRows.value
+  if (isRound1CourseView.value) return round1SectionRowsAll.value
   return roundCourseRows.value
 })
 
-const totalCount = computed(() => rows.value.length)
+const totalCount = computed(() => {
+  if (isRound1CourseView.value) return round1Paged.value.totalCourses
+  return rows.value.length
+})
+
 const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / pageSize.value)))
+
 const paginatedRows = computed(() => {
+  if (isRound1CourseView.value) return round1Paged.value.rows
   const start = (currentPage.value - 1) * pageSize.value
   return rows.value.slice(start, start + pageSize.value)
 })
+
+function spanCell(row, field) {
+  return row?._span?.[field] || null
+}
 
 /** 按最长批次名撑开下拉宽度（对齐学生在线选课） */
 const batchSelectWidth = ref('')
@@ -187,24 +294,23 @@ watch(
   { deep: true },
 )
 
-onMounted(() => {
-  measureBatchSelectWidth()
-  if (!batchOptions.value.some((b) => b.id === selectedBatchId.value)) {
-    selectedBatchId.value = pickDefaultBatchId()
-    syncBatchToFilters(selectedBatchId.value)
-  }
-})
-
 const exportFields = computed(() =>
   activeTab.value === 'student' ? resultStudentExportFields : resultCourseExportFields,
 )
 
-const showBulkToolbar = computed(() => activeTab.value === 'student' || activeTab.value === 'round')
-const showVolunteerToolbar = computed(() => activeTab.value === 'volunteer')
+const showBulkToolbar = computed(
+  () => activeTab.value === 'student' || (activeTab.value === 'round' && !isRound1CourseView.value),
+)
+const showVolunteerToolbar = computed(() => isRound1CourseView.value)
 
 /** 依赖批次列表，便于定稿后刷新状态 */
 const volunteerBatchTick = computed(() =>
-  registrationBatches.value.map((b) => `${b.id}:${b.volunteerFinalConfirmedAt || ''}`).join('|'),
+  registrationBatches.value
+    .map(
+      (b) =>
+        `${b.id}:${b.volunteerFinalConfirmedAt || ''}:${b.demoResultReleaseFixed?.lockedPending || ''}:${b.demoResultReleaseFixed?.released || ''}`,
+    )
+    .join('|'),
 )
 
 /** 当前批次志愿是否只读（已定稿或第二轮开始） */
@@ -219,14 +325,31 @@ const volunteerBatchFinalized = computed(() => {
   return isVolunteerBatchFinalized(selectedBatchId.value)
 })
 
+const canPublish = computed(() => {
+  void volunteerBatchTick.value
+  return canManualPublishVolunteerBatch(selectedBatchId.value)
+})
+
+const selectedBatchName = computed(() => {
+  const b = registrationBatches.value.find((x) => x.id === selectedBatchId.value)
+  return b?.name || ''
+})
+
 /** 有/无最终确认的状态文案（工具行展示；demo 批次固定不随真实时间变） */
 const volunteerConfirmStatusLabel = computed(() => {
   void volunteerBatchTick.value
   const batch = registrationBatches.value.find((b) => b.id === selectedBatchId.value)
   const fixed = batch?.demoResultReleaseFixed
   if (fixed) {
-    if (batch.volunteerFinalConfirmedAt || fixed.released) {
+    if (fixed.released || (batch.volunteerFinalConfirmedAt && !fixed.lockedPending)) {
       return t('courseRegistration.result.volunteerReleasePublishedFixed', { at: fixed.displayAt })
+    }
+    if (batch.volunteerFinalConfirmedAt || fixed.lockedPending) {
+      return t('courseRegistration.result.volunteerReleaseLockedPendingFixed', {
+        at: fixed.displayAt,
+        days: fixed.remainingDays ?? 0,
+        hours: fixed.remainingHours ?? 0,
+      })
     }
     return t('courseRegistration.result.volunteerReleasePendingFixed', {
       at: fixed.displayAt,
@@ -236,8 +359,10 @@ const volunteerConfirmStatusLabel = computed(() => {
   }
   const at = getVolunteerBatchFinalizedAt(selectedBatchId.value)
   if (at) {
-    return t('courseRegistration.result.volunteerConfirmedAt', {
-      at: String(at).slice(0, 19).replace('T', ' '),
+    const raw = getResultReleaseAt(batch)
+    const display = formatResultReleaseDisplay(raw)
+    return t('courseRegistration.result.volunteerReleaseLockedAt', {
+      at: display || String(at).slice(0, 19).replace('T', ' '),
     })
   }
   const raw = getResultReleaseAt(batch)
@@ -246,6 +371,37 @@ const volunteerConfirmStatusLabel = computed(() => {
     at: formatResultReleaseDisplay(raw),
   })
 })
+
+const publishLogVisible = ref(false)
+let publishTickTimer = null
+
+onMounted(() => {
+  measureBatchSelectWidth()
+  if (!batchOptions.value.some((b) => b.id === selectedBatchId.value)) {
+    selectedBatchId.value = pickDefaultBatchId()
+    syncBatchToFilters(selectedBatchId.value)
+  }
+  ensureVolunteerPublishLogSeeded()
+  tickVolunteerResultPublish()
+  publishTickTimer = setInterval(() => tickVolunteerResultPublish(), 15000)
+})
+
+onBeforeUnmount(() => {
+  if (publishTickTimer) clearInterval(publishTickTimer)
+})
+
+function requestManualPublish() {
+  if (!canPublish.value) return
+  confirmMode.value = 'publish'
+  confirmMessage.value = t('courseRegistration.result.publishConfirm')
+  confirmVisible.value = true
+}
+
+function openPublishLog() {
+  ensureVolunteerPublishLogSeeded()
+  void volunteerPublishLogs.value
+  publishLogVisible.value = true
+}
 
 const hasSelection = computed(() => selectedIds.value.length > 0)
 const allPageSelected = computed(() => {
@@ -278,10 +434,8 @@ function clearSelection() {
 function handleSearch() {
   if (activeTab.value === 'student') {
     studentApplied.value = { ...studentSearchForm.value }
-  } else if (activeTab.value === 'round') {
-    roundApplied.value = { ...roundSearchForm.value }
   } else {
-    volunteerApplied.value = { ...volunteerSearchForm.value }
+    roundApplied.value = { ...roundSearchForm.value }
   }
   currentPage.value = 1
   clearSelection()
@@ -291,12 +445,9 @@ function handleReset() {
   if (activeTab.value === 'student') {
     studentSearchForm.value = emptyStudentSearch()
     studentApplied.value = emptyStudentSearch()
-  } else if (activeTab.value === 'round') {
+  } else {
     roundSearchForm.value = emptyCourseSearch()
     roundApplied.value = emptyCourseSearch()
-  } else {
-    volunteerSearchForm.value = emptyCourseSearch()
-    volunteerApplied.value = emptyCourseSearch()
   }
   // 重置搜索条件后仍保留当前选课批次
   syncBatchToFilters(selectedBatchId.value)
@@ -349,6 +500,16 @@ function confirmBatchDelete() {
   if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
 }
 
+function confirmManualPublish() {
+  const result = manualPublishVolunteerBatch(selectedBatchId.value)
+  confirmVisible.value = false
+  confirmMode.value = 'delete'
+  if (!result.ok) {
+    window.alert(t('courseRegistration.result.publishNotAllowed'))
+    return
+  }
+}
+
 function roundLabel(key) {
   return RESULT_ROUND_LABEL_KEYS[key] ? t(RESULT_ROUND_LABEL_KEYS[key]) : key
 }
@@ -359,11 +520,23 @@ function openVolunteerRoster(row) {
   volunteerDrawerVisible.value = true
 }
 
+function openSpecialAddedRoster(row) {
+  if (!row?.specialAddedCount) return
+  specialRosterCourseId.value = row.courseId || ''
+  specialRosterCourseCode.value = row.courseCode || ''
+  specialRosterCourseName.value = row.courseName || ''
+  specialRosterVisible.value = true
+}
+
 function refreshVolunteerTable() {
   volunteerTableTick.value += 1
 }
 
 function handleDialogConfirm() {
+  if (confirmMode.value === 'publish') {
+    confirmManualPublish()
+    return
+  }
   confirmBatchDelete()
 }
 
@@ -389,18 +562,10 @@ function handleExportConfirm({ selectedFields }) {
         <button
           type="button"
           class="tab-btn"
-          :class="{ active: activeTab === 'volunteer' }"
-          @click="activeTab = 'volunteer'"
-        >
-          {{ t('courseRegistration.result.tabVolunteer') }}
-        </button>
-        <button
-          type="button"
-          class="tab-btn"
           :class="{ active: activeTab === 'round' }"
           @click="activeTab = 'round'"
         >
-          {{ t('courseRegistration.result.tabRound') }}
+          {{ t('courseRegistration.result.tabCourse') }}
         </button>
         <button
           type="button"
@@ -425,7 +590,7 @@ function handleExportConfirm({ selectedFields }) {
         </button>
       </div>
 
-      <CourseRegistrationCallout v-if="activeTab === 'volunteer'" variant="info" class="volunteer-hint-callout">
+      <CourseRegistrationCallout v-if="isRound1CourseView" variant="info" class="volunteer-hint-callout">
         {{ t('courseRegistration.result.volunteerHint') }}
       </CourseRegistrationCallout>
 
@@ -490,7 +655,7 @@ function handleExportConfirm({ selectedFields }) {
                 />
               </div>
             </template>
-            <template v-else-if="activeTab === 'round'">
+            <template v-else>
               <div class="search-item">
                 <label>{{ t('courseRegistration.courses.code') }}</label>
                 <input
@@ -512,28 +677,6 @@ function handleExportConfirm({ selectedFields }) {
                 />
               </div>
             </template>
-            <template v-else>
-              <div class="search-item">
-                <label>{{ t('courseRegistration.courses.code') }}</label>
-                <input
-                  v-model="volunteerSearchForm.courseCode"
-                  type="text"
-                  class="search-input"
-                  :placeholder="t('common.pleaseInput')"
-                  @keyup.enter="handleSearch"
-                />
-              </div>
-              <div class="search-item">
-                <label>{{ t('courseRegistration.courses.name') }}</label>
-                <input
-                  v-model="volunteerSearchForm.courseName"
-                  type="text"
-                  class="search-input"
-                  :placeholder="t('common.pleaseInput')"
-                  @keyup.enter="handleSearch"
-                />
-              </div>
-            </template>
           </div>
           <div class="search-actions">
             <button type="button" class="btn btn-primary" @click="handleSearch">{{ t('common.search') }}</button>
@@ -544,17 +687,14 @@ function handleExportConfirm({ selectedFields }) {
 
       <div v-if="showBulkToolbar" class="toolbar result-toolbar">
         <div class="toolbar-left">
-          <button type="button" class="btn btn-default" @click="exportModalVisible = true">
-            {{ t('common.export') }}
-          </button>
-          <!-- 学生维度：导出旁「新增」代选（一次一名学生） -->
+          <!-- 学生维度：添加特殊学生（代选，一次一名学生） -->
           <button
             v-if="activeTab === 'student'"
             type="button"
             class="btn btn-primary"
             @click="addCourseModalVisible = true"
           >
-            {{ t('common.create') }}
+            {{ t('courseRegistration.result.addSpecialStudent') }}
           </button>
           <button
             type="button"
@@ -564,11 +704,25 @@ function handleExportConfirm({ selectedFields }) {
           >
             {{ t('common.delete') }}
           </button>
+          <button type="button" class="btn btn-default" @click="exportModalVisible = true">
+            {{ t('common.export') }}
+          </button>
         </div>
       </div>
 
       <div v-if="showVolunteerToolbar" class="toolbar result-toolbar">
         <div class="toolbar-left">
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="!canPublish"
+            @click="requestManualPublish"
+          >
+            {{ t('courseRegistration.result.publishBtn') }}
+          </button>
+          <button type="button" class="btn btn-default" @click="openPublishLog">
+            {{ t('courseRegistration.result.publishLogBtn') }}
+          </button>
           <span
             class="volunteer-confirm-status toolbar-status"
             :class="volunteerBatchFinalized ? 'is-confirmed' : 'is-pending'"
@@ -597,7 +751,6 @@ function handleExportConfirm({ selectedFields }) {
                 <th>{{ t('courseRegistration.courses.credits') }}</th>
                 <th>{{ t('courseRegistration.courses.type') }}</th>
                 <th>{{ t('courseRegistration.courses.sectionCode') }}</th>
-                <th>{{ t('courseRegistration.student.isRetake') }}</th>
                 <th>{{ t('courseRegistration.student.courseSource') }}</th>
               </tr>
             </thead>
@@ -627,16 +780,16 @@ function handleExportConfirm({ selectedFields }) {
                       : '—'
                   }}
                 </td>
-                <td class="nowrap">{{ row.isRetake ? t('common.yes') : t('common.no') }}</td>
                 <td class="nowrap">{{ feeCourseSourceLabel(row.courseSource, t) }}</td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="14" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="13" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
 
-          <table v-else-if="activeTab === 'volunteer'" class="data-table">
+          <!-- 课程维度·第一轮：志愿 + 容量融合，同课多分组 rowspan -->
+          <table v-else-if="isRound1CourseView" class="data-table round-dim-table round1-merge-table">
             <thead>
               <tr>
                 <th>{{ t('common.serialNo') }}</th>
@@ -648,18 +801,86 @@ function handleExportConfirm({ selectedFields }) {
                 <th>{{ t('courseRegistration.result.volunteerSectionGroup') }}</th>
                 <th>{{ t('courseRegistration.result.volunteerCapacityLabel') }}</th>
                 <th>{{ t('courseRegistration.courses.volunteerSelectedPercent') }}</th>
+                <th>
+                  <span
+                    class="th-with-tip"
+                    :title="t('courseRegistration.result.effectiveCapacityWithRatioTipR1')"
+                  >
+                    {{ t('courseRegistration.result.effectiveCapacityWithRatio') }}
+                    <span class="tip-icon" aria-hidden="true">?</span>
+                  </span>
+                </th>
+                <th>
+                  <span
+                    class="th-with-tip"
+                    :title="t('courseRegistration.result.seniorCapacityWithRatioTip')"
+                  >
+                    {{ t('courseRegistration.result.seniorCapacityWithRatio') }}
+                    <span class="tip-icon" aria-hidden="true">?</span>
+                  </span>
+                </th>
+                <th>
+                  <span
+                    class="th-with-tip"
+                    :title="t('courseRegistration.result.specialAddedCountTip')"
+                  >
+                    {{ t('courseRegistration.result.specialAddedCount') }}
+                    <span class="tip-icon" aria-hidden="true">?</span>
+                  </span>
+                </th>
                 <th>{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(row, index) in paginatedRows" :key="row.id">
-                <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
-                <td>{{ row.batchName || '—' }}</td>
-                <td>{{ row.courseCode }}</td>
-                <td>{{ row.courseName }}</td>
-                <td>{{ getRegistrationTypeLabel(row.courseType, t) }}</td>
-                <td>{{ row.credits }}</td>
-                <td>{{ t('courseRegistration.courses.sectionNameDisplay', { code: row.sectionCode }) }}</td>
+              <tr
+                v-for="row in paginatedRows"
+                :key="row.id || `${row.courseId}-${row.sectionId}`"
+              >
+                <td
+                  v-if="spanCell(row, 'serial')?.show"
+                  :rowspan="spanCell(row, 'serial').rowspan"
+                >
+                  {{ spanCell(row, 'serial').value }}
+                </td>
+                <td
+                  v-if="spanCell(row, 'batch')?.show"
+                  :rowspan="spanCell(row, 'batch').rowspan"
+                >
+                  {{ row.batchName || '—' }}
+                </td>
+                <td
+                  v-if="spanCell(row, 'code')?.show"
+                  class="nowrap"
+                  :rowspan="spanCell(row, 'code').rowspan"
+                >
+                  {{ row.courseCode }}
+                </td>
+                <td
+                  v-if="spanCell(row, 'name')?.show"
+                  :rowspan="spanCell(row, 'name').rowspan"
+                >
+                  {{ row.courseName }}
+                </td>
+                <td
+                  v-if="spanCell(row, 'type')?.show"
+                  class="nowrap"
+                  :rowspan="spanCell(row, 'type').rowspan"
+                >
+                  {{ getRegistrationTypeLabel(row.courseType, t) }}
+                </td>
+                <td
+                  v-if="spanCell(row, 'credits')?.show"
+                  :rowspan="spanCell(row, 'credits').rowspan"
+                >
+                  {{ row.credits }}
+                </td>
+                <td class="nowrap">
+                  {{
+                    t('courseRegistration.courses.sectionNameDisplay', {
+                      code: row.sectionCode || row.section?.code,
+                    })
+                  }}
+                </td>
                 <td>{{ row.capacityLabel }}</td>
                 <td class="td-capacity">
                   <span
@@ -671,12 +892,34 @@ function handleExportConfirm({ selectedFields }) {
                   </span>
                   <template v-else>—</template>
                 </td>
-                <td class="col-actions">
+                <td
+                  v-if="spanCell(row, 'effectiveCap')?.show"
+                  :rowspan="spanCell(row, 'effectiveCap').rowspan"
+                >
+                  {{ row.effectiveCapacityLabel }}
+                </td>
+                <td
+                  v-if="spanCell(row, 'seniorCap')?.show"
+                  :rowspan="spanCell(row, 'seniorCap').rowspan"
+                >
+                  {{ row.seniorCapacityLabel }}
+                </td>
+                <td
+                  v-if="spanCell(row, 'specialAdded')?.show"
+                  :rowspan="spanCell(row, 'specialAdded').rowspan"
+                >
                   <button
+                    v-if="row.specialAddedCount > 0"
                     type="button"
                     class="link-btn"
-                    @click="openVolunteerRoster(row)"
+                    @click="openSpecialAddedRoster(row)"
                   >
+                    {{ row.specialAddedCount }}
+                  </button>
+                  <template v-else>0</template>
+                </td>
+                <td class="col-actions">
+                  <button type="button" class="link-btn" @click="openVolunteerRoster(row)">
                     {{
                       volunteerReadonly
                         ? t('courseRegistration.result.volunteerRosterViewAction')
@@ -686,12 +929,13 @@ function handleExportConfirm({ selectedFields }) {
                 </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="10" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="13" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
 
-          <table v-else class="data-table">
+          <!-- 课程维度·第二/三轮：一行一课 -->
+          <table v-else class="data-table round-dim-table">
             <thead>
               <tr>
                 <th class="col-check">
@@ -705,14 +949,39 @@ function handleExportConfirm({ selectedFields }) {
                 <th>
                   <span
                     class="th-with-tip"
-                    :title="t('courseRegistration.courses.effectiveCapacityTip')"
+                    :title="t('courseRegistration.result.effectiveCapacityWithRatioTip')"
                   >
-                    {{ t('courseRegistration.courses.effectiveCapacity') }}
+                    {{ t('courseRegistration.result.effectiveCapacityWithRatio') }}
                     <span class="tip-icon" aria-hidden="true">?</span>
                   </span>
                 </th>
-                <th>{{ t('courseRegistration.courses.enrolledFreshman') }}</th>
-                <th>{{ t('courseRegistration.courses.enrolledSenior') }}</th>
+                <th>
+                  <span
+                    class="th-with-tip"
+                    :title="t('courseRegistration.result.freshmanCapacityWithRatioTip')"
+                  >
+                    {{ t('courseRegistration.result.freshmanCapacityWithRatio') }}
+                    <span class="tip-icon" aria-hidden="true">?</span>
+                  </span>
+                </th>
+                <th>
+                  <span
+                    class="th-with-tip"
+                    :title="t('courseRegistration.result.seniorCapacityWithRatioTip')"
+                  >
+                    {{ t('courseRegistration.result.seniorCapacityWithRatio') }}
+                    <span class="tip-icon" aria-hidden="true">?</span>
+                  </span>
+                </th>
+                <th>
+                  <span
+                    class="th-with-tip"
+                    :title="t('courseRegistration.result.specialAddedCountTip')"
+                  >
+                    {{ t('courseRegistration.result.specialAddedCount') }}
+                    <span class="tip-icon" aria-hidden="true">?</span>
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -732,9 +1001,20 @@ function handleExportConfirm({ selectedFields }) {
                 <td>{{ row.effectiveCapacityLabel }}</td>
                 <td>{{ row.freshmanCapacityLabel }}</td>
                 <td>{{ row.seniorCapacityLabel }}</td>
+                <td>
+                  <button
+                    v-if="row.specialAddedCount > 0"
+                    type="button"
+                    class="link-btn"
+                    @click="openSpecialAddedRoster(row)"
+                  >
+                    {{ row.specialAddedCount }}
+                  </button>
+                  <template v-else>0</template>
+                </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="9" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="10" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -756,7 +1036,17 @@ function handleExportConfirm({ selectedFields }) {
       @saved="refreshVolunteerTable()"
     />
 
+    <RoundSpecialAddedRosterDrawer
+      :visible="specialRosterVisible"
+      :round-key="selectedRound"
+      :course-id="specialRosterCourseId"
+      :course-code="specialRosterCourseCode"
+      :course-name="specialRosterCourseName"
+      @close="specialRosterVisible = false"
+    />
+
     <AdminAddCourseForStudentModal
+      v-if="addCourseModalVisible"
       :visible="addCourseModalVisible"
       :batch-id="selectedBatchId"
       @close="addCourseModalVisible = false"
@@ -772,12 +1062,25 @@ function handleExportConfirm({ selectedFields }) {
 
     <ConfirmDialog
       :visible="confirmVisible"
-      :title="t('common.deleteConfirmation')"
+      :title="
+        confirmMode === 'publish'
+          ? t('courseRegistration.result.publishBtn')
+          : t('common.deleteConfirmation')
+      "
       :message="confirmMessage"
-      :confirm-text="t('common.delete')"
-      confirm-variant="danger"
+      :confirm-text="
+        confirmMode === 'publish' ? t('courseRegistration.result.publishBtn') : t('common.delete')
+      "
+      :confirm-variant="confirmMode === 'publish' ? 'primary' : 'danger'"
       @confirm="handleDialogConfirm"
       @cancel="confirmVisible = false"
+    />
+
+    <VolunteerPublishLogModal
+      :visible="publishLogVisible"
+      :batch-id="selectedBatchId"
+      :batch-name="selectedBatchName"
+      @close="publishLogVisible = false"
     />
   </div>
 </template>
@@ -823,6 +1126,38 @@ function handleExportConfirm({ selectedFields }) {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.result-toolbar .btn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.result-toolbar .btn-primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+.result-toolbar .btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+.result-toolbar .btn-default {
+  background: #fff;
+  color: #374151;
+  border-color: #d1d5db;
+}
+.result-toolbar .btn-default:hover:not(:disabled) {
+  background: #f9fafb;
+}
+.result-toolbar .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-dark {
@@ -908,6 +1243,21 @@ function handleExportConfirm({ selectedFields }) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
+}
+
+.round-dim-table th {
+  white-space: nowrap;
+}
+
+/* 同课多分组行叠加时，略紧于全局 data-table（10px 12px） */
+.round1-merge-table th,
+.round1-merge-table td {
+  padding: 6px 10px;
+}
+
+.round1-merge-table td[rowspan] {
+  vertical-align: middle;
 }
 
 .tip-icon {

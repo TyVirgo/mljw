@@ -24,3 +24,17 @@
 
 - **当** 用户勾选多条待办并点击工具栏「审批」
 - **则** 打开同一审批弹窗并提示作用于 N 条；确认后批量写回
+
+### Requirement: 单级审批两节点
+
+加退课审批流程图 MUST 仅包含两个节点：学生发起与教务协调员审核。通过或驳回 MUST 体现在教务协调员节点状态上，MUSTNOT 再追加独立的 Approved/Rejected 终态节点。系统 MUSTNOT 依赖多级转发（Forwarded / In Review）完成加退选审批。
+
+#### Scenario: 待审详情两节点
+
+- **WHEN** 打开待审批申请详情
+- **THEN** Timeline 仅见学生发起（已完成）与教务协调员（进行中）
+
+#### Scenario: 通过后仍两节点
+
+- **WHEN** 申请已 Approved
+- **THEN** Timeline 仍为两节点，教务协调员节点显示已通过

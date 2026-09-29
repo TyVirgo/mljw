@@ -547,20 +547,10 @@ export const registrationLogs = ref([
     operation: 'register',
     result: 'failure',
   }),
-  // —— 其它批次轻量日志，便于切换批次仍有行 ——
+  // —— GE 批 batch-2504-g1：默认轮（第一轮）25 条；另两轮保留若干便于切轮 ——
+  ...buildGeBatchPreselectLogs(25),
   log({
-    id: 'log-g1-001',
-    batchId: 'batch-2504-g1',
-    round: 'preselect',
-    studentKey: 'BUS2409020',
-    courseKey: 'HUM110',
-    operatedAt: '2026-08-29 10:22:11',
-    remark: '选课成功',
-    operation: 'register',
-    result: 'success',
-  }),
-  log({
-    id: 'log-g1-002',
+    id: 'log-g1-main-001',
     batchId: 'batch-2504-g1',
     round: 'main',
     studentKey: 'AIT2409010',
@@ -571,29 +561,158 @@ export const registrationLogs = ref([
     result: 'success',
   }),
   log({
-    id: 'log-cos-001',
-    batchId: 'batch-me-cos',
-    round: 'preselect',
-    studentKey: 'COS2409001',
-    courseKey: 'COS210',
-    operatedAt: '2026-08-29 11:05:40',
+    id: 'log-g1-main-002',
+    batchId: 'batch-2504-g1',
+    round: 'main',
+    studentKey: 'BUS2409020',
+    courseKey: 'ENGL201',
+    sectionCode: '02',
+    operatedAt: '2026-09-02 16:22:10',
     remark: '选课成功',
     operation: 'register',
     result: 'success',
   }),
   log({
-    id: 'log-cos-002',
-    batchId: 'batch-me-cos',
-    round: 'preselect',
-    studentKey: 'COS2504015',
-    courseKey: 'COS210',
-    operatedAt: '2026-09-03 09:41:02',
+    id: 'log-g1-main-003',
+    batchId: 'batch-2504-g1',
+    round: 'main',
+    studentKey: 'MAT2504003',
+    courseKey: 'MPU3183',
+    operatedAt: '2026-09-03 10:05:44',
+    remark: '选课失败：时间冲突',
+    operation: 'register',
+    result: 'failure',
+  }),
+  log({
+    id: 'log-g1-main-004',
+    batchId: 'batch-2504-g1',
+    round: 'main',
+    studentKey: 'FIN2409011',
+    courseKey: 'HUM110',
+    operatedAt: '2026-09-03 11:30:18',
+    remark: '取消排队',
+    operation: 'cancelQueue',
+    result: 'cancelQueue',
+  }),
+  log({
+    id: 'log-g1-sup-001',
+    batchId: 'batch-2504-g1',
+    round: 'supplement',
+    studentKey: 'BUS2409020',
+    courseKey: 'MPU3183',
+    operatedAt: '2026-09-10 09:12:05',
+    remark: '选课成功',
+    operation: 'register',
+    result: 'success',
+  }),
+  log({
+    id: 'log-g1-sup-002',
+    batchId: 'batch-2504-g1',
+    round: 'supplement',
+    studentKey: 'AIT2409010',
+    courseKey: 'ENGL201',
+    sectionCode: '02',
+    operatedAt: '2026-09-10 10:40:33',
     remark: '进入排队，当前顺位 1',
     operation: 'joinQueue',
     result: 'queuing',
     queueRank: 1,
   }),
+  log({
+    id: 'log-g1-sup-003',
+    batchId: 'batch-2504-g1',
+    round: 'supplement',
+    studentKey: 'ACC2409008',
+    courseKey: 'HUM110',
+    operatedAt: '2026-09-10 14:55:01',
+    remark: '选课失败：课程已满',
+    operation: 'register',
+    result: 'failure',
+  }),
 ])
+
+/**
+ * GE 批第一轮演示日志（默认展示轮，凑满 count 条）
+ * @param {number} count
+ * @returns {object[]}
+ */
+function buildGeBatchPreselectLogs(count = 25) {
+  const studentKeys = Object.keys(STUDENTS)
+  const courseKeys = ['HUM110', 'ENGL201', 'MPU3183']
+  const patterns = [
+    { operation: 'register', result: 'success', remark: '选课成功' },
+    { operation: 'register', result: 'success', remark: '选课成功' },
+    { operation: 'register', result: 'failure', remark: '选课失败：课程已满' },
+    { operation: 'joinQueue', result: 'queuing', remark: '进入排队', withRank: true },
+    { operation: 'cancelQueue', result: 'cancelQueue', remark: '取消排队' },
+    { operation: 'register', result: 'failure', remark: '选课失败：时间冲突' },
+    { operation: 'register', result: 'success', remark: '选课成功' },
+    { operation: 'adminAdd', result: 'success', remark: '管理员代选成功' },
+  ]
+  const rows = []
+  for (let i = 0; i < count; i += 1) {
+    const pattern = patterns[i % patterns.length]
+    const day = 29 + Math.floor(i / 8)
+    const hour = 9 + (i % 8)
+    const minute = (i * 7) % 60
+    const sec = (i * 13) % 60
+    const pad = (n) => String(n).padStart(2, '0')
+    const row = {
+      id: `log-g1-pre-${String(i + 1).padStart(3, '0')}`,
+      batchId: 'batch-2504-g1',
+      round: 'preselect',
+      studentKey: studentKeys[i % studentKeys.length],
+      courseKey: courseKeys[i % courseKeys.length],
+      sectionCode: i % 3 === 2 ? '02' : '01',
+      operatedAt: `2026-08-${pad(Math.min(day, 31))} ${pad(hour)}:${pad(minute)}:${pad(sec)}`,
+      remark: pattern.withRank ? `${pattern.remark}，当前顺位 ${(i % 5) + 1}` : pattern.remark,
+      operation: pattern.operation,
+      result: pattern.result,
+    }
+    if (pattern.withRank) row.queueRank = (i % 5) + 1
+    if (i % 11 === 10) row.isRetake = true
+    rows.push(log(row))
+  }
+  return rows
+}
+
+/** 选课日志页演示批次：仅保留有日志行的 GE + ME */
+export const REGISTRATION_LOG_DEMO_BATCH_IDS = [BATCH_M1_ID, 'batch-2504-g1']
+
+/**
+ * 日志页批次下拉选项（有数据的 GE/ME）
+ * @returns {object[]}
+ */
+export function listRegistrationLogBatches() {
+  return REGISTRATION_LOG_DEMO_BATCH_IDS.map((id) => getBatchById(id)).filter(Boolean)
+}
+
+/**
+ * 日志页默认批次：优先 ME 主批
+ * @returns {string}
+ */
+export function pickRegistrationLogDefaultBatchId() {
+  const list = listRegistrationLogBatches()
+  const preferred = list.find((b) => b.id === BATCH_M1_ID)
+  return preferred?.id || list[0]?.id || ''
+}
+
+/**
+ * 切批时选一轮：优先 preferred，否则该批日志里最早有数据的轮次
+ * @param {string} batchId
+ * @param {string} [preferred]
+ * @returns {string}
+ */
+export function pickRegistrationLogRoundKey(batchId, preferred = '') {
+  const roundsInBatch = new Set(
+    registrationLogs.value.filter((row) => row.batchId === batchId).map((row) => row.round),
+  )
+  if (preferred && roundsInBatch.has(preferred)) return preferred
+  for (const key of ['preselect', 'main', 'supplement']) {
+    if (roundsInBatch.has(key)) return key
+  }
+  return preferred || 'preselect'
+}
 
 /** 按轮次的监控统计（demo，不从日志推导） */
 export const registrationLogRoundStats = {

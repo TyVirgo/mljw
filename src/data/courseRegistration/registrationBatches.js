@@ -20,8 +20,9 @@ import {
   resolveDropDeadlineWeek,
 } from './batchTermKind.js'
 import { buildDemoSelectionGroups } from './courseSelectionGroups.js'
+import { resolveTermCreditMax, resolveTermCreditMin } from './registrationRules.js'
 
-const SESSION = '2026/04'
+const SESSION = '2026/09'
 /** 默认完整三轮（顺序：R1 → 公布 → R2 → R3）；草稿可空二三轮 */
 const R1_ONLY_ROUNDS = {
   preselect: { start: '25-Aug-2025 00:00:00', end: '28-Aug-2025 18:00:00' },
@@ -134,8 +135,8 @@ function meBatch({
     status,
     roundsSummary: 'R1 25-Aug–28-Aug',
     ...withScopeRules(rules),
-    creditMin: 12,
-    creditMax: 20,
+    creditMin: resolveTermCreditMin(SESSION),
+    creditMax: resolveTermCreditMax(SESSION),
     courseCount,
     rounds: { ...R1_ONLY_ROUNDS },
     roundsByAudience: {
@@ -227,6 +228,41 @@ const initialBatches = [
     status: 'draft',
     courseCount: 20,
   }),
+  // SWE ME：R1 未开放（入口仅「查看课程」）— 课表同源 batch-2504-m1
+  meBatch({
+    id: 'batch-me-swe-before-r1',
+    dept: 'SWE',
+    tier: '0',
+    status: 'active',
+    courseCount: 24,
+    faculty: 'School of Information',
+    volunteerFinalConfirmedAt: null,
+    /** 显式无开放轮：三轮待开放，R1 可查看课程 */
+    demoActiveRound: null,
+    demoClosedRounds: [],
+    demoCatalogPhase: 0,
+    demoCourseSourceBatchId: 'batch-2504-m1',
+    rounds: { ...FULL_ROUNDS },
+    roundsByAudience: {
+      senior: { ...FULL_ROUNDS, resultReleaseAt: FULL_ROUNDS_RELEASE },
+      freshman: { ...FULL_ROUNDS },
+    },
+    roundsSummary: 'R1 未开始 · R2/R3 待开放（演示查看课程）',
+    scopeRules: [
+      {
+        faculties: ['School of Information'],
+        intakes: ['2024/09', '2025/04'],
+        programmes: ['SWE'],
+        groupName: '',
+        round: 'preselect',
+      },
+    ],
+    selectionGroups: buildDemoSelectionGroups('me-m1', '2025/09', [
+      { courseCodes: ['COMP201', 'NET110', 'IT102', 'COMP220'], minPick: 3 },
+      { courseCodes: ['AI110', 'SE201', 'WEB220'], minPick: 2 },
+      { courseCodes: ['EMB210', 'STAT301'], minPick: 1 },
+    ]),
+  }),
   // D：第一轮进行中 — 三轮齐全，兼学生课表主批
   meBatch({
     id: 'batch-2504-m1',
@@ -239,6 +275,7 @@ const initialBatches = [
     /** Demo：当前第一轮可操作 */
     demoActiveRound: 'preselect',
     demoClosedRounds: [],
+    demoCatalogPhase: 1,
     rounds: { ...FULL_ROUNDS },
     roundsByAudience: {
       senior: {
@@ -275,10 +312,10 @@ const initialBatches = [
         round: 'supplement',
       },
     ],
-    /** 3 组 demo：4选3 / 3选2 / 2选1，组块排在普通课之前 */
+    /** 3 组 demo：真 4选3 / 3选2 / 2选1（门数与文案一致）；列表仅展组内课 */
     selectionGroups: buildDemoSelectionGroups('me-m1', '2025/09', [
-      { courseCodes: ['IT102', 'COMP220', 'MATH201', 'STAT201'], minPick: 3 },
-      { courseCodes: ['AI110', 'WEB210', 'PHYS101'], minPick: 2 },
+      { courseCodes: ['COMP201', 'NET110', 'IT102', 'COMP220'], minPick: 3 },
+      { courseCodes: ['AI110', 'SE201', 'WEB220'], minPick: 2 },
       { courseCodes: ['EMB210', 'STAT301'], minPick: 1 },
     ]),
   }),
@@ -293,6 +330,7 @@ const initialBatches = [
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
     demoActiveRound: 'main',
     demoClosedRounds: ['preselect'],
+    demoCatalogPhase: 2,
     rounds: { ...R2_OPEN_ROUNDS },
     roundsByAudience: {
       senior: { ...R2_OPEN_ROUNDS, resultReleaseAt: R2_OPEN_RELEASE },
@@ -359,6 +397,7 @@ const initialBatches = [
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
     demoActiveRound: 'supplement',
     demoClosedRounds: ['preselect', 'main'],
+    demoCatalogPhase: 3,
     rounds: { ...R2_OPEN_ROUNDS },
     roundsByAudience: {
       senior: { ...R2_OPEN_ROUNDS, resultReleaseAt: R2_OPEN_RELEASE },
@@ -442,6 +481,45 @@ const initialBatches = [
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
     demoClosedRounds: ['preselect', 'main', 'supplement'],
   }),
+  // GE：SWE R1 未开放（入口仅「查看课程」）— 课表同源 batch-2504-g1
+  {
+    id: 'batch-ge-swe-before-r1',
+    name: geName('SWE', '0'),
+    academicSession: SESSION,
+    type: 'GE',
+    programme: 'SWE',
+    status: 'active',
+    roundsSummary: 'R1 未开始 · R2/R3 待开放（演示查看课程）',
+    ...withScopeRules([
+      {
+        faculties: ['School of Information'],
+        intakes: ['2024/09', '2025/04'],
+        programmes: ['SWE'],
+        groupName: '',
+        round: 'preselect',
+      },
+    ]),
+    demoActiveRound: null,
+    demoClosedRounds: [],
+    demoCatalogPhase: 0,
+    demoCourseSourceBatchId: 'batch-2504-g1',
+    volunteerFinalConfirmedAt: null,
+    creditMin: 4,
+    creditMax: 8,
+    courseCount: 16,
+    rounds: { ...FULL_ROUNDS },
+    roundsByAudience: {
+      senior: { ...FULL_ROUNDS, resultReleaseAt: FULL_ROUNDS_RELEASE },
+      freshman: { ...FULL_ROUNDS },
+    },
+    addDropWindow: { ...DEFAULT_ADD_DROP },
+    termKind: TERM_KIND_LONG,
+    dropDeadlineWeek: 2,
+    notifyTemplate: 'default-g1',
+    isSelectable: true,
+    localRules: defaultBatchLocalRules(),
+    round1Quota: defaultRound1Quota('GE', 'SWE', SESSION),
+  },
   // GE：SWE 同专业三档 R1/R2/R3 进行中
   {
     id: 'batch-2504-g1',
@@ -463,6 +541,7 @@ const initialBatches = [
     /** Demo：第一轮进行中 */
     demoActiveRound: 'preselect',
     demoClosedRounds: [],
+    demoCatalogPhase: 1,
     volunteerFinalConfirmedAt: null,
     demoResultReleaseFixed: {
       released: false,
@@ -506,6 +585,7 @@ const initialBatches = [
     /** Demo：第二轮进行中；第一轮关闭 */
     demoActiveRound: 'main',
     demoClosedRounds: ['preselect'],
+    demoCatalogPhase: 2,
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
     demoResultReleaseFixed: {
       released: true,
@@ -547,6 +627,7 @@ const initialBatches = [
     /** Demo：第三轮进行中；一二轮关闭 */
     demoActiveRound: 'supplement',
     demoClosedRounds: ['preselect', 'main'],
+    demoCatalogPhase: 3,
     volunteerFinalConfirmedAt: '2025-09-04T10:00:00',
     creditMin: 2,
     creditMax: 6,
@@ -586,8 +667,8 @@ const initialBatches = [
         groupName: '',
       },
     ]),
-    creditMin: 12,
-    creditMax: 20,
+    creditMin: resolveTermCreditMin('2025/02'),
+    creditMax: resolveTermCreditMax('2025/02'),
     courseCount: 20,
     rounds: {
       preselect: { start: '10-Jan-2025', end: '12-Jan-2025' },
@@ -818,7 +899,8 @@ export function getStudentDefaultRoundKey(batch, audience) {
 }
 
 /**
- * 学生端「当前开放轮」：优先 demoActiveRound 且未关闭；否则第一个已配置且未关闭的轮
+ * 学生端「当前开放轮」：优先 demoActiveRound 且未关闭。
+ * `demoActiveRound === null` 表示显式无开放轮（不回退）；未设置时回退到第一个未关闭已配置轮。
  * @param {object|null} batch 批次
  * @param {string} [audience] 受众
  * @returns {string|null} 无开放轮时 null
@@ -827,6 +909,9 @@ export function getStudentCurrentOpenRoundKey(batch, audience) {
   if (!batch) return null
   const configured = listConfiguredRoundKeys(batch, audience)
   if (!configured.length) return null
+  if (Object.prototype.hasOwnProperty.call(batch, 'demoActiveRound') && batch.demoActiveRound == null) {
+    return null
+  }
   const preferred = batch?.demoActiveRound
   if (
     preferred &&
@@ -836,6 +921,53 @@ export function getStudentCurrentOpenRoundKey(batch, audience) {
     return preferred
   }
   return configured.find((key) => isBatchRoundOpenForRegistration(batch, key)) || null
+}
+
+/**
+ * 入口下拉时间序：R1 未开放(0) → R1(1) → R2(2) → R3(3)
+ * 优先读显式 `demoCatalogPhase`，避免仅靠 demoActiveRound 推断时 (0) 排错位。
+ * @param {object|null} batch
+ * @returns {number}
+ */
+export function getCatalogBatchPhaseOrder(batch) {
+  if (!batch) return 99
+  const explicit = Number(batch.demoCatalogPhase)
+  if (Number.isFinite(explicit)) return explicit
+  const closed = Array.isArray(batch.demoClosedRounds) ? batch.demoClosedRounds : []
+  const hasExplicitNone =
+    Object.prototype.hasOwnProperty.call(batch, 'demoActiveRound') && batch.demoActiveRound == null
+  if (hasExplicitNone && !closed.length) return 0
+  const open = batch.demoActiveRound
+  if (open === 'preselect') return 1
+  if (open === 'main') return 2
+  if (open === 'supplement') return 3
+  if (hasExplicitNone && closed.includes('preselect') && !closed.includes('main')) return 1.5
+  return 50
+}
+
+/**
+ * 入口时间轴行按钮：进入选课 / 查看课程
+ * @param {{ key: string, status: string }[]} timeline
+ * @param {string} roundKey
+ * @param {string[]} configured
+ * @returns {{ canEnter: boolean, canPreview: boolean }}
+ */
+export function getStudentRoundEntryActions(timeline, roundKey, configured = []) {
+  const statusByKey = Object.fromEntries((timeline || []).map((item) => [item.key, item.status]))
+  const status = statusByKey[roundKey]
+  const configuredOk = (configured || []).includes(roundKey)
+  if (roundKey === 'preselect') {
+    const canEnter = status === 'active'
+    const canPreview =
+      configuredOk &&
+      !canEnter &&
+      (status === 'pending' || (status === 'ended' && statusByKey.main === 'pending'))
+    return { canEnter, canPreview }
+  }
+  return {
+    canEnter: status === 'active',
+    canPreview: false,
+  }
 }
 
 /**
@@ -1026,7 +1158,6 @@ export function addRegistrationBatch(payload) {
     status: 'draft',
     courseCount: 0,
     preselectPriority: { preferSenior: false, minSemestersAbove: 1 },
-    isSelectable: true,
     localRules: defaultBatchLocalRules(),
     round1Quota:
       String(payload.type || '').toUpperCase() === 'ME'

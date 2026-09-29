@@ -220,6 +220,18 @@ function courseKey(item) {
   return String(item?.courseId || item?.courseCode || item?.code || '')
 }
 
+/** 预览层去重：同课不同教学分组均保留 */
+function courseSectionDedupeKey(item) {
+  const code = String(item?.courseCode || item?.code || '')
+  const section = String(item?.sectionCode || item?.section || item?.sectionId || '')
+  const id = String(item?.courseId || item?.id || '')
+  if (code && section) return `${code}::${section}`
+  if (id && section) return `${id}::${section}`
+  if (code) return `code:${code}`
+  if (id) return `id:${id}`
+  return ''
+}
+
 /**
  * 合并必修 + 已确认（≤当前轮，实线）+ 本轮选择（虚线）
  * @param {object} opts
@@ -297,20 +309,25 @@ export function buildPreviewSchedule({
   )
 
   const previewSeen = new Set([
-    ...requiredSlots.map((s) => s.course),
-    ...confirmedSlots.map((s) => s.course),
+    ...requiredSlots.map((s) => (s.sectionCode ? `${s.course}::${s.sectionCode}` : `code:${s.course}`)),
+    ...confirmedSlots.map((s) => (s.sectionCode ? `${s.course}::${s.sectionCode}` : `code:${s.course}`)),
+  ])
+  // 必修/已确认已占的课号：预览层同课号不再叠一层（同分组键已进 previewSeen）
+  const requiredOrConfirmedCodes = new Set([
+    ...requiredSlots.map((s) => String(s.course || '')).filter(Boolean),
+    ...confirmedSlots.map((s) => String(s.course || '')).filter(Boolean),
   ])
   const previewSlots = coursesToScheduleSlots(
     previewCourses.filter((c) => {
       const code = String(c.courseCode || c.code || '')
       const courseId = String(c.courseId || c.id || '')
+      const key = courseSectionDedupeKey(c)
       if (!code && !courseId) return false
       if (dropSet.has(code)) return false
-      // 同课号只留一层（必修/更早确认优先）
-      if (code && previewSeen.has(code)) return false
-      if (courseId && previewSeen.has(courseId)) return false
-      if (code) previewSeen.add(code)
-      if (courseId) previewSeen.add(courseId)
+      // 必修/更早确认已有该课号时，本轮同课不再虚线叠显
+      if (code && requiredOrConfirmedCodes.has(code)) return false
+      if (key && previewSeen.has(key)) return false
+      if (key) previewSeen.add(key)
       return true
     }),
     { layer: 'preview', preview: true, kind: 'cart', stroke: 'dashed' },

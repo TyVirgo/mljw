@@ -221,6 +221,7 @@ const DEMO_SPECIAL = [
     intake: '2024/09',
     faculty: 'School of Business',
     selectable: true,
+    selectionCreditMax: 12,
     remark: 'Cross-faculty elective permit',
   },
   {
@@ -231,6 +232,7 @@ const DEMO_SPECIAL = [
     intake: '2025/04',
     faculty: 'School of Humanities',
     selectable: true,
+    selectionCreditMax: 16,
     remark: 'BOA approved credit overload cohort',
   },
 ]
@@ -462,6 +464,7 @@ export function addBatchSpecialStudent(batchId, payload = {}) {
   }
 
   const fromPool = findDemoStudentById(studentId)
+  const creditMax = normalizeSelectionCreditMax(payload.selectionCreditMax)
   const item = {
     studentId,
     studentName: payload.studentName || fromPool?.studentName || studentId,
@@ -470,10 +473,19 @@ export function addBatchSpecialStudent(batchId, payload = {}) {
     intake: payload.intake || fromPool?.intake || '',
     faculty: payload.faculty || fromPool?.faculty || '',
     selectable: payload.selectable !== false,
+    selectionCreditMax: creditMax,
     remark: String(payload.remark || '').trim(),
   }
   roster.special = [item, ...roster.special]
   return { ok: true, item }
+}
+
+/** @returns {number|null} 正数或 null */
+export function normalizeSelectionCreditMax(value) {
+  if (value === '' || value === null || value === undefined) return null
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return Math.round(n * 100) / 100
 }
 
 /** 批量删除特殊学生 */
@@ -506,11 +518,15 @@ export function updateBatchSpecialStudents(batchId, studentIds = [], payload = {
   const roster = ensureBatchRoster(batchId)
   const remark = String(payload.remark ?? '').trim()
   const selectable = payload.selectable !== false
+  const hasCreditMax = Object.prototype.hasOwnProperty.call(payload, 'selectionCreditMax')
+  const creditMax = hasCreditMax ? normalizeSelectionCreditMax(payload.selectionCreditMax) : undefined
   let updated = 0
   roster.special = roster.special.map((row) => {
     if (!ids.has(row.studentId)) return row
     updated += 1
-    return { ...row, selectable, remark }
+    const next = { ...row, selectable, remark }
+    if (hasCreditMax) next.selectionCreditMax = creditMax
+    return next
   })
   return { ok: true, updated }
 }

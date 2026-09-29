@@ -1,4 +1,7 @@
 <script setup>
+/**
+ * 白名单新增 · 学生选择器（可搜，多选）
+ */
 import { ref, computed, watch } from 'vue'
 import TablePagination from '../common/TablePagination.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
@@ -11,6 +14,8 @@ import '../../styles/list-page-search.css'
 
 const props = defineProps({
   visible: Boolean,
+  /** 打开时预勾选（抽屉已选） */
+  initialSelected: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['close', 'select'])
@@ -19,10 +24,10 @@ const { t } = useAppI18n()
 
 const searchForm = ref(emptySearch())
 const appliedSearch = ref(emptySearch())
-const selectedId = ref('')
-const selectedRow = ref(null)
+/** @type {import('vue').Ref<Map<string, object>>} */
+const selectedMap = ref(new Map())
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(20)
 const errorKey = ref('')
 
 const filterOptions = computed(() => getWhitelistPickFilterOptions())
@@ -32,6 +37,11 @@ const paginatedRows = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   return filteredRows.value.slice(start, start + pageSize.value)
 })
+const selectedCount = computed(() => selectedMap.value.size)
+const selectedHint = computed(() => {
+  if (!selectedCount.value) return ''
+  return t('courseRegistration.result.selectedStudents', { count: selectedCount.value })
+})
 
 watch(
   () => props.visible,
@@ -39,10 +49,13 @@ watch(
     if (!visible) return
     searchForm.value = emptySearch()
     appliedSearch.value = emptySearch()
-    selectedId.value = ''
-    selectedRow.value = null
+    const map = new Map()
+    for (const row of props.initialSelected || []) {
+      if (row?.studentId) map.set(row.studentId, { ...row })
+    }
+    selectedMap.value = map
     currentPage.value = 1
-    pageSize.value = 10
+    pageSize.value = 20
     errorKey.value = ''
   },
 )
@@ -51,9 +64,15 @@ function emptySearch() {
   return { studentId: '', studentName: '', faculty: '' }
 }
 
-function selectRow(row) {
-  selectedId.value = row.studentId
-  selectedRow.value = row
+function isSelected(studentId) {
+  return selectedMap.value.has(studentId)
+}
+
+function toggleRow(row) {
+  const next = new Map(selectedMap.value)
+  if (next.has(row.studentId)) next.delete(row.studentId)
+  else next.set(row.studentId, { ...row })
+  selectedMap.value = next
   errorKey.value = ''
 }
 
@@ -79,11 +98,14 @@ function genderLabel(gender) {
 }
 
 function handleConfirm() {
-  if (!selectedRow.value) {
+  if (!selectedCount.value) {
     errorKey.value = 'courseRegistration.whitelist.studentRequired'
     return
   }
-  emit('select', { ...selectedRow.value })
+  emit(
+    'select',
+    [...selectedMap.value.values()].map((row) => ({ ...row })),
+  )
   emit('close')
 }
 </script>
@@ -142,6 +164,8 @@ function handleConfirm() {
             </div>
           </div>
 
+          <p class="pick-hint">{{ t('courseRegistration.whitelist.selectStudentMultiHint') }}</p>
+
           <div class="table-wrap">
             <table class="data-table">
               <thead>
@@ -160,14 +184,14 @@ function handleConfirm() {
                   v-for="row in paginatedRows"
                   :key="row.studentId"
                   class="clickable-row"
-                  @click="selectRow(row)"
+                  :class="{ selected: isSelected(row.studentId) }"
+                  @click="toggleRow(row)"
                 >
-                  <td class="col-check">
+                  <td class="col-check" @click.stop>
                     <input
-                      type="radio"
-                      name="whitelist-student-pick"
-                      :checked="selectedId === row.studentId"
-                      @change="selectRow(row)"
+                      type="checkbox"
+                      :checked="isSelected(row.studentId)"
+                      @change="toggleRow(row)"
                     />
                   </td>
                   <td>{{ row.studentId }}</td>
@@ -191,9 +215,7 @@ function handleConfirm() {
           />
 
           <p v-if="errorKey" class="field-error">{{ t(errorKey) }}</p>
-          <p v-if="selectedRow" class="selected-hint">
-            {{ selectedRow.studentName }}（{{ selectedRow.studentId }}）
-          </p>
+          <p v-if="selectedHint" class="selected-hint">{{ selectedHint }}</p>
         </div>
 
         <div class="pick-footer">
@@ -258,12 +280,26 @@ function handleConfirm() {
   flex: 1;
   min-height: 0;
 }
+.pick-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+}
 .pick-search {
   margin: 0;
   padding: 12px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #f9fafb;
+}
+.pick-search-row {
+  align-items: end;
+}
+.search-item--compact {
+  min-width: 140px;
+}
+.search-item--faculty {
+  min-width: 180px;
 }
 .table-wrap {
   border: 1px solid #f3f4f6;
@@ -298,6 +334,9 @@ function handleConfirm() {
 }
 .clickable-row:hover {
   background: #f8fafc;
+}
+.clickable-row.selected {
+  background: #eff6ff;
 }
 .empty-cell {
   text-align: center;

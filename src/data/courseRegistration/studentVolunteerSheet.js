@@ -6,6 +6,9 @@ import { getActiveBatch, getBatchById, getStudentCurrentOpenRoundKey } from './r
 import { getEffectiveAudienceRounds, AUDIENCE_SENIOR, DEMO_SENIOR_ROUNDS_202604 } from './audienceRounds.js'
 import { getStudentAudience } from './studentAudience.js'
 import { studentPendingAssignCourses } from './studentPendingAssignState.js'
+import { syncPendingAssignIntoVolunteerStates } from './preselectVolunteerConfirm.js'
+import { buildSelectedRowFromCatalog } from './resolveSelectedCourseDisplay.js'
+import { getPendingVolunteersHardConflictGate } from './volunteerPendingConflict.js'
 
 /**
  * 已确认的志愿快照（确认后锁死；公示结果挂在此序上）
@@ -259,24 +262,45 @@ export function movePendingVolunteerOrder(courseId, direction) {
 }
 
 /**
- * 按 courseId 顺序重排待分配志愿（拖拽完成时）
- * @param {string[]} courseIds
+ * 待分配志愿行键（同课多分组可并存）
+ * @param {{ courseId?: string, sectionId?: string, sectionCode?: string, section?: string }} row
  */
-export function applyPendingVolunteerOrder(courseIds) {
+export function pendingVolunteerRowKey(row) {
+  const courseId = String(row?.courseId || '')
+  const section = String(row?.sectionId || row?.sectionCode || row?.section || '')
+  return section ? `${courseId}::${section}` : courseId
+}
+
+/**
+ * 按行键顺序重排待分配志愿（拖拽完成时）
+ * @param {string[]} orderedKeys pendingVolunteerRowKey 列表（兼容旧版仅 courseId）
+ */
+export function applyPendingVolunteerOrder(orderedKeys) {
   if (isVolunteerListLocked()) {
     return { ok: false, errorKey: 'courseRegistration.student.volunteerSheet.orderLocked' }
   }
   const batchId = getActiveBatch()?.id || ''
-  const ids = (courseIds || []).filter(Boolean)
-  if (!ids.length) return { ok: false, errorKey: 'courseRegistration.student.volunteerSheet.empty' }
-  const map = new Map(sortedPendingVolunteers(batchId).map((row) => [row.courseId, row]))
+  const keys = (orderedKeys || []).filter(Boolean)
+  if (!keys.length) return { ok: false, errorKey: 'courseRegistration.student.volunteerSheet.empty' }
+  const map = new Map(
+    sortedPendingVolunteers(batchId).map((row) => [pendingVolunteerRowKey(row), row]),
+  )
   const next = []
-  for (const id of ids) {
-    const row = map.get(id)
-    if (row) {
-      next.push({ ...row })
-      map.delete(id)
+  for (const key of keys) {
+    let row = map.get(key)
+    if (!row && !String(key).includes('::')) {
+      // 兼容旧调用：仅 courseId 时取该课剩余第一行
+      for (const [k, v] of map.entries()) {
+        if (k === key || k.startsWith(`${key}::`)) {
+          row = v
+          map.delete(k)
+          break
+        }
+      }
+    } else if (row) {
+      map.delete(key)
     }
+    if (row) next.push({ ...row })
   }
   // 未出现在排序列表中的（异常）追加末尾
   for (const row of map.values()) {
@@ -290,7 +314,10 @@ export function applyPendingVolunteerOrder(courseIds) {
 /**
  * 本轮选课情况：确认当前志愿顺序（锁死至公示）
  */
-export function confirmVolunteerPreferenceOrder() {
+/**
+ * @param {{ required?: object[] }} [opts] required=必修底图；撞必修则不可确认
+ */
+export function confirmVolunteerPreferenceOrder(opts = {}) {
   if (preferenceOrderConfirmed.value) {
     return { ok: false, errorKey: 'courseRegistration.student.volunteerSheet.alreadyConfirmed' }
   }
@@ -299,6 +326,8 @@ export function confirmVolunteerPreferenceOrder() {
   if (!list.length) {
     return { ok: false, errorKey: 'courseRegistration.student.volunteerSheet.empty' }
   }
+  const hardGate = getPendingVolunteersHardConflictGate(list, opts.required || [])
+  if (!hardGate.ok) return hardGate
   const renumbered = renumberPreferenceOrders(list)
   replacePendingForBatch(batchId, renumbered)
   const snapshot = {
@@ -392,226 +421,69 @@ export function buildVolunteerResultRows(batch = getActiveBatch()) {
 }
 
 /**
- * demo：ME 五门 + GE 四门待分配未确认（ME：COMP201/SE201 周三互撞；NET110/AI110 避开 R2/R3 已确认硬撞）
- * 确认后可再切 demoVolunteerReleaseMode / volunteerReleaseResults 演示公示
+ * demo：ME 三门 + GE 四门待分配未确认
+ * ME：COMP201（4选3 未满）+ SE201/AI110（3选2 刚好满）
+ * GE：课库 hum-demo 1～4（文/商/理/AI 轮转），学分与顶栏同源且各类未满
  */
 export function seedVolunteerSheetDemo() {
-  const pending = [
+  const meSpecs = [
     {
-      id: 'pending-vol-course-comp201',
       courseId: 'course-comp201',
-      courseCode: 'COMP201',
-      courseName: '数据结构',
-      courseNameEn: 'Data Structures',
-      credits: 4,
-      type: 'ME',
-      sectionId: 'sec-2',
-      sectionCode: '02',
-      time: 'Wed 14:00–16:00',
-      classTime: 'Wed 14:00–16:00',
-      weekRange: '1-14',
-      room: 'D5-3-202',
-      lecturer: '陈博士',
-      lecturerEn: 'Dr. Tan',
-      batchId: 'batch-2504-m1',
+      sectionId: 'sec-comp201-3',
       preferenceOrder: 1,
       selectedAt: '2026-04-01T09:00:00.000Z',
-      sourceType: 'preselect',
-      roundKey: 'preselect',
-      meetings: [{ time: 'Wed 14:00–16:00', room: 'D5-3-202', weekRange: '1-14' }],
-      schoolElectiveCategory: 'arts',
-    },
-    {
-      id: 'pending-vol-course-net110',
-      courseId: 'course-net110',
-      courseCode: 'NET110',
-      courseName: '计算机网络基础',
-      courseNameEn: 'Computer Networks Basics',
-      credits: 4,
-      type: 'ME',
-      sectionId: 'sec-net110-1',
-      sectionCode: '01',
-      time: 'Mon 13:00–15:00',
-      classTime: 'Mon 13:00–15:00',
-      weekRange: '1-18',
-      room: 'D5-5-101',
-      lecturer: '蔡博士',
-      lecturerEn: 'Dr. Chai',
       batchId: 'batch-2504-m1',
-      preferenceOrder: 2,
-      selectedAt: '2026-04-01T09:05:00.000Z',
-      sourceType: 'preselect',
-      roundKey: 'preselect',
-      meetings: [{ time: 'Mon 13:00–15:00', room: 'D5-5-101', weekRange: '1-18' }],
-      schoolElectiveCategory: 'arts',
     },
     {
-      id: 'pending-vol-course-se201',
       courseId: 'course-se201',
-      courseCode: 'SE201',
-      courseName: '软件工程导论',
-      courseNameEn: 'Intro to Software Engineering',
-      credits: 3,
-      type: 'ME',
       sectionId: 'sec-se201-1',
-      sectionCode: '01',
-      time: 'Wed 14:00–16:00',
-      classTime: 'Wed 14:00–16:00',
-      weekRange: '1-14',
-      room: 'D5-1-301',
-      lecturer: '李博士',
-      lecturerEn: 'Dr. Lee',
-      batchId: 'batch-2504-m1',
-      preferenceOrder: 3,
+      preferenceOrder: 2,
       selectedAt: '2026-04-01T09:10:00.000Z',
-      sourceType: 'preselect',
-      roundKey: 'preselect',
-      meetings: [{ time: 'Wed 14:00–16:00', room: 'D5-1-301', weekRange: '1-14' }],
-      schoolElectiveCategory: 'arts',
+      batchId: 'batch-2504-m1',
     },
     {
-      id: 'pending-vol-course-ai110',
       courseId: 'course-ai110',
-      courseCode: 'AI110',
-      courseName: '人工智能基础',
-      courseNameEn: 'Fundamentals of AI',
-      credits: 3,
-      type: 'ME',
       sectionId: 'sec-ai110-1',
-      sectionCode: '01',
-      time: 'Fri 14:00–16:00',
-      classTime: 'Fri 14:00–16:00',
-      weekRange: '1-14',
-      room: 'D5-2-210',
-      lecturer: '赵博士',
-      lecturerEn: 'Dr. Zhao',
-      batchId: 'batch-2504-m1',
-      preferenceOrder: 4,
+      preferenceOrder: 3,
       selectedAt: '2026-04-01T09:15:00.000Z',
-      sourceType: 'preselect',
-      roundKey: 'preselect',
-      meetings: [{ time: 'Fri 14:00–16:00', room: 'D5-2-210', weekRange: '1-14' }],
-      schoolElectiveCategory: 'arts',
-    },
-    {
-      id: 'pending-vol-course-web220',
-      courseId: 'course-web220',
-      courseCode: 'WEB220',
-      courseName: 'Web 应用开发',
-      courseNameEn: 'Web Application Development',
-      credits: 4,
-      type: 'ME',
-      sectionId: 'sec-web220-2',
-      sectionCode: '02',
-      time: 'Thu 16:00–18:00',
-      classTime: 'Thu 16:00–18:00',
-      weekRange: '1-18',
-      room: 'D5-3-105',
-      lecturer: '黄博士',
-      lecturerEn: 'Dr. Huang',
       batchId: 'batch-2504-m1',
-      preferenceOrder: 5,
-      selectedAt: '2026-04-01T09:20:00.000Z',
-      sourceType: 'preselect',
-      roundKey: 'preselect',
-      meetings: [{ time: 'Thu 16:00–18:00', room: 'D5-3-105', weekRange: '1-18' }],
-      schoolElectiveCategory: 'arts',
     },
   ]
-  const gePending = [
+  const pending = meSpecs.map((spec) => buildSelectedRowFromCatalog(spec)).filter(Boolean)
+
+  /** GE：课库同源；期望 商2/5 · AI3/4 · 文4/5 · 理2/4（均未满） */
+  const geSpecs = [
     {
-      id: 'pending-vol-course-hum-demo-1',
       courseId: 'course-hum-demo-1',
-      courseCode: 'HUM201',
-      courseName: 'Philosophy and Current Issues',
-      courseNameEn: 'Philosophy and Current Issues',
-      credits: 2,
-      type: 'GE',
       sectionId: 'sec-hum-demo-1-1',
-      sectionCode: '01',
-      time: 'Thu 10:00–12:00',
-      classTime: 'Thu 10:00–12:00',
-      weekRange: '1-18',
-      room: 'B2-2-201',
-      lecturer: 'Dr. James Whitfield',
-      lecturerEn: 'Dr. James Whitfield',
-      batchId: 'batch-2504-g1',
       preferenceOrder: 1,
       selectedAt: '2026-04-01T09:00:00.000Z',
-      sourceType: 'preselect',
-      roundKey: 'preselect',
-      meetings: [{ time: 'Thu 10:00–12:00', room: 'B2-2-201', weekRange: '1-18' }],
+      batchId: 'batch-2504-g1',
     },
     {
-      id: 'pending-vol-course-hum-demo-2',
       courseId: 'course-hum-demo-2',
-      courseCode: 'HUM202',
-      courseName: 'Creative Arts Appreciation',
-      courseNameEn: 'Creative Arts Appreciation',
-      credits: 3,
-      type: 'GE',
       sectionId: 'sec-hum-demo-2-1',
-      sectionCode: '01',
-      time: 'Mon 08:00–10:00',
-      classTime: 'Mon 08:00–10:00',
-      weekRange: '1-18',
-      room: 'B2-2-201',
-      lecturer: 'Dr. Emily Harrington',
-      lecturerEn: 'Dr. Emily Harrington',
-      batchId: 'batch-2504-g1',
       preferenceOrder: 2,
       selectedAt: '2026-04-01T09:05:00.000Z',
-      sourceType: 'preselect',
-      roundKey: 'preselect',
-      meetings: [{ time: 'Mon 08:00–10:00', room: 'B2-2-201', weekRange: '1-18' }],
+      batchId: 'batch-2504-g1',
     },
     {
-      id: 'pending-vol-course-hum-demo-3',
       courseId: 'course-hum-demo-3',
-      courseCode: 'HUM203',
-      courseName: 'Intercultural Communication',
-      courseNameEn: 'Intercultural Communication',
-      credits: 4,
-      type: 'GE',
       sectionId: 'sec-hum-demo-3-1',
-      sectionCode: '01',
-      time: 'Fri 14:00–16:00',
-      classTime: 'Fri 14:00–16:00',
-      weekRange: '1-18',
-      room: 'B2-2-201',
-      lecturer: "Prof. Michael O'Brien",
-      lecturerEn: "Prof. Michael O'Brien",
-      batchId: 'batch-2504-g1',
       preferenceOrder: 3,
       selectedAt: '2026-04-01T09:10:00.000Z',
-      sourceType: 'preselect',
-      roundKey: 'preselect',
-      meetings: [{ time: 'Fri 14:00–16:00', room: 'B2-2-201', weekRange: '1-18' }],
+      batchId: 'batch-2504-g1',
     },
     {
-      id: 'pending-vol-course-hum-demo-4',
       courseId: 'course-hum-demo-4',
-      courseCode: 'HUM204',
-      courseName: 'Media Literacy',
-      courseNameEn: 'Media Literacy',
-      credits: 2,
-      type: 'GE',
       sectionId: 'sec-hum-demo-4-1',
-      sectionCode: '01',
-      time: 'Thu 10:00–12:00',
-      classTime: 'Thu 10:00–12:00',
-      weekRange: '1-18',
-      room: 'B2-2-201',
-      lecturer: 'Dr. James Whitfield',
-      lecturerEn: 'Dr. James Whitfield',
-      batchId: 'batch-2504-g1',
       preferenceOrder: 4,
       selectedAt: '2026-04-01T09:15:00.000Z',
-      sourceType: 'preselect',
-      roundKey: 'preselect',
-      meetings: [{ time: 'Thu 10:00–12:00', room: 'B2-2-201', weekRange: '1-18' }],
+      batchId: 'batch-2504-g1',
     },
   ]
+  const gePending = geSpecs.map((spec) => buildSelectedRowFromCatalog(spec)).filter(Boolean)
+
   volunteerOrderSnapshot.value = null
   volunteerReleaseResults.value = []
   demoVolunteerReleaseMode.value = null
@@ -621,110 +493,33 @@ export function seedVolunteerSheetDemo() {
 
 /**
  * demo：仅写入「结果页」按批快照（不锁死在线选课志愿）
- * - 主批：已公示五门成败（releaseMode 仅结果页认；在线课表 R1 不认）
+ * - 主批：已公示三门成败（releaseMode 仅结果页认；在线课表 R1 不认）
  * - 另批：未到公布时间
  */
 export function seedVolunteerResultSheetsDemo() {
   const releasedBatchId = 'batch-2504-m1'
+  const releasedSpecs = [
+    { courseId: 'course-comp201', sectionId: 'sec-comp201-3' },
+    { courseId: 'course-se201', sectionId: 'sec-se201-1' },
+    { courseId: 'course-ai110', sectionId: 'sec-ai110-1' },
+  ]
+  const releasedSlots = releasedSpecs
+    .map((spec, i) => {
+      const item = buildSelectedRowFromCatalog(spec)
+      return item ? { slot: i + 1, item } : null
+    })
+    .filter(Boolean)
   const releasedSnapshot = {
     confirmedAt: '2026-04-01T10:00:00.000Z',
     batchId: releasedBatchId,
-    slots: [
-      {
-        slot: 1,
-        item: {
-          courseId: 'course-comp201',
-          courseCode: 'COMP201',
-          courseName: '数据结构',
-          credits: 4,
-          type: 'ME',
-          sectionCode: '02',
-          classTime: 'Wed 14:00–16:00',
-          time: 'Wed 14:00–16:00',
-          weekRange: '1-14',
-          room: 'D5-3-202',
-          lecturer: '陈博士',
-          meetings: [{ time: 'Wed 14:00–16:00', room: 'D5-3-202', weekRange: '1-14' }],
-        },
-      },
-      {
-        slot: 2,
-        item: {
-          courseId: 'course-net110',
-          courseCode: 'NET110',
-          courseName: '计算机网络基础',
-          credits: 4,
-          type: 'ME',
-          sectionCode: '01',
-          classTime: 'Mon 10:00–12:00',
-          time: 'Mon 10:00–12:00',
-          weekRange: '1-18',
-          room: 'D5-5-101',
-          lecturer: '蔡博士',
-          meetings: [{ time: 'Mon 10:00–12:00', room: 'D5-5-101', weekRange: '1-18' }],
-        },
-      },
-      {
-        slot: 3,
-        item: {
-          courseId: 'course-se201',
-          courseCode: 'SE201',
-          courseName: '软件工程导论',
-          credits: 3,
-          type: 'ME',
-          sectionCode: '01',
-          classTime: 'Wed 14:00–16:00',
-          time: 'Wed 14:00–16:00',
-          weekRange: '1-14',
-          room: 'D5-1-301',
-          lecturer: '李博士',
-          meetings: [{ time: 'Wed 14:00–16:00', room: 'D5-1-301', weekRange: '1-14' }],
-        },
-      },
-      {
-        slot: 4,
-        item: {
-          courseId: 'course-ai110',
-          courseCode: 'AI110',
-          courseName: '人工智能基础',
-          credits: 3,
-          type: 'ME',
-          sectionCode: '01',
-          classTime: 'Fri 10:00–12:00',
-          time: 'Fri 10:00–12:00',
-          weekRange: '1-14',
-          room: 'D5-2-210',
-          lecturer: '赵博士',
-          meetings: [{ time: 'Fri 10:00–12:00', room: 'D5-2-210', weekRange: '1-14' }],
-        },
-      },
-      {
-        slot: 5,
-        item: {
-          courseId: 'course-web220',
-          courseCode: 'WEB220',
-          courseName: 'Web 应用开发',
-          credits: 4,
-          type: 'ME',
-          sectionCode: '02',
-          classTime: 'Thu 16:00–18:00',
-          time: 'Thu 16:00–18:00',
-          weekRange: '1-18',
-          room: 'D5-3-105',
-          lecturer: '黄博士',
-          meetings: [{ time: 'Thu 16:00–18:00', room: 'D5-3-105', weekRange: '1-18' }],
-        },
-      },
-    ],
+    slots: releasedSlots,
   }
   upsertVolunteerSheet(releasedBatchId, {
     snapshot: releasedSnapshot,
     results: [
       { slot: 1, courseId: 'course-comp201', status: 'hit' },
-      { slot: 2, courseId: 'course-net110', status: 'miss' },
-      { slot: 3, courseId: 'course-se201', status: 'miss' },
-      { slot: 4, courseId: 'course-ai110', status: 'miss' },
-      { slot: 5, courseId: 'course-web220', status: 'hit' },
+      { slot: 2, courseId: 'course-se201', status: 'miss' },
+      { slot: 3, courseId: 'course-ai110', status: 'hit' },
     ],
     releaseMode: 'released',
   })
@@ -787,10 +582,12 @@ export function seedVolunteerRegisterDemo() {
   seedVolunteerSheetDemo()
   // 结果页按批快照与在线选课状态解耦，避免公示锁死提交
   seedVolunteerResultSheetsDemo()
+  // 待分配志愿写入名单，退选时已选百分比可降
+  syncPendingAssignIntoVolunteerStates()
 }
 
 /**
- * demo：已确认 + 五门公示结果（会锁死在线选课志愿；验收完整确认→公示链路时用）
+ * demo：已确认 + 三门公示结果（会锁死在线选课志愿；验收完整确认→公示链路时用）
  */
 export function seedVolunteerReleasedDemo() {
   seedVolunteerSheetDemo()
@@ -798,10 +595,8 @@ export function seedVolunteerReleasedDemo() {
   if (!result.ok) return
   const results = [
     { slot: 1, courseId: 'course-comp201', status: 'hit' },
-    { slot: 2, courseId: 'course-net110', status: 'miss' },
-    { slot: 3, courseId: 'course-se201', status: 'miss' },
-    { slot: 4, courseId: 'course-ai110', status: 'miss' },
-    { slot: 5, courseId: 'course-web220', status: 'hit' },
+    { slot: 2, courseId: 'course-se201', status: 'miss' },
+    { slot: 3, courseId: 'course-ai110', status: 'hit' },
   ]
   volunteerReleaseResults.value = results
   demoVolunteerReleaseMode.value = 'released'

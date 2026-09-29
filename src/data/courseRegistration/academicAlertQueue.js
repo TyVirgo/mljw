@@ -1,4 +1,5 @@
 import { registrationMonitorQueue } from './registrationMonitorQueue.js'
+import { deriveMonitorIssues } from './monitorCreditInsights.js'
 
 const alertTypeMap = {
   creditLow: 'creditBelowMin',
@@ -8,11 +9,19 @@ const alertTypeMap = {
   notRegistered: 'notRegistered',
 }
 
-const HIGH_ALERT_TYPES = ['notRegistered', 'creditBelowMin', 'creditAtMax', 'creditAboveMax']
+/** 高严重：硬冲突 / 毕业赶不上 */
+const HIGH_ALERT_TYPES = [
+  'notRegistered',
+  'creditAtMax',
+  'creditAboveMax',
+  'graduationCatchUpRisk',
+  'graduationNearHalfRisk',
+]
 
 export function resolveAlertTypesForRow(row) {
   if (!row) return []
-  if (row.issues?.length) return [...row.issues]
+  const derived = deriveMonitorIssues(row)
+  if (derived.length) return derived
   if (row.status === 'normal') return []
   return [alertTypeMap[row.status] || row.status]
 }
@@ -71,10 +80,19 @@ function buildRecommendation(alertType, row) {
       if (isFreshmanTag) {
         return { action: 'suggestSupplement', hint: 'recommendSuggestSupplement' }
       }
-      return { action: 'add', hint: 'recommendAddCredits' }
+      return { action: 'add', hint: 'recommendPlanCredits' }
     case 'creditAtMax':
     case 'creditAboveMax':
       return { action: 'drop', hint: 'recommendDropCredits' }
+    case 'termGeShort':
+    case 'termMeShort':
+    case 'termCatShort':
+      return { action: 'plan', hint: 'recommendTermElectiveShort' }
+    case 'graduationCatchUpRisk':
+    case 'graduationNearHalfRisk':
+      return { action: 'add', hint: 'recommendGraduationRisk' }
+    case 'graduationGap':
+      return { action: 'plan', hint: 'recommendGraduationGap' }
     case 'g1HumanitiesLow':
     case 'g1CategoryShortfall':
       return { action: 'add', hint: 'recommendG1Humanities' }
@@ -110,6 +128,12 @@ export const academicAlertTypeOptions = [
   'creditBelowMin',
   'creditAtMax',
   'creditAboveMax',
+  'termGeShort',
+  'termMeShort',
+  'termCatShort',
+  'graduationGap',
+  'graduationNearHalfRisk',
+  'graduationCatchUpRisk',
   'g1CategoryShortfall',
   'g1HumanitiesLow',
   'prerequisiteMissing',

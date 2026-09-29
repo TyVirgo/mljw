@@ -51,3 +51,23 @@
 - [x] 8.2 special 行固定、改文案、去「+ 特殊学生行」；入学学期按钮「+ 新增」
 - [x] 8.3 `totalCap` + 行 `count`；占比/名额数/总数联动；校验 100% 与合计
 - [x] 8.4 学期全局仅 GE `decayR`；`resolveEffectiveRound1Quota` 拆分来源
+
+## 9. R3 名额互释生效时间
+
+- [x] 9.1 `crossReleaseAt` 写入学期全局 / 单位覆盖 CRUD + demo 种子；`resolveEffectiveCrossReleaseAt`
+- [x] 9.2 学期/单位编辑抽屉：Tab 外共用字段；结果公布仍老生专属
+- [x] 9.3 选课时间主表 + 单位覆盖表增加「R3 名额互释」列；i18n
+- [x] 9.4 `isCrossAudienceReleaseActive`；学生端名额/筛选改走该判定；批次规则勾选旁提示继承日历
+- [x] 9.5 更新 proposal/design/spec；勾选本 tasks
+
+## 10. 单位覆盖区分 GE/ME
+
+- [x] 10.1 `unitScheduleOverrides` 增加 `courseType`；唯一键含类型；demo 补 GE/ME 样例
+- [x] 10.2 `get/upsert/remove` 与 `resolveEffectiveAudienceRounds` / `crossReleaseAt` 按批次类型匹配
+- [x] 10.3 `UnitPickModal` 必选课程类型；列表加列；置灰按单位+类型
+- [x] 10.4 i18n；更新 proposal/design/spec；勾选本 tasks
+
+## 11. UnitPickModal 样式对齐
+
+- [x] 11.1 弹窗壳改为 header/body/footer 分区；按钮与圆角对齐特殊学生新增弹窗
+- [x] 11.2 更新 proposal；勾选本 tasks

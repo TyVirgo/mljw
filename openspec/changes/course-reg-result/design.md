@@ -194,9 +194,20 @@
 ## Decisions
 
 1. **入口**：学生维度工具行，导出旁「新增」（`common.create`）。
-2. **交互**：独立弹窗；一次一名学生（单选）→ 再选当前批次下未满员「课×分组」。
-3. **满员**：分组 `enrolled >= capacity` 视为满员，不可选；提交时再校验。
-4. **落库**：复用 `addAdminStudentRegistrations`，`courseSource = admin`（界面「管理员添加」）。
+2. **交互**：独立弹窗；一次一名学生（单选）→ 再选当前批次下「课×分组」。
+3. **落库**：复用 `addAdminStudentRegistrations`，`courseSource = admin`（界面「管理员添加」）。
+
+## 增量：学生维度新增不限额（2026-09）
+
+## Decisions
+
+1. **范围**：仅 `AdminAddCourseForStudentModal`（学生维度「新增」）；其它调用 `addAdminStudentRegistrations` 的入口默认仍守容量。
+2. **选项**：`listTargetCourseSectionOptions({ batchId, onlyAvailable: false })`；已满选项 label 带「满」标记。
+3. **提交**：`addAdminStudentRegistrations({ …, allowOverCapacity: true })` 跳过满员校验；仍拦同课重复。
+4. **确认**：所选 `isFull` 时二次确认超额提示后再写。
+5. **展示**：`section.enrolled++`；`remainingCapacity` 已为 0 时不再减（允许 enrolled > capacity）。
+6. **交互（增量）**：主弹窗仅批次只读 +「选择课程班」「选择学生」按钮回填；搜索在 `AdminAddSectionPickModal` / `AdminAddStudentPickModal`。
+7. **样式 / 多选（增量）**：三弹窗 scoped 内补齐 `.btn`（对齐特殊名单加人）；学生选择器 checkbox 多选，课程班仍单选；重复仍整批失败。
 
 ## 增量：第一轮志愿结果 · GE 按日抽签（2026-08）
 
@@ -253,3 +264,17 @@ ME 名单仍按学期排序 + 名次切绿/黄，未使用管理轮次入学年�
 1. **行数**：`VOLUNTEER_SEED_COURSE_LIMIT` 统一为 13 门；两分组则为 26 行。课不足的批次补课名。
 2. **GE 类型**：`buildActiveBatchDemoCourses` 对 GE 批次传 `type: 'GE'`。
 3. **范围**：只加第一轮志愿结果主表行数；轮次/学生 Tab 的 slice 本增量不改。
+
+## 增量：手动发布 + 发布日志 · 锁定与公示分离（2026-09）
+
+## Context
+
+此前到点自动锁定并立刻同步学生端；已去掉手动最终确认。现需：手动发布优先、自动自 T−1h 重试、锁定与公示分离、发布日志。
+
+## Decisions
+
+1. **两阶段**：`lockVolunteerBatchPublish` 写 `volunteerFinalConfirmedAt` + `volunteerPublishTrigger`；学生 sheet 在未到 T 时 `releaseMode: waiting`，到 T 由 `revealVolunteerBatchesIfDue` 置 `released`。
+2. **手动**：R1 结束后可点（demo 固定待公布批视为已过 R1）；confirm 后锁定；优先于自动。
+3. **自动**：`tickVolunteerResultPublish` 在结果页轮询；窗口 `[T−1h, 成功)`；已锁定则跳过；demo 可模拟首次失败。
+4. **日志**：`volunteerPublishLogs` 按批；字段对齐调度：时间、触发方式、任务名、批次、结果、操作人、摘要。
+5. **UI**：工具行 `[发布][发布日志] + 状态文案`；日志弹窗表格。

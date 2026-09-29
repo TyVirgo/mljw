@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   formatDdMmYyyyInput,
   parseDdMmYyyy,
@@ -9,6 +10,10 @@ import {
   parseMmYyyy,
   formatDateToMmYyyy,
   isValidMmYyyy,
+  formatYyyyMmInput,
+  parseYyyyMm,
+  formatDateToYyyyMm,
+  isValidYyyyMm,
 } from '../../data/universityInfo.js'
 
 const props = defineProps({
@@ -25,9 +30,19 @@ const props = defineProps({
     default: 'date',
     validator: (value) => ['date', 'month', 'datetime'].includes(value),
   },
+  /** month 模式取值格式；默认 mm/yyyy，学年学期用 yyyy/mm */
+  monthFormat: {
+    type: String,
+    default: 'mm/yyyy',
+    validator: (value) => ['mm/yyyy', 'yyyy/mm'].includes(value),
+  },
+  /** month 模式 popover 内快捷月份（1–12），如 [2,4,9] */
+  monthPanelShortcuts: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['update:modelValue'])
+
+const { t, isZh } = useAppI18n()
 
 const rootRef = ref(null)
 const panelRef = ref(null)
@@ -62,16 +77,55 @@ const MONTHS = [
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+const MONTHS_ZH = [
+  '一月',
+  '二月',
+  '三月',
+  '四月',
+  '五月',
+  '六月',
+  '七月',
+  '八月',
+  '九月',
+  '十月',
+  '十一月',
+  '十二月',
+]
+
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
 const viewDate = ref(new Date())
 
 const isMonthMode = computed(() => props.mode === 'month')
 const isDatetimeMode = computed(() => props.mode === 'datetime')
+const isYyyyMmMonthFormat = computed(
+  () => isMonthMode.value && props.monthFormat === 'yyyy/mm',
+)
+
+const monthGridLabels = computed(() => (isZh.value ? MONTHS_ZH : MONTH_ABBR))
+
+const showMonthPanelShortcuts = computed(
+  () => isMonthMode.value && (props.monthPanelShortcuts || []).length > 0,
+)
+
+const panelShortcutOptions = computed(() => {
+  const year = viewDate.value.getFullYear()
+  return (props.monthPanelShortcuts || [])
+    .map((m) => Number(m))
+    .filter((m) => m >= 1 && m <= 12)
+    .map((month) => {
+      const monthIndex = month - 1
+      const value = isYyyyMmMonthFormat.value
+        ? `${year}/${pad2(month)}`
+        : `${pad2(month)}/${year}`
+      const label = isZh.value ? `${month}月` : MONTH_ABBR[monthIndex]
+      return { month, monthIndex, value, label }
+    })
+})
 
 const effectivePlaceholder = computed(() => {
   if (props.placeholder) return props.placeholder
-  if (isMonthMode.value) return 'mm/yyyy'
+  if (isMonthMode.value) return isYyyyMmMonthFormat.value ? 'yyyy/mm' : 'mm/yyyy'
   if (isDatetimeMode.value) return 'dd/mm/yyyy hh:mm:ss'
   return 'dd/mm/yyyy'
 })
@@ -159,31 +213,39 @@ function syncTimeFromValue(value) {
 }
 
 function parseValue(value) {
-  if (isMonthMode.value) return parseMmYyyy(value)
+  if (isMonthMode.value) {
+    return isYyyyMmMonthFormat.value ? parseYyyyMm(value) : parseMmYyyy(value)
+  }
   if (isDatetimeMode.value) return parseDatetimeValue(value)
   return parseDdMmYyyy(value)
 }
 
 function isValidValue(value) {
-  if (isMonthMode.value) return isValidMmYyyy(value)
+  if (isMonthMode.value) {
+    return isYyyyMmMonthFormat.value ? isValidYyyyMm(value) : isValidMmYyyy(value)
+  }
   if (isDatetimeMode.value) return isValidDatetimeValue(value)
   return isValidDdMmYyyy(value)
 }
 
 function formatInput(raw) {
-  if (isMonthMode.value) return formatMmYyyyInput(raw)
+  if (isMonthMode.value) {
+    return isYyyyMmMonthFormat.value ? formatYyyyMmInput(raw) : formatMmYyyyInput(raw)
+  }
   if (isDatetimeMode.value) return formatDatetimeInput(raw)
   return formatDdMmYyyyInput(raw)
 }
 
 function formatDateValue(date) {
-  if (isMonthMode.value) return formatDateToMmYyyy(date)
+  if (isMonthMode.value) {
+    return isYyyyMmMonthFormat.value ? formatDateToYyyyMm(date) : formatDateToMmYyyy(date)
+  }
   if (isDatetimeMode.value) return formatDateToDatetime(date)
   return formatDateToDdMmYyyy(date)
 }
 
 watch(
-  () => [props.modelValue, props.mode],
+  () => [props.modelValue, props.mode, props.monthFormat],
   ([value]) => {
     draft.value = value || ''
     syncTimeFromValue(value)
@@ -220,9 +282,10 @@ const selectedDate = computed(() => {
 })
 
 const selectedMonthYear = computed(() => {
-  if (!isMonthMode.value || !isValidMmYyyy(props.modelValue)) return null
-  const [, mm, yyyy] = props.modelValue.trim().match(/^(\d{2})\/(\d{4})$/)
-  return { month: Number(mm) - 1, year: Number(yyyy) }
+  if (!isMonthMode.value || !isValidValue(props.modelValue)) return null
+  const parsed = parseValue(props.modelValue)
+  if (!parsed) return null
+  return { month: parsed.getMonth(), year: parsed.getFullYear() }
 })
 
 function startOfDay(date) {
@@ -408,10 +471,17 @@ function onTimePartChange() {
 }
 
 function selectMonth(monthIndex) {
-  const mm = String(monthIndex + 1).padStart(2, '0')
-  const yyyy = viewDate.value.getFullYear()
-  emitValue(`${mm}/${yyyy}`)
+  const date = new Date(viewDate.value.getFullYear(), monthIndex, 1)
+  emitValue(formatDateValue(date))
   open.value = false
+}
+
+function selectPanelShortcut(monthIndex) {
+  selectMonth(monthIndex)
+}
+
+function isPanelShortcutActive(opt) {
+  return props.modelValue === opt.value
 }
 
 function isSameDay(a, b) {
@@ -563,17 +633,36 @@ onBeforeUnmount(() => {
           <button type="button" class="nav-btn" :aria-label="isMonthMode ? 'Next year' : 'Next month'" @click="nextPeriod">›</button>
         </div>
 
-        <div v-if="isMonthMode" class="month-picker-grid">
-          <button
-            v-for="(label, index) in MONTH_ABBR"
-            :key="label"
-            type="button"
-            class="month-btn"
-            :class="{ selected: isSelectedMonth(index), current: isCurrentMonth(index) }"
-            @click="selectMonth(index)"
+        <div v-if="isMonthMode" class="month-picker-body">
+          <div
+            v-if="showMonthPanelShortcuts"
+            class="month-panel-shortcuts"
+            role="group"
+            :aria-label="t('courseRegistration.schedule.sessionMonthShortcuts')"
           >
-            {{ label }}
-          </button>
+            <button
+              v-for="opt in panelShortcutOptions"
+              :key="opt.value"
+              type="button"
+              class="month-shortcut-btn"
+              :class="{ active: isPanelShortcutActive(opt) }"
+              @click="selectPanelShortcut(opt.monthIndex)"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+          <div class="month-picker-grid">
+            <button
+              v-for="(label, index) in monthGridLabels"
+              :key="label"
+              type="button"
+              class="month-btn"
+              :class="{ selected: isSelectedMonth(index), current: isCurrentMonth(index) }"
+              @click="selectMonth(index)"
+            >
+              {{ label }}
+            </button>
+          </div>
         </div>
 
         <template v-else>
@@ -753,6 +842,44 @@ onBeforeUnmount(() => {
   background: #f3f4f6;
 }
 
+.month-picker-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.month-panel-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.month-shortcut-btn {
+  padding: 4px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+  line-height: 1.3;
+}
+
+.month-shortcut-btn:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.month-shortcut-btn.active {
+  border-color: #3b82f6;
+  background: #dbeafe;
+  color: #1e40af;
+  font-weight: 600;
+}
+
 .month-picker-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -765,6 +892,13 @@ onBeforeUnmount(() => {
   border-radius: 6px;
   font-size: 13px;
   color: #374151;
+}
+
+.month-picker-grid .month-btn {
+  min-height: 36px;
+  height: auto;
+  padding: 6px 4px;
+  line-height: 1.25;
 }
 
 .month-btn:hover {

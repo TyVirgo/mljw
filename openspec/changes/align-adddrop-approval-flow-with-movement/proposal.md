@@ -29,3 +29,11 @@
 
 - `AddDropApprovalView`、`AddDropApprovalDetailDrawer`
 - 新建 `AddDropApprovalModal`；timeline 构建函数；队列决策 API 微调
+
+## 增量：单级两节点（2026-09）
+
+加退选不像学籍异动多部门会签，仅需一个部门审核。
+
+- 审批 Timeline **固定 2 节点**：学生发起（Applicant）→ 教务协调员（Academic Coordinator）；通过/驳回只更新第 2 节点徽章，不再追加第三终态节点。
+- `In Review` / `Forwarded` 等多级中间态：合适的 demo 并入 `Pending`，不合适的去掉。
+- 详情/弹窗 `approval-stage` 仍为 Academic Coordinator。

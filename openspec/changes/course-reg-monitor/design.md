@@ -26,3 +26,12 @@
 ## Open Questions
 
 （无）
+
+## 增量 2026-09
+
+- 白名单：操作与建议列统一「加入白名单」口径，确认框可保留新生说明。
+- 详情学分两段统一排版：本学期用 `termElectiveProgress` 作 GE/ME 总分帽 + `getTermGeElectiveCategoryBars` / `getTermGeCategoryBars`；毕业用 `getGraduationGeBars` / `getGraduationMeBars`（总分由类别求和）。UI 共用 `g1-bar` / nested，不引入新组件。
+- 列表收敛：去掉「建议操作」列；本学期 GE/ME 分两列（`formatTermGeSummary` / `formatTermMeSummary`）；表头 `white-space: nowrap`。
+- 详情去掉「问题清单」（类型已在主表）；提醒弹框按钮样式对齐 `ApplicationDetailDrawer` footer（Teleport 后自写 `.btn` 规则）。
+- 主表再收敛：去掉状态 / 预警类型 / 毕业缺口列；「学分」改为毕业学分，数据用 `getMonitorGraduationInsight` 的 `earned/required`（`formatGraduationCreditsSummary`）；GE/ME 表头带「（已选/要求）」。
+- 统计卡：`getMonitorStats` 平均学分改为毕业已修均值；去掉 belowMin/aboveMax 卡；筛选/表头 Intake→入学批次；加入白名单一律 `confirm`。

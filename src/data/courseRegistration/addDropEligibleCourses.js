@@ -51,6 +51,7 @@ export function getEligibleAddCoursesForStudent(_studentId) {
       credits: course.credits,
       type: course.type,
       remainingCapacity: course.remainingCapacity,
+      totalCapacity: course.totalCapacity,
       sections: course.sections || [],
     })
   }

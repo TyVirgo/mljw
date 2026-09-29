@@ -9,6 +9,8 @@ export function addDropStatusBadgeClass(status) {
       return 'status-progress'
     case 'Approved':
       return 'status-approved'
+    case 'PartiallyApproved':
+      return 'status-progress'
     case 'Rejected':
       return 'status-rejected'
     case 'Cancelled':

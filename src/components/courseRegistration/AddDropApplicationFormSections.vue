@@ -7,39 +7,53 @@ import { useAppI18n } from '../../composables/useAppI18n.js'
 import CourseRegistrationCallout from './CourseRegistrationCallout.vue'
 import {
   RETAKE_TYPE_OPTIONS,
-  GRADE_EARNED_OPTIONS,
-  PREVIOUS_SESSION_OPTIONS,
+  ADD_DROP_PRIMARY_TYPES,
   getVisibleAddDropSections,
   buildAddDropSectionBars,
-  applySectionToForm,
+  applyPrimaryTypePatch,
+  primaryTypeFromAction,
 } from '../../data/courseRegistration/addDropFormSections.js'
+import { retakeHistoryFromCourse, formatGradeToZh } from '../../data/courseRegistration/studentTranscript.js'
+import { getPreviousAcademicSession } from '../../data/intakeSets.js'
 import {
   getAddDropFormNoteKeys,
   getAddDropFormNotesTitleKey,
   getAddDropDeclarationExtraKey,
 } from '../../data/courseRegistration/addDropListColumns.js'
-import { getSectionMeetingsConflictInfo } from '../../data/courseRegistration/addDropSectionConflict.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
+import {
+  CREDIT_FEE_RATES,
+  SST_RATE,
+  formatAmountRmb,
+} from '../../data/courseRegistration/addDropFeeRates.js'
+import { addDropLineKey } from '../../data/courseRegistration/addDropMultiItems.js'
 import {
   displayClassTimeVenueFromFields,
 } from '../../data/courseRegistration/sectionScheduleFields.js'
-import { CREDIT_FEE_RATES, formatAmountRmb } from '../../data/courseRegistration/addDropFeeRates.js'
+import {
+  getRegistrationTypeLabel,
+  normalizeRegistrationType,
+} from '../../data/courseRegistration/registrationTypes.js'
 
 const props = defineProps({
   form: { type: Object, required: true },
   studentFields: { type: Object, required: true },
   academicSessionOptions: { type: Array, default: () => [] },
   availableActionOptions: { type: Array, default: () => [] },
-  /** 由列表 Tab 锁定类型时只读展示，不可切换 */
+  /** 由列表 Tab 锁定类型时只读展示，不可切换（已废弃 Tab；默认 false） */
   actionLocked: { type: Boolean, default: false },
+  /** 主类型三选一（加/退/重修）；缺省从 availableActionOptions 推导 */
+  availablePrimaryOptions: { type: Array, default: () => [] },
+  /** 当前主类型是否允许勾选「同时退课」 */
+  canLinkDrop: { type: Boolean, default: true },
   /** 已解析的主课 / 加课 / 退课对象 */
   primaryCourse: { type: Object, default: null },
   dropCourse: { type: Object, default: null },
   addCourse: { type: Object, default: null },
   /** 费用试算汇总 { items, total } */
   feeEstimate: { type: Object, default: null },
-  /** 冲突比对课表基线 */
-  scheduleBaseline: { type: Array, default: () => [] },
+  /** 净学分超出学期上限（当前 − 拟退 + 拟加/重修 − 上限） */
+  termCreditExcess: { type: Number, default: 0 },
 })
 
 const emit = defineEmits([
@@ -66,46 +80,124 @@ function timeVenueDisplay(fields) {
   )
 }
 
+function timeVenueLines(fields) {
+  const text = timeVenueDisplay(fields)
+  if (!text || text === '—') return []
+  return String(text)
+    .split(/\n/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
 const sections = computed(() => getVisibleAddDropSections(props.form.action))
 const sectionBars = computed(() => buildAddDropSectionBars(props.form.action, t))
 const noteKeys = computed(() => getAddDropFormNoteKeys(props.form.action))
 const notesTitleKey = computed(() => getAddDropFormNotesTitleKey(props.form.action))
 const declarationExtraKey = computed(() => getAddDropDeclarationExtraKey(props.form.action))
 
+const primaryType = computed(
+  () => props.form.primaryType || primaryTypeFromAction(props.form.action),
+)
+
+const primaryOptions = computed(() => {
+  const raw = props.availablePrimaryOptions.length
+    ? props.availablePrimaryOptions
+    : props.availableActionOptions.length
+      ? props.availableActionOptions
+      : [...ADD_DROP_PRIMARY_TYPES]
+  const set = new Set()
+  for (const opt of raw) {
+    if (opt === 'Add' || opt === 'AddDrop') set.add('Add')
+    else if (opt === 'Drop') set.add('Drop')
+    else if (opt === 'Retake' || opt === 'RetakeDrop') set.add('Retake')
+  }
+  return ADD_DROP_PRIMARY_TYPES.filter((p) => set.has(p))
+})
+
+const showNeedDropConfirm = computed(
+  () => primaryType.value === 'Add' || primaryType.value === 'Retake',
+)
+
 const isAddDropLinked = computed(() => props.form.action === 'AddDrop')
 const isRetakeDropLinked = computed(() => props.form.action === 'RetakeDrop')
 const usesDropSlot = computed(() => isAddDropLinked.value || isRetakeDropLinked.value)
 
 const addCourseCredits = computed(() => {
+  const lines = props.form.addLines || []
+  if (lines.length) {
+    return String(lines.reduce((s, l) => s + (Number(l.credits) || 0), 0))
+  }
   const course =
     isAddDropLinked.value ? props.addCourse : props.primaryCourse
   const n = course?.credits
   return n == null || n === '' ? '' : String(n)
 })
 
-/** 加课/重修节展示的预估费用（未选课为 —；选课后含 0） */
+const dropCreditBreakdown = computed(() => {
+  const lines = props.form.dropLines || []
+  let me = 0
+  let ge = 0
+  for (const line of lines) {
+    const credits = Number(line.credits) || 0
+    if (normalizeRegistrationType(line.type) === 'GE') ge += credits
+    else me += credits
+  }
+  return {
+    total: String(me + ge),
+    me: String(me),
+    ge: String(ge),
+  }
+})
+
+const hasDropLines = computed(() => (props.form.dropLines || []).length > 0)
+
+function lineTypeLabel(line) {
+  return getRegistrationTypeLabel(line?.type, t)
+}
+
+/** 加课/重修节展示的预估费用（未选课为 —；选课后含 0；不含 SST） */
 const sectionFeeAmount = computed(() => {
   const action = props.form.action
   if (action === 'Drop') return ''
-  const course = isAddDropLinked.value ? props.addCourse : props.primaryCourse
-  if (!course) return ''
-  const lines = props.feeEstimate?.lines || props.feeEstimate?.items || []
-  const hit = lines.find((i) => i.courseCode === course.code)
-  if (hit && hit.amount != null) return formatAmountRmb(hit.amount)
+  const lines = props.form.addLines || []
+  if (!lines.length) {
+    const course = isAddDropLinked.value ? props.addCourse : props.primaryCourse
+    if (!course) return ''
+  }
+  if (props.feeEstimate?.total != null) return formatAmountRmb(props.feeEstimate.total)
   return formatAmountRmb(0)
 })
 
-/** 超出学分（应收学分） */
+/** SST：国际生对预估费用加收；无费用或本地生为 0 */
+const sectionSstAmount = computed(() => {
+  const action = props.form.action
+  if (action === 'Drop') return ''
+  const lines = props.form.addLines || []
+  if (!lines.length) {
+    const course = isAddDropLinked.value ? props.addCourse : props.primaryCourse
+    if (!course) return ''
+  }
+  const sst = Number(props.feeEstimate?.sstAmount)
+  return formatAmountRmb(Number.isFinite(sst) ? Math.max(0, sst) : 0)
+})
+
+/** 超出学分：学期类别/帽超额与计费学分取较大值；费用仍只看 billable */
 const sectionExcessCredits = computed(() => {
   const action = props.form.action
   if (action === 'Drop') return ''
-  const course = isAddDropLinked.value ? props.addCourse : props.primaryCourse
-  if (!course) return ''
-  const lines = props.feeEstimate?.lines || props.feeEstimate?.items || []
-  const hit = lines.find((i) => i.courseCode === course.code)
-  if (hit && hit.billableCredits != null) return String(hit.billableCredits)
-  if (props.feeEstimate?.billableCredits != null) return String(props.feeEstimate.billableCredits)
-  return '0'
+  const lines = props.form.addLines || []
+  if (!lines.length) {
+    const course = isAddDropLinked.value ? props.addCourse : props.primaryCourse
+    if (!course && !(Number(props.termCreditExcess) > 0)) return ''
+  }
+  const fromItems = (props.feeEstimate?.items || []).reduce(
+    (s, i) => s + (Number(i.billableCredits) || 0),
+    0,
+  )
+  const billable = Number(props.feeEstimate?.billableCredits)
+  const billableN = Number.isFinite(billable) ? Math.max(0, billable) : Math.max(0, fromItems)
+  const termN = Math.max(0, Number(props.termCreditExcess) || 0)
+  return String(Math.max(billableN, termN))
 })
 
 const feeRateTipText = computed(() =>
@@ -116,9 +208,15 @@ const feeRateTipText = computed(() =>
   }),
 )
 
+const sstTipText = computed(() =>
+  t('courseRegistration.student.sstTip', { rate: Math.round(SST_RATE * 100) }),
+)
+
 const hasFeeBoxContent = computed(
   () =>
-    Number(props.feeEstimate?.total) > 0 || (props.feeEstimate?.items || []).length > 0,
+    Number(props.feeEstimate?.total) > 0 ||
+    Number(props.feeEstimate?.sstAmount) > 0 ||
+    (props.feeEstimate?.items || []).length > 0,
 )
 
 /** 加课/联合加退：费用块放在补充说明上方 */
@@ -136,6 +234,21 @@ const showBottomFeeBox = computed(
 function sectionFields(mode) {
   const f = props.form
   if (mode === 'drop') {
+    // 关联退课槽位只用 drop*，避免误显主课（重修）已选分组/课表
+    if (usesDropSlot.value) {
+      return {
+        sectionId: f.dropSectionId || '',
+        groupNo: f.dropSectionCode || '',
+        groupName: f.dropSectionName || '',
+        weekRange: f.dropWeekRange || '',
+        classTime: f.dropClassTime || '',
+        venue: f.dropVenue || '',
+        lecturers: f.dropLecturers || '',
+        time: f.dropTime || '',
+        meetings: f.dropMeetings || null,
+        classTimeVenue: f.dropClassTimeVenue || '',
+      }
+    }
     return {
       sectionId: f.dropSectionId || f.sectionId,
       groupNo: f.dropSectionCode || f.sectionCode,
@@ -185,85 +298,6 @@ const addFields = computed(() =>
 )
 const primaryFields = computed(() => sectionFields('primary'))
 
-function buildSectionOptions(course, forDrop = false) {
-  if (!course) return []
-  if (forDrop || course.fromEnrolled) {
-    const sec = {
-      id: course.sectionId || `enrolled-${course.code || course.id}-01`,
-      code: course.sectionCode || '01',
-      name: course.sectionName || formatCourseSectionName(course.sectionCode || '01', t),
-      time: course.time || '',
-      room: course.room || '',
-      lecturer: course.lecturer || '',
-      weekRange: course.weekRange || '1-18',
-      fromEnrolled: true,
-      disabled: false,
-    }
-    return [sec]
-  }
-  return (course.sections || []).map((sec) => {
-    const remaining = Number(sec.capacity) - Number(sec.enrolled)
-    const full = Number.isFinite(remaining) && remaining <= 0
-    const conflictInfo = getSectionMeetingsConflictInfo(sec, props.scheduleBaseline)
-    const disabled = Boolean(full || conflictInfo.conflict)
-    let disableReason = ''
-    if (conflictInfo.conflict) {
-      disableReason = t('courseRegistration.student.sectionConflictReason', {
-        course: conflictInfo.withCourse || '—',
-        time: conflictInfo.withTime || '—',
-      })
-    } else if (full) {
-      disableReason = t('courseRegistration.student.pickerStatusFull')
-    }
-    return {
-      ...sec,
-      name: sec.name || formatCourseSectionName(sec, t),
-      weekRange: sec.weekRange || '1-18',
-      disabled,
-      disableReason,
-    }
-  })
-}
-
-const dropSectionOptions = computed(() =>
-  buildSectionOptions(
-    usesDropSlot.value ? props.dropCourse : props.primaryCourse,
-    props.form.action === 'Drop' || usesDropSlot.value,
-  ),
-)
-const addSectionOptions = computed(() =>
-  buildSectionOptions(
-    isAddDropLinked.value ? props.addCourse : props.primaryCourse,
-    false,
-  ),
-)
-const primarySectionOptions = computed(() =>
-  buildSectionOptions(props.primaryCourse, props.form.action === 'Drop'),
-)
-
-function onSelectSection(target, event) {
-  const sectionId = event?.target ? event.target.value : event
-  const options =
-    target === 'drop'
-      ? dropSectionOptions.value
-      : target === 'add'
-        ? addSectionOptions.value
-        : primarySectionOptions.value
-  const section = options.find((s) => s.id === sectionId)
-  if (!section || section.disabled) return
-  const course =
-    target === 'drop'
-      ? usesDropSlot.value
-        ? props.dropCourse
-        : props.primaryCourse
-      : target === 'add'
-        ? isAddDropLinked.value
-          ? props.addCourse
-          : props.primaryCourse
-        : props.primaryCourse
-  emit('update:form', applySectionToForm(props.form, target, section, course))
-}
-
 const primaryLabel = computed(() => {
   if (!props.primaryCourse) return ''
   return `${props.primaryCourse.code} — ${props.primaryCourse.name}`
@@ -277,27 +311,78 @@ const addLabel = computed(() => {
   return `${props.addCourse.code} — ${props.addCourse.name}`
 })
 
-const retakeSessionOptions = computed(() => {
-  const values = [
-    ...(props.academicSessionOptions || []),
-    ...PREVIOUS_SESSION_OPTIONS,
-    props.form.academicSessionTaken,
-  ].filter(Boolean)
-  return [...new Set(values)]
-})
-
-const retakeGradeOptions = computed(() => {
-  const values = [...GRADE_EARNED_OPTIONS, props.form.gradeEarned].filter(Boolean)
-  return [...new Set(values)]
-})
-
 function patch(partial) {
   emit('update:form', { ...props.form, ...partial })
 }
 
 function onField(key, event) {
   const value = event?.target ? event.target.value : event
+  if (key === 'primaryType') {
+    emit('update:form', applyPrimaryTypePatch(props.form, { primaryType: value }))
+    return
+  }
+  if (key === 'needDrop') {
+    emit('update:form', applyPrimaryTypePatch(props.form, { needDrop: value }))
+    return
+  }
+  if (key === 'retakeType') {
+    const prev = props.form.retakeType || ''
+    // 候选池不同：仅清空重修课；保留电话 / 是否退课 / 退课清单 / 备注
+    const poolChanged = prev && value && prev !== value
+    if (poolChanged) {
+      patch({
+        retakeType: value,
+        addLines: [],
+        courseId: '',
+        sectionId: '',
+        sectionCode: '',
+        sectionName: '',
+        classTime: '',
+        weekRange: '',
+        venue: '',
+        lecturers: '',
+        meetings: null,
+        transcriptId: '',
+        previouslyTakenCourse: '',
+        gradeEarned: '',
+        academicSessionTaken: getPreviousAcademicSession(props.form.academicSession),
+        previousCourseGradesText: '',
+      })
+      return
+    }
+    patch({ retakeType: value })
+    return
+  }
   patch({ [key]: value })
+}
+
+const canPickRetakeCourse = computed(() => {
+  const tpe = props.form.retakeType
+  return tpe === 'failed' || tpe === 'improve_grade'
+})
+
+const isRetakeFailedType = computed(() => props.form.retakeType === 'failed')
+
+function lineLatestGradeZh(line) {
+  if (line?.latestGradeZh) return line.latestGradeZh
+  if (line?.latestGrade) return formatGradeToZh(line.latestGrade) || '—'
+  const hist = retakeHistoryFromCourse(
+    { id: line?.courseId, code: line?.courseCode, name: line?.courseName },
+    props.form.academicSession,
+  )
+  const g = hist.latestGrade || hist.gradeEarned
+  return g ? formatGradeToZh(g) || g : '—'
+}
+
+/** 行内曾修课程成绩（多学期分行） */
+function linePreviousCourseGrades(line) {
+  const raw = String(line?.previousCourseGradesText || '').trim()
+  if (raw) return raw
+  const hist = retakeHistoryFromCourse(
+    { id: line?.courseId, code: line?.courseCode, name: line?.courseName },
+    props.form.academicSession,
+  )
+  return String(hist.previousCourseGradesText || '').trim()
 }
 
 function onCheckbox(key, event) {
@@ -306,6 +391,46 @@ function onCheckbox(key, event) {
 
 function dash(v) {
   return v && String(v).trim() ? v : '—'
+}
+
+function lineKey(line) {
+  return addDropLineKey(line)
+}
+
+function lineTimeVenue(line) {
+  return (
+    displayClassTimeVenueFromFields(
+      {
+        time: line?.time,
+        classTime: line?.classTime,
+        venue: line?.venue,
+        room: line?.venue,
+        weekRange: line?.weekRange,
+        meetings: line?.meetings,
+      },
+      timeLocale.value,
+    ) || '—'
+  )
+}
+
+function lineTimeVenueLines(line) {
+  const text = lineTimeVenue(line)
+  if (!text || text === '—') return []
+  return String(text)
+    .split(/\n/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+function lineTimeVenueTitle(line) {
+  const lines = lineTimeVenueLines(line)
+  return lines.length ? lines.join('\n') : ''
+}
+
+function removeLine(listKey, line) {
+  const key = lineKey(line)
+  const nextList = (props.form[listKey] || []).filter((l) => lineKey(l) !== key)
+  patch({ [listKey]: nextList })
 }
 
 function feeStreamLabel(stream) {
@@ -348,18 +473,109 @@ function feeStreamLabel(stream) {
           type="text"
           class="form-control"
           readonly
-          :value="t(`courseRegistration.approval.type.${form.action}`)"
+          :value="
+            primaryType
+              ? t(`courseRegistration.approval.type.${primaryType}`)
+              : t('common.pleaseSelect')
+          "
         />
         <select
           v-else
           class="form-control"
-          :value="form.action"
-          @change="onField('action', $event)"
+          :value="primaryType"
+          @change="onField('primaryType', $event)"
         >
-          <option v-for="opt in availableActionOptions" :key="opt" :value="opt">
+          <option value="">{{ t('common.pleaseSelect') }}</option>
+          <option v-for="opt in primaryOptions" :key="opt" :value="opt">
             {{ t(`courseRegistration.approval.type.${opt}`) }}
           </option>
         </select>
+      </div>
+      <!-- 重修：类型左 | 是否退课右 -->
+      <template v-if="primaryType === 'Retake' && showNeedDropConfirm">
+        <div class="form-field">
+          <label>
+            {{ t('courseRegistration.student.retakeTypeLabel') }}
+            <span class="required">*</span>
+          </label>
+          <select
+            class="form-control"
+            :value="form.retakeType"
+            @change="onField('retakeType', $event)"
+          >
+            <option value="">{{ t('common.pleaseSelect') }}</option>
+            <option v-for="opt in RETAKE_TYPE_OPTIONS" :key="opt.value" :value="opt.value">
+              {{ t(opt.labelKey) }}
+            </option>
+          </select>
+          <p class="field-hint">{{ t('courseRegistration.student.retakeTypeFirstHint') }}</p>
+        </div>
+        <div class="form-field">
+          <label>
+            {{ t('courseRegistration.student.needDropLabel') }}
+            <span class="required">*</span>
+          </label>
+          <div class="radio-row">
+            <label class="radio-option">
+              <input
+                type="radio"
+                name="needDrop"
+                value="yes"
+                :checked="form.needDrop === 'yes'"
+                :disabled="actionLocked || !canLinkDrop"
+                @change="onField('needDrop', 'yes')"
+              />
+              {{ t('common.yes') }}
+            </label>
+            <label class="radio-option">
+              <input
+                type="radio"
+                name="needDrop"
+                value="no"
+                :checked="form.needDrop === 'no'"
+                :disabled="actionLocked"
+                @change="onField('needDrop', 'no')"
+              />
+              {{ t('common.no') }}
+            </label>
+          </div>
+          <p v-if="!canLinkDrop" class="field-hint">
+            {{ t('courseRegistration.student.needDropNotAllowed') }}
+          </p>
+        </div>
+      </template>
+      <div v-else-if="showNeedDropConfirm" class="form-field span-2">
+        <label>
+          {{ t('courseRegistration.student.needDropLabel') }}
+          <span class="required">*</span>
+        </label>
+        <div class="radio-row">
+          <label class="radio-option">
+            <input
+              type="radio"
+              name="needDrop"
+              value="yes"
+              :checked="form.needDrop === 'yes'"
+              :disabled="actionLocked || !canLinkDrop"
+              @change="onField('needDrop', 'yes')"
+            />
+            {{ t('common.yes') }}
+          </label>
+          <label class="radio-option">
+            <input
+              type="radio"
+              name="needDrop"
+              value="no"
+              :checked="form.needDrop === 'no'"
+              :disabled="actionLocked"
+              @change="onField('needDrop', 'no')"
+            />
+            {{ t('common.no') }}
+          </label>
+        </div>
+        <p v-if="!canLinkDrop" class="field-hint">
+          {{ t('courseRegistration.student.needDropNotAllowed') }}
+        </p>
       </div>
     </div>
 
@@ -401,55 +617,79 @@ function feeStreamLabel(stream) {
             {{ t('courseRegistration.student.dropCourse') }}
             <span class="required">*</span>
           </label>
-          <div class="course-trigger">
-            <input
-              type="text"
-              class="form-control"
-              readonly
-              :value="usesDropSlot ? dropLabel : primaryLabel"
-              :placeholder="t('courseRegistration.student.selectCourse')"
-              @click="emit('pick-course', usesDropSlot ? 'drop' : 'primary')"
-            />
+          <div class="lines-toolbar">
             <button
               type="button"
-              class="btn btn-default"
+              class="btn btn-primary"
               @click="emit('pick-course', usesDropSlot ? 'drop' : 'primary')"
             >
               {{ t('courseRegistration.student.pickCourse') }}
             </button>
           </div>
+          <div class="lines-table-wrap">
+            <table class="lines-table">
+              <thead>
+                <tr>
+                  <th class="col-code">{{ t('courseRegistration.courses.code') }}</th>
+                  <th class="col-name">{{ t('courseRegistration.courses.name') }}</th>
+                  <th class="col-group">{{ t('courseRegistration.student.fieldGroupNo') }}</th>
+                  <th class="col-type">{{ t('courseRegistration.courses.type') }}</th>
+                  <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
+                  <th class="col-time">{{ t('courseRegistration.student.fieldClassTimeVenue') }}</th>
+                  <th class="col-op">{{ t('common.actions') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="line in form.dropLines || []" :key="lineKey(line)">
+                  <td class="col-code" :title="line.courseCode">{{ line.courseCode }}</td>
+                  <td class="col-name" :title="line.courseName">{{ line.courseName }}</td>
+                  <td
+                    class="col-group"
+                    :title="formatCourseSectionName(line.sectionCode || line.sectionName, t)"
+                  >
+                    {{ formatCourseSectionName(line.sectionCode || line.sectionName, t) }}
+                  </td>
+                  <td class="col-type" :title="lineTypeLabel(line)">{{ lineTypeLabel(line) }}</td>
+                  <td class="col-credits">{{ line.credits }}</td>
+                  <td class="cr-time-venue col-time" :title="lineTimeVenueTitle(line)">
+                    <template v-if="lineTimeVenueLines(line).length">
+                      <div
+                        v-for="(tv, li) in lineTimeVenueLines(line)"
+                        :key="li"
+                        class="cr-time-venue-line"
+                        :title="tv"
+                      >
+                        {{ tv }}
+                      </div>
+                    </template>
+                    <template v-else>—</template>
+                  </td>
+                  <td class="col-op op-cell">
+                    <button type="button" class="link-btn" @click="removeLine('dropLines', line)">
+                      {{ t('common.remove') }}
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="!(form.dropLines || []).length">
+                  <td colspan="7" class="empty-cell">{{ t('courseRegistration.student.selectCourse') }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="form-field">
-          <label>
-            {{ t('courseRegistration.student.fieldGroupNo') }}
-            <span class="required">*</span>
-          </label>
-          <input
-            type="text"
-            class="form-control"
-            readonly
-            :value="
-              dropFields.groupName ||
-              (dropFields.groupNo ? formatCourseSectionName(dropFields.groupNo, t) : '—')
-            "
-          />
-        </div>
-        <div class="form-field">
-          <label>{{ t('courseRegistration.student.fieldWeekRange') }}</label>
-          <input type="text" class="form-control" readonly :value="dash(dropFields.weekRange)" />
-        </div>
-        <div class="form-field span-2">
-          <label>{{ t('courseRegistration.student.fieldClassTimeVenue') }}</label>
-          <textarea
-            class="form-control cr-time-venue-input"
-            readonly
-            rows="3"
-            :value="dash(timeVenueDisplay(dropFields))"
-          />
-        </div>
-        <div class="form-field">
-          <label>{{ t('courseRegistration.student.fieldLecturers') }}</label>
-          <input type="text" class="form-control" readonly :value="dash(dropFields.lecturers)" />
+        <div v-if="hasDropLines" class="form-field span-2 fields-row-3">
+          <div class="form-field">
+            <label>{{ t('courseRegistration.student.fieldDropTotalCredits') }}</label>
+            <input type="text" class="form-control" readonly :value="dropCreditBreakdown.total" />
+          </div>
+          <div class="form-field">
+            <label>{{ t('courseRegistration.student.fieldDropMeCredits') }}</label>
+            <input type="text" class="form-control" readonly :value="dropCreditBreakdown.me" />
+          </div>
+          <div class="form-field">
+            <label>{{ t('courseRegistration.student.fieldDropGeCredits') }}</label>
+            <input type="text" class="form-control" readonly :value="dropCreditBreakdown.ge" />
+          </div>
         </div>
         <div class="form-field span-2">
           <label>
@@ -463,32 +703,6 @@ function feeStreamLabel(stream) {
             :placeholder="t('courseRegistration.student.dropReasonPlaceholder')"
             @input="onField('dropReason', $event)"
           />
-        </div>
-        <div class="form-field">
-          <label>
-            {{ t('courseRegistration.student.feeWaiverLabel') }}
-            <span class="required">*</span>
-          </label>
-          <div class="radio-row" role="radiogroup">
-            <label class="radio-option">
-              <input
-                type="radio"
-                value="yes"
-                :checked="form.feeWaiver === 'yes'"
-                @change="onField('feeWaiver', 'yes')"
-              />
-              <span>{{ t('courseRegistration.student.feeWaiverYes') }}</span>
-            </label>
-            <label class="radio-option">
-              <input
-                type="radio"
-                value="no"
-                :checked="form.feeWaiver === 'no'"
-                @change="onField('feeWaiver', 'no')"
-              />
-              <span>{{ t('courseRegistration.student.feeWaiverNo') }}</span>
-            </label>
-          </div>
         </div>
         <div class="form-field span-2">
           <label>
@@ -531,98 +745,117 @@ function feeStreamLabel(stream) {
             {{ t('courseRegistration.student.addCourse') }}
             <span class="required">*</span>
           </label>
-          <div class="course-trigger">
-            <input
-              type="text"
-              class="form-control"
-              readonly
-              :value="isAddDropLinked ? addLabel : primaryLabel"
-              :placeholder="t('courseRegistration.student.selectCourse')"
-              @click="emit('pick-course', isAddDropLinked ? 'add' : 'primary')"
-            />
+          <div class="lines-toolbar">
             <button
               type="button"
-              class="btn btn-default"
+              class="btn btn-primary"
               @click="emit('pick-course', isAddDropLinked ? 'add' : 'primary')"
             >
               {{ t('courseRegistration.student.pickCourse') }}
             </button>
           </div>
+          <div class="lines-table-wrap">
+            <table class="lines-table">
+              <thead>
+                <tr>
+                  <th class="col-code">{{ t('courseRegistration.courses.code') }}</th>
+                  <th class="col-name">{{ t('courseRegistration.courses.name') }}</th>
+                  <th class="col-group">{{ t('courseRegistration.student.fieldGroupNo') }}</th>
+                  <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
+                  <th class="col-time">{{ t('courseRegistration.student.fieldClassTimeVenue') }}</th>
+                  <th class="col-op">{{ t('common.actions') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="line in form.addLines || []" :key="lineKey(line)">
+                  <td class="col-code" :title="line.courseCode">{{ line.courseCode }}</td>
+                  <td class="col-name" :title="line.courseName">{{ line.courseName }}</td>
+                  <td
+                    class="col-group"
+                    :title="formatCourseSectionName(line.sectionCode || line.sectionName, t)"
+                  >
+                    {{ formatCourseSectionName(line.sectionCode || line.sectionName, t) }}
+                  </td>
+                  <td class="col-credits">{{ line.credits }}</td>
+                  <td class="cr-time-venue col-time" :title="lineTimeVenueTitle(line)">
+                    <template v-if="lineTimeVenueLines(line).length">
+                      <div
+                        v-for="(tv, li) in lineTimeVenueLines(line)"
+                        :key="li"
+                        class="cr-time-venue-line"
+                        :title="tv"
+                      >
+                        {{ tv }}
+                      </div>
+                    </template>
+                    <template v-else>—</template>
+                  </td>
+                  <td class="col-op op-cell">
+                    <button type="button" class="link-btn" @click="removeLine('addLines', line)">
+                      {{ t('common.remove') }}
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="!(form.addLines || []).length">
+                  <td colspan="6" class="empty-cell">{{ t('courseRegistration.student.selectCourse') }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="form-field">
-          <label>
-            {{ t('courseRegistration.student.fieldGroupNo') }}
-            <span class="required">*</span>
-          </label>
-          <select
-            class="form-control"
-            :value="addFields.sectionId"
-            :disabled="!addSectionOptions.length"
-            @change="onSelectSection(isAddDropLinked ? 'add' : 'primary', $event)"
-          >
-            <option value="">{{ t('courseRegistration.student.sectionSelectPlaceholder') }}</option>
-            <option
-              v-for="opt in addSectionOptions"
-              :key="opt.id"
-              :value="opt.id"
-              :disabled="opt.disabled"
-            >
-              {{ opt.name || formatCourseSectionName(opt, t) }}
-              {{ opt.disabled ? t('courseRegistration.student.sectionConflictOption') : '' }}
-            </option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label>{{ t('courseRegistration.student.fieldWeekRange') }}</label>
-          <input type="text" class="form-control" readonly :value="dash(addFields.weekRange)" />
-        </div>
-        <div class="form-field span-2">
-          <label>{{ t('courseRegistration.student.fieldClassTimeVenue') }}</label>
-          <textarea
-            class="form-control cr-time-venue-input"
-            readonly
-            rows="3"
-            :value="dash(timeVenueDisplay(addFields))"
-          />
-        </div>
-        <div class="form-field">
-          <label>{{ t('courseRegistration.student.fieldLecturers') }}</label>
-          <input type="text" class="form-control" readonly :value="dash(addFields.lecturers)" />
-        </div>
-        <div class="form-field">
-          <label>{{ t('courseRegistration.student.fieldCredits') }}</label>
-          <input
-            type="text"
-            class="form-control"
-            readonly
-            :value="dash(addCourseCredits)"
-          />
-        </div>
-        <div class="form-field">
-          <label>{{ t('courseRegistration.student.fieldExcessCredits') }}</label>
-          <input
-            type="text"
-            class="form-control"
-            readonly
-            :value="dash(sectionExcessCredits)"
-          />
-        </div>
-        <div class="form-field">
-          <label class="label-with-tip">
-            <span>{{ t('courseRegistration.student.feeEstimateShort') }}</span>
-            <span
-              class="tip-icon"
-              :title="feeRateTipText"
-              :aria-label="feeRateTipText"
-              tabindex="0"
-            >?</span>
-          </label>
-          <input
-            type="text"
-            class="form-control"
-            readonly
-            :value="dash(sectionFeeAmount)"
-          />
+        <div class="form-field span-2 fields-row-2">
+          <div class="form-field">
+            <label>{{ t('courseRegistration.student.fieldAddTotalCredits') }}</label>
+            <input
+              type="text"
+              class="form-control"
+              readonly
+              :value="dash(addCourseCredits)"
+            />
+          </div>
+          <div class="form-field">
+            <label>{{ t('courseRegistration.student.fieldExcessCredits') }}</label>
+            <input
+              type="text"
+              class="form-control"
+              readonly
+              :value="dash(sectionExcessCredits)"
+            />
+          </div>
+          <div class="form-field">
+            <label class="label-with-tip">
+              <span>{{ t('courseRegistration.student.feeEstimateShort') }}</span>
+              <span
+                class="tip-icon"
+                :title="feeRateTipText"
+                :aria-label="feeRateTipText"
+                tabindex="0"
+              >?</span>
+            </label>
+            <input
+              type="text"
+              class="form-control"
+              readonly
+              :value="dash(sectionFeeAmount)"
+            />
+          </div>
+          <div class="form-field">
+            <label class="label-with-tip">
+              <span>{{ t('courseRegistration.student.fieldSst') }}</span>
+              <span
+                class="tip-icon"
+                :title="sstTipText"
+                :aria-label="sstTipText"
+                tabindex="0"
+              >?</span>
+            </label>
+            <input
+              type="text"
+              class="form-control"
+              readonly
+              :value="dash(sectionSstAmount)"
+            />
+          </div>
         </div>
         <div v-if="showInlineAddFeeBox" class="form-field span-2 fee-box-wrap">
           <div class="fee-box">
@@ -633,10 +866,14 @@ function feeStreamLabel(stream) {
                 {{ t('courseRegistration.student.feeBillableCredits', { n: line.billableCredits }) }}
                 × {{ formatAmountRmb(line.rate) }} = {{ formatAmountRmb(line.amount) }}
               </li>
+              <li v-if="Number(feeEstimate.sstAmount) > 0">
+                {{ t('courseRegistration.student.fieldSst') }}:
+                {{ formatAmountRmb(feeEstimate.sstAmount) }}
+              </li>
             </ul>
             <p class="fee-total">
               {{ t('courseRegistration.student.feeEstimateTotal') }}:
-              <strong>{{ formatAmountRmb(feeEstimate.total) }}</strong>
+              <strong>{{ formatAmountRmb(feeEstimate.payableTotal ?? feeEstimate.total) }}</strong>
             </p>
           </div>
         </div>
@@ -662,156 +899,144 @@ function feeStreamLabel(stream) {
             {{ t('courseRegistration.student.retakeCourse') }}
             <span class="required">*</span>
           </label>
-          <div class="course-trigger">
+          <div class="lines-toolbar">
+            <button
+              type="button"
+              class="btn btn-primary"
+              :disabled="!canPickRetakeCourse"
+              @click="emit('pick-course', 'primary')"
+            >
+              {{ t('courseRegistration.student.pickCourse') }}
+            </button>
+            <span v-if="!canPickRetakeCourse" class="field-hint inline-hint">
+              {{ t('courseRegistration.student.retakeTypeRequired') }}
+            </span>
+          </div>
+          <div class="lines-table-wrap">
+            <table class="lines-table">
+              <thead>
+                <tr>
+                  <th class="col-code">{{ t('courseRegistration.courses.code') }}</th>
+                  <th class="col-name">{{ t('courseRegistration.courses.name') }}</th>
+                  <th v-if="isRetakeFailedType" class="col-grade">
+                    {{ t('courseRegistration.student.retakeLatestGrade') }}
+                  </th>
+                  <th v-else-if="canPickRetakeCourse" class="col-grade">
+                    {{ t('courseRegistration.student.retakeOriginalGrade') }}
+                  </th>
+                  <th class="col-group">{{ t('courseRegistration.student.fieldGroupNo') }}</th>
+                  <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
+                  <th class="col-time">{{ t('courseRegistration.student.fieldClassTimeVenue') }}</th>
+                  <th class="col-prev-grades">{{ t('courseRegistration.student.previousCourseGrades') }}</th>
+                  <th class="col-op">{{ t('common.actions') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="line in form.addLines || []" :key="lineKey(line)">
+                  <td class="col-code" :title="line.courseCode">{{ line.courseCode }}</td>
+                  <td class="col-name" :title="line.courseName">{{ line.courseName }}</td>
+                  <td v-if="canPickRetakeCourse" class="col-grade">{{ lineLatestGradeZh(line) }}</td>
+                  <td
+                    class="col-group"
+                    :title="formatCourseSectionName(line.sectionCode || line.sectionName, t)"
+                  >
+                    {{ formatCourseSectionName(line.sectionCode || line.sectionName, t) }}
+                  </td>
+                  <td class="col-credits">{{ line.credits }}</td>
+                  <td class="cr-time-venue col-time" :title="lineTimeVenueTitle(line)">
+                    <template v-if="lineTimeVenueLines(line).length">
+                      <div
+                        v-for="(tv, li) in lineTimeVenueLines(line)"
+                        :key="li"
+                        class="cr-time-venue-line"
+                        :title="tv"
+                      >
+                        {{ tv }}
+                      </div>
+                    </template>
+                    <template v-else>—</template>
+                  </td>
+                  <td class="col-prev-grades">
+                    <template v-if="linePreviousCourseGrades(line)">
+                      <div
+                        v-for="(gl, gi) in linePreviousCourseGrades(line).split('\n')"
+                        :key="gi"
+                        class="prev-grade-line"
+                      >
+                        {{ gl }}
+                      </div>
+                    </template>
+                    <template v-else>—</template>
+                  </td>
+                  <td class="col-op op-cell">
+                    <button type="button" class="link-btn" @click="removeLine('addLines', line)">
+                      {{ t('common.remove') }}
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="!(form.addLines || []).length">
+                  <td :colspan="canPickRetakeCourse ? 8 : 7" class="empty-cell">
+                    {{ t('courseRegistration.student.retakeCoursePlaceholder') }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="field-hint">{{ t('courseRegistration.student.retakeCourseHint') }}</p>
+        </div>
+        <div class="form-field span-2 fields-row-2">
+          <div class="form-field">
+            <label>{{ t('courseRegistration.student.fieldRetakeTotalCredits') }}</label>
             <input
               type="text"
               class="form-control"
               readonly
-              :value="primaryLabel"
-              :placeholder="t('courseRegistration.student.retakeCoursePlaceholder')"
-              @click="emit('pick-course', 'primary')"
+              :value="dash(addCourseCredits)"
             />
-            <button type="button" class="btn btn-default" @click="emit('pick-course', 'primary')">
-              {{ t('courseRegistration.student.pickCourse') }}
-            </button>
           </div>
-          <p class="field-hint">{{ t('courseRegistration.student.retakeCourseHint') }}</p>
-        </div>
-        <div class="form-field">
-          <label>
-            {{ t('courseRegistration.student.gradeEarned') }}
-            <span class="required">*</span>
-          </label>
-          <select
-            class="form-control"
-            :value="form.gradeEarned"
-            @change="onField('gradeEarned', $event)"
-          >
-            <option value="">{{ t('common.pleaseSelect') }}</option>
-            <option v-for="g in retakeGradeOptions" :key="g" :value="g">{{ g }}</option>
-          </select>
-          <p class="field-hint">{{ t('courseRegistration.student.gradeEarnedHint') }}</p>
-        </div>
-        <div class="form-field">
-          <label>
-            {{ t('courseRegistration.student.academicSessionTaken') }}
-            <span class="required">*</span>
-          </label>
-          <select
-            class="form-control"
-            :value="form.academicSessionTaken"
-            @change="onField('academicSessionTaken', $event)"
-          >
-            <option value="">{{ t('common.pleaseSelect') }}</option>
-            <option v-for="s in retakeSessionOptions" :key="s" :value="s">{{ s }}</option>
-          </select>
-          <p class="field-hint">{{ t('courseRegistration.student.academicSessionTakenHint') }}</p>
-        </div>
-        <div class="form-field">
-          <label>
-            {{ t('courseRegistration.student.retakeTypeLabel') }}
-            <span class="required">*</span>
-          </label>
-          <select
-            class="form-control"
-            :value="form.retakeType"
-            @change="onField('retakeType', $event)"
-          >
-            <option value="">{{ t('common.pleaseSelect') }}</option>
-            <option v-for="opt in RETAKE_TYPE_OPTIONS" :key="opt.value" :value="opt.value">
-              {{ t(opt.labelKey) }}
-            </option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label>
-            {{ t('courseRegistration.student.fieldGroupNo') }}
-            <span class="required">*</span>
-          </label>
-          <select
-            class="form-control"
-            :value="primaryFields.sectionId"
-            :disabled="!primarySectionOptions.length"
-            @change="onSelectSection('primary', $event)"
-          >
-            <option value="">{{ t('courseRegistration.student.sectionSelectPlaceholder') }}</option>
-            <option
-              v-for="opt in primarySectionOptions"
-              :key="opt.id"
-              :value="opt.id"
-              :disabled="opt.disabled"
-            >
-              {{ opt.name || formatCourseSectionName(opt, t) }}
-              {{ opt.disabled ? t('courseRegistration.student.sectionConflictOption') : '' }}
-            </option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label>{{ t('courseRegistration.student.fieldWeekRange') }}</label>
-          <input type="text" class="form-control" readonly :value="dash(primaryFields.weekRange)" />
-        </div>
-        <div class="form-field span-2">
-          <label>
-            {{ t('courseRegistration.student.fieldClassTimeVenue') }}
-            <span class="required">*</span>
-          </label>
-          <textarea
-            class="form-control cr-time-venue-input"
-            rows="3"
-            :value="form.classTimeVenue === '—' ? '' : form.classTimeVenue"
-            :placeholder="t('courseRegistration.student.retakeTimeVenuePlaceholder')"
-            @input="onField('classTimeVenue', $event)"
-          />
-          <p class="field-hint">{{ t('courseRegistration.student.retakeTimeVenueHint') }}</p>
-        </div>
-        <div class="form-field">
-          <label>
-            {{ t('courseRegistration.student.fieldLecturers') }}
-            <span class="required">*</span>
-          </label>
-          <input
-            type="text"
-            class="form-control"
-            :value="form.lecturers === '—' ? '' : form.lecturers"
-            :placeholder="t('courseRegistration.student.retakeLecturersPlaceholder')"
-            @input="onField('lecturers', $event)"
-          />
-          <p class="field-hint">{{ t('courseRegistration.student.retakeLecturersHint') }}</p>
-        </div>
-        <div class="form-field">
-          <label>{{ t('courseRegistration.student.fieldCredits') }}</label>
-          <input
-            type="text"
-            class="form-control"
-            readonly
-            :value="dash(addCourseCredits)"
-          />
-        </div>
-        <div class="form-field">
-          <label>{{ t('courseRegistration.student.fieldExcessCredits') }}</label>
-          <input
-            type="text"
-            class="form-control"
-            readonly
-            :value="dash(sectionExcessCredits)"
-          />
-        </div>
-        <div class="form-field">
-          <label class="label-with-tip">
-            <span>{{ t('courseRegistration.student.feeEstimateShort') }}</span>
-            <span
-              class="tip-icon"
-              :title="feeRateTipText"
-              :aria-label="feeRateTipText"
-              tabindex="0"
-            >?</span>
-          </label>
-          <input
-            type="text"
-            class="form-control"
-            readonly
-            :value="dash(sectionFeeAmount)"
-          />
+          <div class="form-field">
+            <label>{{ t('courseRegistration.student.fieldExcessCredits') }}</label>
+            <input
+              type="text"
+              class="form-control"
+              readonly
+              :value="dash(sectionExcessCredits)"
+            />
+          </div>
+          <div class="form-field">
+            <label class="label-with-tip">
+              <span>{{ t('courseRegistration.student.feeEstimateShort') }}</span>
+              <span
+                class="tip-icon"
+                :title="feeRateTipText"
+                :aria-label="feeRateTipText"
+                tabindex="0"
+              >?</span>
+            </label>
+            <input
+              type="text"
+              class="form-control"
+              readonly
+              :value="dash(sectionFeeAmount)"
+            />
+          </div>
+          <div class="form-field">
+            <label class="label-with-tip">
+              <span>{{ t('courseRegistration.student.fieldSst') }}</span>
+              <span
+                class="tip-icon"
+                :title="sstTipText"
+                :aria-label="sstTipText"
+                tabindex="0"
+              >?</span>
+            </label>
+            <input
+              type="text"
+              class="form-control"
+              readonly
+              :value="dash(sectionSstAmount)"
+            />
+          </div>
         </div>
       </div>
     </template>
@@ -824,10 +1049,14 @@ function feeStreamLabel(stream) {
           {{ t('courseRegistration.student.feeBillableCredits', { n: line.billableCredits }) }}
           × {{ formatAmountRmb(line.rate) }} = {{ formatAmountRmb(line.amount) }}
         </li>
+        <li v-if="Number(feeEstimate.sstAmount) > 0">
+          {{ t('courseRegistration.student.fieldSst') }}:
+          {{ formatAmountRmb(feeEstimate.sstAmount) }}
+        </li>
       </ul>
       <p class="fee-total">
         {{ t('courseRegistration.student.feeEstimateTotal') }}:
-        <strong>{{ formatAmountRmb(feeEstimate.total) }}</strong>
+        <strong>{{ formatAmountRmb(feeEstimate.payableTotal ?? feeEstimate.total) }}</strong>
       </p>
     </div>
 
@@ -906,6 +1135,24 @@ function feeStreamLabel(stream) {
   grid-column: span 2;
 }
 
+.fields-row-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+.fields-row-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+.fields-row-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
 .form-field label {
   font-size: 13px;
   color: #374151;
@@ -950,6 +1197,13 @@ function feeStreamLabel(stream) {
   font-size: 14px;
   background: #fff;
   color: #111827;
+  box-sizing: border-box;
+}
+
+select.form-control {
+  height: 38px;
+  min-height: 38px;
+  line-height: 1.25;
 }
 
 .form-control[readonly] {
@@ -982,6 +1236,122 @@ textarea.form-control {
   cursor: pointer;
 }
 
+.lines-toolbar {
+  margin-bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.lines-toolbar .inline-hint {
+  margin: 0;
+}
+
+.lines-table-wrap {
+  overflow-x: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.lines-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.lines-table th,
+.lines-table td {
+  padding: 5px 6px;
+  border-bottom: 1px solid #f3f4f6;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lines-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.lines-table .empty-cell {
+  color: #9ca3af;
+  text-align: center;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.lines-table .col-code {
+  width: 11%;
+}
+
+.lines-table .col-name {
+  width: 16%;
+}
+
+.lines-table .col-group {
+  width: 12%;
+}
+
+.lines-table .col-type {
+  width: 10%;
+}
+
+.lines-table .col-grade {
+  width: 8%;
+}
+
+.lines-table .col-prev-grades {
+  width: 14%;
+  white-space: normal;
+  line-height: 1.35;
+  font-size: 12px;
+  color: #374151;
+}
+
+.lines-table .prev-grade-line + .prev-grade-line {
+  margin-top: 2px;
+}
+
+.lines-table .col-credits {
+  width: 6%;
+}
+
+.lines-table .col-time {
+  width: 28%;
+}
+
+.lines-table .col-op {
+  width: 7%;
+}
+
+.lines-table .op-cell {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.lines-table .cr-time-venue {
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.lines-table .cr-time-venue-line {
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lines-table .cr-time-venue-line + .cr-time-venue-line {
+  margin-top: 1px;
+}
+
 .btn {
   height: 38px;
   padding: 0 14px;
@@ -995,6 +1365,17 @@ textarea.form-control {
   border: 1px solid #d1d5db;
   background: #fff;
   color: #374151;
+}
+.btn-primary {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+.btn-primary:disabled {
+  border-color: #93c5fd;
+  background: #93c5fd;
+  color: #fff;
+  cursor: not-allowed;
 }
 
 .radio-row {
@@ -1139,6 +1520,12 @@ textarea.form-control {
 
   .form-field.span-2 {
     grid-column: span 1;
+  }
+
+  .fields-row-2,
+  .fields-row-3,
+  .fields-row-4 {
+    grid-template-columns: 1fr;
   }
 }
 </style>

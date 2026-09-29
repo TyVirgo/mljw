@@ -26,7 +26,7 @@
       回收旧 Whitelist 类型语义进权限勾选，避免两套列表。
 ```
 
-文案：中英「白名单 / Whitelist」；权限标签保留「补注册」作为权限名。
+文案：侧栏中英「白名单管理 / Whitelist Management」（`menu.crSupplement`）；权限标签保留「补注册」作为权限名。未挂菜单的旧键 `menu.crWhitelist` 删除，避免双文案真相源。
 
 ### 2. 权限模型（多选）
 
@@ -119,7 +119,7 @@ Mandatory      → 本期：与 GE 相同不强制专业（若产品后改再开
 ## Migration
 
 1. `supplementListQueue` 行 → 增加 `permissions[]`；旧 `canAdd` 等升为权限项；旧整行 invite 字段拷到 `supplement` 权限。
-2. 菜单 label 改白名单；英文 Whitelist。
+2. 菜单 label：`crSupplement` → 白名单管理 / Whitelist Management；删除闲置 `crWhitelist`。
 3. ME demo 批次补 `programme`（如 SWE/COS）。
 
 ## 影响文件（预期）

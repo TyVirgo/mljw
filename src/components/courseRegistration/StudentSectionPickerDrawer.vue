@@ -3,11 +3,19 @@ import { ref, watch, computed } from 'vue'
 import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { displayClassTime, displayWeekRange, displayVenue } from '../../data/courseRegistration/sectionScheduleFields.js'
+import {
+  formatSectionAvailableCapacityLabel,
+  isSectionFullForAudience,
+} from '../../data/courseRegistration/selectableCourses.js'
 
 const props = defineProps({
   visible: Boolean,
   course: { type: Object, default: null },
   confirming: { type: Boolean, default: false },
+  /** preselect | main | supplement */
+  roundKey: { type: String, default: 'main' },
+  audience: { type: String, default: 'senior' },
+  releaseCross: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['close', 'confirm'])
@@ -35,7 +43,28 @@ const selectedSection = computed(() =>
 )
 
 function isFull(section) {
-  return section.enrolled >= section.capacity
+  if (!section) return true
+  if (props.roundKey === 'preselect') {
+    return Number(section.enrolled) >= Number(section.capacity)
+  }
+  if (props.roundKey === 'main' || props.roundKey === 'supplement') {
+    return isSectionFullForAudience(section, props.audience, {
+      roundKey: props.roundKey,
+      releaseCross: props.releaseCross,
+    })
+  }
+  return Number(section.enrolled) >= Number(section.capacity)
+}
+
+function capacityText(section) {
+  if (!section) return '—'
+  if (props.roundKey === 'main' || props.roundKey === 'supplement') {
+    return formatSectionAvailableCapacityLabel(section, props.audience, {
+      roundKey: props.roundKey,
+      releaseCross: props.releaseCross,
+    })
+  }
+  return `${section.enrolled}/${section.capacity}`
 }
 
 function groupName(section) {
@@ -68,7 +97,11 @@ function handleConfirm() {
           <tr>
             <th class="col-radio" aria-label="select" />
             <th>{{ t('courseRegistration.courses.sectionCode') }}</th>
-            <th>{{ t('courseRegistration.courses.enrolled') }}</th>
+            <th>{{
+              roundKey === 'main' || roundKey === 'supplement'
+                ? t('courseRegistration.courses.availableVsTotal')
+                : t('courseRegistration.courses.enrolled')
+            }}</th>
             <th>{{ t('courseRegistration.courses.lecturer') }}</th>
             <th>{{ t('courseRegistration.courses.weekRange') }}</th>
             <th>{{ t('courseRegistration.courses.classTime') }}</th>
@@ -98,7 +131,7 @@ function handleConfirm() {
             </td>
             <td class="nowrap">{{ groupName(section) }}</td>
             <td class="nowrap col-capacity" :class="isFull(section) ? 'capacity-full' : 'capacity-open'">
-              {{ section.enrolled }}/{{ section.capacity }}
+              {{ capacityText(section) }}
             </td>
             <td class="nowrap">{{ section.lecturer || '—' }}</td>
             <td class="nowrap">{{ displayWeekRange(section) }}</td>

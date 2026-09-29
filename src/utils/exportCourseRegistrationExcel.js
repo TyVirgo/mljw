@@ -5,6 +5,13 @@ import { getAddDropCourseColumnTexts } from './addDropCourseDisplay.js'
 import { getRegistrationTypeLabel } from '../data/courseRegistration/registrationTypes.js'
 import { feeCourseSourceLabel } from '../data/courseRegistration/feeRosterQueue.js'
 import { getRegistrationLogResultLabelKey } from '../data/courseRegistration/registrationLog.js'
+import {
+  formatGraduationGeSummary,
+  formatGraduationMeSummary,
+  formatTermGeSummary,
+  formatTermMeSummary,
+} from '../data/courseRegistration/monitorCreditInsights.js'
+import { formatWhitelistAddedAt } from '../data/courseRegistration/supplementListQueue.js'
 
 export function exportRowsToExcel(rows, columns, filename, sheetName = 'Export', i18n = {}) {
   const { t = (key) => key } = i18n
@@ -70,14 +77,16 @@ export function formatBatchExportRow(batch, t) {
   }
 }
 
-export function formatMonitorExportRow(row, t) {
+export function formatMonitorExportRow(row) {
   return {
     studentId: row.studentId,
     studentName: row.studentName,
     programme: row.programme,
     intake: row.intake,
-    credits: `${row.credits}/${row.creditMax}`,
-    status: t(`courseRegistration.monitor.status.${row.status}`),
+    graduationGe: formatGraduationGeSummary(row),
+    graduationMe: formatGraduationMeSummary(row),
+    termGe: formatTermGeSummary(row),
+    termMe: formatTermMeSummary(row),
   }
 }
 
@@ -111,7 +120,7 @@ export function formatSupplementExportRow(row, t) {
     canAdd: row.canAdd,
     canDrop: row.canDrop,
     canRetake: row.canRetake,
-    addedAt: row.addedAt,
+    addedAt: formatWhitelistAddedAt(row.addedAt) || row.addedAt,
     addedBy: row.addedBy,
   }
 }
@@ -142,7 +151,6 @@ export function formatResultStudentExportRow(row, t = (key) => key) {
     credits: row.credits,
     courseType: row.courseType || '',
     sectionCode: row.sectionCode || '',
-    isRetake: row.isRetake ? t('common.yes') : t('common.no'),
     courseSource: feeCourseSourceLabel(row.courseSource, t),
   }
 }

@@ -5,14 +5,12 @@ import RegistrationBatchStatusBadge from '../../components/courseRegistration/Re
 import RegistrationBatchFormDrawer from '../../components/courseRegistration/RegistrationBatchFormDrawer.vue'
 import BatchCoursesDrawer from '../../components/courseRegistration/BatchCoursesDrawer.vue'
 import BatchScopeRuleRosterDrawer from '../../components/courseRegistration/BatchScopeRuleRosterDrawer.vue'
-import YnSwitch from '../../components/common/YnSwitch.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   registrationBatches,
   addRegistrationBatch,
   publishRegistrationBatch,
   revokeRegistrationBatch,
-  updateRegistrationBatch,
   removeRegistrationBatches,
 } from '../../data/courseRegistration/registrationBatches.js'
 import { countCoursesByBatch } from '../../data/courseRegistration/selectableCourses.js'
@@ -24,9 +22,6 @@ import '../../styles/course-registration-list.css'
 const emit = defineEmits(['navigate'])
 
 const { t } = useAppI18n()
-
-const switchOnLabel = computed(() => t('common.yes'))
-const switchOffLabel = computed(() => t('common.no'))
 
 const searchForm = ref({ academicSession: '', status: '', keyword: '' })
 const appliedSearch = ref({ academicSession: '', status: '', keyword: '' })
@@ -161,10 +156,6 @@ function handleRevoke(batch) {
   revokeRegistrationBatch(batch.id)
 }
 
-function handleSelectableToggle(batch, value) {
-  updateRegistrationBatch(batch.id, { isSelectable: value !== false })
-}
-
 function openManageCourses(batch) {
   coursesDrawerBatch.value = batch
 }
@@ -263,7 +254,6 @@ function openStudentList(batch) {
                     <span class="tip-icon" aria-hidden="true">?</span>
                   </span>
                 </th>
-                <th class="col-selectable">{{ t('courseRegistration.batch.isSelectable') }}</th>
                 <th class="col-sticky-right col-status">{{ t('common.status') }}</th>
                 <th class="col-sticky-right col-actions">{{ t('common.actions') }}</th>
               </tr>
@@ -286,19 +276,17 @@ function openStudentList(batch) {
                 </td>
                 <td>{{ row.academicSession || row.semester }}</td>
                 <td>{{ getRegistrationTypeLabel(row.type, t) }}</td>
-                <td>{{ row.type === 'ME' ? row.programme || '—' : '—' }}</td>
+                <td>
+                  {{
+                    row.type === 'ME'
+                      ? row.programme || '—'
+                      : t('courseRegistration.courses.programmeScopeUnlimited')
+                  }}
+                </td>
                 <td class="col-eligible-count">
                   <button type="button" class="link-btn" @click="openStudentList(row)">
                     {{ row.eligibleStudentCount }}
                   </button>
-                </td>
-                <td class="col-selectable">
-                  <YnSwitch
-                    :model-value="row.isSelectable !== false"
-                    :on-label="switchOnLabel"
-                    :off-label="switchOffLabel"
-                    @update:model-value="(v) => handleSelectableToggle(row, v)"
-                  />
                 </td>
                 <td class="col-sticky-right col-status">
                   <RegistrationBatchStatusBadge :status="row.status" />
@@ -330,7 +318,7 @@ function openStudentList(batch) {
                 </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="10" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="9" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -375,6 +363,7 @@ function openStudentList(batch) {
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
+  font-size: 14px;
 }
 
 .batch-data-table th,
@@ -382,14 +371,15 @@ function openStudentList(batch) {
   white-space: nowrap;
   vertical-align: middle;
   background: #fff;
-  padding: 5px 10px;
+  padding: 8px 10px;
   line-height: 1.35;
+  font-size: 14px;
 }
 
 .batch-data-table th {
   background: #f9fafb;
-  padding-top: 6px;
-  padding-bottom: 6px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .batch-data-table .col-check {
@@ -445,17 +435,16 @@ function openStudentList(batch) {
   flex-shrink: 0;
 }
 
-.batch-data-table .col-selectable {
-  min-width: 88px;
-  text-align: center;
-}
-
 .batch-data-table .col-actions {
   width: max-content;
   min-width: 0;
   white-space: nowrap;
   padding-left: 12px;
   padding-right: 12px;
+}
+
+.batch-data-table .link-btn {
+  font-size: 14px;
 }
 
 .batch-data-table .col-sticky-left {

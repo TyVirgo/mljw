@@ -303,40 +303,102 @@ export function buildCourseTimelineNodes(item, workflowStages) {
   })
 }
 
-/** 加退课审批：提交 → 教务协调员（单级） */
+/** 加退课审批：固定两节点 — 学生发起 → 教务协调员 */
 export function buildAddDropTimelineNodes(application) {
   if (!application) return []
+  const status = String(application.status || '')
   const logs = Array.isArray(application.approvalLog) ? application.approvalLog : []
-  const normalizedLogs = logs.map((entry) => ({
-    ...entry,
-    dateTime: entry.dateTime || entry.at || '',
-  }))
+  const studentName = application.studentName || ''
+  const submittedAt = application.submittedAt || ''
 
-  return buildApprovalTimelineNodes({
-    workflowStages: ['Academic Coordinator', 'Approved'],
-    approvalLog: [
-      {
-        action: 'Submitted',
-        actor: application.studentName || '',
-        dateTime: application.submittedAt || '',
-        stage: 'Applicant',
-      },
-      ...normalizedLogs.map((entry) => ({
-        ...entry,
-        stage: entry.stage || 'Academic Coordinator',
-      })),
-    ],
-    currentStage: application.status === 'Pending' ? 'Academic Coordinator' : '',
-    status:
-      application.status === 'Pending'
-        ? 'In Progress'
-        : application.status === 'Approved'
-          ? 'Approved'
-          : application.status === 'Rejected'
-            ? 'Rejected'
-            : application.status || '',
-    applicantLabel: application.studentName || '',
-    parallelGroups: [],
+  const nodes = [
+    {
+      id: 'applicant',
+      type: 'step',
+      stageLabel: 'Applicant',
+      actor: studentName,
+      badgeKey: 'submitted',
+      dateTime: submittedAt,
+      comment: '',
+      icon: 'completed',
+    },
+  ]
+
+  const reviewLog = [...logs]
+    .reverse()
+    .find((e) => ['Approved', 'Rejected', 'Update Required', 'Cancelled'].includes(e?.action))
+
+  const reviewTime = reviewLog?.dateTime || reviewLog?.at || ''
+  const reviewActor = reviewLog?.actor || ''
+  const reviewComment = reviewLog?.comment || ''
+
+  if (status === 'Pending' || status === 'In Review') {
+    nodes.push({
+      id: 'Academic Coordinator',
+      type: 'step',
+      stageLabel: 'Academic Coordinator',
+      actor: '',
+      badgeKey: 'pending',
+      dateTime: '',
+      comment: '',
+      icon: 'pending',
+      isCurrent: true,
+    })
+    return nodes
+  }
+
+  if (status === 'Approved') {
+    nodes.push({
+      id: 'Academic Coordinator',
+      type: 'step',
+      stageLabel: 'Academic Coordinator',
+      actor: reviewActor,
+      badgeKey: 'approved',
+      dateTime: reviewTime,
+      comment: reviewComment,
+      icon: 'completed',
+    })
+    return nodes
+  }
+
+  if (status === 'Rejected') {
+    nodes.push({
+      id: 'Academic Coordinator',
+      type: 'step',
+      stageLabel: 'Academic Coordinator',
+      actor: reviewActor,
+      badgeKey: 'rejected',
+      dateTime: reviewTime,
+      comment: reviewComment,
+      icon: 'rejected',
+    })
+    return nodes
+  }
+
+  if (status === 'Cancelled') {
+    nodes.push({
+      id: 'Academic Coordinator',
+      type: 'step',
+      stageLabel: 'Academic Coordinator',
+      actor: reviewActor,
+      badgeKey: 'cancelled',
+      dateTime: reviewTime,
+      comment: reviewComment,
+      icon: 'rejected',
+    })
+    return nodes
+  }
+
+  nodes.push({
+    id: 'Academic Coordinator',
+    type: 'step',
+    stageLabel: 'Academic Coordinator',
+    actor: '',
+    badgeKey: null,
+    dateTime: '',
+    comment: '',
+    icon: 'upcoming',
   })
+  return nodes
 }
 

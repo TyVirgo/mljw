@@ -27,7 +27,7 @@ export function isRetakeDropLinkedType(type) {
 }
 
 /**
- * @typedef {'serial'|'applicationNo'|'status'|'type'|'studentId'|'studentName'|'academicSession'|'addCourse'|'dropCourse'|'retakeCourse'|'section'|'weekRange'|'classTime'|'venue'|'classTimeVenue'|'lecturers'|'excessCredits'|'fee'|'retakeType'|'feeWaiver'|'credits'|'bill'|'submittedAt'|'actions'} AddDropListColumnId
+ * @typedef {'serial'|'applicationNo'|'status'|'type'|'studentId'|'studentName'|'academicSession'|'addCourse'|'dropCourse'|'retakeCourse'|'section'|'weekRange'|'classTimeVenue'|'lecturers'|'excessCredits'|'fee'|'retakeType'|'feeWaiver'|'credits'|'bill'|'paymentRemindCount'|'paymentRemaining'|'submittedAt'|'actions'} AddDropListColumnId
  */
 
 /** @type {Record<string, AddDropListColumnId[]>} */
@@ -56,7 +56,6 @@ export const ADD_DROP_LIST_COLUMNS_BY_TYPE = {
     'weekRange',
     'classTimeVenue',
     'lecturers',
-    'feeWaiver',
     'status',
     'submittedAt',
     'actions',
@@ -89,7 +88,6 @@ export const ADD_DROP_LIST_COLUMNS_BY_TYPE = {
     'lecturers',
     'excessCredits',
     'fee',
-    'feeWaiver',
     'status',
     'submittedAt',
     'actions',
@@ -107,49 +105,55 @@ export const ADD_DROP_LIST_COLUMNS_BY_TYPE = {
     'excessCredits',
     'fee',
     'retakeType',
-    'feeWaiver',
     'status',
     'submittedAt',
     'actions',
   ],
 }
 
-/** 审批端：未筛类型时的宽列（含三科名） */
-const APPROVAL_WIDE_MIDDLE = [
-  'addCourse',
-  'dropCourse',
-  'retakeCourse',
-  'section',
-  'weekRange',
-  'classTimeVenue',
-  'lecturers',
-  'excessCredits',
-  'fee',
-]
-
 /**
- * 审批列表列：固定含状态 + 申请类型；类型筛时与学生该类型业务列对齐
+ * 审批列表列：固定含状态 + 申请类型；超出学分/预估费用/账单紧挨学号前
+ * 不含加/退/重修课名、分组、周次、时间地点、教师（进详情）
  * @param {string} [type]
- * @param {{ showCheck?: boolean }} [opts]
+ * @param {{ showCheck?: boolean, showPaymentRemaining?: boolean }} [opts]
  */
 export function getAddDropApprovalListColumns(type = '', opts = {}) {
   const prefix = []
   if (opts.showCheck) prefix.push('check')
-  prefix.push('serial', 'applicationNo', 'status', 'type', 'studentId', 'studentName')
+  prefix.push('serial', 'applicationNo', 'status', 'type')
 
-  let middle
-  if (type && ADD_DROP_LIST_COLUMNS_BY_TYPE[type]) {
-    const skip = new Set(['serial', 'applicationNo', 'status', 'submittedAt', 'actions'])
-    middle = ADD_DROP_LIST_COLUMNS_BY_TYPE[type].filter((c) => !skip.has(c))
-  } else {
-    middle = [...APPROVAL_WIDE_MIDDLE]
+  /** 费用相关：超出学分 → 预估费用 → 账单 [→ 发送邮件次数 → 缴费剩余] */
+  const feeBlock = opts.showPaymentRemaining
+    ? ['excessCredits', 'fee', 'bill', 'paymentRemindCount', 'paymentRemaining']
+    : ['excessCredits', 'fee', 'bill']
+
+  prefix.push(...feeBlock, 'studentId', 'studentName')
+
+  const middle = []
+  if (type === 'Retake' || type === 'RetakeDrop') {
+    middle.push('retakeType')
   }
 
-  return [...prefix, ...middle, 'bill', 'submittedAt', 'actions']
+  return [...prefix, ...middle, 'submittedAt', 'actions']
 }
 
+/** 学生端混合列表公共列（个性字段进详情） */
+export const ADD_DROP_COMMON_LIST_COLUMNS = [
+  'serial',
+  'applicationNo',
+  'academicSession',
+  'type',
+  'status',
+  'submittedAt',
+  'actions',
+]
+
+/**
+ * @param {string} [type] 空则返回公共列
+ */
 export function getAddDropListColumns(type) {
-  return ADD_DROP_LIST_COLUMNS_BY_TYPE[type] || ADD_DROP_LIST_COLUMNS_BY_TYPE.Add
+  if (!type) return [...ADD_DROP_COMMON_LIST_COLUMNS]
+  return ADD_DROP_LIST_COLUMNS_BY_TYPE[type] || ADD_DROP_COMMON_LIST_COLUMNS
 }
 
 /** 按申请类型返回 Notes i18n key 列表（已按展示顺序；不含分节填写指引与费用长文） */
@@ -170,6 +174,7 @@ export function getAddDropFormNoteKeys(action) {
     case 'RetakeDrop':
       return [dropThenRetake, one, conflict]
     case 'Add':
+      return [one, eligibility, conflict]
     default:
       return [one, eligibility, conflict]
   }

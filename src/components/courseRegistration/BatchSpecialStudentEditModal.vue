@@ -1,11 +1,15 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { updateBatchSpecialStudents } from '../../data/courseRegistration/batchStudentRoster.js'
+import {
+  updateBatchSpecialStudents,
+  normalizeSelectionCreditMax,
+} from '../../data/courseRegistration/batchStudentRoster.js'
 
 const props = defineProps({
   visible: Boolean,
   batchId: { type: String, default: '' },
+  batchType: { type: String, default: '' },
   /** 勾选的学号 */
   studentIds: { type: Array, default: () => [] },
   /** 仅选一人时用于回填；多人则为 null */
@@ -19,9 +23,15 @@ const { t } = useAppI18n()
 const form = ref(emptyForm())
 const formError = ref('')
 
+const needsCreditMax = computed(() => {
+  const type = String(props.batchType || '').toUpperCase()
+  return type === 'GE' || type === 'ME'
+})
+
 function emptyForm() {
   return {
     selectable: true,
+    selectionCreditMax: '',
     remark: '',
   }
 }
@@ -34,6 +44,10 @@ watch(
     if (props.seed) {
       form.value = {
         selectable: props.seed.selectable !== false,
+        selectionCreditMax:
+          props.seed.selectionCreditMax != null && props.seed.selectionCreditMax !== ''
+            ? String(props.seed.selectionCreditMax)
+            : '',
         remark: String(props.seed.remark || ''),
       }
     } else {
@@ -43,10 +57,19 @@ watch(
 )
 
 function handleConfirm() {
-  const result = updateBatchSpecialStudents(props.batchId, props.studentIds, {
+  const payload = {
     selectable: form.value.selectable,
     remark: form.value.remark,
-  })
+  }
+  if (needsCreditMax.value) {
+    const creditMax = normalizeSelectionCreditMax(form.value.selectionCreditMax)
+    if (creditMax == null) {
+      formError.value = t('courseRegistration.batch.specialCreditMaxRequired')
+      return
+    }
+    payload.selectionCreditMax = creditMax
+  }
+  const result = updateBatchSpecialStudents(props.batchId, props.studentIds, payload)
   if (!result.ok) {
     formError.value = t(result.errorKey || 'courseRegistration.batch.specialSelectFirst')
     return
@@ -81,6 +104,23 @@ function handleConfirm() {
               <input v-model="form.selectable" type="radio" :value="false" />
               <span>{{ t('common.no') }}</span>
             </label>
+          </div>
+        </div>
+
+        <div v-if="needsCreditMax" class="form-row">
+          <label class="field-label">
+            {{ t('courseRegistration.batch.specialCreditMax') }}
+            <span class="req">*</span>
+          </label>
+          <div class="field-control">
+            <input
+              v-model="form.selectionCreditMax"
+              type="number"
+              min="0.5"
+              step="0.5"
+              class="form-input"
+              :placeholder="t('courseRegistration.batch.specialCreditMaxPlaceholder')"
+            />
           </div>
         </div>
 
@@ -152,7 +192,7 @@ function handleConfirm() {
 }
 .form-row {
   display: grid;
-  grid-template-columns: 110px 1fr;
+  grid-template-columns: 120px 1fr;
   gap: 10px 12px;
   align-items: center;
   margin-bottom: 14px;
@@ -169,11 +209,14 @@ function handleConfirm() {
 .form-input {
   flex: 1;
   width: 100%;
-  height: 34px;
+  height: 32px;
   padding: 0 10px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
-  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  color: #111827;
+  background: #fff;
   box-sizing: border-box;
 }
 .radio-row {

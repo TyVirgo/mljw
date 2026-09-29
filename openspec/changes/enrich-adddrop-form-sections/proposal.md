@@ -17,10 +17,16 @@
 
 ### Non-goals
 
-- 不整页复刻 Microsoft Forms / 纸质表的 Yes/No「是否继续填下一节」问卷链。
+- 不整页复刻 Microsoft Forms 逐步问卷链（主类型 +「是否退课」已覆盖加退/重修退）。
 - 不改造审批流、账单规则或后端接口契约（原型 mock 即可）。
 - 不新增审批节点或改变加退课窗口/白名单准入逻辑。
-- 不强制取消现有 **AddDrop** 联合类型（保留为本地扩展路径）。
+- 不强制取消现有 **AddDrop** / **RetakeDrop** 联合类型（由主类型 +「是否退课」推导，不单独作 Tab）。
+
+## 增量（2026-09）：主类型三选一 + 是否退课
+
+- 列表去掉类型 Tab；公共列混合展示全部申请。
+- 表单主类型仅 **加课 / 退课 / 重修**；加课或重修后确认是否同时退课（是 → 展开退课节 → `AddDrop` / `RetakeDrop`）。
+- 同一申请禁止加课与重修并存。
 
 ## Capabilities
 
@@ -30,7 +36,7 @@
 
 ### Modified Capabilities
 
-- `course-registration`：学生加退课/重修申请表单与详情改为 PDF 分节结构，并按申请类型显隐 II/III/IV；声明 Section V 为提交前置条件。
+- `course-registration`：学生加退课/重修申请表单与详情改为 PDF 分节结构，并按申请类型显隐 II/III/IV；声明 Section V 为提交前置条件；列表去 Tab、公共列。
 
 ## Impact
 

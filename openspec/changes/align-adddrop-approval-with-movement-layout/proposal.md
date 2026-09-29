@@ -27,3 +27,7 @@
 ## Impact
 
 - `AddDropApprovalView.vue` 搜索与 Tab 文案、i18n
+
+## 增量：去掉已提交 Tab（2026-09）
+
+单级审批无「已提交/审批中」中间桶。管理端 Tab 仅保留 **待审批** 与 **历史**；去掉「已提交」。原 `In Review` 合适条目并入待审批（Pending）。

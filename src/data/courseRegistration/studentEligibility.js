@@ -173,10 +173,8 @@ function checkPrerequisites(course, context) {
 function checkAudience(course, context) {
   const audience = course.audience
   if (!audience) return { ok: true }
-  const { programmes, intakes, studentTypes, nationalities } = audience
-  if (programmes?.length && !programmes.includes(context.profileFields.programme)) {
-    return { ok: false, reasonKey: 'courseRegistration.eligibility.programmeRestricted' }
-  }
+  const { intakes, studentTypes, nationalities } = audience
+  // 专业范围：列表侧已按学生专业过滤可见课，此处不再以「限指定专业」挡提交
   if (intakes?.length && !intakes.includes(context.profileFields.intake)) {
     return { ok: false, reasonKey: 'courseRegistration.eligibility.intakeRestricted' }
   }
@@ -187,6 +185,13 @@ function checkAudience(course, context) {
     return { ok: false, reasonKey: 'courseRegistration.eligibility.nationalityRestricted' }
   }
   return { ok: true }
+}
+
+/** 课程 audience.programmes 是否允许该专业（无限制则通过） */
+export function courseMatchesStudentProgramme(course, programme) {
+  const programmes = course?.audience?.programmes
+  if (!programmes?.length) return true
+  return programmes.includes(String(programme || ''))
 }
 
 export function evaluateCourseEligibility(course, context) {
@@ -214,7 +219,8 @@ export function evaluateCourseEligibility(course, context) {
     reasons.push({ key: audience.reasonKey })
   }
 
-  if (context.passedCodes.has(course.code)) {
+  // R1 志愿：不因成绩单已修禁交；R2/R3 仍拦
+  if (context.passedCodes.has(course.code) && String(context.roundKey || '') !== 'preselect') {
     eligible = false
     reasons.push({ key: 'courseRegistration.eligibility.alreadyCompleted' })
   }

@@ -204,6 +204,21 @@ function resolveBrief(raw, locale) {
 }
 
 /**
+ * 课表/已选共用课名：教学简介有双语则跟语言切换，否则课库 name
+ * @param {string} code
+ * @param {{ name?: string, nameZh?: string }} [course]
+ * @param {'en'|'zh'} [locale]
+ */
+export function getCourseLocalizedName(code, course = {}, locale = 'en') {
+  const key = String(code || '').trim()
+  const loc = locale === 'zh' ? 'zh' : 'en'
+  const raw = BRIEFS_BY_CODE[key]
+  if (raw?.name) return pickLocale(raw.name, loc) || course.name || key
+  if (loc === 'zh' && course.nameZh) return String(course.nameZh)
+  return String(course.name || key || '')
+}
+
+/**
  * @param {string} code
  * @param {{ name?: string, credits?: number, type?: string, schoolElectiveCategory?: string, prerequisites?: string[] }} [course]
  * @param {'en'|'zh'} [locale]

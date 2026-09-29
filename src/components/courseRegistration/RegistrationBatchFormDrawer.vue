@@ -62,7 +62,6 @@ function createEmptyForm() {
     academicSession: '',
     type: '',
     programme: '',
-    isSelectable: true,
     localRules: defaultBatchLocalRules(),
     creditMin: 12,
     creditMax: 20,
@@ -87,7 +86,6 @@ watch(
         academicSession: session,
         type: normalizeRegistrationType(batch.type),
         programme: batch.programme || '',
-        isSelectable: batch.isSelectable !== false,
         localRules: normalizeBatchLocalRules(batch.localRules),
         creditMin: batch.creditMin ?? 12,
         creditMax: batch.creditMax ?? 20,
@@ -207,7 +205,6 @@ function buildPayload(statusPatch = {}) {
     academicSession: form.value.academicSession,
     type: form.value.type,
     programme: form.value.type === 'ME' ? String(form.value.programme || '').trim() : '',
-    isSelectable: form.value.isSelectable !== false,
     localRules,
     scopeRules,
     scope: scopeLabelsFromRules(scopeRules, t),
@@ -325,24 +322,6 @@ function handleSave() {
           </select>
           <p class="field-hint">{{ t('courseRegistration.batch.programmeHint') }}</p>
           <p v-if="err('programme')" class="field-error">{{ err('programme') }}</p>
-        </div>
-        <div class="form-field">
-          <label class="field-label">
-            <span class="req">*</span> {{ t('courseRegistration.batch.isSelectable') }}
-          </label>
-          <div class="radio-row">
-            <label class="radio-option">
-              <input v-model="form.isSelectable" type="radio" :value="true" />
-              {{ t('common.yes') }}
-            </label>
-            <label class="radio-option">
-              <input v-model="form.isSelectable" type="radio" :value="false" />
-              {{ t('common.no') }}
-            </label>
-          </div>
-          <p class="field-hint">
-            {{ t('courseRegistration.batch.isSelectableHint') }}{{ t('common.prototypeOnlySuffix') }}
-          </p>
         </div>
       </div>
     </section>

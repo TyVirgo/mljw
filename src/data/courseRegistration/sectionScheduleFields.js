@@ -114,8 +114,11 @@ export function formatHourRangeLabel(hour, locale = 'zh') {
   return `${pad2(start)}:00-${pad2(end)}:00`
 }
 
+const DAY_ORDER = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 }
+
 /**
- * 归一 meetings：优先 section.meetings（最多 3），否则回退主字段 time/room/weekRange
+ * 归一 meetings：优先 section.meetings（最多 3），否则回退主字段 time/room/weekRange；
+ * 返回按周一→周日、早→晚排序
  * @param {object} section
  * @returns {Array<{ time: string, room: string, weekRange: string }>}
  */
@@ -132,16 +135,36 @@ export function getSectionMeetings(section) {
       room: m.room || m.venue || fallbackRoom,
       weekRange: m.weekRange || fallbackWeek,
     }))
-  if (fromArr.length) return fromArr
-  const time = String(section.time || '').trim()
-  if (!time) return []
-  return [
-    {
-      time,
-      room: fallbackRoom,
-      weekRange: fallbackWeek,
-    },
-  ]
+  const list = fromArr.length
+    ? fromArr
+    : (() => {
+        const time = String(section.time || '').trim()
+        if (!time) return []
+        return [
+          {
+            time,
+            room: fallbackRoom,
+            weekRange: fallbackWeek,
+          },
+        ]
+      })()
+  return sortMeetingsByDayAndTime(list)
+}
+
+/**
+ * @param {Array<{ time: string, room?: string, weekRange?: string }>} meetings
+ */
+export function sortMeetingsByDayAndTime(meetings = []) {
+  return [...(meetings || [])].sort((a, b) => {
+    const pa = parseTimeSlot(a?.time)
+    const pb = parseTimeSlot(b?.time)
+    const dayA = pa ? DAY_ORDER[pa.day] || 99 : 99
+    const dayB = pb ? DAY_ORDER[pb.day] || 99 : 99
+    if (dayA !== dayB) return dayA - dayB
+    const startA = pa ? pa.start : 0
+    const startB = pb ? pb.start : 0
+    return startA - startB
+  })
 }
 
 /**

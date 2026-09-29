@@ -43,6 +43,7 @@ import CourseRegistrationFlowGuideView from './views/courseRegistration/CourseRe
 import StudentRegisterView from './views/courseRegistration/student/StudentRegisterView.vue'
 import StudentAddDropView from './views/courseRegistration/student/StudentAddDropView.vue'
 import StudentMyResultView from './views/courseRegistration/student/StudentMyResultView.vue'
+import StudentCoursePaymentView from './views/courseRegistration/student/StudentCoursePaymentView.vue'
 import RegistrationQueueOverlay from './components/courseRegistration/RegistrationQueueOverlay.vue'
 import ModuleBriefPanel from './components/courseRegistration/ModuleBriefPanel.vue'
 import UnderConstructionView from './views/UnderConstructionView.vue'
@@ -60,6 +61,7 @@ import {
 } from './config/courseRegistrationMenu.js'
 import { processDueImplementations } from './data/movementImplementationScheduler.js'
 import { seedStudentRegistrationDemo } from './data/courseRegistration/studentDemoSeed.js'
+import { ensureStudentCoursePaymentSeeded } from './data/courseRegistration/studentCoursePaymentStore.js'
 import { useAppI18n } from './composables/useAppI18n.js'
 
 const { t } = useAppI18n()
@@ -67,6 +69,7 @@ const { t } = useAppI18n()
 onMounted(() => {
   processDueImplementations()
   seedStudentRegistrationDemo()
+  ensureStudentCoursePaymentSeeded()
 })
 
 const appView = ref('portal')
@@ -127,6 +130,7 @@ const isCrFeeRoster = computed(() => currentPageId.value === 'cr-fee-roster')
 const isCrsRegister = computed(() => currentPageId.value === 'crs-register')
 const isCrsAddDrop = computed(() => currentPageId.value === 'crs-adddrop')
 const isCrsResult = computed(() => currentPageId.value === 'crs-result')
+const isCrsPayment = computed(() => currentPageId.value === 'crs-payment')
 const isCrUnderConstruction = computed(() => !courseRegistrationDevelopedPages.has(currentPageId.value))
 
 const headerModuleKey = computed(() => {
@@ -305,6 +309,7 @@ function openStudentPreviewPortal() {
             />
             <StudentAddDropView v-else-if="isCrsAddDrop" @navigate="handleCrNavigate" />
             <StudentMyResultView v-else-if="isCrsResult" @navigate="handleCrNavigate" />
+            <StudentCoursePaymentView v-else-if="isCrsPayment" />
             <UnderConstructionView v-else-if="isCrUnderConstruction" @back="handleCrBack" />
           </template>
 

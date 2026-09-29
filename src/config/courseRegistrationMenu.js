@@ -16,6 +16,7 @@ export const courseRegistrationMenuItems = [
       { id: 'crs-register', labelKey: 'menu.crsRegister', audience: 'student' },
       { id: 'crs-result', labelKey: 'menu.crsResult', audience: 'student' },
       { id: 'crs-adddrop', labelKey: 'menu.crsAddDrop', audience: 'student' },
+      { id: 'crs-payment', labelKey: 'menu.crsPayment', audience: 'student' },
     ],
   },
   {
@@ -35,9 +36,9 @@ export const courseRegistrationMenuItems = [
     icon: 'transfer',
     audience: 'admin',
     children: [
-      { id: 'cr-monitor', labelKey: 'menu.crMonitor', audience: 'admin' },
       { id: 'cr-approval', labelKey: 'menu.crApproval', audience: 'admin' },
       { id: 'cr-fee-roster', labelKey: 'menu.crFeeRoster', audience: 'admin' },
+      { id: 'cr-monitor', labelKey: 'menu.crMonitor', audience: 'admin' },
       { id: 'cr-supplement', labelKey: 'menu.crSupplement', audience: 'admin' },
     ],
   },
@@ -51,15 +52,7 @@ export const courseRegistrationMenuItems = [
       { id: 'cr-log', labelKey: 'menu.crLog', audience: 'admin' },
     ],
   },
-  {
-    id: 'cr-guide-group',
-    labelKey: 'menu.crGuideGroup',
-    labelHintKey: 'menu.crGuideGroupHint',
-    icon: 'book',
-    children: [
-      { id: 'cr-flow-guide', labelKey: 'menu.crFlowGuide' },
-    ],
-  },
+  // 模块说明（正式页去掉）：侧栏暂不挂载；页面 cr-flow-guide 仍可直达
 ]
 
 export const courseRegistrationDevelopedPages = new Set([
@@ -76,6 +69,7 @@ export const courseRegistrationDevelopedPages = new Set([
   'crs-register',
   'crs-adddrop',
   'crs-result',
+  'crs-payment',
 ])
 
 export function findCourseRegistrationLabelKey(id) {

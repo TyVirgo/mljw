@@ -5,6 +5,9 @@
 import { deriveClassTime, displayClassTimeVenue, getSectionMeetings } from './sectionScheduleFields.js'
 import { getPreviousAcademicSession } from '../intakeSets.js'
 
+/** 学生可选主类型（三选一；关联由「是否退课」推导） */
+export const ADD_DROP_PRIMARY_TYPES = ['Add', 'Drop', 'Retake']
+
 export const ADD_COURSE_TYPE_OPTIONS = [
   { value: 'overload', labelKey: 'courseRegistration.student.addType.overload' },
   { value: 'timetable_clash', labelKey: 'courseRegistration.student.addType.timetableClash' },
@@ -15,7 +18,6 @@ export const ADD_COURSE_TYPE_OPTIONS = [
 export const RETAKE_TYPE_OPTIONS = [
   { value: 'improve_grade', labelKey: 'courseRegistration.student.retakeType.improveGrade' },
   { value: 'failed', labelKey: 'courseRegistration.student.retakeType.failed' },
-  { value: 'other', labelKey: 'courseRegistration.student.retakeType.other' },
 ]
 
 export const GRADE_EARNED_OPTIONS = ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F', 'M']
@@ -31,11 +33,68 @@ export const PREVIOUS_SESSION_OPTIONS = [
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII']
 
+/**
+ * 对外展示的主类型（列表/筛选）：关联单归入加课或重修
+ * @param {string} action
+ * @returns {'Add'|'Drop'|'Retake'|''}
+ */
+export function displayPrimaryType(action) {
+  return primaryTypeFromAction(action)
+}
+
+/**
+ * 筛选主类型是否匹配申请（含关联）
+ * @param {string} appType
+ * @param {string} filterPrimary
+ */
+export function matchesPrimaryTypeFilter(appType, filterPrimary) {
+  if (!filterPrimary) return true
+  return displayPrimaryType(appType) === filterPrimary
+}
+
+/**
+ * 主类型 + 是否退课 → 内部 action（禁止加+重修）
+ * @param {'Add'|'Drop'|'Retake'|''} primaryType
+ * @param {'yes'|'no'|''} needDrop
+ */
+export function deriveAddDropAction(primaryType, needDrop = '') {
+  if (!ADD_DROP_PRIMARY_TYPES.includes(primaryType)) return ''
+  if (primaryType === 'Drop') return 'Drop'
+  if (primaryType === 'Add') return needDrop === 'yes' ? 'AddDrop' : 'Add'
+  if (primaryType === 'Retake') return needDrop === 'yes' ? 'RetakeDrop' : 'Retake'
+  return ''
+}
+
 /** @param {string} action */
-export function getVisibleAddDropSections(action) {
-  const showII = action === 'Add' || action === 'AddDrop'
-  const showIII = action === 'Drop' || action === 'AddDrop' || action === 'RetakeDrop'
-  const showIV = action === 'Retake' || action === 'RetakeDrop'
+export function primaryTypeFromAction(action) {
+  if (action === 'AddDrop' || action === 'Add') return 'Add'
+  if (action === 'RetakeDrop' || action === 'Retake') return 'Retake'
+  if (action === 'Drop') return 'Drop'
+  return ''
+}
+
+/** @param {string} action */
+export function needDropFromAction(action) {
+  if (action === 'AddDrop' || action === 'RetakeDrop') return 'yes'
+  if (action === 'Add' || action === 'Retake') return 'no'
+  return ''
+}
+
+/**
+ * @param {string} action
+ * @param {{ needDrop?: string, primaryType?: string }} [opts]
+ */
+export function getVisibleAddDropSections(action, opts = {}) {
+  const resolved =
+    opts.primaryType != null
+      ? deriveAddDropAction(opts.primaryType, opts.needDrop)
+      : action
+  if (!resolved) {
+    return { showI: true, showII: false, showIII: false, showIV: false, showV: true }
+  }
+  const showII = resolved === 'Add' || resolved === 'AddDrop'
+  const showIII = resolved === 'Drop' || resolved === 'AddDrop' || resolved === 'RetakeDrop'
+  const showIV = resolved === 'Retake' || resolved === 'RetakeDrop'
   return { showI: true, showII, showIII, showIV, showV: true }
 }
 
@@ -88,8 +147,13 @@ function emptySectionFields(prefix = '') {
   }
 }
 
-/** 切换类型时清空被隐藏节业务字段，保留学年学期、类型、联系电话 */
+/** 切换类型时清空被隐藏节业务字段，保留学年学期、类型、联系电话、主类型/是否退课 */
 export function clearHiddenSectionFields(form, action) {
+  const primaryType = form.primaryType || primaryTypeFromAction(action)
+  const needDrop =
+    form.needDrop != null && form.needDrop !== ''
+      ? form.needDrop
+      : needDropFromAction(action)
   return {
     ...form,
     courseId: '',
@@ -101,7 +165,6 @@ export function clearHiddenSectionFields(form, action) {
     addType: '',
     addNotes: '',
     dropReason: '',
-    feeWaiver: '',
     attachmentName: '',
     previouslyTakenCourse: '',
     gradeEarned: '',
@@ -109,19 +172,61 @@ export function clearHiddenSectionFields(form, action) {
       action === 'Retake' || action === 'RetakeDrop'
         ? getPreviousAcademicSession(form.academicSession)
         : '',
+    previousCourseGradesText: '',
     retakeType: '',
     transcriptId: '',
     eligibilitySource: '',
     feeEstimate: null,
     declarationAgreed: false,
+    addLines: [],
+    dropLines: [],
     action,
+    primaryType,
+    needDrop: !primaryType || primaryType === 'Drop' ? '' : needDrop,
+  }
+}
+
+/**
+ * 仅 needDrop 切换：隐藏退课节时清退课字段；展开时保留加/重修侧已填内容
+ * @param {object} form
+ * @param {'yes'|'no'|''} needDrop
+ */
+export function clearDropSectionIfHidden(form, needDrop) {
+  if (needDrop === 'yes') return form
+  return {
+    ...form,
+    dropCourseId: '',
+    ...emptySectionFields('drop'),
+    dropReason: '',
+    attachmentName: '',
+    dropLines: [],
   }
 }
 
 export function createEmptyAddDropSectionForm(overrides = {}) {
+  const hasPrimaryOverride = Object.prototype.hasOwnProperty.call(overrides, 'primaryType')
+  const seedPrimary = hasPrimaryOverride
+    ? overrides.primaryType || ''
+    : overrides.action
+      ? primaryTypeFromAction(overrides.action)
+      : ''
+  const seedNeedDrop =
+    overrides.needDrop != null
+      ? overrides.needDrop
+      : overrides.action
+        ? needDropFromAction(overrides.action)
+        : seedPrimary === 'Add' || seedPrimary === 'Retake'
+          ? 'no'
+          : ''
+  const action =
+    overrides.action && !hasPrimaryOverride
+      ? overrides.action
+      : deriveAddDropAction(seedPrimary, seedNeedDrop)
   const next = {
     academicSession: '',
-    action: 'Add',
+    primaryType: seedPrimary,
+    needDrop: seedPrimary === 'Drop' || !seedPrimary ? '' : seedNeedDrop || 'no',
+    action: action || '',
     courseId: '',
     dropCourseId: '',
     addCourseId: '',
@@ -132,24 +237,70 @@ export function createEmptyAddDropSectionForm(overrides = {}) {
     addType: '',
     addNotes: '',
     dropReason: '',
-    feeWaiver: '',
     attachmentName: '',
     previouslyTakenCourse: '',
     gradeEarned: '',
     academicSessionTaken: '',
+    previousCourseGradesText: '',
     retakeType: '',
     transcriptId: '',
     eligibilitySource: '',
     feeEstimate: null,
     declarationAgreed: false,
+    addLines: [],
+    dropLines: [],
     ...overrides,
   }
+  if (!Array.isArray(next.addLines)) next.addLines = []
+  if (!Array.isArray(next.dropLines)) next.dropLines = []
+  if (hasPrimaryOverride) {
+    next.primaryType = overrides.primaryType || ''
+  } else if (!next.primaryType) {
+    next.primaryType = primaryTypeFromAction(next.action)
+  }
+  if (!next.primaryType || next.primaryType === 'Drop') {
+    next.needDrop = ''
+  } else if (next.needDrop !== 'yes' && next.needDrop !== 'no') {
+    next.needDrop = 'no'
+  }
+  next.action = deriveAddDropAction(next.primaryType, next.needDrop)
   if (next.action === 'Retake' || next.action === 'RetakeDrop') {
     if (!String(next.academicSessionTaken || '').trim()) {
       next.academicSessionTaken = getPreviousAcademicSession(next.academicSession)
     }
   }
   return next
+}
+
+/**
+ * 按主类型 / 是否退课同步内部 action，并在变更时清空隐藏节
+ * 同主类型仅切 needDrop 时只清退课节（是→否），保留加/重修已填内容
+ * @param {object} form
+ * @param {{ primaryType?: string, needDrop?: string }} patch
+ */
+export function applyPrimaryTypePatch(form, patch = {}) {
+  const prevPrimary = form.primaryType ?? primaryTypeFromAction(form.action)
+  const primaryType =
+    patch.primaryType !== undefined
+      ? patch.primaryType
+      : prevPrimary
+  let needDrop = patch.needDrop !== undefined ? patch.needDrop : form.needDrop
+  if (!primaryType || primaryType === 'Drop') needDrop = ''
+  else if (needDrop !== 'yes' && needDrop !== 'no') needDrop = 'no'
+  const action = deriveAddDropAction(primaryType, needDrop)
+  const base = { ...form, primaryType, needDrop, action }
+  if (action === form.action && primaryType === form.primaryType && needDrop === form.needDrop) {
+    return base
+  }
+  const onlyNeedDropToggle =
+    patch.needDrop !== undefined &&
+    patch.primaryType === undefined &&
+    primaryType === prevPrimary &&
+    (primaryType === 'Add' || primaryType === 'Retake')
+  if (onlyNeedDropToggle) {
+    return clearDropSectionIfHidden(base, needDrop)
+  }
+  return clearHiddenSectionFields(base, action)
 }
 
 /**
@@ -291,85 +442,76 @@ export function validateAddDropSectionForm(form) {
   if (!form.academicSession) {
     return { ok: false, errorKey: 'courseRegistration.student.academicSessionRequired' }
   }
-  if (!form.action) {
+  const primaryType = form.primaryType || primaryTypeFromAction(form.action)
+  if (!ADD_DROP_PRIMARY_TYPES.includes(primaryType)) {
+    return { ok: false, errorKey: 'courseRegistration.student.applicationTypeRequired' }
+  }
+  if (primaryType === 'Add' || primaryType === 'Retake') {
+    if (form.needDrop !== 'yes' && form.needDrop !== 'no') {
+      return { ok: false, errorKey: 'courseRegistration.student.needDropRequired' }
+    }
+  }
+  const action = deriveAddDropAction(primaryType, form.needDrop)
+  if (!action) {
     return { ok: false, errorKey: 'courseRegistration.student.applicationTypeRequired' }
   }
   if (!String(form.contactPhone || '').trim()) {
     return { ok: false, errorKey: 'courseRegistration.student.contactPhoneRequired' }
   }
 
-  const { showII, showIII, showIV } = getVisibleAddDropSections(form.action)
+  const { showII, showIII, showIV } = getVisibleAddDropSections(action)
+  const addLines = Array.isArray(form.addLines) ? form.addLines : []
+  const dropLines = Array.isArray(form.dropLines) ? form.dropLines : []
+
+  function lineHasSection(line) {
+    return Boolean(line?.sectionId || line?.sectionCode)
+  }
 
   if (showII) {
-    const addId = form.action === 'AddDrop' ? form.addCourseId : form.courseId
-    if (!addId) {
+    if (!addLines.length) {
       return { ok: false, errorKey: 'courseRegistration.student.addDropSelectCourse' }
     }
-    if (form.action === 'AddDrop' ? !hasSection(form, 'add') : !hasSection(form, '')) {
+    if (!addLines.every(lineHasSection)) {
       return { ok: false, errorKey: 'courseRegistration.student.sectionRequired' }
     }
   }
 
   if (showIII) {
-    const dropId =
-      form.action === 'AddDrop' || form.action === 'RetakeDrop'
-        ? form.dropCourseId
-        : form.courseId
-    if (!dropId) {
+    if (!dropLines.length) {
       return { ok: false, errorKey: 'courseRegistration.student.addDropSelectCourse' }
     }
-    if (
-      form.action === 'AddDrop' || form.action === 'RetakeDrop'
-        ? !hasSection(form, 'drop')
-        : !hasSection(form, '')
-    ) {
+    if (!dropLines.every(lineHasSection)) {
       return { ok: false, errorKey: 'courseRegistration.student.sectionRequired' }
     }
     if (!String(form.dropReason || '').trim()) {
       return { ok: false, errorKey: 'courseRegistration.student.dropReasonRequired' }
     }
-    if (form.feeWaiver !== 'yes' && form.feeWaiver !== 'no') {
-      return { ok: false, errorKey: 'courseRegistration.student.feeWaiverRequired' }
-    }
   }
 
   if (showIV) {
-    if (!form.courseId) {
+    if (!addLines.length) {
       return { ok: false, errorKey: 'courseRegistration.student.addDropSelectCourse' }
-    }
-    if (!form.gradeEarned) {
-      return { ok: false, errorKey: 'courseRegistration.student.gradeEarnedRequired' }
-    }
-    if (!form.academicSessionTaken) {
-      return { ok: false, errorKey: 'courseRegistration.student.sessionTakenRequired' }
     }
     if (!form.retakeType) {
       return { ok: false, errorKey: 'courseRegistration.student.retakeTypeRequired' }
     }
-    if (!hasSection(form, '')) {
+    if (!addLines.every(lineHasSection)) {
       return { ok: false, errorKey: 'courseRegistration.student.sectionRequired' }
-    }
-    const timeVenue = String(form.classTimeVenue || form.classTime || '').replace(/[—–-]/g, '').trim()
-    if (!timeVenue) {
-      return { ok: false, errorKey: 'courseRegistration.student.classTimeVenueRequired' }
-    }
-    const lecturers = String(form.lecturers || '').trim()
-    if (!lecturers || lecturers === '—') {
-      return { ok: false, errorKey: 'courseRegistration.student.lecturersRequired' }
     }
   }
 
-  if (form.action === 'AddDrop') {
-    if (!form.dropCourseId || !form.addCourseId) {
+  if (action === 'AddDrop') {
+    if (!addLines.length || !dropLines.length) {
       return { ok: false, errorKey: 'courseRegistration.student.addDropSelectBothCourses' }
     }
   }
 
-  if (form.action === 'RetakeDrop') {
-    if (!form.dropCourseId || !form.courseId) {
+  if (action === 'RetakeDrop') {
+    if (!addLines.length || !dropLines.length) {
       return { ok: false, errorKey: 'courseRegistration.student.retakeDropSelectBothCourses' }
     }
-    if (form.dropCourseId === form.courseId) {
+    const addIds = new Set(addLines.map((l) => l.courseId || l.courseCode))
+    if (dropLines.some((l) => addIds.has(l.courseId) || addIds.has(l.courseCode))) {
       return { ok: false, errorKey: 'courseRegistration.student.retakeDropSameCourse' }
     }
   }
@@ -381,21 +523,46 @@ export function validateAddDropSectionForm(form) {
   return { ok: true }
 }
 
-/** 提交时写入申请单的分节字段快照 */
-export function buildAddDropSectionPayload(form, snapshots = {}, feeEstimate = null) {
+/**
+ * 提交时写入申请单的分节字段快照
+ * @param {object} form
+ * @param {object} [snapshots]
+ * @param {object|null} [feeEstimate]
+ * @param {{ termCreditExcess?: number }} [opts] 学期超额（展示用超出学分）
+ */
+export function buildAddDropSectionPayload(form, snapshots = {}, feeEstimate = null, opts = {}) {
   const reason =
     form.action === 'Drop' || form.action === 'AddDrop' || form.action === 'RetakeDrop'
       ? String(form.dropReason || '').trim()
       : String(form.addNotes || form.dropReason || '').trim()
 
+  const billableCredits =
+    feeEstimate?.billableCredits ??
+    form.feeEstimate?.billableCredits ??
+    form.billableCredits ??
+    0
+  const termExcess = Number(opts.termCreditExcess)
+  const excessCredits = Math.max(
+    0,
+    Number.isFinite(termExcess) ? termExcess : 0,
+    Number(billableCredits) || 0,
+    Number(form.excessCredits) || 0,
+  )
+
   return {
     contactPhone: String(form.contactPhone || '').trim(),
+    primaryType: form.primaryType || displayPrimaryType(form.action) || '',
+    needDrop:
+      form.needDrop === 'yes' || form.needDrop === 'no'
+        ? form.needDrop
+        : needDropFromAction(form.action),
     addType: form.addType || '',
     addNotes: String(form.addNotes || '').trim(),
     dropReason: String(form.dropReason || '').trim(),
     previouslyTakenCourse: String(form.previouslyTakenCourse || '').trim(),
     gradeEarned: form.gradeEarned || '',
     academicSessionTaken: form.academicSessionTaken || '',
+    previousCourseGradesText: String(form.previousCourseGradesText || '').trim(),
     retakeType: form.retakeType || '',
     transcriptId: form.transcriptId || '',
     eligibilitySource: form.eligibilitySource || '',
@@ -422,17 +589,14 @@ export function buildAddDropSectionPayload(form, snapshots = {}, feeEstimate = n
       retake: snapshots.retake || null,
     },
     feeEstimate: feeEstimate || form.feeEstimate || null,
-    billAmount: feeEstimate?.total ?? form.feeEstimate?.total ?? 0,
-    billableCredits:
-      feeEstimate?.billableCredits ??
-      form.feeEstimate?.billableCredits ??
-      form.billableCredits ??
-      0,
-    excessCredits:
-      feeEstimate?.billableCredits ??
-      form.feeEstimate?.billableCredits ??
-      form.excessCredits ??
-      0,
+    sstAmount: feeEstimate?.sstAmount ?? form.feeEstimate?.sstAmount ?? form.sstAmount ?? 0,
+    billAmount:
+      feeEstimate?.payableTotal ??
+      form.feeEstimate?.payableTotal ??
+      (Number(feeEstimate?.total || form.feeEstimate?.total || 0) +
+        Number(feeEstimate?.sstAmount || form.feeEstimate?.sstAmount || 0)),
+    billableCredits,
+    excessCredits,
     reason,
   }
 }

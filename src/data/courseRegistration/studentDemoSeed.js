@@ -8,7 +8,7 @@ import {
 import { addDropApprovalQueue } from './addDropApprovalQueue.js'
 import { waitlistCourses } from './waitlistQueue.js'
 import { DEFAULT_MOCK_CURRENT_STUDENT_ID } from '../mockCurrentStudent.js'
-import { LONG_SEMESTER_CREDIT_MIN, LONG_SEMESTER_CREDIT_MAX } from './registrationRules.js'
+import { resolveTermCreditMax, resolveTermCreditMin } from './registrationRules.js'
 import { deriveClassTime } from './sectionScheduleFields.js'
 import {
   enrichAddDropApplicationSchedule,
@@ -18,16 +18,19 @@ import {
 } from './studentVolunteerSheet.js'
 import { getCourseById, resolveSchoolElectiveCategory, syncSelectableSectionsFromConfirmed } from './selectableCourses.js'
 import { normalizeRegistrationType } from './registrationTypes.js'
+import { sumLiveMeGroupCredits } from './studentRegistrationContext.js'
 
 const DEMO_STUDENT_ID = DEFAULT_MOCK_CURRENT_STUDENT_ID
 
 /**
  * 轮次自选成功半池 — 按批次隔离（GE/ME、R2/R3 不共用）
  * ME R1 主批 m1：COMP101 + IT102
- * ME R2 cst / R3 cys：CST / CYS 生成课
  * GE R2 g2：BUS；GE R3 g3：MPU
  * 另：GE 代选 BUS201 挂 g2
+ * §25：压至 17 学分（长学期帽 20 内），保证加课选课器 3 学分空档行可过学分闸
  */
+const DEMO_TERM_ACADEMIC_SESSION = '2026/09'
+
 const DEMO_ROUND_CONFIRMED_COURSES = [
   {
     courseId: 'course-comp101',
@@ -69,78 +72,6 @@ const DEMO_ROUND_CONFIRMED_COURSES = [
     meetings: [{ time: 'Mon 09:00–11:00', room: 'D5-1-105', weekRange: '1-7' }],
   },
   {
-    courseId: 'course-cst-demo-1',
-    courseCode: 'CST201',
-    courseName: '离散结构',
-    courseNameEn: 'Discrete Structures',
-    credits: 3,
-    type: 'ME',
-    sectionId: 'sec-cst-demo-1-1',
-    sectionCode: '01',
-    time: 'Tue 08:00–10:00',
-    weekRange: '1-18',
-    room: 'B2-2-201',
-    lecturer: 'Dr. James Whitfield',
-    lecturerEn: 'Dr. James Whitfield',
-    batchId: 'batch-me-cst-i',
-    schoolElectiveCategory: 'science',
-    meetings: [{ time: 'Tue 08:00–10:00', room: 'B2-2-201', weekRange: '1-18' }],
-  },
-  {
-    courseId: 'course-cst-demo-2',
-    courseCode: 'CST202',
-    courseName: '计算机网络',
-    courseNameEn: 'Computer Networks',
-    credits: 3,
-    type: 'ME',
-    sectionId: 'sec-cst-demo-2-1',
-    sectionCode: '01',
-    time: 'Tue 10:00–12:00',
-    weekRange: '1-18',
-    room: 'B2-2-201',
-    lecturer: 'Dr. Emily Harrington',
-    lecturerEn: 'Dr. Emily Harrington',
-    batchId: 'batch-me-cst-i',
-    schoolElectiveCategory: 'business',
-    meetings: [{ time: 'Tue 10:00–12:00', room: 'B2-2-201', weekRange: '1-18' }],
-  },
-  {
-    courseId: 'course-cys-demo-1',
-    courseCode: 'CYS201',
-    courseName: '网络安全',
-    courseNameEn: 'Network Security',
-    credits: 3,
-    type: 'ME',
-    sectionId: 'sec-cys-demo-1-1',
-    sectionCode: '01',
-    time: 'Thu 08:00–10:00',
-    weekRange: '1-18',
-    room: 'B2-2-201',
-    lecturer: 'Dr. James Whitfield',
-    lecturerEn: 'Dr. James Whitfield',
-    batchId: 'batch-me-cys-i',
-    schoolElectiveCategory: 'arts',
-    meetings: [{ time: 'Thu 08:00–10:00', room: 'B2-2-201', weekRange: '1-18' }],
-  },
-  {
-    courseId: 'course-cys-demo-2',
-    courseCode: 'CYS202',
-    courseName: '密码学基础',
-    courseNameEn: 'Cryptography Basics',
-    credits: 3,
-    type: 'ME',
-    sectionId: 'sec-cys-demo-2-1',
-    sectionCode: '01',
-    time: 'Thu 10:00–12:00',
-    weekRange: '1-18',
-    room: 'B2-2-201',
-    lecturer: 'Dr. Emily Harrington',
-    lecturerEn: 'Dr. Emily Harrington',
-    batchId: 'batch-me-cys-i',
-    schoolElectiveCategory: 'arts',
-    meetings: [{ time: 'Thu 10:00–12:00', room: 'B2-2-201', weekRange: '1-18' }],
-  },
-  {
     courseId: 'course-bus-demo-1',
     courseCode: 'BUS301',
     courseName: '管理学原理',
@@ -175,24 +106,6 @@ const DEMO_ROUND_CONFIRMED_COURSES = [
     batchId: 'batch-2504-g2',
     schoolElectiveCategory: 'science',
     meetings: [{ time: 'Mon 16:00–18:00', room: 'B2-2-201', weekRange: '1-18' }],
-  },
-  {
-    courseId: 'course-mpu-demo-1',
-    courseCode: 'MPU401',
-    courseName: '廉洁与反贪腐',
-    courseNameEn: 'Integrity and Anti-Corruption',
-    credits: 2,
-    type: 'GE',
-    sectionId: 'sec-mpu-demo-1-1',
-    sectionCode: '01',
-    time: 'Wed 14:00–16:00',
-    weekRange: '1-18',
-    room: 'B2-2-201',
-    lecturer: 'Dr. James Whitfield',
-    lecturerEn: 'Dr. James Whitfield',
-    batchId: 'batch-2504-g3',
-    schoolElectiveCategory: 'arts',
-    meetings: [{ time: 'Wed 14:00–16:00', room: 'B2-2-201', weekRange: '1-18' }],
   },
   {
     courseId: 'course-mpu-demo-2',
@@ -327,14 +240,15 @@ function buildDemoSchedule(courses) {
 
 /** 学生加退课 demo：覆盖类型/状态/退课通道；学分按单覆盖，仅少量超限样本 */
 function buildDemoAddDropApplications(credits, schedule) {
-  const creditMax = LONG_SEMESTER_CREDIT_MAX
-  const normalCredits = Math.min(Math.max(credits || 16, 12), 18)
+  const creditMax = resolveTermCreditMax(DEMO_TERM_ACADEMIC_SESSION)
+  const creditMin = resolveTermCreditMin(DEMO_TERM_ACADEMIC_SESSION)
+  const normalCredits = Math.min(Math.max(credits || 16, creditMin), Math.max(creditMax - 2, creditMin))
   const baseStudent = {
     studentId: DEMO_STUDENT_ID,
     studentName: 'Tan Wei Ming',
     programme: 'SWE',
     intake: '2409',
-    academicSession: '2026/04',
+    academicSession: DEMO_TERM_ACADEMIC_SESSION,
     contactPhone: '0123456789',
     currentCredits: normalCredits,
     creditMax,
@@ -469,11 +383,10 @@ function buildDemoAddDropApplications(credits, schedule) {
       id: 'adr-xmum-08',
       applicationNo: 'ADR2509011',
       ...baseStudent,
-      currentCredits: 14,
-      type: 'Retake',
-      status: 'In Review',
-      submittedAt: '2026-07-11 10:25',
       currentCredits: 22,
+      type: 'Retake',
+      status: 'Approved',
+      submittedAt: '2026-07-11 10:25',
       billStatus: 'pending',
       billAmount: 480,
       reason: 'Improve major core grade',
@@ -488,7 +401,7 @@ function buildDemoAddDropApplications(credits, schedule) {
           fee: 480,
         },
       ],
-      approvalLog: [{ at: '2026-07-12 08:30', actor: 'AC SWE', action: 'In Review' }],
+      approvalLog: [{ at: '2026-07-12 09:00', actor: 'AC SWE', action: 'Approved' }],
     },
     {
       id: 'adr-xmum-retakedrop-01',
@@ -499,13 +412,15 @@ function buildDemoAddDropApplications(credits, schedule) {
       status: 'Pending',
       submittedAt: '2026-07-16 11:20',
       billStatus: 'pending',
-      billAmount: 1650,
+      billAmount: 1100,
+      excessCredits: 2,
       dropChannel: 'self',
       teachingWeek: 3,
       feeWaiver: true,
       reason: 'Credit load full — drop IT102 then retake MATH201',
       gradeEarned: 'F',
       academicSessionTaken: '2025/09',
+      previousCourseGradesText: '2025/09 不及格\n2024/09 缺考',
       retakeType: 'failed',
       items: [
         { action: 'Drop', courseCode: 'IT102', credits: 2, section: '01', time: 'Mon 09:00–11:00' },
@@ -514,9 +429,188 @@ function buildDemoAddDropApplications(credits, schedule) {
           courseCode: 'MATH201',
           credits: 4,
           section: '01',
+          sectionName: '分组名称01',
           time: 'Thu 10:00–12:00',
           retakeGrade: 'F',
-          fee: 1650,
+          fee: 1100,
+        },
+      ],
+      approvalLog: [],
+    },
+    {
+      id: 'adr-xmum-retakedrop-02',
+      applicationNo: 'ADR2509030',
+      ...baseStudent,
+      currentCredits: 22,
+      type: 'RetakeDrop',
+      status: 'Approved',
+      submittedAt: '2026-07-14 10:05',
+      billStatus: 'pending',
+      billAmount: 550,
+      excessCredits: 1,
+      dropChannel: 'self',
+      teachingWeek: 2,
+      feeWaiver: true,
+      reason: 'Retake COMP201 with elective drop (non-clash slot)',
+      gradeEarned: 'F',
+      academicSessionTaken: '2024/09',
+      previousCourseGradesText: '2024/09 不及格',
+      retakeType: 'failed',
+      items: [
+        { action: 'Drop', courseCode: 'ENGL201', credits: 3, section: '01', time: 'Wed 09:00–12:00' },
+        {
+          action: 'Retake',
+          courseCode: 'COMP201',
+          credits: 4,
+          section: '02',
+          sectionName: '分组名称02',
+          time: 'Tue 12:00–14:00',
+          room: 'A1-2-201',
+          weekRange: '1-16',
+          retakeGrade: 'F',
+          fee: 550,
+        },
+      ],
+      approvalLog: [{ at: '2026-07-14 16:00', actor: 'AC SWE', action: 'Approved' }],
+    },
+    {
+      id: 'adr-xmum-retakedrop-03',
+      applicationNo: 'ADR2509031',
+      ...baseStudent,
+      currentCredits: 21,
+      type: 'RetakeDrop',
+      status: 'Approved',
+      submittedAt: '2026-07-10 09:30',
+      billStatus: 'none',
+      billAmount: 0,
+      excessCredits: 0,
+      dropChannel: 'self',
+      teachingWeek: 2,
+      feeWaiver: true,
+      reason: 'Full credit offset after linked drop',
+      gradeEarned: 'D',
+      academicSessionTaken: '2024/09',
+      previousCourseGradesText: '2024/09 及格',
+      retakeType: 'improve',
+      items: [
+        { action: 'Drop', courseCode: 'HUM110', credits: 3, section: '01', time: 'Fri 09:00–12:00' },
+        {
+          action: 'Retake',
+          courseCode: 'STAT201',
+          credits: 3,
+          section: '02',
+          sectionName: '分组名称02',
+          time: 'Thu 16:00–18:00',
+          room: 'B2-1-105',
+          weekRange: '1-16',
+          retakeGrade: 'D',
+          fee: 0,
+        },
+      ],
+      approvalLog: [{ at: '2026-07-10 16:40', actor: 'AC SWE', action: 'Approved' }],
+    },
+    {
+      id: 'adr-xmum-retakedrop-04',
+      applicationNo: 'ADR2509032',
+      ...baseStudent,
+      currentCredits: 22,
+      type: 'RetakeDrop',
+      status: 'Rejected',
+      submittedAt: '2026-07-09 14:20',
+      billStatus: 'none',
+      billAmount: 0,
+      excessCredits: 4,
+      dropChannel: 'self',
+      teachingWeek: 3,
+      feeWaiver: false,
+      reason: 'No fee waiver; clash unresolved',
+      gradeEarned: 'F',
+      academicSessionTaken: '2023/09',
+      previousCourseGradesText: '2023/09 不及格',
+      retakeType: 'failed',
+      items: [
+        { action: 'Drop', courseCode: 'BUS201', credits: 3, section: '01', time: 'Tue 14:00–17:00' },
+        {
+          action: 'Retake',
+          courseCode: 'PHYS101',
+          credits: 4,
+          section: '01',
+          sectionName: '分组名称01',
+          time: 'Tue 14:00–17:00',
+          retakeGrade: 'F',
+          fee: 2200,
+        },
+      ],
+      approvalLog: [
+        { at: '2026-07-09 18:00', actor: 'AC SWE', action: 'Rejected', comment: 'Timetable clash' },
+      ],
+    },
+    {
+      id: 'adr-xmum-retakedrop-05',
+      applicationNo: 'ADR2509033',
+      ...baseStudent,
+      currentCredits: 22,
+      type: 'RetakeDrop',
+      status: 'Cancelled',
+      submittedAt: '2026-07-08 11:00',
+      billStatus: 'cancelled',
+      billAmount: 550,
+      excessCredits: 1,
+      dropChannel: 'self',
+      teachingWeek: 2,
+      feeWaiver: true,
+      reason: 'Cancelled retake-drop before review',
+      gradeEarned: 'F',
+      academicSessionTaken: '2025/09',
+      previousCourseGradesText: '2025/09 不及格\n2024/09 及格',
+      retakeType: 'failed',
+      items: [
+        { action: 'Drop', courseCode: 'SCI110', credits: 3, section: '01', time: 'Wed 14:00–17:00' },
+        {
+          action: 'Retake',
+          courseCode: 'MATH201',
+          credits: 4,
+          section: '01',
+          sectionName: '分组名称01',
+          time: 'Mon 09:00–11:00',
+          retakeGrade: 'F',
+          fee: 550,
+        },
+      ],
+      approvalLog: [{ at: '2026-07-08 20:00', actor: 'Student', action: 'Cancelled' }],
+    },
+    {
+      id: 'adr-xmum-retakedrop-06',
+      applicationNo: 'ADR2509034',
+      ...baseStudent,
+      currentCredits: 20,
+      type: 'RetakeDrop',
+      status: 'Pending',
+      submittedAt: '2026-07-15 16:45',
+      billStatus: 'pending',
+      billAmount: 0,
+      excessCredits: 0,
+      dropChannel: 'self',
+      teachingWeek: 4,
+      feeWaiver: true,
+      reason: 'Retake ENGL201 with full credit offset from SCI110',
+      gradeEarned: 'D',
+      academicSessionTaken: '2024/09',
+      previousCourseGradesText: '2024/09 及格',
+      retakeType: 'improve',
+      items: [
+        { action: 'Drop', courseCode: 'SCI110', credits: 3, section: '02', time: 'Fri 14:00–16:00' },
+        {
+          action: 'Retake',
+          courseCode: 'ENGL201',
+          credits: 3,
+          section: '02',
+          sectionName: '分组名称02',
+          time: 'Wed 09:00–12:00',
+          room: 'C1-3-102',
+          weekRange: '1-16',
+          retakeGrade: 'D',
+          fee: 0,
         },
       ],
       approvalLog: [],
@@ -575,7 +669,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       ...baseStudent,
       currentCredits: 29,
       type: 'AddDrop',
-      status: 'In Review',
+      status: 'Pending',
       submittedAt: '2026-07-15 08:45',
       billStatus: 'pending',
       billAmount: 320,
@@ -587,7 +681,7 @@ function buildDemoAddDropApplications(credits, schedule) {
         { action: 'Drop', courseCode: 'COMP201', credits: 4, section: '02', time: 'Wed 14:00–16:00' },
         { action: 'Add', courseCode: 'STAT201', credits: 3, section: '01', time: 'Mon 14:00–16:00', fee: 320 },
       ],
-      approvalLog: [{ at: '2026-07-15 10:00', actor: 'AC SWE', action: 'In Review' }],
+      approvalLog: [],
     },
     {
       id: 'adr-xmum-12',
@@ -611,14 +705,14 @@ function buildDemoAddDropApplications(credits, schedule) {
       applicationNo: 'ADR2509018',
       ...baseStudent,
       type: 'Add',
-      status: 'In Review',
+      status: 'Pending',
       submittedAt: '2026-07-16 10:00',
       currentCredits: 22,
       billStatus: 'pending',
       billAmount: 1500,
       reason: 'Add HUM110 GE overload sample',
       items: [{ action: 'Add', courseCode: 'HUM110', credits: 3, section: '01', time: 'Fri 09:00–12:00', fee: 1500 }],
-      approvalLog: [{ at: '2026-07-16 11:00', actor: 'AC SWE', action: 'In Review' }],
+      approvalLog: [],
     },
     {
       id: 'adr-xmum-14',
@@ -652,17 +746,17 @@ function buildDemoAddDropApplications(credits, schedule) {
       applicationNo: 'ADR2509021',
       ...baseStudent,
       type: 'Drop',
-      status: 'In Review',
+      status: 'Pending',
       submittedAt: '2026-07-16 14:30',
       billStatus: 'none',
       billAmount: 0,
       dropChannel: 'special',
       teachingWeek: 7,
       feeWaiver: true,
-      reason: 'Special drop under review',
+      reason: 'Special drop awaiting Academic Coordinator review',
       attachments: [{ name: 'advisor-note.pdf' }],
       items: [{ action: 'Drop', courseCode: 'ENGL201', credits: 3, section: '01', time: 'Wed 09:00–12:00' }],
-      approvalLog: [{ at: '2026-07-16 15:00', actor: 'AC SWE', action: 'In Review' }],
+      approvalLog: [],
     },
     {
       id: 'adr-xmum-17',
@@ -795,7 +889,7 @@ function buildDemoAddDropApplications(credits, schedule) {
     },
     {
       id: 'adr-xmum-23',
-      applicationNo: 'ADR2509028',
+      applicationNo: 'ADR2509029',
       ...baseStudent,
       type: 'Retake',
       status: 'Pending',
@@ -827,15 +921,17 @@ function syncDemoAddDropApplications(credits, schedule) {
   for (const app of studentApps) {
     statusCounts[app.status] = (statusCounts[app.status] || 0) + 1
   }
-  const requiredStatuses = ['Pending', 'In Review', 'Approved', 'Rejected', 'Cancelled']
+  const requiredStatuses = ['Pending', 'Approved', 'Rejected', 'Cancelled']
   const statusCoverageOk = requiredStatuses.every((s) => (statusCounts[s] || 0) >= 2)
   const typeCoverageOk = ['Add', 'Drop', 'Retake', 'AddDrop', 'RetakeDrop'].every((type) =>
     studentApps.some((app) => app.type === type),
   )
+  const retakeDropCount = studentApps.filter((app) => app.type === 'RetakeDrop').length
   const needsReseed =
     studentApps.length < 16 ||
     !statusCoverageOk ||
     !typeCoverageOk ||
+    retakeDropCount < 5 ||
     studentApps.some((app) => !app.academicSession) ||
     studentApps.some((app) => app.type === 'Replace') ||
     studentApps.some((app) => String(app.submittedAt || '').includes('2025-09')) ||
@@ -943,20 +1039,22 @@ function sumTermCategoryCreditsFromCourses(courses, typeFilter) {
 function syncDemoMonitor(courses) {
   const credits = courses.reduce((sum, item) => sum + (item.credits || 0), 0)
   const schedule = buildDemoSchedule(courses)
+  const creditMin = resolveTermCreditMin(DEMO_TERM_ACADEMIC_SESSION)
+  const creditMax = resolveTermCreditMax(DEMO_TERM_ACADEMIC_SESSION)
   const status =
     credits === 0
       ? 'notRegistered'
-      : credits < LONG_SEMESTER_CREDIT_MIN
+      : credits < creditMin
         ? 'creditLow'
-        : credits > LONG_SEMESTER_CREDIT_MAX
+        : credits > creditMax
           ? 'creditHigh'
           : 'normal'
   const issues =
     credits === 0
       ? ['notRegistered']
-      : credits < LONG_SEMESTER_CREDIT_MIN
+      : credits < creditMin
         ? ['creditBelowMin']
-        : credits > LONG_SEMESTER_CREDIT_MAX
+        : credits > creditMax
           ? ['creditAboveMax']
           : []
 
@@ -968,8 +1066,8 @@ function syncDemoMonitor(courses) {
     programme: 'SWE',
     intake: '2409',
     credits,
-    creditMin: LONG_SEMESTER_CREDIT_MIN,
-    creditMax: LONG_SEMESTER_CREDIT_MAX,
+    creditMin,
+    creditMax,
     status,
     tags: ['senior'],
     // 历史先修：MATH101 已通过；STAT100 曾修但不及格（演示「成绩不及格」）
@@ -986,23 +1084,23 @@ function syncDemoMonitor(courses) {
       /** 演示生学期帽：覆盖已选约 13(GE)/18(ME)，允许继续提交选课 */
       meMax: 22,
     },
-    // 文商理已选 = 确认课按校选类别汇总，之和 = 本学期 GE/ME 总分
+    // ME 课程组 / GE 文商理已选均按确认课汇总，与学期总分同源
     termGeCategories: {
-      ...sumTermCategoryCreditsFromCourses(courses, 'ME'),
-      required: { humanities: 7, business: 8, science: 7 },
+      ...sumLiveMeGroupCredits(courses),
+      required: { group4of3: 8, group3of2: 6, group2of1: 4, ordinary: 4 },
     },
     termGeElectiveCategories: {
       ...sumTermCategoryCreditsFromCourses(courses, 'GE'),
       required: { humanities: 5, business: 5, science: 4, aiOpen: 4 },
     },
-    // 毕业进度：首次选课叙事下与本学期文商理一致
+    // 毕业进度：首次选课叙事下已选≡本学期
     graduationGeProgress: {
       ...sumTermCategoryCreditsFromCourses(courses, 'GE'),
       required: { humanities: 12, business: 12, science: 12, aiOpen: 12 },
     },
     graduationMeProgress: {
-      ...sumTermCategoryCreditsFromCourses(courses, 'ME'),
-      required: { humanities: 12, business: 20, science: 16 },
+      ...sumLiveMeGroupCredits(courses),
+      required: { group4of3: 16, group3of2: 12, group2of1: 8, ordinary: 12 },
     },
     schedule,
     issues,
@@ -1033,7 +1131,8 @@ export function seedStudentRegistrationDemo() {
       (item) => item.courseCode === 'BUS201' && item.schoolElectiveCategory === 'ai_open',
     ) ||
     !studentConfirmedCourses.value.some((item) => item.courseCode === 'CST201' && item.batchId === 'batch-me-cst-i') ||
-    !studentConfirmedCourses.value.some((item) => item.courseCode === 'MPU401' && item.batchId === 'batch-2504-g3') ||
+    !studentConfirmedCourses.value.some((item) => item.courseCode === 'MPU402' && item.batchId === 'batch-2504-g3') ||
+    studentConfirmedCourses.value.some((item) => item.courseCode === 'MPU401') ||
     studentConfirmedCourses.value.some(
       (item) =>
         item.courseCode === 'COMP101' &&
@@ -1041,7 +1140,7 @@ export function seedStudentRegistrationDemo() {
     ) ||
     studentConfirmedCourses.value.some(
       (item) =>
-        (item.courseCode === 'CST201' || item.courseCode === 'BUS301' || item.courseCode === 'MPU401') &&
+        (item.courseCode === 'CST201' || item.courseCode === 'BUS301') &&
         String(item.time || '').includes('Wed 10:00'),
     ) ||
     studentConfirmedCourses.value.some(
@@ -1087,20 +1186,31 @@ export function seedStudentRegistrationDemo() {
   const monitorIdx = registrationMonitorQueue.value.findIndex((r) => r.studentId === DEMO_STUDENT_ID)
   if (monitorIdx >= 0) {
     const row = registrationMonitorQueue.value[monitorIdx]
-    const meCats = sumTermCategoryCreditsFromCourses(studentConfirmedCourses.value, 'ME')
     const geCats = sumTermCategoryCreditsFromCourses(studentConfirmedCourses.value, 'GE')
+    const meCats = sumLiveMeGroupCredits(studentConfirmedCourses.value)
+    const geCredits = studentConfirmedCourses.value.reduce(
+      (sum, item) => sum + (item.type === 'GE' ? item.credits || 0 : 0),
+      0,
+    )
+    const meCredits = studentConfirmedCourses.value.reduce(
+      (sum, item) =>
+        sum + (item.type === 'ME' || item.type === 'Mandatory' ? item.credits || 0 : 0),
+      0,
+    )
     registrationMonitorQueue.value[monitorIdx] = {
       ...row,
       passedCourses: row.passedCourses?.length ? row.passedCourses : ['MATH101'],
       failedCourses: row.failedCourses?.length ? row.failedCourses : ['STAT100'],
       termElectiveProgress: {
         ...(row.termElectiveProgress || {}),
+        ge: geCredits,
+        me: meCredits,
         geMax: 18,
         meMax: 22,
       },
       termGeCategories: {
         ...meCats,
-        required: { humanities: 7, business: 8, science: 7 },
+        required: { group4of3: 8, group3of2: 6, group2of1: 4, ordinary: 4 },
       },
       termGeElectiveCategories: {
         ...geCats,
@@ -1112,7 +1222,7 @@ export function seedStudentRegistrationDemo() {
       },
       graduationMeProgress: {
         ...meCats,
-        required: { humanities: 12, business: 20, science: 16 },
+        required: { group4of3: 16, group3of2: 12, group2of1: 8, ordinary: 12 },
       },
     }
   } else {

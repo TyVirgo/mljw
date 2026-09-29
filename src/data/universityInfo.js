@@ -91,6 +91,36 @@ export function formatDateToMmYyyy(date) {
   return `${mm}/${yyyy}`
 }
 
+const yearMonthPattern = /^\d{4}\/(0[1-9]|1[0-2])$/
+
+/** 学年学期等：YYYY/MM（如 2026/09） */
+export function isValidYyyyMm(value) {
+  if (!value?.trim()) return false
+  if (!yearMonthPattern.test(value.trim())) return false
+  const [, yyyy, mm] = value.trim().match(/^(\d{4})\/(\d{2})$/)
+  const month = Number(mm)
+  const year = Number(yyyy)
+  return month >= 1 && month <= 12 && year >= 1000 && year <= 9999
+}
+
+export function formatYyyyMmInput(raw) {
+  const digits = String(raw).replace(/\D/g, '').slice(0, 6)
+  if (digits.length <= 4) return digits
+  return `${digits.slice(0, 4)}/${digits.slice(4)}`
+}
+
+export function parseYyyyMm(value) {
+  if (!isValidYyyyMm(value)) return null
+  const [, yyyy, mm] = value.trim().match(/^(\d{4})\/(\d{2})$/)
+  return new Date(Number(yyyy), Number(mm) - 1, 1)
+}
+
+export function formatDateToYyyyMm(date) {
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const yyyy = date.getFullYear()
+  return `${yyyy}/${mm}`
+}
+
 export function isValidDdMmYyyy(value) {
   if (!value?.trim()) return false
   if (!datePattern.test(value.trim())) return false

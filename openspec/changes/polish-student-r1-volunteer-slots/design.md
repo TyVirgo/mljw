@@ -49,10 +49,11 @@
     - `isVolunteerListLocked`：只认 `demoVolunteerReleaseMode === 'released'` 或开放轮非 `preselect`  
     - 不认结果页 `volunteerSheetsByBatch[batchId].releaseMode`（该字段仅服务「我的选课」公示 demo）
 
-15. **按行退选/拖拽（§11）**  
-    - 待分配：可退选 + 可拖  
-    - 选课失败（`failed` / `miss`）：不可退选、不可拖  
+15. **按行退选/拖拽（§11）**
+    - 待分配：可退选 + 可拖
+    - 选课失败（`failed` / `miss`）：不可退选、不可拖
     - R2/R3 已选成功仍可退选（失败行除外）
+    - **增量 2026-09**：退选 / 调序键均为 `courseId + sectionId`，同课多分组互不影响
 
 16. **排队表列对齐（§11）**  
     - 志愿模式下排队表左侧增加与拖拽列同宽的空列，序号列对齐志愿次序列宽；共用固定列宽

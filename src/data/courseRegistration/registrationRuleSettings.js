@@ -1,4 +1,6 @@
 import { ref } from 'vue'
+import { parseBatchDateTime } from './registrationBatchFormUtils.js'
+import { resolveEffectiveCrossReleaseAt } from './sessionRegistrationSchedules.js'
 
 /**
  * v4：v3 目录 + CR205 第三轮选课新老生名额互释（并入规则表，不再独立卡片）
@@ -234,4 +236,18 @@ export function isReleaseCrossAudienceOnRound3(batch) {
     return local.releaseCrossAudienceOnRound3 !== false
   }
   return isCampusReleaseCrossAudienceOnRound3()
+}
+
+/**
+ * 互释是否已对容量生效：政策开关开，且当前时间已达选课时间配置中的生效时刻
+ * @param {object|null|undefined} batch
+ * @param {number} [nowMs]
+ */
+export function isCrossAudienceReleaseActive(batch, nowMs = Date.now()) {
+  if (!isReleaseCrossAudienceOnRound3(batch)) return false
+  const at = resolveEffectiveCrossReleaseAt(batch)
+  if (!at) return false
+  const parsed = parseBatchDateTime(at)
+  if (!parsed || Number.isNaN(parsed.getTime())) return false
+  return nowMs >= parsed.getTime()
 }

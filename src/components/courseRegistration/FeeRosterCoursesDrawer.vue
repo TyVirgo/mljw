@@ -6,7 +6,6 @@ import { getRegistrationTypeLabel } from '../../data/courseRegistration/registra
 import {
   getFeeRosterCoursesByStudent,
   feeCourseSourceLabel,
-  sumStudentCourseCredits,
 } from '../../data/courseRegistration/feeRosterQueue.js'
 
 const props = defineProps({
@@ -18,12 +17,16 @@ const emit = defineEmits(['close'])
 
 const { t } = useAppI18n()
 
-const courses = computed(() =>
-  props.student ? getFeeRosterCoursesByStudent(props.student.studentId) : [],
-)
+const courses = computed(() => {
+  if (!props.student) return []
+  const paid = String(props.student.isPaid || '').toUpperCase()
+  return getFeeRosterCoursesByStudent(props.student.studentId, undefined, {
+    paid: paid === 'Y' || paid === 'N' ? paid : undefined,
+  })
+})
 
 const enrolledSum = computed(() =>
-  props.student ? sumStudentCourseCredits(props.student.studentId) : 0,
+  courses.value.reduce((sum, row) => sum + (Number(row.courseCredits) || 0), 0),
 )
 
 const title = computed(() =>

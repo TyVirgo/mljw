@@ -7,6 +7,8 @@ import { parseIntakeBatch, VALID_INTAKE_MONTHS } from '../intakeSets.js'
 
 export const DEMO_ROUND1_OPEN_DAYS = 5
 export const DEFAULT_DECAY_R = 3
+/** GE：毕业生最多占老生容量比例（默认 90%，留 10% 给非毕业生） */
+export const DEFAULT_GRADUATE_CAP_RATIO = 0.9
 export const DEFAULT_ME_QUOTA_TOTAL_CAP = 100
 export const YEAR_INTAKE_MONTHS = [...VALID_INTAKE_MONTHS]
 /** ME 名额表入学学期选项年池（原型暂定） */
@@ -313,9 +315,9 @@ export function validateMeQuotaRows(rows = [], ctx = {}, totalCap = DEFAULT_ME_Q
   return { ok: true }
 }
 
-/** 学期全局：仅 GE 衰退因子 */
+/** 学期全局：GE 衰退因子 + 毕业生封顶比 */
 export function defaultSessionRound1Quota() {
-  return { decayR: DEFAULT_DECAY_R }
+  return { decayR: DEFAULT_DECAY_R, graduateCapRatio: DEFAULT_GRADUATE_CAP_RATIO }
 }
 
 /** ME 批次：新建空表（无默认占比行） */
@@ -335,10 +337,27 @@ export function defaultBatchMeQuota(academicSession = '') {
   }
 }
 
+
+/**
+ * 归一化毕业生封顶比到 (0, 1]
+ * @param {unknown} raw
+ * @returns {number}
+ */
+export function normalizeGraduateCapRatio(raw) {
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_GRADUATE_CAP_RATIO
+  if (n > 1) {
+    if (n <= 100) return Math.min(1, n / 100)
+    return DEFAULT_GRADUATE_CAP_RATIO
+  }
+  return n
+}
+
 export function normalizeSessionRound1Quota(raw) {
   const r = Number(raw?.decayR)
   return {
     decayR: Number.isFinite(r) && r > 0 ? r : DEFAULT_DECAY_R,
+    graduateCapRatio: normalizeGraduateCapRatio(raw?.graduateCapRatio),
   }
 }
 
@@ -367,12 +386,21 @@ export function defaultRound1Quota(batchType = 'GE', programme = '', academicSes
 }
 
 export function normalizeRound1Quota(raw, batchType = 'GE', programme = '', academicSession = '') {
-  const decayR = normalizeSessionRound1Quota(raw).decayR
+  const session = normalizeSessionRound1Quota(raw)
   if (String(batchType || '').toUpperCase() === 'ME') {
     const batch = normalizeBatchMeQuota(raw, academicSession)
-    return { decayR, totalCap: batch.totalCap, meQuotaRows: batch.meQuotaRows }
+    return {
+      decayR: session.decayR,
+      graduateCapRatio: session.graduateCapRatio,
+      totalCap: batch.totalCap,
+      meQuotaRows: batch.meQuotaRows,
+    }
   }
-  return { decayR, meQuotaRows: [] }
+  return {
+    decayR: session.decayR,
+    graduateCapRatio: session.graduateCapRatio,
+    meQuotaRows: [],
+  }
 }
 
 export function getBatchRound1Quota(batch) {

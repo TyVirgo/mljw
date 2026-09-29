@@ -8,8 +8,32 @@ import {
 /** @deprecated 保留兼容；真相源为 permissions */
 export const supplementListTypes = ['supplement']
 
-export const SUPPLEMENT_INVITE_HOURS = 24
-export const SUPPLEMENT_MAX_INVITE_ATTEMPTS = 2
+export const SUPPLEMENT_INVITE_HOURS = 48
+/** @deprecated 不再限制发送/再次开放次数；保留常量避免外部引用报错 */
+export const SUPPLEMENT_MAX_INVITE_ATTEMPTS = Number.POSITIVE_INFINITY
+
+const EN_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** 白名单日期展示/写入：10-Sep-2025 */
+export function formatWhitelistAddedAt(value = new Date()) {
+  if (value == null || value === '') return ''
+  const raw = String(value).trim()
+  if (/^\d{2}-[A-Za-z]{3}-\d{4}$/.test(raw)) return raw
+  let d
+  if (value instanceof Date) {
+    d = value
+  } else {
+    const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (iso) d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]))
+    else {
+      const t = Date.parse(raw)
+      d = Number.isNaN(t) ? null : new Date(t)
+    }
+  }
+  if (!d || Number.isNaN(d.getTime())) return raw
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${day}-${EN_MON[d.getMonth()]}-${d.getFullYear()}`
+}
 
 /** 白名单权限 key */
 export const WHITELIST_PERMISSION_KEYS = [
@@ -34,6 +58,15 @@ function parseInviteStamp(value) {
   if (!value) return null
   if (value instanceof Date) return value
   const raw = String(value).trim()
+  // 学年学期 YYYY/MM → 该月最后一天 23:59:59
+  const session = raw.match(/^(\d{4})\/(\d{2})$/)
+  if (session) {
+    const y = Number(session[1])
+    const mo = Number(session[2])
+    if (y > 0 && mo >= 1 && mo <= 12) {
+      return new Date(y, mo, 0, 23, 59, 59)
+    }
+  }
   const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/)
   if (m) {
     return new Date(
@@ -129,6 +162,7 @@ function syncLegacyFlags(entry) {
   return {
     ...entry,
     listType: 'supplement',
+    supplement: has('supplement'),
     canAdd: has('canAdd'),
     canDrop: has('canDrop'),
     canRetake: has('canRetake'),
@@ -200,112 +234,307 @@ export function entryHasActivePermission(entry, key, now = new Date()) {
   return isPermissionActive(perm, now)
 }
 
-/** 先修豁免：仅加课申请路径使用 */
+/** 课程豁免先修课：仅加课申请路径使用（须配置课号） */
 export function hasWhitelistPrerequisiteBypass(studentId, courseCode = '', now = new Date()) {
   const entry = getSupplementEntry(studentId)
   if (!entry) return false
   const perm = getPermission(entry, 'bypassPrerequisite')
   if (!isPermissionActive(perm, now)) return false
   const codes = perm.courseCodes || []
-  if (!codes.length) return true
+  if (!codes.length) return false
   if (!courseCode) return true
   return codes.map((c) => String(c).toUpperCase()).includes(String(courseCode).toUpperCase())
 }
 
-const initialSupplementList = [
-  {
-    id: 'sup-001',
-    studentId: 'COS2504015',
-    studentName: 'Tan Mei Ling',
-    programme: 'COS',
-    intake: '2025/04',
-    addedAt: '10-Sep-2025',
-    addedBy: 'AC COS',
-    source: 'registration-monitor',
-    remark: '新生学分不足例外：补注册+加课',
-    permissions: [
-      createPermission('supplement'),
-      createPermission('canAdd'),
-    ],
-  },
-  {
-    id: 'sup-002',
-    studentId: 'DSA2504002',
-    studentName: 'Lee Wei Ming',
-    programme: 'DSA',
-    intake: '2025/04',
-    addedAt: '09-Sep-2025',
-    addedBy: 'AC DSA',
-    source: 'manual',
-    remark: '学分不足，开放加退课申请',
-    permissions: [
-      createPermission('supplement'),
-      createPermission('canAdd'),
-      createPermission('canDrop'),
-      createPermission('canRetake'),
-    ],
-  },
-  {
-    id: 'sup-003',
-    studentId: 'XMUM2309001',
-    studentName: 'Tan Wei Ming',
-    programme: 'SWE',
-    intake: '2023/09',
-    addedAt: '12-Sep-2025',
-    addedBy: 'AC Demo',
-    source: 'manual',
-    remark: '演示学生：窗口外也可申请',
-    permissions: [
-      createPermission('supplement'),
-      createPermission('canAdd'),
-      createPermission('canDrop'),
-      createPermission('canRetake'),
-    ],
-  },
-  {
-    id: 'sup-004',
-    studentId: 'DSA2409008',
-    studentName: 'Raj Kumar',
-    programme: 'DSA',
-    intake: '2024/09',
-    addedAt: '08-Sep-2025',
-    addedBy: 'AC DSA',
-    source: 'manual',
-    remark: '末学期先修豁免加课（至学期末）',
-    permissions: [
-      createPermission('supplement'),
-      createPermission('canAdd'),
-      createPermission('bypassPrerequisite', {
-        validHours: null,
-        validUntil: '2026-01-31 17:00:00',
-        courseCodes: ['COMP3192'],
-      }),
-    ],
-  },
-  {
-    id: 'sup-005',
-    studentId: 'AIT2409010',
-    studentName: 'Siti Nurhaliza',
-    programme: 'AIT',
-    intake: '2024/09',
-    addedAt: '05-Sep-2025',
-    addedBy: 'AC AIT',
-    source: 'manual',
-    remark: '突破最高学分（演示）',
-    permissions: [
-      createPermission('supplement'),
-      createPermission('canAdd'),
-      createPermission('bypassCreditMax', { validHours: null, validUntil: '2026-01-31 17:00:00' }),
-    ],
-  },
-].map((item) => normalizeWhitelistEntry(item))
+/**
+ * 给邀请门权限打上发送次数与截止（相对当前时刻，保证初始页可见有效/逾期）
+ * @param {object[]} perms
+ * @param {{ attempt?: number, remainMs?: number | null }} opts
+ *   remainMs>0 有效剩余；remainMs<=0 或 null 且 attempt>0 则逾期；attempt=0 未发送
+ */
+function stampInviteOnGated(perms, { attempt = 0, remainMs = null } = {}) {
+  if (attempt <= 0) return perms
+  const now = Date.now()
+  const deadlineMs = remainMs == null || remainMs <= 0 ? now - 60 * 1000 : now + remainMs
+  const sentMs = remainMs != null && remainMs > 0 ? now - (48 * 60 * 60 * 1000 - remainMs) : now - 49 * 60 * 60 * 1000
+  const deadlineAt = formatInviteStamp(new Date(deadlineMs))
+  const inviteSentAt = formatInviteStamp(new Date(Math.max(0, sentMs)))
+  return perms.map((perm) => {
+    if (!INVITE_GATED_PERMISSION_KEYS.includes(perm.key)) return perm
+    return {
+      ...perm,
+      inviteAttempt: attempt,
+      inviteSentAt,
+      deadlineAt,
+    }
+  })
+}
+
+/** 演示名单：覆盖未发 / 有效内可再发 / 已逾期（再次开放）+ 多种权限组合，共 25 行 */
+function buildDemoWhitelistSeed() {
+  const activeRemain = 47 * 60 * 60 * 1000 + 30 * 60 * 1000 // ~47h30m
+  const rows = [
+    {
+      id: 'sup-001',
+      studentId: 'COS2504015',
+      studentName: 'Tan Mei Ling',
+      programme: 'COS',
+      intake: '2025/04',
+      addedAt: '10-Sep-2025',
+      addedBy: 'AC COS',
+      source: 'registration-monitor',
+      remark: '未发通知 · 仅可加课',
+      permissions: stampInviteOnGated(
+        [createPermission('supplement'), createPermission('canAdd')],
+        { attempt: 0 },
+      ),
+    },
+    {
+      id: 'sup-002',
+      studentId: 'DSA2504002',
+      studentName: 'Lee Wei Ming',
+      programme: 'DSA',
+      intake: '2025/04',
+      addedAt: '09-Sep-2025',
+      addedBy: 'AC DSA',
+      source: 'manual',
+      remark: '有效期内 · 加退重修全开（可再发通知）',
+      permissions: stampInviteOnGated(
+        [
+          createPermission('supplement'),
+          createPermission('canAdd'),
+          createPermission('canDrop'),
+          createPermission('canRetake'),
+        ],
+        { attempt: 1, remainMs: activeRemain },
+      ),
+    },
+    {
+      id: 'sup-003',
+      studentId: 'XMUM2309001',
+      studentName: 'Tan Wei Ming',
+      programme: 'SWE',
+      intake: '2023/09',
+      addedAt: '12-Sep-2025',
+      addedBy: 'AC Demo',
+      source: 'manual',
+      remark: '有效白名单 · 演示学生窗外可申请',
+      permissions: stampInviteOnGated(
+        [
+          createPermission('supplement'),
+          createPermission('canAdd'),
+          createPermission('canDrop'),
+          createPermission('canRetake'),
+          createPermission('bypassCreditMin', { validHours: null, validUntil: '2026/02' }),
+        ],
+        { attempt: 1, remainMs: activeRemain },
+      ),
+    },
+    {
+      id: 'sup-004',
+      studentId: 'DSA2409008',
+      studentName: 'Raj Kumar',
+      programme: 'DSA',
+      intake: '2024/09',
+      addedAt: '08-Sep-2025',
+      addedBy: 'AC DSA',
+      source: 'manual',
+      remark: '有效期内 · 课程豁免先修课',
+      permissions: stampInviteOnGated(
+        [
+          createPermission('supplement'),
+          createPermission('canAdd'),
+          createPermission('bypassPrerequisite', {
+            validHours: null,
+            validUntil: '2026/02',
+            courseCodes: ['COMP3192'],
+          }),
+        ],
+        { attempt: 2, remainMs: 12 * 60 * 60 * 1000 },
+      ),
+    },
+    {
+      id: 'sup-005',
+      studentId: 'AIT2409010',
+      studentName: 'Siti Nurhaliza',
+      programme: 'AIT',
+      intake: '2024/09',
+      addedAt: '05-Sep-2025',
+      addedBy: 'AC AIT',
+      source: 'manual',
+      remark: '已逾期 · 突破本学期学分要求',
+      permissions: stampInviteOnGated(
+        [
+          createPermission('supplement'),
+          createPermission('canAdd'),
+          createPermission('bypassCreditMin', { validHours: null, validUntil: '2026/02' }),
+        ],
+        { attempt: 2, remainMs: -2 * 60 * 60 * 1000 },
+      ),
+    },
+    {
+      id: 'sup-006',
+      studentId: 'BUS2409020',
+      studentName: 'Wong Mei Ling',
+      programme: 'BUS',
+      intake: '2024/09',
+      addedAt: '04-Sep-2025',
+      addedBy: 'AC Demo',
+      source: 'manual',
+      remark: '未发通知 · 院系特批',
+      permissions: [
+        createPermission('supplement'),
+        createPermission('canAdd'),
+        createPermission('canDrop'),
+      ],
+    },
+    {
+      id: 'sup-007',
+      studentId: 'COS2409001',
+      studentName: 'Ahmad bin Ali',
+      programme: 'COS',
+      intake: '2024/09',
+      addedAt: '03-Sep-2025',
+      addedBy: 'AC Demo',
+      source: 'manual',
+      remark: '已逾期 · 演示再次开放（非演示学号）',
+      permissions: stampInviteOnGated(
+        [
+          createPermission('supplement'),
+          createPermission('canAdd'),
+          createPermission('canDrop'),
+          createPermission('canRetake'),
+        ],
+        { attempt: 1, remainMs: -30 * 60 * 1000 },
+      ),
+    },
+    {
+      id: 'sup-008',
+      studentId: 'SWE2409001',
+      studentName: 'Lim Wei Jie',
+      programme: 'SWE',
+      intake: '2024/09',
+      addedAt: '02-Sep-2025',
+      addedBy: 'AC Demo',
+      source: 'registration-monitor',
+      remark: '有效期内 · 监控转入',
+      permissions: stampInviteOnGated(
+        [createPermission('supplement'), createPermission('canAdd'), createPermission('canRetake')],
+        { attempt: 1, remainMs: 6 * 60 * 60 * 1000 },
+      ),
+    },
+    {
+      id: 'sup-009',
+      studentId: 'SWE2409012',
+      studentName: 'Lim Jia Hui',
+      programme: 'SWE',
+      intake: '2024/09',
+      addedAt: '01-Sep-2025',
+      addedBy: 'AC Demo',
+      source: 'manual',
+      remark: '未发通知 · 仅可重修',
+      permissions: [createPermission('supplement'), createPermission('canRetake')],
+    },
+    {
+      id: 'sup-010',
+      studentId: 'ACC2409008',
+      studentName: 'Chong Kai Xin',
+      programme: 'ACC',
+      intake: '2024/09',
+      addedAt: '31-Aug-2025',
+      addedBy: 'AC Demo',
+      source: 'manual',
+      remark: '已逾期 · 学分例外+先修豁免',
+      permissions: stampInviteOnGated(
+        [
+          createPermission('supplement'),
+          createPermission('canAdd'),
+          createPermission('canDrop'),
+          createPermission('canRetake'),
+          createPermission('bypassPrerequisite', {
+            validHours: null,
+            validUntil: '2026/02',
+            courseCodes: ['AI101', 'BUS301'],
+          }),
+          createPermission('bypassCreditMin', { validHours: null, validUntil: '2026/02' }),
+        ],
+        { attempt: 3, remainMs: -24 * 60 * 60 * 1000 },
+      ),
+    },
+  ]
+
+  const more = [
+    { studentId: 'MAT2504003', studentName: 'Raj Kumar', programme: 'MAT', intake: '2025/04', remark: '未发 · 新生加课', invite: { attempt: 0 } },
+    { studentId: 'FIN2409011', studentName: 'Nurul Aina', programme: 'FIN', intake: '2024/09', remark: '有效 · 监控转入', invite: { attempt: 1, remainMs: activeRemain } },
+    { studentId: 'ENG2409018', studentName: 'Emily Tan', programme: 'ENG', intake: '2024/09', remark: '已逾期 · 人文院特批', invite: { attempt: 1, remainMs: -60 * 1000 } },
+    { studentId: 'CHE2409006', studentName: 'Koh Wei Jie', programme: 'CHE', intake: '2024/09', remark: '有效 · 可加可退', invite: { attempt: 2, remainMs: 3 * 60 * 60 * 1000 }, drop: true },
+    { studentId: 'PHY2504004', studentName: 'Amira Hassan', programme: 'PHY', intake: '2025/04', remark: '未发 · 国际生', invite: { attempt: 0 }, creditMin: true },
+    { studentId: 'BIO2409014', studentName: 'Daniel Lim', programme: 'BIO', intake: '2024/09', remark: '有效 · 先修豁免', invite: { attempt: 1, remainMs: 20 * 60 * 60 * 1000 }, prereq: true },
+    { studentId: 'ACC2504009', studentName: 'Priya Sharma', programme: 'ACC', intake: '2025/04', remark: '已逾期 · 新生补选', invite: { attempt: 2, remainMs: -10 * 60 * 1000 } },
+    { studentId: 'FIN2504010', studentName: 'Jason Ong', programme: 'FIN', intake: '2025/04', remark: '未发 · 学分不足', invite: { attempt: 0 } },
+    { studentId: 'SWE2409025', studentName: 'Grace Yap', programme: 'SWE', intake: '2024/09', remark: '有效 · 毕业班重修', invite: { attempt: 1, remainMs: 1 * 60 * 60 * 1000 }, retake: true },
+    { studentId: 'AIT2504011', studentName: 'Farid Ismail', programme: 'AIT', intake: '2025/04', remark: '已逾期 · 可加课', invite: { attempt: 1, remainMs: -5 * 60 * 1000 } },
+    { studentId: 'BUS2409030', studentName: 'Nicole Chua', programme: 'BUS', intake: '2024/09', remark: '未发 · 国际生特批', invite: { attempt: 0 }, drop: true, retake: true },
+    { studentId: 'MAT2409016', studentName: 'Hafiz Rahman', programme: 'MAT', intake: '2024/09', remark: '有效 · 可退课', invite: { attempt: 1, remainMs: 30 * 60 * 60 * 1000 }, drop: true },
+    { studentId: 'COS2409022', studentName: 'Sophie Ng', programme: 'COS', intake: '2024/09', remark: '已逾期 · 先修演示', invite: { attempt: 2, remainMs: -48 * 60 * 60 * 1000 }, prereq: true },
+    { studentId: 'SWE2504019', studentName: 'Aisha Rahman', programme: 'SWE', intake: '2025/04', remark: '未发 · 新生加退课', invite: { attempt: 0 }, drop: true, retake: true },
+    { studentId: 'FIN2409028', studentName: 'Brian Koh', programme: 'FIN', intake: '2024/09', remark: '有效 · 院系备注', invite: { attempt: 3, remainMs: 8 * 60 * 60 * 1000 } },
+  ]
+
+  const dayLabels = [
+    '30-Aug-2025',
+    '29-Aug-2025',
+    '28-Aug-2025',
+    '27-Aug-2025',
+    '26-Aug-2025',
+    '25-Aug-2025',
+    '24-Aug-2025',
+    '23-Aug-2025',
+    '22-Aug-2025',
+    '21-Aug-2025',
+  ]
+
+  more.forEach((row, index) => {
+    const perms = [createPermission('supplement'), createPermission('canAdd')]
+    if (row.drop) perms.push(createPermission('canDrop'))
+    if (row.retake) perms.push(createPermission('canRetake'))
+    if (row.prereq) {
+      perms.push(
+        createPermission('bypassPrerequisite', {
+          validHours: null,
+          validUntil: '2026/02',
+          courseCodes: ['AI101'],
+        }),
+      )
+    }
+    if (row.creditMin) {
+      perms.push(createPermission('bypassCreditMin', { validHours: null, validUntil: '2026/02' }))
+    }
+    rows.push({
+      id: `sup-${String(index + 11).padStart(3, '0')}`,
+      studentId: row.studentId,
+      studentName: row.studentName,
+      programme: row.programme,
+      intake: row.intake,
+      addedAt: dayLabels[index % dayLabels.length],
+      addedBy: 'AC Demo',
+      source: 'manual',
+      remark: row.remark,
+      permissions: stampInviteOnGated(perms, row.invite || { attempt: 0 }),
+    })
+  })
+
+  return rows.map((item) => normalizeWhitelistEntry(item))
+}
+
+const initialSupplementList = buildDemoWhitelistSeed()
 
 export const supplementListQueue = ref(initialSupplementList.map((item) => ({ ...item })))
 
 /** 别名：白名单队列 */
 export const whitelistDoorQueue = supplementListQueue
 
-let supplementSeq = 6
+let supplementSeq = initialSupplementList.length + 1
 
 export function createSupplementId() {
   return `sup-${String(supplementSeq++).padStart(3, '0')}`
@@ -338,15 +567,12 @@ export function getSupplementDoorStatus(studentId, now = new Date()) {
   }
 
   if (!isPermissionActive(perm, now)) {
-    const needsManual = attempt >= SUPPLEMENT_MAX_INVITE_ATTEMPTS
     return {
       ok: false,
       entry,
       expired: true,
-      needsManual,
-      errorKey: needsManual
-        ? 'courseRegistration.supplement.inviteNeedsManual'
-        : 'courseRegistration.supplement.inviteExpired',
+      needsManual: false,
+      errorKey: 'courseRegistration.supplement.inviteExpired',
     }
   }
   return {
@@ -376,11 +602,12 @@ export function addStudentToSupplementList(student, options = {}) {
       ...(options.canRetake ? [createPermission('canRetake')] : []),
     ]
   } else {
+    const parentOn = options.supplement !== false
     permissions = [
-      createPermission('supplement'),
-      ...(options.canAdd !== false ? [createPermission('canAdd')] : []),
-      ...(options.canDrop !== false ? [createPermission('canDrop')] : []),
-      ...(options.canRetake !== false ? [createPermission('canRetake')] : []),
+      ...(parentOn ? [createPermission('supplement')] : []),
+      ...(parentOn && options.canAdd !== false ? [createPermission('canAdd')] : []),
+      ...(parentOn && options.canDrop ? [createPermission('canDrop')] : []),
+      ...(parentOn && options.canRetake ? [createPermission('canRetake')] : []),
       ...(options.bypassPrerequisite ? [createPermission('bypassPrerequisite')] : []),
       ...(options.bypassCreditMax
         ? [createPermission('bypassCreditMax', { validHours: null, validUntil: null })]
@@ -397,7 +624,7 @@ export function addStudentToSupplementList(student, options = {}) {
     studentName: student.studentName,
     programme: student.programme,
     intake: student.intake,
-    addedAt: new Date().toISOString().slice(0, 10),
+    addedAt: formatWhitelistAddedAt(new Date()),
     addedBy: options.addedBy || 'AC Demo',
     source: options.source || 'manual',
     remark: options.remark || '',
@@ -440,6 +667,7 @@ export function updateSupplementEntry(id, patch) {
   if (patch.permissions) {
     next.permissions = patch.permissions.map((p) => createPermission(p.key, p))
   } else if (
+    patch.supplement !== undefined ||
     patch.canAdd !== undefined ||
     patch.canDrop !== undefined ||
     patch.canRetake !== undefined ||
@@ -448,7 +676,8 @@ export function updateSupplementEntry(id, patch) {
     patch.bypassCreditMin !== undefined ||
     patch.prereqValidUntil !== undefined ||
     patch.prereqCourseCodes !== undefined ||
-    patch.permissionHours !== undefined
+    patch.permissionHours !== undefined ||
+    patch.permissionUntil !== undefined
   ) {
     next.permissions = rebuildPermissionsFromForm(current, patch)
   }
@@ -461,11 +690,13 @@ export function updateSupplementEntry(id, patch) {
 function rebuildPermissionsFromForm(current, patch) {
   const hoursMap = patch.permissionHours || {}
   const untilMap = patch.permissionUntil || {}
+  const parentOn =
+    patch.supplement !== undefined ? Boolean(patch.supplement) : Boolean(current.supplement)
   const flags = {
-    supplement: true,
-    canAdd: patch.canAdd ?? current.canAdd,
-    canDrop: patch.canDrop ?? current.canDrop,
-    canRetake: patch.canRetake ?? current.canRetake,
+    supplement: parentOn,
+    canAdd: parentOn && (patch.canAdd ?? current.canAdd),
+    canDrop: parentOn && (patch.canDrop ?? current.canDrop),
+    canRetake: parentOn && (patch.canRetake ?? current.canRetake),
     bypassPrerequisite: patch.bypassPrerequisite ?? current.bypassPrerequisite,
     bypassCreditMax: patch.bypassCreditMax ?? current.bypassCreditMax,
     bypassCreditMin: patch.bypassCreditMin ?? current.bypassCreditMin,
@@ -483,16 +714,13 @@ function rebuildPermissionsFromForm(current, patch) {
         key,
         enabled: true,
         validHours: until ? null : hours != null ? Number(hours) : prev.validHours ?? SUPPLEMENT_INVITE_HOURS,
-        validUntil: until || prev.validUntil || null,
+        validUntil: until !== undefined ? until || null : prev.validUntil || null,
         courseCodes:
           key === 'bypassPrerequisite'
             ? patch.prereqCourseCodes ?? prev.courseCodes ?? []
             : prev.courseCodes || [],
       }),
     )
-  }
-  if (!list.some((p) => p.key === 'supplement')) {
-    list.unshift(createPermission('supplement', prevByKey.supplement || {}))
   }
   return list
 }
@@ -533,19 +761,26 @@ function applyInviteWindow(entry, attempt, now = new Date()) {
   return next
 }
 
+/**
+ * 发送/再次发送通知（有效期内可多次；逾期须走 reopen）
+ */
 export function sendSupplementInvite(id, now = new Date()) {
   const index = supplementListQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
   const entry = normalizeWhitelistEntry(supplementListQueue.value[index])
   const attempt = Number(getPermission(entry, 'supplement')?.inviteAttempt) || 0
   if (attempt >= 1) {
-    return { ok: false, errorKey: 'courseRegistration.supplement.inviteAlreadySent' }
+    const door = getSupplementDoorStatus(entry.studentId, now)
+    if (!door.ok) {
+      return { ok: false, errorKey: 'courseRegistration.supplement.inviteExpiredUseReopen' }
+    }
   }
-  const next = applyInviteWindow(entry, 1, now)
+  const next = applyInviteWindow(entry, attempt + 1, now)
   supplementListQueue.value[index] = next
   return { ok: true, item: next, emailMock: true }
 }
 
+/** 逾期后再次开放（与发送通知分开，不限次数） */
 export function reopenSupplementInvite(id, now = new Date()) {
   const index = supplementListQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
@@ -553,9 +788,6 @@ export function reopenSupplementInvite(id, now = new Date()) {
   const attempt = Number(getPermission(entry, 'supplement')?.inviteAttempt) || 0
   if (attempt < 1) {
     return { ok: false, errorKey: 'courseRegistration.supplement.inviteSendFirst' }
-  }
-  if (attempt >= SUPPLEMENT_MAX_INVITE_ATTEMPTS) {
-    return { ok: false, errorKey: 'courseRegistration.supplement.inviteNeedsManual' }
   }
   const door = getSupplementDoorStatus(entry.studentId, now)
   if (door.ok) {
@@ -598,12 +830,13 @@ export function formatSupplementInviteCountdown(entry, now = new Date()) {
   return { expired: false, hours, mins, deadlineAt: deadlineRaw, label: `${hours}h ${mins}m` }
 }
 
-/** 列表展示：权限摘要 */
+/** 列表展示：权限摘要（不再展示已下架的最高学分） */
 export function formatPermissionSummary(entry, t) {
   const normalized = normalizeWhitelistEntry(entry)
   const labels = []
   for (const perm of normalized.permissions || []) {
     if (perm.enabled === false) continue
+    if (perm.key === 'bypassCreditMax') continue
     const key = `courseRegistration.whitelist.perm.${perm.key}`
     const label = t ? t(key) : perm.key
     labels.push(typeof label === 'string' && label !== key ? label : perm.key)
@@ -641,4 +874,52 @@ export function formatWhitelistSourceLabel(source, t) {
     return t('courseRegistration.whitelist.sourceMonitor')
   }
   return t('courseRegistration.whitelist.sourceManual')
+}
+
+/**
+ * 白名单「发送通知」邮件草稿（MonitorRemindModal）
+ * @param {object} row
+ * @param {(key: string, params?: object) => string} t
+ */
+export function buildWhitelistNotifyDraft(row, t) {
+  const name = row?.studentName || ''
+  const id = row?.studentId || ''
+  return {
+    subject: t('courseRegistration.whitelist.notifyDraft.subject', { name }),
+    body: [
+      t('courseRegistration.whitelist.notifyDraft.greeting', { name, id }),
+      '',
+      t('courseRegistration.whitelist.notifyDraft.lineOpen'),
+      t('courseRegistration.whitelist.notifyDraft.lineHours', {
+        hours: SUPPLEMENT_INVITE_HOURS,
+      }),
+      t('courseRegistration.whitelist.notifyDraft.lineAction'),
+      '',
+      t('courseRegistration.whitelist.notifyDraft.signoff'),
+    ].join('\n'),
+  }
+}
+
+/**
+ * 白名单「再次开放并发送通知」邮件草稿
+ * @param {object} row
+ * @param {(key: string, params?: object) => string} t
+ */
+export function buildWhitelistReopenDraft(row, t) {
+  const name = row?.studentName || ''
+  const id = row?.studentId || ''
+  return {
+    subject: t('courseRegistration.whitelist.reopenDraft.subject', { name }),
+    body: [
+      t('courseRegistration.whitelist.reopenDraft.greeting', { name, id }),
+      '',
+      t('courseRegistration.whitelist.reopenDraft.lineReopen'),
+      t('courseRegistration.whitelist.reopenDraft.lineHours', {
+        hours: SUPPLEMENT_INVITE_HOURS,
+      }),
+      t('courseRegistration.whitelist.reopenDraft.lineAction'),
+      '',
+      t('courseRegistration.whitelist.reopenDraft.signoff'),
+    ].join('\n'),
+  }
 }

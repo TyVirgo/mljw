@@ -12,8 +12,10 @@ export const monitorExportFields = [
   { key: 'studentName', labelKey: 'courseRegistration.monitor.studentName' },
   { key: 'programme', labelKey: 'courseRegistration.monitor.programme' },
   { key: 'intake', labelKey: 'courseRegistration.monitor.intake' },
-  { key: 'credits', labelKey: 'courseRegistration.monitor.credits' },
-  { key: 'status', labelKey: 'common.status' },
+  { key: 'graduationGe', labelKey: 'courseRegistration.monitor.colGraduationGe' },
+  { key: 'graduationMe', labelKey: 'courseRegistration.monitor.colGraduationMe' },
+  { key: 'termGe', labelKey: 'courseRegistration.monitor.colTermGe' },
+  { key: 'termMe', labelKey: 'courseRegistration.monitor.colTermMe' },
 ]
 
 export const approvalExportFields = [
@@ -64,7 +66,6 @@ export const resultStudentExportFields = [
   { key: 'credits', labelKey: 'courseRegistration.courses.credits' },
   { key: 'courseType', labelKey: 'courseRegistration.courses.type' },
   { key: 'sectionCode', labelKey: 'courseRegistration.courses.sectionCode' },
-  { key: 'isRetake', labelKey: 'courseRegistration.student.isRetake' },
   { key: 'courseSource', labelKey: 'courseRegistration.student.courseSource' },
 ]
 

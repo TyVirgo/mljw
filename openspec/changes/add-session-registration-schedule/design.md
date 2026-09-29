@@ -61,3 +61,13 @@
 - `src/config/courseRegistrationMenu.js`、`App.vue`、i18n
 - `RegistrationBatchView.vue`、`RegistrationBatchFormDrawer.vue`
 - `addDropApplicationWindow.js`、`audienceRounds.js` 消费方
+
+## 增量：单位覆盖区分 GE/ME（2026-09）
+
+### Decisions
+
+1. **维度**：单位覆盖增加 `courseType`（`GE` | `ME`）；学期全局时间链仍共享、不拆类型。
+2. **唯一键**：`(unitCode, academicSession, courseType)`；CRUD（`get` / `upsert` / `remove`）均带类型参数，缺省按 `GE` 规范化。
+3. **解析**：由批次 `batch.type` 规范化后命中单位覆盖；命中则用覆盖的三轮与 `crossReleaseAt`，否则用学期全局。
+4. **UI**：列表展示课程类型；选单位弹窗必选类型；已配置的「单位|类型」置灰，允许同单位再配另一类型。
+5. **Demo**：至少一组同学期同单位 GE/ME 时间不同的样例，便于验收解析分叉。

@@ -72,3 +72,7 @@
 - [x] 12.1 `StudentPendingRoundPreviewPanel`：容量 `0/容量`；筛选语义
 - [x] 12.2 主表/预览表 th nowrap + 容量列 min-width
 - [x] 12.3 更新 proposal/design/spec；build 通过
+
+## 13. 课程组左对齐上下居中（增量 2026-09）
+
+- [x] 13.1 `Group{n}` 左对齐；Intake 仍下一行；rowspan 内上下居中

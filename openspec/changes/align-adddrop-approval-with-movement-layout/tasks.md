@@ -27,3 +27,9 @@
 
 - [ ] 5.1 对照学籍异动审批：Tab 文案、工具栏审批+导出、勾选+详情
 - [ ] 5.2 批量审批与单条详情审批均可用
+
+## 增量 2026-09：两 Tab
+
+- [x] 1. 去掉「已提交」Tab 与相关计数/列配置分支
+- [x] 2. `classifyAddDropBucket`：pending=Pending（含兼容 In Review）；history 不变
+- [x] 3. 更新 layout spec：不再要求三 Tab；模块简介文案

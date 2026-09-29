@@ -1,9 +1,12 @@
 /**
- * 第一轮录取：毕业生优先 → GE 按日串行额度（可结转）/ ME 按入学年池
- * 池内：人数≤容量全录；超额则均匀随机
+ * 第一轮录取：毕业生优先（可封顶）→ GE 按日串行额度（当日志愿序优先 + 往日回补 + 结转）/ ME 按入学年池
+ * 池内：人数≤容量全录；超额则按志愿序分层后随机
  */
 import { isGraduateStudent } from './studentAudience.js'
-import { getCourseAudienceCapacity } from './selectableCourses.js'
+import {
+  getCourseAudienceCapacity,
+  resolveMeQuotaRowsForCourse,
+} from './selectableCourses.js'
 import {
   getBatchRound1Quota,
   allocateDayQuotas,
@@ -15,6 +18,8 @@ import {
   openDaysFromRange,
   DEMO_ROUND1_OPEN_DAYS,
   DEFAULT_DECAY_R,
+  DEFAULT_GRADUATE_CAP_RATIO,
+  normalizeGraduateCapRatio,
 } from './batchRound1Quota.js'
 import { resolveEffectiveAudienceRounds } from './sessionRegistrationSchedules.js'
 
@@ -121,6 +126,53 @@ function partitionPool(candidates, capacity, rand = Math.random) {
   return { picked: copy.slice(0, cap), rest: copy.slice(cap) }
 }
 
+/** @param {object} v */
+export function preferenceRankOf(v) {
+  const r = Number(v?.preferenceRank ?? v?.choiceRank)
+  if (Number.isFinite(r) && r > 0) return Math.floor(r)
+  return 99
+}
+
+/**
+ * 按志愿序升序分层，同层随机抽满
+ * @returns {{ picked: object[], rest: object[] }}
+ */
+export function pickByPreferenceRank(candidates, capacity, rand = Math.random) {
+  const cap = Math.max(0, Math.floor(Number(capacity) || 0))
+  if (!candidates.length) return { picked: [], rest: [] }
+  if (!cap) return { picked: [], rest: [...candidates] }
+  if (candidates.length <= cap) return { picked: [...candidates], rest: [] }
+
+  /** @type {Map<number, object[]>} */
+  const byRank = new Map()
+  for (const v of candidates) {
+    const rank = preferenceRankOf(v)
+    if (!byRank.has(rank)) byRank.set(rank, [])
+    byRank.get(rank).push(v)
+  }
+  const ranks = [...byRank.keys()].sort((a, b) => a - b)
+  const picked = []
+  const rest = []
+  let need = cap
+  for (const rank of ranks) {
+    const pool = byRank.get(rank) || []
+    if (need <= 0) {
+      rest.push(...pool)
+      continue
+    }
+    if (pool.length <= need) {
+      picked.push(...pool)
+      need -= pool.length
+    } else {
+      const part = partitionPool(pool, need, rand)
+      picked.push(...part.picked)
+      rest.push(...part.rest)
+      need = 0
+    }
+  }
+  return { picked, rest }
+}
+
 /**
  * 池内录取：≤容量全录；超额随机抽满
  * @returns {object[]}
@@ -142,9 +194,8 @@ function withResultFlags(list, selected) {
 }
 
 /**
- * GE 第一轮：R1 结束后统一分配。毕业生占满容量则老生无名额；
- * 老生总量≤剩余额度则全录；否则按衰退因子分日额度串行抽签，落选当日出局，未用额度结转次日，
- * 若后续天人数可填满剩余空位则免随机全录。输出顺序：选上(毕业生→老生)→未选上。
+ * GE 第一轮：毕业生封顶 → 非毕业生按日额度；当日志愿序优先，余量回补往日 waitlist，未用额度结转。
+ * 输出顺序：选上(毕业生→老生)→未选上。
  * @returns {object[]}
  */
 export function layoutGeRound1Roster(volunteers = [], opts = {}) {
@@ -152,6 +203,9 @@ export function layoutGeRound1Roster(volunteers = [], opts = {}) {
   const rand = opts.rand || Math.random
   const nDays = Math.max(1, Math.floor(opts.nDays) || 5)
   const decayR = Number(opts.decayR) > 0 ? Number(opts.decayR) : DEFAULT_DECAY_R
+  const graduateCapRatio = normalizeGraduateCapRatio(
+    opts.graduateCapRatio ?? DEFAULT_GRADUATE_CAP_RATIO,
+  )
   const roundStart = opts.roundStart
 
   if (!volunteers.length) return []
@@ -164,6 +218,7 @@ export function layoutGeRound1Roster(volunteers = [], opts = {}) {
   }
   grads.sort((a, b) => String(a.submittedAt || '').localeCompare(String(b.submittedAt || '')))
 
+  const gradCap = Math.floor(capacity * graduateCapRatio)
   let selectedGrads = []
   let rejectedGrads = []
   let remaining = capacity
@@ -171,14 +226,14 @@ export function layoutGeRound1Roster(volunteers = [], opts = {}) {
   if (capacity <= 0) {
     rejectedGrads = [...grads]
     remaining = 0
-  } else if (grads.length <= capacity) {
+  } else if (grads.length <= gradCap) {
     selectedGrads = [...grads]
     remaining = capacity - grads.length
   } else {
-    const gradPick = partitionPool(grads, capacity, rand)
+    const gradPick = partitionPool(grads, gradCap, rand)
     selectedGrads = gradPick.picked
     rejectedGrads = gradPick.rest
-    remaining = 0
+    remaining = capacity - selectedGrads.length
   }
 
   const byDay = Array.from({ length: nDays }, () => [])
@@ -188,52 +243,49 @@ export function layoutGeRound1Roster(volunteers = [], opts = {}) {
   }
 
   let selectedOthers = []
-  let rejectedOthers = []
+  /** @type {object[]} */
+  let waitlist = []
 
   if (remaining <= 0 || !others.length) {
-    rejectedOthers = [...others]
+    // no-op
   } else if (others.length <= remaining) {
     selectedOthers = [...others]
   } else {
     const dayQuotas = allocateDayQuotas(remaining, nDays, decayR)
-    const excludedIds = new Set()
     let carry = 0
 
     for (let day = 1; day <= nDays; day += 1) {
       let budget = (dayQuotas[day - 1] || 0) + carry
       carry = 0
-      const pool = byDay[day - 1] || []
+      const today = byDay[day - 1] || []
 
-      if (!pool.length) {
-        carry = budget
-      } else if (pool.length <= budget) {
-        selectedOthers.push(...pool)
-        carry = budget - pool.length
-      } else {
-        const { picked, rest } = partitionPool(pool, budget, rand)
-        selectedOthers.push(...picked)
-        for (const v of rest) excludedIds.add(v.studentId)
-        carry = 0
+      if (budget > 0 && today.length) {
+        const todayPick = pickByPreferenceRank(today, budget, rand)
+        selectedOthers.push(...todayPick.picked)
+        waitlist.push(...todayPick.rest)
+        budget -= todayPick.picked.length
+      } else if (today.length) {
+        waitlist.push(...today)
       }
 
-      const slotsLeft = remaining - selectedOthers.length
-      if (slotsLeft <= 0) break
+      if (budget > 0 && waitlist.length) {
+        const fill = pickByPreferenceRank(waitlist, budget, rand)
+        selectedOthers.push(...fill.picked)
+        waitlist = fill.rest
+        budget -= fill.picked.length
+      }
 
-      const future = []
-      for (let d = day + 1; d <= nDays; d += 1) {
-        for (const v of byDay[d - 1] || []) {
-          if (!excludedIds.has(v.studentId)) future.push(v)
-        }
-      }
-      if (future.length > 0 && future.length <= slotsLeft) {
-        selectedOthers.push(...future)
-        break
-      }
+      carry = Math.max(0, budget)
+      if (selectedOthers.length >= remaining) break
     }
 
-    const selectedIds = new Set(selectedOthers.map((v) => v.studentId))
-    rejectedOthers = others.filter((v) => !selectedIds.has(v.studentId))
+    if (selectedOthers.length > remaining) {
+      selectedOthers = selectedOthers.slice(0, remaining)
+    }
   }
+
+  const selectedIds = new Set(selectedOthers.map((v) => v.studentId))
+  const rejectedOthers = others.filter((v) => !selectedIds.has(v.studentId))
 
   return [
     ...withResultFlags(selectedGrads, true),
@@ -337,6 +389,10 @@ function drawOptsForSection(state, course, batch) {
   const quota = getBatchRound1Quota(batch)
   const { start, end } = getBatchRound1Window(batch)
   const specialIds = resolveSpecialStudentIds(batch?.id)
+  const meQuotaRows =
+    String(batch?.type || '').toUpperCase() === 'ME'
+      ? resolveMeQuotaRowsForCourse(course, batch)
+      : quota.meQuotaRows || []
   return {
     capacity: Math.min(sectionCap, seniorPool),
     batchType: batch?.type,
@@ -344,7 +400,8 @@ function drawOptsForSection(state, course, batch) {
     nDays: openDaysFromRange(start, end) || DEMO_ROUND1_OPEN_DAYS,
     roundStart: start,
     decayR: quota.decayR ?? DEFAULT_DECAY_R,
-    meQuotaRows: quota.meQuotaRows || [],
+    graduateCapRatio: quota.graduateCapRatio ?? DEFAULT_GRADUATE_CAP_RATIO,
+    meQuotaRows,
     specialStudentIds: specialIds,
     rand: seededRandomFromKey(state.key || `${state.courseId}::${state.sectionId}`),
   }

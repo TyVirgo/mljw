@@ -27,6 +27,9 @@ function cloneSessionRound1(q) {
   return normalizeSessionRound1Quota(q)
 }
 
+/** Demo：R3 窗内互释默认时刻（相对 2026 模板第三轮） */
+export const DEMO_CROSS_RELEASE_AT_202604 = '29-Aug-2026 12:00:00'
+
 function emptySchedule(academicSession = '') {
   return {
     id: '',
@@ -36,6 +39,7 @@ function emptySchedule(academicSession = '') {
       senior: { ...defaultAudienceRounds(), resultReleaseAt: '' },
       freshman: defaultAudienceRounds(),
     },
+    crossReleaseAt: '',
     round1Quota: defaultSessionRound1Quota(),
     addDropWindow: { start: '', end: '' },
   }
@@ -161,6 +165,7 @@ function buildDemoSession(academicSession) {
     academicSession,
     enabled: true,
     roundsByAudience: shiftRoundsByAudience(DEMO_TEMPLATE_ROUNDS, yearDelta),
+    crossReleaseAt: shiftYearInDateValue(DEMO_CROSS_RELEASE_AT_202604, yearDelta),
     round1Quota: defaultSessionRound1Quota(),
     addDropWindow: shiftAddDropWindow(DEMO_ADD_DROP_WINDOW_OPEN_LONG, yearDelta),
   }
@@ -168,31 +173,49 @@ function buildDemoSession(academicSession) {
 
 export const sessionRegistrationSchedules = ref(DEMO_SESSION_GRID.map(buildDemoSession))
 
+/** 单位覆盖课程类型：公共选修 / 专业选修 */
+export const UNIT_SCHEDULE_COURSE_TYPES = ['GE', 'ME']
+
+export function normalizeUnitCourseType(value) {
+  const raw = String(value || '').trim().toUpperCase()
+  return UNIT_SCHEDULE_COURSE_TYPES.includes(raw) ? raw : 'GE'
+}
+
 const DEMO_UNIT_OVERRIDE_CODES = ['CAMS', 'SASS', 'SCDS', 'SECE', 'SEEAI']
 const DEMO_UNIT_OVERRIDE_SESSION = '2026/09'
 
-function buildUnitOverrideDemo(unitCode, academicSession, dayShift = 0) {
+function buildUnitOverrideDemo(unitCode, academicSession, courseType = 'GE', dayShift = 0) {
   const year = Number(String(academicSession).split('/')[0])
   const yearDelta = year - 2026
+  const type = normalizeUnitCourseType(courseType)
   const base = shiftRoundsByAudience(DEMO_TEMPLATE_ROUNDS, yearDelta)
-  const roundsByAudience = dayShift ? shiftRoundsByAudienceByDays(base, dayShift) : base
+  // ME 相对 GE 再错开一天，便于演示双类型
+  const typeShift = type === 'ME' ? (dayShift || 0) + 1 : dayShift
+  const roundsByAudience = typeShift ? shiftRoundsByAudienceByDays(base, typeShift) : base
+  const sessionCross = shiftYearInDateValue(DEMO_CROSS_RELEASE_AT_202604, yearDelta)
   return {
-    id: `ov-unit-${String(unitCode).toLowerCase()}-${String(academicSession).replace('/', '')}`,
+    id: `ov-unit-${String(unitCode).toLowerCase()}-${type.toLowerCase()}-${String(academicSession).replace('/', '')}`,
     unitCode,
     academicSession,
+    courseType: type,
     roundsByAudience,
+    crossReleaseAt: typeShift
+      ? shiftDateValueByDays(sessionCross, typeShift)
+      : sessionCross,
   }
 }
 
 /**
- * 学院单位覆盖：三轮包 + 老生第一轮结果公布；无加退课 / round1Quota
- * demo：2026/09 前五个学院各一条，时间相对全局略作偏移
+ * 学院单位覆盖：三轮包 + 可选互释时刻；按 (session, unit, courseType) 唯一
+ * demo：2026/09 五学院 GE；CAMS/SCDS 另有 ME
  */
-export const unitScheduleOverrides = ref(
-  DEMO_UNIT_OVERRIDE_CODES.map((code, index) =>
-    buildUnitOverrideDemo(code, DEMO_UNIT_OVERRIDE_SESSION, index),
+export const unitScheduleOverrides = ref([
+  ...DEMO_UNIT_OVERRIDE_CODES.map((code, index) =>
+    buildUnitOverrideDemo(code, DEMO_UNIT_OVERRIDE_SESSION, 'GE', index),
   ),
-)
+  buildUnitOverrideDemo('CAMS', DEMO_UNIT_OVERRIDE_SESSION, 'ME', 2),
+  buildUnitOverrideDemo('SCDS', DEMO_UNIT_OVERRIDE_SESSION, 'ME', 3),
+])
 
 /** Demo：批次 faculty 文案 → 院系 code */
 const FACULTY_UNIT_CODE_MAP = {
@@ -203,7 +226,7 @@ const FACULTY_UNIT_CODE_MAP = {
 }
 
 let schedSeq = 20
-let unitOvSeq = 2
+let unitOvSeq = 40
 
 export function isSessionScheduleEnabled(sessionOrKey) {
   const session =
@@ -275,6 +298,7 @@ export function upsertSessionSchedule(payload) {
       },
       freshman: cloneRounds(payload.roundsByAudience?.freshman),
     },
+    crossReleaseAt: String(payload.crossReleaseAt || '').trim(),
     round1Quota: cloneSessionRound1(payload.round1Quota),
     addDropWindow: cloneAddDrop(payload.addDropWindow),
   }
@@ -302,30 +326,52 @@ export function removeSessionSchedule(academicSession) {
 
 export function listUnitOverridesForSession(academicSession) {
   const key = String(academicSession || '').trim()
-  return unitScheduleOverrides.value.filter((o) => o.academicSession === key).map((o) => ({ ...o }))
+  return unitScheduleOverrides.value
+    .filter((o) => o.academicSession === key)
+    .map((o) => ({ ...o, courseType: normalizeUnitCourseType(o.courseType) }))
+    .sort((a, b) => {
+      const u = String(a.unitCode).localeCompare(String(b.unitCode))
+      if (u !== 0) return u
+      return String(a.courseType).localeCompare(String(b.courseType))
+    })
 }
 
-export function getUnitScheduleOverride(unitCode, academicSession) {
+/**
+ * @param {string} unitCode
+ * @param {string} academicSession
+ * @param {string} [courseType='GE']
+ */
+export function getUnitScheduleOverride(unitCode, academicSession, courseType = 'GE') {
   const code = String(unitCode || '').trim()
   const session = String(academicSession || '').trim()
+  const type = normalizeUnitCourseType(courseType)
   if (!code || !session) return null
   return (
-    unitScheduleOverrides.value.find((o) => o.unitCode === code && o.academicSession === session) ||
-    null
+    unitScheduleOverrides.value.find(
+      (o) =>
+        o.unitCode === code &&
+        o.academicSession === session &&
+        normalizeUnitCourseType(o.courseType) === type,
+    ) || null
   )
 }
 
 export function upsertUnitScheduleOverride(payload) {
   const unitCode = String(payload.unitCode || '').trim()
   const session = String(payload.academicSession || '').trim()
+  const courseType = normalizeUnitCourseType(payload.courseType)
   if (!unitCode || !session) return null
   const idx = unitScheduleOverrides.value.findIndex(
-    (o) => o.unitCode === unitCode && o.academicSession === session,
+    (o) =>
+      o.unitCode === unitCode &&
+      o.academicSession === session &&
+      normalizeUnitCourseType(o.courseType) === courseType,
   )
   const next = {
     id: payload.id || (idx >= 0 ? unitScheduleOverrides.value[idx].id : `uov-${unitOvSeq++}`),
     unitCode,
     academicSession: session,
+    courseType,
     roundsByAudience: {
       senior: {
         ...cloneRounds(payload.roundsByAudience?.senior),
@@ -333,6 +379,13 @@ export function upsertUnitScheduleOverride(payload) {
       },
       freshman: cloneRounds(payload.roundsByAudience?.freshman),
     },
+    crossReleaseAt: String(
+      payload.crossReleaseAt !== undefined
+        ? payload.crossReleaseAt
+        : idx >= 0
+          ? unitScheduleOverrides.value[idx].crossReleaseAt || ''
+          : '',
+    ).trim(),
   }
   if (idx >= 0) {
     unitScheduleOverrides.value[idx] = next
@@ -342,11 +395,17 @@ export function upsertUnitScheduleOverride(payload) {
   return next
 }
 
-export function removeUnitScheduleOverride(unitCode, academicSession) {
+export function removeUnitScheduleOverride(unitCode, academicSession, courseType = 'GE') {
   const code = String(unitCode || '').trim()
   const session = String(academicSession || '').trim()
+  const type = normalizeUnitCourseType(courseType)
   unitScheduleOverrides.value = unitScheduleOverrides.value.filter(
-    (o) => !(o.unitCode === code && o.academicSession === session),
+    (o) =>
+      !(
+        o.unitCode === code &&
+        o.academicSession === session &&
+        normalizeUnitCourseType(o.courseType) === type
+      ),
   )
 }
 
@@ -383,7 +442,8 @@ export function resolveEffectiveAudienceRounds(batch) {
 
   if (sessionActive) {
     const unitCode = resolveUnitCodeFromBatch(batch)
-    const unitOv = unitCode ? getUnitScheduleOverride(unitCode, sessionKey) : null
+    const courseType = normalizeUnitCourseType(batch.type)
+    const unitOv = unitCode ? getUnitScheduleOverride(unitCode, sessionKey, courseType) : null
 
     if (unitOv?.roundsByAudience && hasConfiguredUnitRounds(unitOv.roundsByAudience)) {
       const unitRelease = String(unitOv.roundsByAudience.senior?.resultReleaseAt || '').trim()
@@ -416,21 +476,28 @@ export function resolveEffectiveRound1Quota(batch) {
   const type = String(batch.type || 'GE').toUpperCase()
   const sessionKey = batch.academicSession || batch.semester || ''
   const session = getSessionSchedule(sessionKey)
-  let decayR = defaultSessionRound1Quota().decayR
+  const defaults = defaultSessionRound1Quota()
+  let decayR = defaults.decayR
+  let graduateCapRatio = defaults.graduateCapRatio
   if (session && isSessionScheduleEnabled(session) && session.round1Quota) {
-    decayR = normalizeSessionRound1Quota(session.round1Quota).decayR
-  } else if (Number(batch.round1Quota?.decayR) > 0) {
-    decayR = Number(batch.round1Quota.decayR)
+    const sessionQ = normalizeSessionRound1Quota(session.round1Quota)
+    decayR = sessionQ.decayR
+    graduateCapRatio = sessionQ.graduateCapRatio
+  } else if (batch.round1Quota) {
+    const batchQ = normalizeSessionRound1Quota(batch.round1Quota)
+    if (Number(batch.round1Quota?.decayR) > 0) decayR = batchQ.decayR
+    if (batch.round1Quota.graduateCapRatio != null) graduateCapRatio = batchQ.graduateCapRatio
   }
   if (type === 'ME') {
     const batchQuota = normalizeBatchMeQuota(batch.round1Quota, sessionKey)
     return {
       decayR,
+      graduateCapRatio,
       totalCap: batchQuota.totalCap,
       meQuotaRows: batchQuota.meQuotaRows,
     }
   }
-  return { decayR, meQuotaRows: [] }
+  return { decayR, graduateCapRatio, meQuotaRows: [] }
 }
 
 /**
@@ -451,6 +518,26 @@ export function resolveEffectiveAddDropWindow(batchOrSession) {
     return cloneAddDrop(s.addDropWindow)
   }
   return cloneAddDrop(batchOrSession.addDropWindow)
+}
+
+/**
+ * R3 名额互释生效时刻：单位覆盖 > 学期全局（学期关闭则空）
+ * @param {object|null|undefined} batch
+ * @returns {string}
+ */
+export function resolveEffectiveCrossReleaseAt(batch) {
+  if (!batch) return ''
+  const sessionKey = batch.academicSession || batch.semester || ''
+  const session = getSessionSchedule(sessionKey)
+  if (!session || !isSessionScheduleEnabled(session)) return ''
+
+  const unitCode = resolveUnitCodeFromBatch(batch)
+  const courseType = normalizeUnitCourseType(batch.type)
+  const unitOv = unitCode ? getUnitScheduleOverride(unitCode, sessionKey, courseType) : null
+  const unitAt = String(unitOv?.crossReleaseAt || '').trim()
+  if (unitAt) return unitAt
+
+  return String(session.crossReleaseAt || '').trim()
 }
 
 export function formatSessionRoundsSummary(schedule, t) {

@@ -4,6 +4,7 @@ import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import SupplementEntryDrawer from '../../components/courseRegistration/SupplementEntryDrawer.vue'
 import CourseRegistrationCallout from '../../components/courseRegistration/CourseRegistrationCallout.vue'
+import MonitorRemindModal from '../../components/courseRegistration/MonitorRemindModal.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   supplementListQueue,
@@ -11,13 +12,13 @@ import {
   removeSupplementEntry,
   sendSupplementInvite,
   reopenSupplementInvite,
-  markSupplementInviteExpired,
   getSupplementDoorStatus,
   formatSupplementInviteCountdown,
   formatPermissionSummary,
-  formatWhitelistSourceLabel,
+  formatWhitelistAddedAt,
   normalizeWhitelistEntry,
-  SUPPLEMENT_MAX_INVITE_ATTEMPTS,
+  buildWhitelistNotifyDraft,
+  buildWhitelistReopenDraft,
 } from '../../data/courseRegistration/supplementListQueue.js'
 import { supplementExportFields } from '../../data/courseRegistration/courseRegistrationExportFields.js'
 import {
@@ -38,6 +39,23 @@ const drawerVisible = ref(false)
 const detailEntry = ref(null)
 const exportModalVisible = ref(false)
 const emailMockBanner = ref('')
+/** @type {import('vue').Ref<'notify' | 'reopen' | null>} */
+const notifyMode = ref(null)
+const notifyRow = ref(null)
+
+const notifyTitleKey = computed(() =>
+  notifyMode.value === 'reopen'
+    ? 'courseRegistration.whitelist.reopenModalTitle'
+    : 'courseRegistration.whitelist.notifyModalTitle',
+)
+const notifyConfirmKey = computed(() =>
+  notifyMode.value === 'reopen'
+    ? 'courseRegistration.whitelist.reopenConfirmSend'
+    : 'courseRegistration.monitor.remindConfirmSend',
+)
+const notifyDraftBuilder = computed(() =>
+  notifyMode.value === 'reopen' ? buildWhitelistReopenDraft : buildWhitelistNotifyDraft,
+)
 
 const rows = computed(() =>
   filterSupplementList(supplementListQueue.value, appliedSearch.value).map((r) =>
@@ -87,70 +105,72 @@ function handleRemove(row) {
   }
 }
 
-function inviteStatusText(row) {
+/** 发送通知次数 */
+function notifyCountText(row) {
   const attempt = Number(row.inviteAttempt) || 0
-  if (attempt <= 0) return t('courseRegistration.supplement.inviteNotSent')
+  if (attempt <= 0) return t('courseRegistration.supplement.notifyCountZero')
+  return t('courseRegistration.supplement.notifyCountTimes', { n: attempt })
+}
+
+/** 生效剩余时间 */
+function remainTimeText(row) {
+  const attempt = Number(row.inviteAttempt) || 0
+  if (attempt <= 0) return t('courseRegistration.supplement.remainNotSent')
   const door = getSupplementDoorStatus(row.studentId)
-  if (!door.ok) {
-    if (door.needsManual) return t('courseRegistration.supplement.inviteNeedsManualShort')
-    return t('courseRegistration.supplement.inviteExpiredShort')
-  }
+  if (!door.ok) return t('courseRegistration.supplement.inviteExpiredShort')
   const cd = formatSupplementInviteCountdown(row)
-  return t('courseRegistration.supplement.inviteActive', {
-    attempt,
-    remain: cd?.label || '—',
-  })
+  return cd?.label || '—'
 }
 
-function handleSendInvite(row) {
-  const result = sendSupplementInvite(row.id)
+function openNotifyModal(row) {
+  notifyMode.value = 'notify'
+  notifyRow.value = row
+}
+
+function openReopenModal(row) {
+  notifyMode.value = 'reopen'
+  notifyRow.value = row
+}
+
+function closeNotifyModal() {
+  notifyMode.value = null
+  notifyRow.value = null
+}
+
+function handleNotifyConfirm() {
+  const row = notifyRow.value
+  const mode = notifyMode.value
+  if (!row?.id || !mode) return
+  const result =
+    mode === 'reopen' ? reopenSupplementInvite(row.id) : sendSupplementInvite(row.id)
   if (!result.ok) {
     window.alert(t(result.errorKey || 'courseRegistration.supplement.inviteSendFirst'))
     return
   }
-  emailMockBanner.value = t('courseRegistration.supplement.emailMockSent', {
-    name: row.studentName,
-    deadline: result.item.deadlineAt,
-  })
+  emailMockBanner.value = t(
+    mode === 'reopen'
+      ? 'courseRegistration.supplement.emailMockReopened'
+      : 'courseRegistration.supplement.emailMockSent',
+    {
+      name: row.studentName,
+      deadline: result.item.deadlineAt,
+    },
+  )
+  closeNotifyModal()
 }
 
-function handleReopen(row) {
-  const result = reopenSupplementInvite(row.id)
-  if (!result.ok) {
-    window.alert(t(result.errorKey || 'courseRegistration.supplement.inviteSendFirst'))
-    return
-  }
-  emailMockBanner.value = t('courseRegistration.supplement.emailMockReopened', {
-    name: row.studentName,
-    deadline: result.item.deadlineAt,
-  })
-}
-
-function handleMarkExpired(row) {
-  const result = markSupplementInviteExpired(row.id)
-  if (!result.ok) {
-    window.alert(t(result.errorKey || 'courseRegistration.supplement.inviteSendFirst'))
-    return
-  }
-  emailMockBanner.value = t('courseRegistration.supplement.demoMarkedExpired', {
-    name: row.studentName,
-  })
-}
-
+/** 未发送，或已发送且仍在有效期内 → 发送通知（可多次） */
 function canSendInvite(row) {
-  return !(Number(row.inviteAttempt) > 0)
+  const attempt = Number(row.inviteAttempt) || 0
+  if (attempt <= 0) return true
+  return getSupplementDoorStatus(row.studentId).ok
 }
 
+/** 已发送且已逾期 → 再次开放（与发送通知分开） */
 function canReopen(row) {
   const attempt = Number(row.inviteAttempt) || 0
-  if (attempt < 1 || attempt >= SUPPLEMENT_MAX_INVITE_ATTEMPTS) return false
-  return !getSupplementDoorStatus(row.studentId).ok
-}
-
-function canMarkExpired(row) {
-  const attempt = Number(row.inviteAttempt) || 0
   if (attempt < 1) return false
-  return getSupplementDoorStatus(row.studentId).ok
+  return !getSupplementDoorStatus(row.studentId).ok
 }
 
 function handleExportConfirm({ selectedFields }) {
@@ -174,7 +194,6 @@ function handleExportConfirm({ selectedFields }) {
       <CourseRegistrationCallout variant="warning">
         <p>{{ t('courseRegistration.whitelist.doorHint') }}</p>
         <p>{{ t('courseRegistration.whitelist.inviteHint') }}</p>
-        <p>{{ t('courseRegistration.whitelist.capacityHint') }}</p>
       </CourseRegistrationCallout>
 
       <CourseRegistrationCallout v-if="emailMockBanner" variant="info">
@@ -220,8 +239,8 @@ function handleExportConfirm({ selectedFields }) {
                 <th>{{ t('courseRegistration.monitor.programme') }}</th>
                 <th>{{ t('courseRegistration.monitor.intake') }}</th>
                 <th>{{ t('courseRegistration.whitelist.permissions') }}</th>
-                <th>{{ t('courseRegistration.whitelist.source') }}</th>
-                <th>{{ t('courseRegistration.supplement.inviteStatus') }}</th>
+                <th>{{ t('courseRegistration.supplement.notifyCount') }}</th>
+                <th>{{ t('courseRegistration.supplement.remainTime') }}</th>
                 <th>{{ t('courseRegistration.supplement.remark') }}</th>
                 <th>{{ t('courseRegistration.supplement.addedAt') }}</th>
                 <th>{{ t('common.actions') }}</th>
@@ -235,10 +254,10 @@ function handleExportConfirm({ selectedFields }) {
                 <td>{{ row.programme }}</td>
                 <td>{{ formatIntakeBatch(row.intake) }}</td>
                 <td class="perm-cell">{{ formatPermissionSummary(row, t) }}</td>
-                <td>{{ formatWhitelistSourceLabel(row.source, t) }}</td>
-                <td class="invite-cell">{{ inviteStatusText(row) }}</td>
+                <td class="invite-cell">{{ notifyCountText(row) }}</td>
+                <td class="invite-cell">{{ remainTimeText(row) }}</td>
                 <td>{{ row.remark || '—' }}</td>
-                <td>{{ row.addedAt }}</td>
+                <td>{{ formatWhitelistAddedAt(row.addedAt) || '—' }}</td>
                 <td class="actions-cell">
                   <button type="button" class="link-btn" @click="openDetail(row)">
                     {{ t('common.edit') }}
@@ -247,7 +266,7 @@ function handleExportConfirm({ selectedFields }) {
                     v-if="canSendInvite(row)"
                     type="button"
                     class="link-btn"
-                    @click="handleSendInvite(row)"
+                    @click="openNotifyModal(row)"
                   >
                     {{ t('courseRegistration.supplement.sendInvite') }}
                   </button>
@@ -255,17 +274,9 @@ function handleExportConfirm({ selectedFields }) {
                     v-if="canReopen(row)"
                     type="button"
                     class="link-btn"
-                    @click="handleReopen(row)"
+                    @click="openReopenModal(row)"
                   >
                     {{ t('courseRegistration.supplement.reopenInvite') }}
-                  </button>
-                  <button
-                    v-if="canMarkExpired(row)"
-                    type="button"
-                    class="link-btn"
-                    @click="handleMarkExpired(row)"
-                  >
-                    {{ t('courseRegistration.supplement.demoExpire') }}
                   </button>
                   <button type="button" class="link-btn danger" @click="handleRemove(row)">
                     {{ t('common.delete') }}
@@ -295,6 +306,16 @@ function handleExportConfirm({ selectedFields }) {
       @saved="handleDrawerSaved"
     />
 
+    <MonitorRemindModal
+      :visible="!!notifyRow"
+      :row="notifyRow"
+      :draft-builder="notifyDraftBuilder"
+      :title-key="notifyTitleKey"
+      :confirm-key="notifyConfirmKey"
+      @close="closeNotifyModal"
+      @confirm="handleNotifyConfirm"
+    />
+
     <ExportModal
       :visible="exportModalVisible"
       :fields="supplementExportFields.map((f) => ({ key: f.key, label: t(f.labelKey) }))"
@@ -315,7 +336,8 @@ function handleExportConfirm({ selectedFields }) {
 }
 .invite-cell {
   font-size: 12px;
-  max-width: 160px;
+  max-width: 140px;
+  white-space: nowrap;
 }
 .actions-cell {
   display: flex;

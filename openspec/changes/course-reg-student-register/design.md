@@ -409,3 +409,87 @@
 8. **操作列**：去掉详情；`!isRoundRegistrationOpen` 时整列隐藏；窗口内每行恒显提交按钮，不可提交则置灰 + 左侧 `!` tip（含 `isCourseOccupied`）；无 tip 时左侧槽位留空对齐。
 9. **窗外本轮选课情况**：过滤 `queued`；保留 `pendingAssign` 等只读；抽屉不展示操作列；无操作列时状态列 `right: 0`。
 10. **第一轮容量列**：表头「志愿数量/课程容量」；分子为分组志愿数；色阶：`<cap` 绿、`cap～2cap` 黄、`>2cap` 红；`submitStudentPreselectVolunteer` 不再因满员拒绝学生提交。
+
+## 增量 2026-09 R2/R3 可选名额
+
+- 展示：`formatSectionAvailableCapacityLabel` → `可选/总容量`；R2 用本池剩余，R3 用 `getSectionAvailableSeats`（互释时两池之和，且不超过物理总余量）。
+- 判满：`isSectionFullForAudience`；筛选 `filterCoursesBySectionAvailability` 传入 audience/round/releaseCross。
+- R1 仍走志愿百分比列。
+
+## 增量 2026-09 入口查看课程
+
+- `canPreview`：仅 `preselect`，且 `pending` 或（`ended` 且 `main` 仍 `pending`）。
+- `canEnter`：`status === 'active'`。
+- `getStudentCurrentOpenRoundKey`：`demoActiveRound === null` → 无开放轮，不回退。
+- Demo：GE/ME 各 4 档时间序 `(0)→(I)→(II)→(III)`；去掉 `(0b)`；`(0)` 用 `demoCourseSourceBatchId` 指向 R1 进行中批课表。
+- 目录下拉排序用 `demoCatalogPhase`（0–3），保证 `(0)` 置顶。
+- `StudentPendingRoundPreviewPanel`：与正式 R1 同构只读表（列序、课级 rowspan、ME 课程组/备注/组底色 `#dbeafe`/`#fef9c3`）；**隐藏**容量/% 列与操作列；查询区不提供名额筛选。
+
+## 增量 2026-09 入口卡毕业学分文案与 GE tip
+
+- `typeEntryCards.graduationCreditBar.labelKey` 使用 `graduationElectiveProgressGe/Me`（`毕业学分(已选/要求)(GE/ME)`）。
+- GE 卡标题旁 `hint-popover`：`typeEntry.geCategoryTip`；触发图标设明确宽高。
+
+## 增量 2026-09 ME 课程组学分细分
+
+- ME 进度键：`group4of3` / `group3of2` / `group2of1` / `ordinary`（字段仍可挂 `termGeCategories` / `graduationMeProgress`）。
+- `getTermGeCategoryBars` / `getGraduationMeBars` 输出上述四类 + `meGroup.*` i18n；GE 仍文/商/理/AI。
+- 监控 `ME_KEYS`、demo seed、加退选 picker short keys 同步。
+
+## 增量 2026-09 本轮选课情况课程组列与志愿软提示
+
+- `StudentRegistrationRoundStatusPanel`（及 Cart 志愿表）：ME 加课程组列；`volunteerPendingConflict` 增加同课多分组检测。
+- i18n：`clashRowTip` 加长；新增 `multiSectionRowTip`；课表 `WeekScheduleGrid` 复用 `clashRowTip`。
+
+## 增量 2026-09 ME tip 与本轮选课情况文案
+
+- `typeEntry.meCategoryTip`；`titleWithPending` →「已提交 {count} 个志愿」。
+- `orderLiveHintDragOnly` 同一行三条说明（调序 / 同课多分组 / 时间冲突）。
+
+## 增量 2026-09 学分胶囊文案与实时已选
+
+- i18n：`graduationElectiveProgressGe/Me` → `毕业学分(已选/要求)(GE/ME)`；`termElectiveProgressGe/Me` → `学期学分(已选/要求)(GE/ME)`；`typeEntry.graduationCredits` / `credits` 去掉括号说明。
+- `sumTermCreditsByType` / `getStudentCreditLayers`（默认 scope=term）：已选分子 = 已确认 + 选课篮 + 待分配；GE/ME 分类实时汇总。入口卡见下方 round 口径。
+- 传入监控 `row` 的 bars API 仍用快照。
+
+## 增量 2026-09 列表顶栏本轮同源与右栏两行
+
+- `listRoundStatusCreditCourses` + `getStudentCreditLayers(..., { scope: 'round' })`：列表顶栏已选与本轮选课情况同源。
+- `StudentRegisterView`：`.cr-list-context-progress` 纵向仅两行（毕业 / 学期）；每行横排总分+分类。
+
+## 增量 2026-09 学分列对齐、入口同步与无超分色
+
+- 列表/入口学分矩阵：CSS grid 列对齐；列表右栏再收窄。
+- 入口卡按所选批次 `scope:'round'` 与列表顶栏同源。
+- `creditCapsuleTone`：超分按已满绿展示（不出现红）；志愿 demo 学分降至 1～2，ME 志愿课码纳入 selectionGroups。
+
+## 增量 2026-09 提交学分帽同源与入口四行
+
+- ssertTermCreditCap：已选基数改 listRoundStatusCreditCourses（当前批本轮），与顶栏一致。
+- 入口卡恢复「毕业标签 + 胶囊行 / 本学期标签 + 胶囊行」四行空间；列表顶栏仍两行 grid。
+
+## 增量 2026-09 本学期分类学分上限拦截
+
+- `checkTermCategoryCreditCapForCourse`：本轮口径；GE 用 `termGeElectiveCategories` + 校选类别映射；ME 用 `termGeCategories`（课程组键）+ `resolveSelectionGroup`。
+- 行级 `canRegisterRow` / tip / `assertEligibleAndNotInCart` 并行校验分类帽；固定 tip key `categoryCreditCapExceeded`。
+- 修正旧 `wouldExceedTermGeCategory`（曾误读 ME 字段、非 round 口径）。
+- Demo：本轮志愿中 AI 类学分凑满学期帽，便于列表同类别提交钮置灰可见。
+## 增量 2026-09 列表查询条与学分工具栏冻结
+
+- .cr-register-sticky-chrome：包裹 search-bar + cart-toolbar；position:sticky; top:0 相对 .main-content 滚动；白底与 z-index，避免表体透出。
+- GE/ME 同页同布局；本轮选课情况与 table-scroll 不纳入冻结。
+## 增量 2026-09 学分总分与分类明细分隔符
+
+- 列表 .cr-credit-matrix：总分列与分类列之间插入跨行 .cr-list-context-sep（|）；入口卡学分行同步。
+- GE/ME 同布局。
+## 增量 2026-09 提交时间列
+
+- 本轮选课情况主表/排队中：状态前「提交时间」；我的选课第一轮志愿结果：上课时间地点与志愿次序之间。
+- 展示 DD/MM/YYYY HH:mm:ss；取值 selectedAt；调序不改写；GE/ME 同改。
+## 增量 2026-09 ME 课程组 demo 对齐与退选百分比
+
+- batch-2504-m1 selectionGroups：4/3/2 门数对齐 minPick；列表过滤组外课；学分胶囊不动。
+- seed 后 syncPendingAssignIntoVolunteerStates；退选 removeStudentPreselectVolunteer 刷新百分比。
+## 增量 2026-09 在线选课列表范围小字提醒
+
+- StudentRegisterView：本轮选课情况与 	able-section 之间加 .cr-list-scope-hint；i18n listScopeHint。

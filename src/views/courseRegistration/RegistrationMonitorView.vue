@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import RegistrationMonitorDetailDrawer from '../../components/courseRegistration/RegistrationMonitorDetailDrawer.vue'
+import MonitorRemindModal from '../../components/courseRegistration/MonitorRemindModal.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   registrationMonitorQueue,
@@ -12,9 +13,14 @@ import {
 } from '../../data/courseRegistration/registrationMonitorQueue.js'
 import {
   getRowAlertMeta,
-  getMonitorAlertStats,
   academicAlertTypeOptions,
 } from '../../data/courseRegistration/academicAlertQueue.js'
+import {
+  formatGraduationGeSummary,
+  formatGraduationMeSummary,
+  formatTermGeSummary,
+  formatTermMeSummary,
+} from '../../data/courseRegistration/monitorCreditInsights.js'
 import {
   addStudentToSupplementList,
   isStudentInSupplementList,
@@ -49,11 +55,11 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const detailRow = ref(null)
 const exportModalVisible = ref(false)
+const remindRow = ref(null)
 
 const { t } = useAppI18n()
 
 const baseStats = computed(() => getMonitorStats(registrationMonitorQueue.value))
-const alertStats = computed(() => getMonitorAlertStats(registrationMonitorQueue.value))
 
 const rows = computed(() => filterMonitorRows(registrationMonitorQueue.value, appliedSearch.value))
 
@@ -75,39 +81,8 @@ function handleReset() {
   currentPage.value = 1
 }
 
-function applyStatFilter(kind) {
-  if (kind === 'high') {
-    searchForm.value = {
-      ...emptySearch(),
-      problemsOnly: true,
-      severity: 'high',
-    }
-  } else if (kind === 'medium') {
-    searchForm.value = {
-      ...emptySearch(),
-      problemsOnly: true,
-      severity: 'medium',
-    }
-  } else if (kind === 'problem') {
-    searchForm.value = { ...emptySearch(), problemsOnly: true }
-  }
-  handleSearch()
-}
-
 function statusLabel(status) {
   return t(`courseRegistration.monitor.status.${status}`)
-}
-
-function statusClass(status) {
-  const map = {
-    normal: 'tag-green',
-    creditLow: 'tag-amber',
-    creditHigh: 'tag-red',
-    g1CategoryLow: 'tag-amber',
-    notRegistered: 'tag-red',
-    prerequisiteMissing: 'tag-amber',
-  }
-  return map[status] || 'tag-gray'
 }
 
 function alertTypeLabel(type) {
@@ -116,18 +91,20 @@ function alertTypeLabel(type) {
   return translated !== key ? translated : type
 }
 
-function rowAlertMeta(row) {
-  return getRowAlertMeta(row)
+function termGeCell(row) {
+  return formatTermGeSummary(row)
 }
 
-function recommendationText(row) {
-  const meta = getRowAlertMeta(row)
-  if (!meta.recommendation?.hint) return '—'
-  return t(`courseRegistration.alert.recommend.${meta.recommendation.hint}`)
+function termMeCell(row) {
+  return formatTermMeSummary(row)
 }
 
-function severityClass(severity) {
-  return severity === 'high' ? 'severity-high' : severity === 'medium' ? 'severity-medium' : ''
+function graduationGeCell(row) {
+  return formatGraduationGeSummary(row)
+}
+
+function graduationMeCell(row) {
+  return formatGraduationMeSummary(row)
 }
 
 function openDetail(row) {
@@ -135,7 +112,13 @@ function openDetail(row) {
 }
 
 function handleRemind(row) {
-  window.alert(t('courseRegistration.monitor.remindSent', { name: row.studentName }))
+  remindRow.value = row
+}
+
+function handleRemindConfirm() {
+  const name = remindRow.value?.studentName || ''
+  remindRow.value = null
+  window.alert(t('courseRegistration.monitor.remindSent', { name }))
 }
 
 function handleAddSupplement(row) {
@@ -149,12 +132,12 @@ function handleAddSupplement(row) {
     row.status === 'notRegistered' ||
     (Number(row.credits) > 0 && Number(row.credits) < Number(row.creditMin || 12))
 
-  if (isFreshman && creditLow && meta.recommendation?.action === 'suggestSupplement') {
-    const ok = window.confirm(
-      t('courseRegistration.monitor.suggestSupplementConfirm', { name: row.studentName }),
-    )
-    if (!ok) return
-  }
+  const confirmKey =
+    isFreshman && creditLow && meta.recommendation?.action === 'suggestSupplement'
+      ? 'courseRegistration.monitor.suggestSupplementConfirm'
+      : 'courseRegistration.monitor.addWhitelistConfirm'
+  const ok = window.confirm(t(confirmKey, { name: row.studentName }))
+  if (!ok) return
 
   const remarkParts = meta.alertTypes.length
     ? meta.alertTypes.map(alertTypeLabel)
@@ -167,7 +150,6 @@ function handleAddSupplement(row) {
     listType: 'supplement',
     source: 'registration-monitor',
     remark: remarkParts.join(', '),
-    // 新生学分不足例外：默认仅开放加课，不自动开退/重修
     canAdd: true,
     canDrop: isFreshman && creditLow ? false : true,
     canRetake: isFreshman && creditLow ? false : true,
@@ -180,11 +162,7 @@ function handleAddSupplement(row) {
   detailRow.value = null
 }
 
-function supplementActionLabel(row) {
-  const meta = getRowAlertMeta(row)
-  if (meta.recommendation?.action === 'suggestSupplement') {
-    return t('courseRegistration.monitor.suggestSupplement')
-  }
+function supplementActionLabel() {
   return t('courseRegistration.monitor.addSupplement')
 }
 
@@ -223,17 +201,6 @@ function handleExportConfirm({ selectedFields }) {
             label: 'courseRegistration.monitor.statAvgCredits',
             value: baseStats.avgCredits,
           },
-          {
-            key: 'below',
-            label: 'courseRegistration.monitor.statBelowMin',
-            value: baseStats.belowMin,
-          },
-          {
-            key: 'above',
-            label: 'courseRegistration.monitor.statAboveMax',
-            value: baseStats.aboveMax,
-          },
-          { key: 'g1', label: 'courseRegistration.monitor.statG1Risk', value: baseStats.g1Risk },
         ]"
         :key="card.key"
         class="stat-card"
@@ -241,18 +208,6 @@ function handleExportConfirm({ selectedFields }) {
         <span class="stat-value">{{ card.value }}</span>
         <span class="stat-label">{{ t(card.label) }}</span>
       </div>
-      <button type="button" class="stat-card stat-card--click high" @click="applyStatFilter('high')">
-        <span class="stat-value">{{ alertStats.high }}</span>
-        <span class="stat-label">{{ t('courseRegistration.alert.statHigh') }}</span>
-      </button>
-      <button
-        type="button"
-        class="stat-card stat-card--click medium"
-        @click="applyStatFilter('medium')"
-      >
-        <span class="stat-value">{{ alertStats.medium }}</span>
-        <span class="stat-label">{{ t('courseRegistration.alert.statMedium') }}</span>
-      </button>
     </div>
 
     <div class="page-card">
@@ -264,7 +219,7 @@ function handleExportConfirm({ selectedFields }) {
               <input v-model="searchForm.programme" type="text" class="search-input" />
             </div>
             <div class="search-item">
-              <label>Intake</label>
+              <label>{{ t('courseRegistration.monitor.intake') }}</label>
               <input v-model="searchForm.intake" type="text" class="search-input" />
             </div>
             <div class="search-item">
@@ -292,12 +247,6 @@ function handleExportConfirm({ selectedFields }) {
                 <option value="high">{{ t('courseRegistration.alert.severity.high') }}</option>
                 <option value="medium">{{ t('courseRegistration.alert.severity.medium') }}</option>
               </select>
-            </div>
-            <div class="search-item search-item--check">
-              <label class="check-label">
-                <input v-model="searchForm.problemsOnly" type="checkbox" />
-                {{ t('courseRegistration.monitor.problemsOnly') }}
-              </label>
             </div>
             <div class="search-item">
               <label>{{ t('courseRegistration.monitor.student') }}</label>
@@ -329,17 +278,16 @@ function handleExportConfirm({ selectedFields }) {
           <table class="data-table">
             <thead>
               <tr>
-                <th>{{ t('common.serialNo') }}</th>
-                <th>{{ t('courseRegistration.monitor.studentId') }}</th>
-                <th>{{ t('courseRegistration.monitor.studentName') }}</th>
-                <th>{{ t('courseRegistration.monitor.programme') }}</th>
-                <th>Intake</th>
-                <th>{{ t('courseRegistration.monitor.credits') }}</th>
-                <th>{{ t('common.status') }}</th>
-                <th>{{ t('courseRegistration.alert.type') }}</th>
-                <th>{{ t('courseRegistration.alert.severityLabel') }}</th>
-                <th>{{ t('courseRegistration.alert.recommendation') }}</th>
-                <th>{{ t('common.actions') }}</th>
+                <th class="th-nowrap">{{ t('common.serialNo') }}</th>
+                <th class="th-nowrap">{{ t('courseRegistration.monitor.studentId') }}</th>
+                <th class="th-nowrap">{{ t('courseRegistration.monitor.studentName') }}</th>
+                <th class="th-nowrap">{{ t('courseRegistration.monitor.programme') }}</th>
+                <th class="th-nowrap">{{ t('courseRegistration.monitor.intake') }}</th>
+                <th class="th-nowrap">{{ t('courseRegistration.monitor.colGraduationGe') }}</th>
+                <th class="th-nowrap">{{ t('courseRegistration.monitor.colGraduationMe') }}</th>
+                <th class="th-nowrap">{{ t('courseRegistration.monitor.colTermGe') }}</th>
+                <th class="th-nowrap">{{ t('courseRegistration.monitor.colTermMe') }}</th>
+                <th class="th-nowrap">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -349,35 +297,10 @@ function handleExportConfirm({ selectedFields }) {
                 <td>{{ row.studentName }}</td>
                 <td>{{ row.programme }}</td>
                 <td>{{ formatIntakeBatch(row.intake) || row.intake }}</td>
-                <td>{{ row.credits }}/{{ row.creditMax }}</td>
-                <td>
-                  <span class="status-tag" :class="statusClass(row.status)">
-                    {{ statusLabel(row.status) }}
-                  </span>
-                </td>
-                <td>
-                  <template v-if="rowAlertMeta(row).alertTypes.length">
-                    <span
-                      v-for="type in rowAlertMeta(row).alertTypes"
-                      :key="type"
-                      class="issue-tag"
-                    >
-                      {{ alertTypeLabel(type) }}
-                    </span>
-                  </template>
-                  <span v-else class="muted">—</span>
-                </td>
-                <td>
-                  <span
-                    v-if="rowAlertMeta(row).severity"
-                    class="severity-tag"
-                    :class="severityClass(rowAlertMeta(row).severity)"
-                  >
-                    {{ t(`courseRegistration.alert.severity.${rowAlertMeta(row).severity}`) }}
-                  </span>
-                  <span v-else class="muted">—</span>
-                </td>
-                <td class="col-recommend">{{ recommendationText(row) }}</td>
+                <td class="col-term-credit">{{ graduationGeCell(row) }}</td>
+                <td class="col-term-credit">{{ graduationMeCell(row) }}</td>
+                <td class="col-term-credit">{{ termGeCell(row) }}</td>
+                <td class="col-term-credit">{{ termMeCell(row) }}</td>
                 <td class="actions-cell">
                   <button type="button" class="link-btn" @click="openDetail(row)">
                     {{ t('common.details') }}
@@ -400,7 +323,7 @@ function handleExportConfirm({ selectedFields }) {
                 </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="11" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="10" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -423,6 +346,13 @@ function handleExportConfirm({ selectedFields }) {
       @add-supplement="handleAddSupplement(detailRow)"
     />
 
+    <MonitorRemindModal
+      :visible="!!remindRow"
+      :row="remindRow"
+      @close="remindRow = null"
+      @confirm="handleRemindConfirm"
+    />
+
     <ExportModal
       :visible="exportModalVisible"
       :fields="monitorExportFields.map((f) => ({ key: f.key, label: t(f.labelKey) }))"
@@ -434,7 +364,7 @@ function handleExportConfirm({ selectedFields }) {
 
 <style scoped>
 .stats-row--monitor {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .stat-card--click {
@@ -492,6 +422,15 @@ function handleExportConfirm({ selectedFields }) {
   color: #1d4ed8;
 }
 
+.th-nowrap {
+  white-space: nowrap;
+}
+
+.col-term-credit {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .severity-tag {
   padding: 2px 8px;
   border-radius: 4px;
@@ -506,12 +445,6 @@ function handleExportConfirm({ selectedFields }) {
 .severity-medium {
   background: #fef3c7;
   color: #b45309;
-}
-
-.col-recommend {
-  font-size: 12px;
-  color: #6b7280;
-  max-width: 200px;
 }
 
 .muted {
@@ -539,7 +472,7 @@ function handleExportConfirm({ selectedFields }) {
 
 @media (max-width: 1400px) {
   .stats-row--monitor {
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
 </style>

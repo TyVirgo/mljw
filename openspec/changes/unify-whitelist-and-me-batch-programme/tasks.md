@@ -22,6 +22,8 @@
 - [x] 3.2 加课申请选组：满容不可选/不可提交（白名单不破容量）
 - [x] 3.3 先修豁免：仅加课申请路径读取；在线选课资格评估保持先修校验
 - [x] 3.4 学生端提示：白名单仅开门交表；审批/缴费另计（短说明即可）
+- [x] 3.5 去掉加退课页白名单第二行长说明（`whitelistDoorOnlyHint`）；保留首行窗口文案
+- [x] 3.6 加退选课：`bypassCreditMax` 控制学期负荷超限可否提交；审批详情提示白名单超学期帽
 
 ## 4. ME 批次专业字段
 
@@ -34,3 +36,9 @@
 - [x] 5.1 流程指引或 Callout：白名单权限、分时效、先修破例路径、容量不破
 - [x] 5.2 中英 i18n 补齐本包用户可见文案
 - [x] 5.3 勾选本 tasks；与 `refine-freshman-adddrop-supplement-timetable` 文案冲突处统一为白名单
+
+## 6. 增量：侧栏命名对齐「…管理」
+
+- [x] 6.1 `menu.crSupplement` →「白名单管理」/「Whitelist Management」
+- [x] 6.2 删除未使用的 `menu.crWhitelist`（中英）
+- [x] 6.3 更新本提案 proposal/design/spec 菜单名口径

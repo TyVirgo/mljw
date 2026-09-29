@@ -26,6 +26,8 @@ import {
   previewDaySharePercents,
   DEMO_ROUND1_OPEN_DAYS,
   DEFAULT_DECAY_R,
+  DEFAULT_GRADUATE_CAP_RATIO,
+  normalizeGraduateCapRatio,
   intakeLabelsForYear,
   meYearAddOptions,
   meYearDefaultPool,
@@ -162,6 +164,23 @@ function setDecayR(value) {
     decayR: Number.isFinite(n) && n > 0 ? n : DEFAULT_DECAY_R,
   }
 }
+
+/** UI 百分比 1–100 → graduateCapRatio 0–1 */
+function setGraduateCapRatioPercent(value) {
+  const n = Number(value)
+  const pct = Number.isFinite(n) && n > 0 ? Math.min(100, Math.max(1, n)) : 90
+  form.value.round1Quota = {
+    ...form.value.round1Quota,
+    graduateCapRatio: normalizeGraduateCapRatio(pct / 100),
+  }
+}
+
+const graduateCapRatioPercent = computed(() => {
+  const r = normalizeGraduateCapRatio(
+    form.value.round1Quota?.graduateCapRatio ?? DEFAULT_GRADUATE_CAP_RATIO,
+  )
+  return Math.round(r * 100)
+})
 
 function setMeYearShare(year, event) {
   const el = event?.target
@@ -527,6 +546,24 @@ function handleSave() {
                   :value="form.round1Quota.decayR"
                   @change="setDecayR($event.target.value)"
                 />
+              </div>
+              <div class="form-field" style="max-width: 280px">
+                <label class="field-label">
+                  <span class="req">*</span> {{ t('courseRegistration.batch.round1GraduateCapRatio') }}
+                </label>
+                <div class="inline-with-suffix">
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    step="1"
+                    class="inline-number"
+                    :value="graduateCapRatioPercent"
+                    @change="setGraduateCapRatioPercent($event.target.value)"
+                  />
+                  <span class="suffix">%</span>
+                </div>
+                <p class="field-hint">{{ t('courseRegistration.batch.round1GraduateCapRatioHint') }}</p>
               </div>
               <p class="round1-quota-preview">
                 {{
@@ -1092,6 +1129,24 @@ function handleSave() {
   border-radius: 6px;
   font-size: 13px;
   text-align: center;
+}
+
+.inline-with-suffix {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inline-with-suffix .suffix {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.field-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
 }
 
 @media (max-width: 720px) {

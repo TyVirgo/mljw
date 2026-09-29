@@ -12,6 +12,19 @@
 - [x] 1.2 左冻结序号/课程代码/课程名称；保持横滑
 - [x] 1.3 i18n（若需）
 
+## 增量（2026-09 我的选课去 Tab）
+
+- [x] 取消「第一轮志愿结果 / 历史选课记录」双 Tab；单表仅展示在线确认课（保留 admin，排除 addDrop/重修）
+
+## 增量（2026-09 我的选课课表对齐与列裁剪）
+
+- [x] 「我的课表」工具条左对齐
+- [x] 去掉「课程来源」「操作人」列
+- [x] 进页 `syncAllVolunteerHitsToHistory`：已公示 R1 hit 写入确认池
+- [x] 课表选修与主表同源；叠培养方案必修底图（无全量 schedule fallback）
+- [x] demo 去掉 MPU401，消除与 COMP201 周三 14–16 冲突
+- [x] 更新 myResultHint / schedulePreviewFinalHint 文案
+
 ## 历史来源任务摘要
 
 ### enrich-student-history-batch-retake

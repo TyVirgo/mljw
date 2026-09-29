@@ -1,6 +1,8 @@
 <script setup>
 /**
- * 管理课程「专业范围设置」：专业 + 学生类别 + 校选类别（后两维必选≥1，本轮仅存档）
+ * 管理课程「选课范围设置」：专业 + 学生类别（本轮仅存档）
+ * ME 批次：专业锁定为本批 programme，仅可改学生类别
+ * 校选课类型属课程性质，不在此配置
  */
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
@@ -11,43 +13,41 @@ import {
 import {
   getCourseProgrammeScopeCodes,
   getCourseAudienceStudentCategories,
-  getCourseAudienceSchoolElectiveCategories,
   updateCoursesAudienceScope,
 } from '../../data/courseRegistration/selectableCourses.js'
 import { studentCategoryOptions } from '../../data/students.js'
-import {
-  schoolElectiveCategoryOptions,
-  getSchoolElectiveCategoryLabel,
-} from '../../data/departments.js'
 
 const props = defineProps({
   visible: Boolean,
   courses: { type: Array, default: () => [] },
+  /** 批次类型 GE / ME */
+  batchType: { type: String, default: '' },
+  /** ME 锁定用：本批所属专业 */
+  batchProgramme: { type: String, default: '' },
 })
 
 const emit = defineEmits(['close', 'saved'])
 
-const { t, isZh } = useAppI18n()
+const { t } = useAppI18n()
 /** @type {import('vue').Ref<string[]>} */
 const selected = ref([COURSE_PROGRAMME_UNLIMITED])
 /** @type {import('vue').Ref<string[]>} 学生类别 Local/China/International */
 const selectedStudentCategories = ref([])
-/** @type {import('vue').Ref<string[]>} 校选类别 arts/business/science */
-const selectedSchoolElectives = ref([])
 /** 当前展开的多选面板 key */
 const openKey = ref('')
 const errorKey = ref('')
 
 const hasCourses = computed(() => props.courses.length > 0)
+const isMeBatch = computed(() => String(props.batchType || '').toUpperCase() === 'ME')
+const lockedProgramme = computed(() => String(props.batchProgramme || '').trim())
 const programmeOptions = computed(() => [COURSE_PROGRAMME_UNLIMITED, ...courseProgrammeScopeOptions])
 
-const canConfirm = computed(
-  () =>
-    hasCourses.value &&
-    selected.value.length > 0 &&
-    selectedStudentCategories.value.length > 0 &&
-    selectedSchoolElectives.value.length > 0,
-)
+const canConfirm = computed(() => {
+  if (!hasCourses.value) return false
+  if (!selectedStudentCategories.value.length) return false
+  if (isMeBatch.value) return !!lockedProgramme.value
+  return selected.value.length > 0
+})
 
 function scopeLabel(value) {
   if (value === COURSE_PROGRAMME_UNLIMITED) return t('courseRegistration.courses.programmeScopeUnlimited')
@@ -62,14 +62,6 @@ function studentCategoryLabel(value) {
   const key = `courseRegistration.courses.studentCategoryOption.${value}`
   const translated = t(key)
   return translated !== key ? translated : value
-}
-
-/**
- * 校选类别展示文案（基础数据：文科/商科/理科）
- * @param {string} value
- */
-function schoolElectiveLabel(value) {
-  return getSchoolElectiveCategoryLabel(value, isZh.value)
 }
 
 /**
@@ -99,19 +91,17 @@ function defaultProgrammeSelection(courses) {
 }
 
 watch(
-  () => [props.visible, props.courses],
+  () => [props.visible, props.courses, props.batchType, props.batchProgramme],
   () => {
     if (!props.visible) return
-    selected.value = defaultProgrammeSelection(props.courses)
-    // 不一致或未配置时置空，强制用户至少选一项
+    if (isMeBatch.value && lockedProgramme.value) {
+      selected.value = [lockedProgramme.value]
+    } else {
+      selected.value = defaultProgrammeSelection(props.courses)
+    }
     selectedStudentCategories.value = sharedListOr(
       props.courses,
       getCourseAudienceStudentCategories,
-      [],
-    )
-    selectedSchoolElectives.value = sharedListOr(
-      props.courses,
-      getCourseAudienceSchoolElectiveCategories,
       [],
     )
     openKey.value = ''
@@ -120,6 +110,7 @@ watch(
 )
 
 function togglePanel(key) {
+  if (key === 'programme' && isMeBatch.value) return
   openKey.value = openKey.value === key ? '' : key
 }
 
@@ -135,6 +126,7 @@ onMounted(() => document.addEventListener('click', onDocClick))
 onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
 
 function toggleOption(value) {
+  if (isMeBatch.value) return
   if (value === COURSE_PROGRAMME_UNLIMITED) {
     selected.value = selected.value.includes(COURSE_PROGRAMME_UNLIMITED)
       ? []
@@ -149,6 +141,7 @@ function toggleOption(value) {
 }
 
 function removeOption(value) {
+  if (isMeBatch.value) return
   selected.value = selected.value.filter((item) => item !== value)
 }
 
@@ -171,42 +164,31 @@ function removeStudentCategory(value) {
   errorKey.value = ''
 }
 
-/**
- * 普通多选切换（校选类别）
- * @param {string} value
- */
-function toggleSchoolElective(value) {
-  const current = [...selectedSchoolElectives.value]
-  const idx = current.indexOf(value)
-  if (idx >= 0) current.splice(idx, 1)
-  else current.push(value)
-  selectedSchoolElectives.value = current
-  errorKey.value = ''
-}
-
-/** @param {string} value */
-function removeSchoolElective(value) {
-  selectedSchoolElectives.value = selectedSchoolElectives.value.filter((item) => item !== value)
-  errorKey.value = ''
-}
-
 function handleClose() {
   emit('close')
 }
 
 function handleConfirm() {
-  if (!hasCourses.value || !selected.value.length) return
-  if (!selectedStudentCategories.value.length || !selectedSchoolElectives.value.length) {
+  if (!hasCourses.value) return
+  if (!selectedStudentCategories.value.length) {
     errorKey.value = 'courseRegistration.courses.audienceScopeRequired'
     return
   }
-  const codes = selected.value.includes(COURSE_PROGRAMME_UNLIMITED) ? [] : [...selected.value]
+  let codes
+  if (isMeBatch.value) {
+    if (!lockedProgramme.value) return
+    codes = [lockedProgramme.value]
+  } else {
+    if (!selected.value.length) return
+    codes = selected.value.includes(COURSE_PROGRAMME_UNLIMITED) ? [] : [...selected.value]
+  }
   updateCoursesAudienceScope(
     props.courses.map((c) => c.id),
     {
       programmes: codes,
       studentCategories: [...selectedStudentCategories.value],
-      schoolElectiveCategories: [...selectedSchoolElectives.value],
+      // 清除误放在受众上的校选类型残留；课主数据 schoolElectiveCategory 不动
+      schoolElectiveCategories: [],
     },
   )
   emit('saved')
@@ -236,7 +218,24 @@ function handleConfirm() {
                 <span class="req">*</span>
                 {{ t('courseRegistration.courses.programmeScope') }}:
               </span>
-              <div class="multi-select" :class="{ open: openKey === 'programme' }" @click.stop>
+              <div v-if="isMeBatch" class="multi-select multi-select--locked" @click.stop>
+                <div class="multi-select-trigger is-locked">
+                  <span class="multi-select-tags">
+                    <span class="multi-tag multi-tag--locked">
+                      {{ lockedProgramme || '—' }}
+                    </span>
+                  </span>
+                </div>
+                <p class="field-locked-hint">
+                  {{ t('courseRegistration.courses.programmeScopeMeLockedHint') }}
+                </p>
+              </div>
+              <div
+                v-else
+                class="multi-select"
+                :class="{ open: openKey === 'programme' }"
+                @click.stop
+              >
                 <button
                   type="button"
                   class="multi-select-trigger"
@@ -317,50 +316,13 @@ function handleConfirm() {
               </div>
             </div>
 
-            <div class="field-block">
-              <span class="field-label">
-                <span class="req">*</span>
-                {{ t('courseRegistration.courses.audienceSchoolElective') }}:
-              </span>
-              <div class="multi-select" :class="{ open: openKey === 'schoolElective' }" @click.stop>
-                <button
-                  type="button"
-                  class="multi-select-trigger"
-                  :class="{ placeholder: !selectedSchoolElectives.length }"
-                  @click="togglePanel('schoolElective')"
-                >
-                  <span v-if="!selectedSchoolElectives.length" class="multi-select-placeholder">
-                    {{ t('common.pleaseSelect') }}
-                  </span>
-                  <span v-else class="multi-select-tags">
-                    <span
-                      v-for="item in selectedSchoolElectives"
-                      :key="item"
-                      class="multi-tag"
-                      @click.stop="removeSchoolElective(item)"
-                    >
-                      {{ schoolElectiveLabel(item) }}
-                      <span class="multi-tag-x">×</span>
-                    </span>
-                  </span>
-                </button>
-                <div v-if="openKey === 'schoolElective'" class="multi-select-panel">
-                  <button
-                    v-for="opt in schoolElectiveCategoryOptions"
-                    :key="opt.value"
-                    type="button"
-                    class="multi-select-option"
-                    :class="{ selected: selectedSchoolElectives.includes(opt.value) }"
-                    @click="toggleSchoolElective(opt.value)"
-                  >
-                    <span>{{ schoolElectiveLabel(opt.value) }}</span>
-                    <span v-if="selectedSchoolElectives.includes(opt.value)" class="check">✓</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <p class="help">{{ t('courseRegistration.courses.programmeScopeSettingsHelp') }}</p>
+            <p class="help">
+              {{
+                isMeBatch
+                  ? t('courseRegistration.courses.programmeScopeSettingsHelpMe')
+                  : t('courseRegistration.courses.programmeScopeSettingsHelp')
+              }}
+            </p>
             <p v-if="errorKey" class="field-error">{{ t(errorKey) }}</p>
           </template>
           <p v-else class="empty-hint">{{ t('courseRegistration.courses.optionalSettingsNeedSelect') }}</p>
@@ -469,6 +431,22 @@ function handleConfirm() {
 
 .multi-select {
   position: relative;
+}
+
+.multi-select-trigger.is-locked {
+  cursor: default;
+  background: #f9fafb;
+}
+
+.multi-tag--locked {
+  background: #e5e7eb;
+}
+
+.field-locked-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.4;
 }
 
 .multi-select-trigger {
