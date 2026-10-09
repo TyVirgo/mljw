@@ -10,6 +10,7 @@ import {
   getTermGeElectiveCategoryBars,
   getGraduationGeBars,
   getGraduationMeBars,
+  getProgrammeCreditTargets,
 } from '../../data/courseRegistration/studentRegistrationContext.js'
 
 const props = defineProps({
@@ -35,6 +36,22 @@ const termGeCategoryBars = computed(() =>
 )
 const termMeCategoryBars = computed(() => (props.row ? getTermGeCategoryBars(props.row) : []))
 
+/** GE 短标签（GE01-04，与在线选课入口同源） */
+const GE_SHORT_KEYS = {
+  humanities: 'courseRegistration.student.geDemand.short.humanities',
+  business: 'courseRegistration.student.geDemand.short.business',
+  science: 'courseRegistration.student.geDemand.short.science',
+  aiOpen: 'courseRegistration.student.geDemand.short.aiOpen',
+}
+
+/** 学期 GE 灰色统计行文案：GE01已选：N学分 */
+function geStatText(bar) {
+  return `${t(GE_SHORT_KEYS[bar.key] || bar.labelKey)}${t(
+    'courseRegistration.student.geDemand.termStatSelected',
+    { credit: Number(bar.current) || 0 },
+  )}`
+}
+
 const termGeTotal = computed(() => {
   const p = props.row?.termElectiveProgress
   if (p) {
@@ -58,7 +75,7 @@ const showTermSection = computed(
     termMeCategoryBars.value.length > 0,
 )
 
-/** 毕业 GE / ME：总分 + 类别（对齐在线选课入口） */
+/** 毕业 GE / ME：总分 + 类别（对齐在线选课入口；GE 总分用培养方案口径，不按四类求和） */
 const graduationGeBars = computed(() => (props.row ? getGraduationGeBars(props.row) : []))
 const graduationMeBars = computed(() => (props.row ? getGraduationMeBars(props.row) : []))
 
@@ -69,8 +86,18 @@ function sumBars(bars) {
   }
 }
 
-const graduationGeTotal = computed(() => sumBars(graduationGeBars.value))
-const graduationMeTotal = computed(() => sumBars(graduationMeBars.value))
+const graduationGeTotal = computed(() => {
+  const sum = sumBars(graduationGeBars.value)
+  const target = Number(
+    getProgrammeCreditTargets(props.row?.programme)?.geRequired,
+  )
+  return { current: sum.current, max: target || sum.max }
+})
+const graduationMeTotal = computed(() => {
+  const sum = sumBars(graduationMeBars.value)
+  const target = Number(getProgrammeCreditTargets(props.row?.programme)?.meRequired)
+  return { current: sum.current, max: target || sum.max }
+})
 
 const showGraduationSection = computed(
   () => graduationGeBars.value.length > 0 || graduationMeBars.value.length > 0,
@@ -99,9 +126,6 @@ const showGraduationSection = computed(
             <div class="g1-track">
               <div
                 class="g1-fill"
-                :class="{
-                  'g1-fill--over': termGeTotal.max > 0 && termGeTotal.current > termGeTotal.max,
-                }"
                 :style="{
                   width: `${
                     termGeTotal.max > 0
@@ -113,22 +137,13 @@ const showGraduationSection = computed(
             </div>
             <span class="g1-value">{{ termGeTotal.current }}/{{ termGeTotal.max }}</span>
           </div>
+          <!-- GE 学期分类帽已停用：改灰色统计行（无分母、无达标语义） -->
           <div
             v-for="bar in termGeCategoryBars"
             :key="`term-ge-${bar.key}`"
-            class="g1-bar g1-bar--nested"
+            class="g1-bar g1-bar--nested g1-bar--stat"
           >
-            <span class="g1-label">{{ t(bar.labelKey) }}</span>
-            <div class="g1-track">
-              <div
-                class="g1-fill"
-                :class="{ 'g1-fill--over': bar.max > 0 && bar.current > bar.max }"
-                :style="{
-                  width: `${bar.max > 0 ? Math.min(100, (bar.current / bar.max) * 100) : 0}%`,
-                }"
-              />
-            </div>
-            <span class="g1-value">{{ bar.current }}/{{ bar.max }}</span>
+            <span class="g1-label">{{ geStatText(bar) }}</span>
           </div>
         </template>
         <template v-if="row?.termElectiveProgress || termMeCategoryBars.length">
@@ -161,11 +176,12 @@ const showGraduationSection = computed(
             :key="`term-me-${bar.key}`"
             class="g1-bar g1-bar--nested"
           >
-            <span class="g1-label">{{ t(bar.labelKey) }}</span>
+            <span class="g1-label">{{
+              t(bar.labelKey) + t('courseRegistration.student.geDemand.selectedRequired')
+            }}</span>
             <div class="g1-track">
               <div
                 class="g1-fill"
-                :class="{ 'g1-fill--over': bar.max > 0 && bar.current > bar.max }"
                 :style="{
                   width: `${bar.max > 0 ? Math.min(100, (bar.current / bar.max) * 100) : 0}%`,
                 }"
@@ -184,10 +200,6 @@ const showGraduationSection = computed(
             <div class="g1-track">
               <div
                 class="g1-fill"
-                :class="{
-                  'g1-fill--over':
-                    graduationGeTotal.max > 0 && graduationGeTotal.current > graduationGeTotal.max,
-                }"
                 :style="{
                   width: `${
                     graduationGeTotal.max > 0
@@ -200,11 +212,12 @@ const showGraduationSection = computed(
             <span class="g1-value">{{ graduationGeTotal.current }}/{{ graduationGeTotal.max }}</span>
           </div>
           <div v-for="bar in graduationGeBars" :key="`ge-${bar.key}`" class="g1-bar g1-bar--nested">
-            <span class="g1-label">{{ t(bar.labelKey) }}</span>
+            <span class="g1-label">{{
+              t(bar.labelKey) + t('courseRegistration.student.geDemand.selectedRequired')
+            }}</span>
             <div class="g1-track">
               <div
                 class="g1-fill"
-                :class="{ 'g1-fill--over': bar.max > 0 && bar.current > bar.max }"
                 :style="{
                   width: `${bar.max > 0 ? Math.min(100, (bar.current / bar.max) * 100) : 0}%`,
                 }"
@@ -235,11 +248,12 @@ const showGraduationSection = computed(
             <span class="g1-value">{{ graduationMeTotal.current }}/{{ graduationMeTotal.max }}</span>
           </div>
           <div v-for="bar in graduationMeBars" :key="`me-${bar.key}`" class="g1-bar g1-bar--nested">
-            <span class="g1-label">{{ t(bar.labelKey) }}</span>
+            <span class="g1-label">{{
+              t(bar.labelKey) + t('courseRegistration.student.geDemand.selectedRequired')
+            }}</span>
             <div class="g1-track">
               <div
                 class="g1-fill"
-                :class="{ 'g1-fill--over': bar.max > 0 && bar.current > bar.max }"
                 :style="{
                   width: `${bar.max > 0 ? Math.min(100, (bar.current / bar.max) * 100) : 0}%`,
                 }"
@@ -324,6 +338,17 @@ const showGraduationSection = computed(
 
 .g1-bar--nested .g1-label {
   padding-left: 8px;
+}
+
+/* GE 学期分类灰色统计行：无进度条，仅文案 */
+.g1-bar--stat {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.g1-bar--stat .g1-label {
+  color: #9ca3af;
+  font-weight: 400;
 }
 
 .g1-label {

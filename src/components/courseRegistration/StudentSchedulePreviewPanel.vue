@@ -10,6 +10,8 @@ defineProps({
   embedded: { type: Boolean, default: false },
   /** 展示图层图例（学生课表抽屉默认开） */
   showLegend: { type: Boolean, default: true },
+  /** register | myResult */
+  legendMode: { type: String, default: 'register' },
 })
 
 const { t } = useAppI18n()
@@ -25,6 +27,7 @@ const { t } = useAppI18n()
       v-if="schedule.length"
       :schedule="schedule"
       :show-legend="showLegend"
+      :legend-mode="legendMode"
       :stretch="embedded"
     />
     <p v-else class="schedule-preview-empty">{{ t('courseRegistration.student.schedulePreviewEmpty') }}</p>

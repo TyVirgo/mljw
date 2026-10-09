@@ -253,6 +253,7 @@
   justify-content: space-between;
   gap: 12px 16px;
   flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .cr-student-cart-toolbar-actions {
@@ -261,6 +262,94 @@
   gap: 12px;
   flex-wrap: wrap;
   flex-shrink: 0;
+}
+
+/* R1：五列定宽右对齐 — 学期已选/要求 | 允许最大 | 学期2×2 | 毕业已选/要求 | 毕业2×2 */
+.cr-r1-credit-panel {
+  display: grid;
+  grid-template-columns: repeat(5, max-content);
+  align-items: stretch;
+  gap: 0;
+  flex: 0 0 auto;
+  width: max-content;
+  max-width: 100%;
+  margin-left: auto;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #eff6ff;
+}
+
+.cr-r1-credit-card {
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: 0;
+  border-right: 1px solid #93c5fd;
+}
+
+.cr-r1-credit-card:last-child {
+  border-right: none;
+}
+
+.cr-r1-credit-card--capsules {
+  background: #fff;
+}
+
+.cr-r1-credit-card-label {
+  padding: 4px 10px;
+  background: #bfdbfe;
+  color: #1e3a8a;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.cr-r1-credit-card-value {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  color: #1e3a8a;
+  font-variant-numeric: tabular-nums;
+  background: #eff6ff;
+}
+
+.cr-r1-credit-card-value.is-over {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.cr-r1-capsule-grid {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: 3px 6px;
+  align-content: center;
+  align-items: center;
+  justify-content: start;
+  height: 100%;
+  min-height: 100%;
+  padding: 4px 8px;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.cr-r1-capsule-grid .cr-credit-capsule {
+  width: auto;
+  max-width: none;
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .cr-student-cart-toolbar-actions .btn,

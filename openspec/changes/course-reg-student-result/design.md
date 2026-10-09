@@ -112,11 +112,32 @@
    - 先修依赖用监控 `passedCourses`（如 MATH101）补齐，使可选半池资格成立  
    - 必要时调整满员课 `enrolled`、并增补 1～2 门无先修开放课，保证可选半池数量
 
+## 增量设计（2026-10 类型分层）
+
+1. **分类口径**
+   - `elective`：确认半池 `round` / `preselect`（在线 GE/ME）
+   - `admin`：`sourceType===admin`
+   - `required`：`studentRequiredCourses`（培养方案必修底图）
+   - `application`：加退队列中当前生 `Approved` 且明细 action∈{Add,Retake}；若同课号另有 Approved Drop 则剔除
+2. **合并**：`listMyResultCourses()` 去重键 `courseCode|sectionCode`；优先级 required > elective > admin > application。
+3. **UI**：顶部分段 Tab（全部为一级默认）；list 与课表均按当前 Tab 过滤；课表 `buildPreviewSchedule` 跳过无 time/meetings 行。
+4. **Demo**：必修增一门无时段实习课（INT300）；申请层取 Approved Add/Retake（如 COMP3192、MATH201；若同课号另有 Approved Drop 则剔除，如 ENGL201）。
+5. **我的选课课表（2026-10）**：`buildMyResultSchedule` 按 `resultType` 输出 layer（required/elective/application/admin），不调用批次类型过滤、不注入志愿虚线；课表按课号去重（优先级同 list）。`WeekScheduleGrid` 支持 `legendMode=myResult`：必修/选修/申请/管理员，无「本轮选择」。Demo 调整 BUS301 等时段保证全部结果课表无重叠。
+6. **list/课表同构与课名双语（2026-10）**：
+   - `dedupeMyResultCoursesByCode`：list 与课表共用课号去重（必修 > 选修 > 管理员 > 申请）。
+   - 各 Tab：有时段行的课号集合 ≡ 课表课号集合；无时段（实习）仅 list。
+   - `buildMyResultSchedule(courses, { locale })` 先 `hydrateSelectedCourseDisplay` 再生成槽位。
+   - hydrate：中文优先 brief/`nameZh`/结果项中文 `courseName`，禁止仅有英文的 catalog `name` 覆盖中文 seed。
+7. **时段权威与申请无冲突（2026-10）**：
+   - 我的选课 hydrate 使用 `preserveSchedule: true`：只回填课名/学分等，保留结果项 `time`/`meetings`/`room`/`lecturer`/`weekRange`，避免课库合成多段 meetings 导致 list≠课表。
+   - 申请 demo：已批准 Add/Retake 明细时段互不重叠（如 COMP201 重修避开 COMP3192 Wed 14–16）；与全部 Tab 中申请图层时段一致。
+
 ## Risks / Trade-offs
 
 - [Risk] 与加退课 Drop 文案混淆 → Mitigation：结果页说明明确两种动作；按钮仅标「退选」
 - [Risk] 监控行与 confirmed 双源不一致 → Mitigation：退选时两边一并清理（能匹配到的行）
 - [Risk] 已确认过多导致在线选课无可选 → Mitigation：对半拆分 + passedCourses 与容量调整
+- [Risk] 申请课与在线确认同课号重复 → Mitigation：合并去重 + Drop 剔除
 
 ## Migration Plan
 

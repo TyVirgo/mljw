@@ -54,6 +54,9 @@ import {
   hasWhitelistCreditMaxBypass,
   projectAddDropCreditGroups,
   sumTermCategoryCreditExcess,
+  buildAddDropTermCreditStrip,
+  wouldExceedAddDropGeTermCap,
+  isMandatoryAddDropCourse,
 } from '../../../data/courseRegistration/addDropMultiItems.js'
 import { getEligibleAddCoursesForStudent } from '../../../data/courseRegistration/addDropEligibleCourses.js'
 import {
@@ -81,6 +84,7 @@ import {
   studentConfirmedCourses,
   studentRequiredCourses,
   getSelectableCoursesForStudent,
+  getTermElectiveCreditProgress,
 } from '../../../data/courseRegistration/studentRegistrationStore.js'
 import {
   getStudentCreditSummary,
@@ -89,6 +93,7 @@ import {
   getTermGeElectiveCategoryBars,
   getGraduationGeBars,
   getGraduationMeBars,
+  getProgrammeCreditProgress,
   buildAddDropPlanRemaining,
 } from '../../../data/courseRegistration/studentRegistrationContext.js'
 import {
@@ -352,12 +357,10 @@ const applicationStatusOptions = [
 
 const selectableCourses = computed(() => getSelectableCoursesForStudent())
 
-/** 可退：仅选修（排除必修 CORE / required） */
+/** 可退选修（确认池）；退课池以必修为主，选修较少排后 */
 function isDroppableElective(item) {
   if (!item) return false
-  if (item.sourceType === 'required') return false
-  const type = String(item.type || '').toUpperCase()
-  if (type === 'CORE') return false
+  if (isMandatoryAddDropCourse(item)) return false
   return true
 }
 
@@ -376,15 +379,26 @@ function mapEnrolledToPickerCourse(item) {
     weekRange: item.weekRange || '1-18',
     fromEnrolled: true,
     type: item.type || 'ME',
+    sourceType: item.sourceType || '',
     schoolElectiveCategory: item.schoolElectiveCategory || '',
     meetings: item.meetings,
     batchId: item.batchId || '',
   }
 }
 
+function mapRequiredToPickerCourse(item) {
+  return {
+    ...mapEnrolledToPickerCourse(item),
+    type: item.type || 'CORE',
+    sourceType: item.sourceType || 'required',
+  }
+}
+
 const courseOptions = computed(() => {
   if (form.value.action === 'Drop' || pickingFor.value === 'drop') {
-    return enrolled.value.filter(isDroppableElective).map(mapEnrolledToPickerCourse)
+    const required = (studentRequiredCourses.value || []).map(mapRequiredToPickerCourse)
+    const electives = enrolled.value.filter(isDroppableElective).map(mapEnrolledToPickerCourse)
+    return [...required, ...electives]
   }
   if (form.value.action === 'Add' || pickingFor.value === 'add') {
     return getEligibleAddCoursesForStudent(studentFields.value.studentId)
@@ -419,6 +433,18 @@ const scheduleBaseline = computed(() =>
 /** 加退选课弹窗：仅确认课（与退课表宇宙一致） */
 const ADD_DROP_PICKER_CREDIT_OPTS = { scope: 'confirmed' }
 
+/**
+ * GE 学分胶囊色调（达标语义，与入口卡/顶栏同口径）：
+ * 未达目标橙 / 达标（含超出）绿 / 无目标中性
+ * @param {{ current: number, max: number }} bar
+ */
+function geCapsuleTone(bar) {
+  const current = Number(bar?.current) || 0
+  const max = Number(bar?.max) || 0
+  if (max <= 0) return 'is-neutral'
+  return current >= max ? 'is-achieved' : 'is-pending'
+}
+
 function sumCreditBarPair(bars) {
   return (bars || []).reduce(
     (acc, bar) => {
@@ -445,6 +471,11 @@ const pickerCreditGroups = computed(() => {
   const geTerm = sumCreditBarPair(geTermCats)
   const meGrad = sumCreditBarPair(meGradCats)
   const meTerm = sumCreditBarPair(meTermCats)
+  // GE 口径与入口卡/顶栏一致：毕业总分用培养方案 18；学期总分用 geMax，分类只显示已选
+  const geGradMax =
+    Number(getProgrammeCreditProgress().geRequired) || geGrad.max
+  const geTermMax =
+    Number(getTermElectiveCreditProgress().geMax) || geTerm.max
   return [
     {
       key: 'ge-grad',
@@ -452,9 +483,10 @@ const pickerCreditGroups = computed(() => {
         key: 'ge-grad',
         labelKey: 'courseRegistration.student.graduationElectiveProgressGe',
         current: geGrad.current,
-        max: geGrad.max,
+        max: geGradMax,
+        tone: geCapsuleTone({ current: geGrad.current, max: geGradMax }),
       },
-      categories: geGradCats,
+      categories: geGradCats.map((bar) => ({ ...bar, tone: geCapsuleTone(bar), statLabel: true })),
     },
     {
       key: 'ge',
@@ -462,9 +494,14 @@ const pickerCreditGroups = computed(() => {
         key: 'ge',
         labelKey: 'courseRegistration.student.termElectiveProgressGe',
         current: geTerm.current,
-        max: geTerm.max,
+        max: geTermMax,
+        tone: geCapsuleTone({ current: geTerm.current, max: geTermMax }),
       },
-      categories: geTermCats,
+      categories: geTermCats.map((bar) => ({
+        ...bar,
+        isStat: true,
+        tone: 'is-neutral',
+      })),
     },
     {
       key: 'me-grad',
@@ -472,9 +509,17 @@ const pickerCreditGroups = computed(() => {
         key: 'me-grad',
         labelKey: 'courseRegistration.student.graduationElectiveProgressMe',
         current: meGrad.current,
-        max: meGrad.max,
+        max: Number(getProgrammeCreditProgress().meRequired) || meGrad.max,
+        tone: geCapsuleTone({
+          current: meGrad.current,
+          max: Number(getProgrammeCreditProgress().meRequired) || meGrad.max,
+        }),
       },
-      categories: meGradCats,
+      categories: meGradCats.map((bar) => ({
+        ...bar,
+        tone: geCapsuleTone(bar),
+        statLabel: true,
+      })),
     },
     {
       key: 'me',
@@ -482,9 +527,17 @@ const pickerCreditGroups = computed(() => {
         key: 'me',
         labelKey: 'courseRegistration.student.termElectiveProgressMe',
         current: meTerm.current,
-        max: meTerm.max,
+        max: Number(getTermElectiveCreditProgress().meMax) || meTerm.max,
+        tone: geCapsuleTone({
+          current: meTerm.current,
+          max: Number(getTermElectiveCreditProgress().meMax) || meTerm.max,
+        }),
       },
-      categories: meTermCats,
+      categories: meTermCats.map((bar) => ({
+        ...bar,
+        tone: geCapsuleTone(bar),
+        statLabel: true,
+      })),
     },
   ]
 })
@@ -499,6 +552,40 @@ const termCreditBars = computed(() => {
 
 const formProjectedCreditGroups = computed(() =>
   projectAddDropCreditGroups(pickerCreditGroups.value, {
+    dropCourses: form.value.dropLines || [],
+    addCourses: form.value.addLines || [],
+  }),
+)
+
+/** 学分条基线：毕业 GE/ME（本学期确认、不含 prior）+ 学期 GE/ME + 必修已选 */
+const termCreditStripBaseline = computed(() => {
+  const groups = pickerCreditGroups.value
+  const ge = groups.find((g) => g.key === 'ge')?.total
+  const me = groups.find((g) => g.key === 'me')?.total
+  const programme = getProgrammeCreditProgress()
+  const geCurrent = Number(ge?.current) || 0
+  const meCurrent = Number(me?.current) || 0
+  const mandatorySelected = (studentRequiredCourses.value || []).reduce(
+    (sum, item) => sum + (Number(item.credits) || 0),
+    0,
+  )
+  return {
+    geCurrent,
+    geMax: Number(ge?.max) || 0,
+    meCurrent,
+    meMax: Number(me?.max) || 0,
+    // 毕业已选与学期已选同源，拟退光本学期后归零；分母仍用培养方案要求
+    gradGeCurrent: geCurrent,
+    gradGeMax: Number(programme.geRequired) || 0,
+    gradMeCurrent: meCurrent,
+    gradMeMax: Number(programme.meRequired) || 0,
+    mandatorySelected,
+  }
+})
+
+const formTermCreditStrip = computed(() =>
+  buildAddDropTermCreditStrip({
+    ...termCreditStripBaseline.value,
     dropCourses: form.value.dropLines || [],
     addCourses: form.value.addLines || [],
   }),
@@ -789,6 +876,13 @@ function closeForm() {
 function resolveCourseById(courseId, fromEnrolled = false) {
   if (!courseId) return null
   if (fromEnrolled) {
+    const requiredHit = (studentRequiredCourses.value || []).find(
+      (item) =>
+        item.courseId === courseId ||
+        item.courseCode === courseId ||
+        item.code === courseId,
+    )
+    if (requiredHit) return mapRequiredToPickerCourse(requiredHit)
     const enrolledHit = enrolled.value.find(
       (item) =>
         item.courseId === courseId ||
@@ -796,23 +890,7 @@ function resolveCourseById(courseId, fromEnrolled = false) {
         item.code === courseId,
     )
     if (!enrolledHit) return null
-    return {
-      id: enrolledHit.courseId || enrolledHit.courseCode,
-      code: enrolledHit.courseCode,
-      name: enrolledHit.courseName || enrolledHit.courseCode,
-      credits: enrolledHit.credits,
-      sectionId: enrolledHit.sectionId,
-      sectionCode: enrolledHit.sectionCode,
-      sectionName: enrolledHit.sectionName,
-      time: enrolledHit.time,
-      room: enrolledHit.room,
-      lecturer: enrolledHit.lecturer,
-      weekRange: enrolledHit.weekRange || '1-18',
-      meetings: enrolledHit.meetings,
-      type: enrolledHit.type || 'ME',
-      schoolElectiveCategory: enrolledHit.schoolElectiveCategory || '',
-      fromEnrolled: true,
-    }
+    return mapEnrolledToPickerCourse(enrolledHit)
   }
   const base =
     courseOptions.value.find((item) => item.id === courseId || item.code === courseId) ||
@@ -862,6 +940,7 @@ function buildLineFromSelection(course, section) {
     lecturers: snap.lecturers || '',
     meetings: snap.meetings || null,
     type: course?.type || '',
+    sourceType: course?.sourceType || '',
     schoolElectiveCategory:
       course?.schoolElectiveCategory || resolveSchoolElectiveCategory(course) || '',
     feeStream: course?.feeStream || '',
@@ -1117,6 +1196,22 @@ function handleSubmit() {
   const termOver = creditMax > 0 && net > creditMax
   if (termOver && !creditMaxBypass.value) {
     formError.value = t('courseRegistration.student.pickerStatusOverCredit')
+    return
+  }
+
+  // GE 学期帽与 R3/学分条同源：拟加后 current > geMax 硬拦（白名单亦不可超）
+  if (
+    wouldExceedAddDropGeTermCap(termCreditStripBaseline.value, {
+      dropCourses: dropLines,
+      addCourses: addLines,
+    })
+  ) {
+    const strip = formTermCreditStrip.value
+    formError.value = t('courseRegistration.student.termCreditCapExceeded', {
+      type: 'GE',
+      used: strip?.ge?.current ?? '—',
+      max: strip?.ge?.max ?? '—',
+    })
     return
   }
 
@@ -1422,6 +1517,7 @@ function handleSubmit() {
             :add-course="formAddCourse"
             :fee-estimate="feeEstimate"
             :term-credit-excess="formTermCreditExcess"
+            :term-credit-strip="formTermCreditStrip"
             @update:form="onFormUpdate"
             @pick-course="openCoursePicker"
             @attachment-change="onAttachmentSelected"
@@ -1491,6 +1587,7 @@ function handleSubmit() {
       :schedule-baseline="scheduleBaseline"
       :credit-bars="termCreditBars"
       :credit-groups="pickerCreditGroups"
+      :term-credit-strip-baseline="termCreditStripBaseline"
       :plan-remaining="planRemaining"
       :preselected-lines="
         pickingFor === 'drop' ? form.dropLines || [] : form.addLines || []
@@ -1657,8 +1754,20 @@ function handleSubmit() {
 .cr-adddrop-modal-body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   padding: 0 20px 8px;
+}
+
+.cr-adddrop-modal-body > :deep(.adddrop-sections) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.cr-adddrop-modal-body > .cr-callout,
+.cr-adddrop-modal-body > .cr-student-message {
+  flex: 0 0 auto;
 }
 
 .cr-adddrop-modal :deep(.cr-callout) {

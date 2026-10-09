@@ -24,52 +24,108 @@ const DEMO_STUDENT_ID = DEFAULT_MOCK_CURRENT_STUDENT_ID
 
 /**
  * 轮次自选成功半池 — 按批次隔离（GE/ME、R2/R3 不共用）
- * ME R1 主批 m1：COMP101 + IT102
- * GE R2 g2：BUS；GE R3 g3：MPU
- * 另：GE 代选 BUS201 挂 g2
- * §25：压至 17 学分（长学期帽 20 内），保证加课选课器 3 学分空档行可过学分闸
+ * ME：R1 中签 COMP201+AI110（preselect/m1）+ R2 CST201（cst-i/main）+ R3 CYS201（cys-i/supplement）
+ * GE 学分累计（不含 admin）：R1=HUM201(2)；R2=+BUS301(2)→4；R3=+MPU401(2)→6（≤geMax）
+ * 本轮表仅当前轮；课表实线仅更早轮确认（同轮跨批不泄漏）
+ * 另：GE 代选 BUS201 挂 g2（不进本轮选课/学分累计）
  */
 const DEMO_TERM_ACADEMIC_SESSION = '2026/09'
 
 const DEMO_ROUND_CONFIRMED_COURSES = [
   {
-    courseId: 'course-comp101',
-    courseCode: 'COMP101',
-    courseName: '程序设计导论',
-    courseNameEn: 'Introduction to Programming',
-    credits: 4,
-    type: 'ME',
-    sectionId: 'sec-5',
+    courseId: 'course-hum-demo-1',
+    courseCode: 'HUM201',
+    courseName: '哲学与当代议题',
+    courseNameEn: 'Philosophy and Current Issues',
+    credits: 2,
+    type: 'GE',
+    sectionId: 'sec-hum-demo-1-1',
     sectionCode: '01',
-    time: 'Thu 14:00–16:00',
-    weekRange: '1-14',
-    room: 'D5-2-101',
-    lecturer: '林博士',
-    lecturerEn: 'Dr. Lim',
-    batchId: 'batch-2504-m1',
+    time: 'Tue 08:00–10:00',
+    weekRange: '1-18',
+    room: 'B2-2-201',
+    lecturer: 'Dr. James Whitfield',
+    lecturerEn: 'Dr. James Whitfield',
+    batchId: 'batch-2504-g1',
     schoolElectiveCategory: 'business',
-    meetings: [
-      { time: 'Thu 14:00–16:00', room: 'D5-2-101', weekRange: '1-14' },
-      { time: 'Fri 10:00–12:00', room: 'D5-2-201', weekRange: '1-14' },
-    ],
+    roundKey: 'preselect',
+    meetings: [{ time: 'Tue 08:00–10:00', room: 'B2-2-201', weekRange: '1-18' }],
   },
   {
-    courseId: 'course-it102',
-    courseCode: 'IT102',
-    courseName: '数字素养工作坊',
-    courseNameEn: 'Digital Literacy Workshop',
-    credits: 2,
+    courseId: 'course-comp201',
+    courseCode: 'COMP201',
+    courseName: '数据结构',
+    courseNameEn: 'Data Structures',
+    credits: 4,
     type: 'ME',
-    sectionId: 'sec-it102-1',
-    sectionCode: '01',
-    time: 'Mon 09:00–11:00',
-    weekRange: '1-7',
-    room: 'D5-1-105',
-    lecturer: '王老师',
-    lecturerEn: 'Ms. Ong',
+    sectionId: 'sec-comp201-3',
+    sectionCode: '03',
+    time: 'Wed 11:00–13:00',
+    weekRange: '1-18',
+    room: 'D5-3-203',
+    lecturer: 'Dr. Yap',
+    lecturerEn: 'Dr. Yap',
     batchId: 'batch-2504-m1',
     schoolElectiveCategory: 'science',
-    meetings: [{ time: 'Mon 09:00–11:00', room: 'D5-1-105', weekRange: '1-7' }],
+    roundKey: 'preselect',
+    meetings: [{ time: 'Wed 11:00–13:00', room: 'D5-3-203', weekRange: '1-18' }],
+  },
+  {
+    courseId: 'course-ai110',
+    courseCode: 'AI110',
+    courseName: '人工智能导论',
+    courseNameEn: 'Introduction to AI',
+    credits: 3,
+    type: 'ME',
+    sectionId: 'sec-ai110-1',
+    sectionCode: '01',
+    time: 'Fri 08:00–10:00',
+    weekRange: '1-18',
+    room: 'D5-4-101',
+    lecturer: 'Dr. Foo',
+    lecturerEn: 'Dr. Foo',
+    batchId: 'batch-2504-m1',
+    schoolElectiveCategory: 'science',
+    roundKey: 'preselect',
+    meetings: [{ time: 'Fri 08:00–10:00', room: 'D5-4-101', weekRange: '1-18' }],
+  },
+  {
+    courseId: 'course-cst-demo-1',
+    courseCode: 'CST201',
+    courseName: '离散结构',
+    courseNameEn: 'Discrete Structures',
+    credits: 2,
+    type: 'ME',
+    sectionId: 'sec-cst-demo-1-1',
+    sectionCode: '01',
+    time: 'Thu 10:00–12:00',
+    weekRange: '1-18',
+    room: 'B2-2-201',
+    lecturer: 'Dr. James Whitfield',
+    lecturerEn: 'Dr. James Whitfield',
+    batchId: 'batch-me-cst-i',
+    schoolElectiveCategory: 'science',
+    roundKey: 'main',
+    meetings: [{ time: 'Thu 10:00–12:00', room: 'B2-2-201', weekRange: '1-18' }],
+  },
+  {
+    courseId: 'course-cys-demo-1',
+    courseCode: 'CYS201',
+    courseName: '网络安全',
+    courseNameEn: 'Network Security',
+    credits: 2,
+    type: 'ME',
+    sectionId: 'sec-cys-demo-1-1',
+    sectionCode: '01',
+    time: 'Mon 14:00–16:00',
+    weekRange: '1-18',
+    room: 'B2-2-201',
+    lecturer: 'Dr. James Whitfield',
+    lecturerEn: 'Dr. James Whitfield',
+    batchId: 'batch-me-cys-i',
+    schoolElectiveCategory: 'science',
+    roundKey: 'supplement',
+    meetings: [{ time: 'Mon 14:00–16:00', room: 'B2-2-201', weekRange: '1-18' }],
   },
   {
     courseId: 'course-bus-demo-1',
@@ -80,73 +136,57 @@ const DEMO_ROUND_CONFIRMED_COURSES = [
     type: 'GE',
     sectionId: 'sec-bus-demo-1-1',
     sectionCode: '01',
-    time: 'Mon 14:00–16:00',
+    /** 避开 ME R3 CYS201 Mon 14–16，保证「全部课程结果」课表无冲突 */
+    time: 'Tue 10:00–12:00',
     weekRange: '1-18',
     room: 'B2-2-201',
     lecturer: 'Dr. James Whitfield',
     lecturerEn: 'Dr. James Whitfield',
     batchId: 'batch-2504-g2',
     schoolElectiveCategory: 'business',
-    meetings: [{ time: 'Mon 14:00–16:00', room: 'B2-2-201', weekRange: '1-18' }],
+    roundKey: 'main',
+    meetings: [{ time: 'Tue 10:00–12:00', room: 'B2-2-201', weekRange: '1-18' }],
   },
   {
-    courseId: 'course-bus-demo-2',
-    courseCode: 'BUS302',
-    courseName: '个人理财素养',
-    courseNameEn: 'Personal Finance Literacy',
-    credits: 3,
+    courseId: 'course-mpu-demo-1',
+    courseCode: 'MPU401',
+    courseName: '廉正与反贪腐',
+    courseNameEn: 'Integrity and Anti-Corruption',
+    credits: 2,
     type: 'GE',
-    sectionId: 'sec-bus-demo-2-1',
-    sectionCode: '01',
-    time: 'Mon 16:00–18:00',
-    weekRange: '1-18',
-    room: 'B2-2-201',
-    lecturer: 'Dr. Emily Harrington',
-    lecturerEn: 'Dr. Emily Harrington',
-    batchId: 'batch-2504-g2',
-    schoolElectiveCategory: 'science',
-    meetings: [{ time: 'Mon 16:00–18:00', room: 'B2-2-201', weekRange: '1-18' }],
-  },
-  {
-    courseId: 'course-mpu-demo-2',
-    courseCode: 'MPU402',
-    courseName: '社区服务',
-    courseNameEn: 'Community Service',
-    credits: 3,
-    type: 'GE',
-    sectionId: 'sec-mpu-demo-2-1',
+    sectionId: 'sec-mpu-demo-1-1',
     sectionCode: '01',
     time: 'Wed 16:00–18:00',
     weekRange: '1-18',
     room: 'B2-2-201',
-    lecturer: 'Dr. Emily Harrington',
-    lecturerEn: 'Dr. Emily Harrington',
+    lecturer: 'Dr. James Whitfield',
+    lecturerEn: 'Dr. James Whitfield',
     batchId: 'batch-2504-g3',
     schoolElectiveCategory: 'arts',
+    roundKey: 'supplement',
     meetings: [{ time: 'Wed 16:00–18:00', room: 'B2-2-201', weekRange: '1-18' }],
   },
 ].map((item, index) => ({
   ...item,
   classTime: item.classTime || deriveClassTime(item.time),
   selectedAt: `2026-04-10 ${String(9 + (index % 8)).padStart(2, '0')}:${String((15 + index * 7) % 60).padStart(2, '0')}:${String((8 + index * 11) % 60).padStart(2, '0')}`,
-  sourceType: 'round',
-  roundKey:
-    item.batchId === 'batch-2504-g3' || item.batchId === 'batch-me-cys-i'
-      ? 'supplement'
-      : item.batchId === 'batch-2504-m1' && item.courseCode === 'IT102'
-        ? 'supplement'
-        : 'main',
+  sourceType: item.roundKey === 'preselect' ? 'preselect' : 'round',
+  roundKey: item.roundKey || 'main',
   isRetake: false,
 }))
 
-/** 管理端代选样例：BUS201 挂 GE R2 批，与 ME 确认课分离 */
+/**
+ * 管理端代选样例：BUS201 挂 GE R2 批（sourceType=admin）
+ * 不计入 GE「本轮选课」累计（R2=HUM201+BUS301→4；R3=+MPU401→6）
+ * credits 用 1 控学期演示帽；课库可为 3，本轮表不展示代选故无双口径
+ */
 const DEMO_ADMIN_CONFIRMED_COURSES = [
   {
     courseId: 'course-bus201',
     courseCode: 'BUS201',
     courseName: '商业伦理',
     courseNameEn: 'Business Ethics',
-    credits: 3,
+    credits: 1,
     type: 'GE',
     sectionId: 'sec-18',
     sectionCode: '01',
@@ -214,6 +254,32 @@ export const DEMO_REQUIRED_COURSES = [
     lecturerEn: 'Dr. Wong',
     batchId: 'batch-2504-m1',
     classTime: deriveClassTime('Sat 18:00–20:00'),
+    selectedAt: '2026-03-01 08:00:00',
+    sourceType: 'required',
+    roundKey: '',
+    isRetake: false,
+  },
+  /**
+   * 无排课时段实习课：我的选课 list 有行，课表不画格
+   */
+  {
+    courseId: 'course-int300',
+    courseCode: 'INT300',
+    courseName: '专业实习',
+    courseNameEn: 'Professional Internship',
+    credits: 2,
+    type: 'CORE',
+    sectionId: 'sec-int300-1',
+    sectionCode: '01',
+    time: '',
+    weekRange: '1-18',
+    room: '',
+    lecturer: '实习指导老师',
+    lecturerEn: 'Internship Supervisor',
+    batchId: '',
+    academicSession: DEMO_TERM_ACADEMIC_SESSION,
+    classTime: '',
+    meetings: [],
     selectedAt: '2026-03-01 08:00:00',
     sourceType: 'required',
     roundKey: '',
@@ -396,7 +462,10 @@ function buildDemoAddDropApplications(credits, schedule) {
           courseCode: 'COMP201',
           credits: 4,
           section: '02',
-          time: 'Wed 14:00–16:00',
+          /** 避开 COMP3192 Wed 14–16，保证「申请」Tab 课表无冲突 */
+          time: 'Tue 12:00–14:00',
+          room: 'A1-2-201',
+          weekRange: '1-16',
           retakeGrade: 'M',
           fee: 480,
         },
@@ -657,6 +726,9 @@ function buildDemoAddDropApplications(credits, schedule) {
           credits: 4,
           section: '01',
           time: 'Wed 14:00–16:00',
+          room: 'D5-3-301',
+          weekRange: '1-18',
+          lecturer: 'Dr. Wong',
           retakeGrade: 'F',
           fee: 480,
         },
@@ -792,6 +864,9 @@ function buildDemoAddDropApplications(credits, schedule) {
           credits: 4,
           section: '02',
           time: 'Fri 14:00–16:00',
+          room: 'D5-1-111',
+          weekRange: '1-18',
+          lecturer: 'Dr. Ng',
           retakeGrade: 'F',
           fee: 2200,
         },
@@ -935,6 +1010,15 @@ function syncDemoAddDropApplications(credits, schedule) {
     studentApps.some((app) => !app.academicSession) ||
     studentApps.some((app) => app.type === 'Replace') ||
     studentApps.some((app) => String(app.submittedAt || '').includes('2025-09')) ||
+    // 旧 seed：COMP201 重修 Wed 14–16 与 COMP3192 冲突 → 强制重种
+    studentApps.some((app) =>
+      (app.items || []).some(
+        (line) =>
+          String(line.courseCode || '') === 'COMP201' &&
+          String(line.action || '') === 'Retake' &&
+          String(line.time || '').includes('Wed 14:00'),
+      ),
+    ) ||
     studentApps.some(
       (app) =>
         !app.weekRange ||
@@ -1080,8 +1164,9 @@ function syncDemoMonitor(courses) {
         (sum, item) => sum + (item.type === 'ME' || item.type === 'Mandatory' ? item.credits || 0 : 0),
         0,
       ),
-      geMax: 18,
-      /** 演示生学期帽：覆盖已选约 13(GE)/18(ME)，允许继续提交选课 */
+      // GE 学期整体帽 6 分（不再按 GE01-04 分类限制）
+      geMax: 6,
+      /** 演示生学期帽：GE 已选约 6/6，ME 允许继续提交选课 */
       meMax: 22,
     },
     // ME 课程组 / GE 文商理已选均按确认课汇总，与学期总分同源
@@ -1093,10 +1178,10 @@ function syncDemoMonitor(courses) {
       ...sumTermCategoryCreditsFromCourses(courses, 'GE'),
       required: { humanities: 5, business: 5, science: 4, aiOpen: 4 },
     },
-    // 毕业进度：首次选课叙事下已选≡本学期
+    // 毕业进度：首次选课叙事下已选≡本学期；四类和 16 < 毕业总分 18（留富余）
     graduationGeProgress: {
       ...sumTermCategoryCreditsFromCourses(courses, 'GE'),
-      required: { humanities: 12, business: 12, science: 12, aiOpen: 12 },
+      required: { humanities: 5, business: 5, science: 4, aiOpen: 2 },
     },
     graduationMeProgress: {
       ...sumLiveMeGroupCredits(courses),
@@ -1130,13 +1215,39 @@ export function seedStudentRegistrationDemo() {
     !studentConfirmedCourses.value.some(
       (item) => item.courseCode === 'BUS201' && item.schoolElectiveCategory === 'ai_open',
     ) ||
-    !studentConfirmedCourses.value.some((item) => item.courseCode === 'CST201' && item.batchId === 'batch-me-cst-i') ||
-    !studentConfirmedCourses.value.some((item) => item.courseCode === 'MPU402' && item.batchId === 'batch-2504-g3') ||
-    studentConfirmedCourses.value.some((item) => item.courseCode === 'MPU401') ||
+    !studentConfirmedCourses.value.some(
+      (item) =>
+        item.courseCode === 'CST201' &&
+        item.batchId === 'batch-me-cst-i' &&
+        item.roundKey === 'main',
+    ) ||
+    !studentConfirmedCourses.value.some(
+      (item) =>
+        item.courseCode === 'CYS201' &&
+        item.batchId === 'batch-me-cys-i' &&
+        item.roundKey === 'supplement',
+    ) ||
+    !studentConfirmedCourses.value.some(
+      (item) =>
+        item.courseCode === 'MPU401' &&
+        item.batchId === 'batch-2504-g3' &&
+        Number(item.credits) === 2,
+    ) ||
+    !studentConfirmedCourses.value.some(
+      (item) => item.courseCode === 'HUM201' && item.roundKey === 'preselect',
+    ) ||
+    !studentConfirmedCourses.value.some(
+      (item) => item.courseCode === 'COMP201' && item.roundKey === 'preselect',
+    ) ||
+    !studentConfirmedCourses.value.some(
+      (item) => item.courseCode === 'AI110' && item.roundKey === 'preselect',
+    ) ||
+    studentConfirmedCourses.value.some((item) => item.courseCode === 'MPU402') ||
+    studentConfirmedCourses.value.some((item) => item.courseCode === 'COMP101') ||
+    studentConfirmedCourses.value.some((item) => item.courseCode === 'IT102') ||
     studentConfirmedCourses.value.some(
       (item) =>
-        item.courseCode === 'COMP101' &&
-        (item.courseName === 'Introduction to Programming' || item.lecturer === 'Dr. Lim'),
+        item.courseCode === 'BUS301' && String(item.time || '').includes('Mon 14:00'),
     ) ||
     studentConfirmedCourses.value.some(
       (item) =>
@@ -1145,7 +1256,7 @@ export function seedStudentRegistrationDemo() {
     ) ||
     studentConfirmedCourses.value.some(
       (item) =>
-        (item.courseCode === 'CST202' || item.courseCode === 'BUS302' || item.courseCode === 'MPU402') &&
+        (item.courseCode === 'CST202' || item.courseCode === 'BUS302' || item.courseCode === 'MPU401') &&
         String(item.time || '').includes('Mon 08:00'),
     )
   if (needsReseed) {
@@ -1164,6 +1275,10 @@ export function seedStudentRegistrationDemo() {
 
   if (
     !studentRequiredCourses.value.length ||
+    !studentRequiredCourses.value.some((item) => item.courseCode === 'INT300') ||
+    studentRequiredCourses.value.some(
+      (item) => item.courseCode === 'INT300' && !item.academicSession,
+    ) ||
     studentRequiredCourses.value.some(
       (item) =>
         item.courseCode === 'MATH101' &&
@@ -1205,7 +1320,7 @@ export function seedStudentRegistrationDemo() {
         ...(row.termElectiveProgress || {}),
         ge: geCredits,
         me: meCredits,
-        geMax: 18,
+        geMax: 6,
         meMax: 22,
       },
       termGeCategories: {
@@ -1218,7 +1333,7 @@ export function seedStudentRegistrationDemo() {
       },
       graduationGeProgress: {
         ...geCats,
-        required: { humanities: 12, business: 12, science: 12, aiOpen: 12 },
+        required: { humanities: 5, business: 5, science: 4, aiOpen: 2 },
       },
       graduationMeProgress: {
         ...meCats,

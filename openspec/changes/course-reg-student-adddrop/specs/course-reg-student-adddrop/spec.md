@@ -22,7 +22,67 @@
 
 #### Scenario: 退课候选为已选课
 - **WHEN** 申请类型为退课
-- **THEN** 选择器列表仅为该生已选课程（可含教学分组与时间）
+- **THEN** 选择器列表以该生必修已选（培养方案底图 / CORE）为主，确认池选修可排在其后（可含教学分组与时间）
+
+### Requirement: 加退课学分要求条（含毕业）
+系统 MUST 在加退课/重修申请弹框（申请说明与申请信息之间）以及选择课程弹窗中，同源展示学分要求条：「学分要求」标题在表格上一行；表格六列依次为：GE毕业学分 已选/要求、ME毕业学分 已选/要求、GE学期学分 已选/要求、ME学期学分 已选/要求、学期选修已选学分（GE+ME 已选之和，仅数字）、学期必修已选学分（仅数字）。毕业与学期展示顺序均为已选/要求。表格宽度 MUST 拉满可用行宽，六列横向自适应均分。MUST NOT 展示 GE/ME 分类胶囊。毕业 GE/ME 已选基线 MUST 仅含本学期确认课贡献（与学期 GE/ME 已选同源，MUST NOT 含历史 prior）；学期与毕业 GE/ME 已选 MUST 随拟退/拟加实时投影（必修仅影响学期必修已选）。GE 学期要求 MUST 与在线选课 R3 一致（默认 geMax=6）；加退确认课基线 GE 已选 MUST 排除管理员代选（sourceType=admin）。拟加 GE 将使学期 GE 已选超过 geMax 时 MUST 硬拦（选课器不可选、提交阻断）。选课器「课程类型」列中 type=CORE MUST 展示为「必修课」（非英文 CORE）。退课选课器表格列宽 MUST 自适应（无余量列时合理重分配）。
+
+#### Scenario: 申请弹框与选课器同步
+- **WHEN** 学生打开申请弹框或选择课程弹窗
+- **THEN** 两处均可见上述六列学分条，且口径一致
+
+#### Scenario: 学分条含毕业且横向拉满
+- **WHEN** 学生查看申请弹框或选课器学分条
+- **THEN** 前两列为 GE/ME 毕业（已选/要求），后四列为学期相关列，且六列占满可用宽度均分
+
+#### Scenario: 毕业已选随拟退投影且可归零
+- **WHEN** 学生拟退本学期全部 GE 确认课
+- **THEN** 「GE毕业学分」已选与「GE学期学分」已选均降为 0（不含历史 prior）
+
+#### Scenario: GE 已选与 R3 同源且不超过帽
+- **WHEN** 演示生确认课含管理员代选 GE，且非 admin GE 累计已达 geMax
+- **THEN** 学分条学期 GE 已选显示为 geMax（不含 admin），拟加再一门 GE 时选课器硬拦
+
+#### Scenario: CORE 展示为必修课
+- **WHEN** 选课器列表中课程 type 为 CORE
+- **THEN** 「课程类型」列显示「必修课」
+
+#### Scenario: 退必修时已选变化
+- **WHEN** 学生勾选拟退一门必修课
+- **THEN** 「学期必修已选学分」数字相应减少
+
+#### Scenario: 选修已选随 GE/ME 变化
+- **WHEN** 学生拟加或拟退 GE/ME 课
+- **THEN** 「学期选修已选学分」等于投影后的学期 GE 已选 + ME 已选
+
+### Requirement: 退课学分四分汇总
+有退课行时，申请表单与详情 MUST 以 2 行 2 列展示：退课总学分、退课必修课、退课专业选修、退课公共选修。总学分 MUST 等于三者之和。必修（CORE / required / Mandatory）MUST 计入退课必修课，MUST NOT 计入退课专业选修。
+
+#### Scenario: 退必修与选修分列
+- **WHEN** 退课清单含必修课与 GE/ME
+- **THEN** 退课必修课仅统计必修学分，专业选修与公共选修不含必修，总学分等于三者之和
+
+### Requirement: 退课选课器筛选与列
+退课选课器「课程类型」筛选 MUST 提供「必修课」选项（value=CORE）。退课选课器 MUST NOT 展示「可选名额/总名额」列；加课与重修选课器 MUST 保留该列。
+
+#### Scenario: 退课可按必修课筛选
+- **WHEN** 学生在退课选课器打开课程类型下拉
+- **THEN** 可见「必修课」并可筛出 type=CORE 的行
+
+#### Scenario: 退课无余量列
+- **WHEN** 学生打开退课选课器
+- **THEN** 表头与行均无「可选名额/总名额」列
+
+#### Scenario: 加课保留余量列
+- **WHEN** 学生打开加课或重修选课器
+- **THEN** 仍可见「可选名额/总名额」列
+
+### Requirement: 加课选课器拟退释放后再计费
+加课（含加退表单中打开的加课槽，picker action 可为 `Add`）计费时，若 `termCreditGate.dropLines` 非空，MUST 先按拟退课释放毕业类别剩余（`boostPlanRemainingFromDrops`），再计算 `billableCredits`。MUST NOT 因 picker action 不是 `AddDrop` 而忽略拟退释放。收费口径仍为毕业类别超额；学期帽超额 MUST NOT 单独产生费用提示。
+
+#### Scenario: 拟退后加课不再误报毕业超额
+- **WHEN** 加退课表单已选拟退课释放足够毕业类别剩余，学生在加课选课器勾选一门本可被覆盖的课
+- **THEN** footer / 确认弹窗 MUST NOT 因未释放拟退而提示超出学分需付费
 
 ## 来源 `enrich-student-adddrop-form` / 能力 `course-registration`
 
@@ -335,7 +395,7 @@
 
 ### Requirement: 退课空确认与学分分项同行（增量 2026-09）
 
-退课（含加退/重修关联退课槽）课程选择器在未勾选任何行时 MUST 仍允许确认，确认后 MUST 将本次退课清单置空。再次打开选择器时 MUST 按当前退课清单预勾选对应行。退课清单 MUST 展示「课程类型」列。有退课行时 MUST 在同一行只读展示退课总学分、退课专业选修学分、退课公共选修学分，且专业选修与公共选修之和等于总学分（按课程类型 ME/Mandatory→专业选修、GE→公共选修）。加课与重修分区的「总学分 / 超出学分 / 预估费用」MUST 同一行三列展示。
+退课（含加退/重修关联退课槽）课程选择器在未勾选任何行时 MUST 仍允许确认，确认后 MUST 将本次退课清单置空。再次打开选择器时 MUST 按当前退课清单预勾选对应行。退课清单 MUST 展示「课程类型」列。有退课行时 MUST 以 2×2 只读展示退课总学分、退课必修课、退课专业选修、退课公共选修，且必修+专业选修+公共选修等于总学分（CORE/required→必修，ME→专业选修、GE→公共选修）。加课与重修分区的「总学分 / 超出学分 / 预估费用」MUST 同一行三列展示。
 
 #### Scenario: 退课空确认清空清单
 - **WHEN** 学生打开退课选择器并将所有勾选取消后点击确认
@@ -540,7 +600,7 @@
 
 ### Requirement: 详情回显是否退课/退课学分 + 超出学分与费用同源（增量 2026-09）
 
-学生申请详情与审批详情（共用 `AddDropApplicationDetailBody`）MUST 回显申请表单中的「是否需要退课」与退课学分汇总。主类型为 Add / Retake（含 AddDrop / RetakeDrop）时 MUST 展示只读「是否需要退课」单选（是/否），值由 `needDropFromAction(app.type)` 反推，已选项 MUST 为蓝色勾选效果；主类型为 Drop 时 MUST NOT 展示该字段。有退课行时 MUST 回显退课总学分 / 退课专业选修 / 退课公共选修（按 Drop items 的 GE/ME 重算）。表单、详情、列表的「超出学分」MUST 与费用计费学分同源（优先 `billableCredits` / `feeEstimate.billableCredits`），MUST NOT 用学期帽净超 `termCreditExcess` 顶替；有费用或计费学分 > 0 时不得显示 0 覆盖。enrich 路径不得因显式 `excessCredits: 0` 清零已有正数账单。
+学生申请详情与审批详情（共用 `AddDropApplicationDetailBody`）MUST 回显申请表单中的「是否需要退课」与退课学分汇总。主类型为 Add / Retake（含 AddDrop / RetakeDrop）时 MUST 展示只读「是否需要退课」单选（是/否），值由 `needDropFromAction(app.type)` 反推，已选项 MUST 为蓝色勾选效果；主类型为 Drop 时 MUST NOT 展示该字段。有退课行时 MUST 回显退课总学分 / 退课必修课 / 退课专业选修 / 退课公共选修（与表单 `buildDropCreditBreakdown` 同源）。表单、详情、列表的「超出学分」MUST 与费用计费学分同源（优先 `billableCredits` / `feeEstimate.billableCredits`），MUST NOT 用学期帽净超 `termCreditExcess` 顶替；有费用或计费学分 > 0 时不得显示 0 覆盖。enrich 路径不得因显式 `excessCredits: 0` 清零已有正数账单。
 
 #### Scenario: 加课选否退课详情回显
 - **WHEN** 学生提交加课且「是否需要退课=否」（type=Add）
@@ -549,7 +609,7 @@
 #### Scenario: 重修含退课详情回显是 + 退课学分
 - **WHEN** 学生提交重修且「是否需要退课=是」（type=RetakeDrop），退课清单含 ME/GE 课程
 - **THEN** 详情显示「是否需要退课=是」（蓝勾选）
-- **AND** 退课 SECTION 显示退课总学分 / 退课专业选修 / 退课公共选修与表单一致
+- **AND** 退课 SECTION 显示退课总学分 / 退课必修课 / 退课专业选修 / 退课公共选修与表单一致
 
 #### Scenario: 超出学分与计费学分同源（有毕业超额时）
 - **WHEN** 学生加课/重修导致毕业类别超额，`billableCredits > 0` 且产生费用
@@ -558,16 +618,39 @@
 
 ### Requirement: 统一毕业计费 + 学期帽闸门；废除退费抵免（增量 2026-09）
 
-加课、重修、加退课、重修含退课 MUST 统一按毕业 GE/ME 类别剩余计费：`billableCredits = max(0, 课学分 − 该类毕业剩余)`，多课逐课扣减。未超毕业类别 MUST NOT 收费，「超出学分」为 0。学期学分帽只约束可选/可提交：非白名单超学期帽 MUST 阻断；白名单可超学期帽仅提示审批、MUST NOT 因此收费。重修 MUST 受学期帽闸门约束（修订 §23）。MUST 废除退费抵免（`feeWaiverOffset` / 退课学分冲抵重修费用）；含退课时可释放拟退课占用的毕业类别后再计费。选课器缴费确认弹窗与 footer「可能产生费用」MUST 仅在毕业超额（`billableCredits > 0`）时出现。
+加课、重修、加退课、重修含退课 MUST 统一按毕业 GE/ME **总分**剩余计费：`billableCredits = max(0, 课学分 − 该类型毕业总分剩余)`，多课逐课扣减总分剩余。GE 以培养方案 geRequired 总分为帽；ME 以培养方案 meRequired 总分为帽。MUST NOT 因仅超过 GE 文商理/AI 或 ME 课程组子类剩余而收费。未超毕业总分 MUST NOT 收费。学期学分帽只约束可选/可提交：非白名单超学期帽 MUST 阻断；白名单可超学期帽仅提示审批、MUST NOT 因此收费。重修 MUST 受学期帽闸门约束（修订 §23）。MUST 废除退费抵免（`feeWaiverOffset` / 退课学分冲抵重修费用）；含退课时可释放拟退课占用的毕业总分后再计费。选课器缴费确认弹窗与 footer「可能产生费用」MUST 仅在毕业总分超额（`billableCredits > 0`）时出现。
 
 #### Scenario: 重修未超毕业不收费
-- **WHEN** 学生重修勾选 STAT201+ENGL201（各 3 学分），对应毕业类别剩余 ≥ 6
+- **WHEN** 学生重修勾选 STAT201+ENGL201（各 3 学分），对应毕业 GE/ME 总分剩余 ≥ 6
 - **THEN** 不弹出「将产生约 N 学分超额」缴费确认
 - **AND** 表单「超出学分」为 0、「预估费用」为 0
 
-#### Scenario: 重修超毕业才计费
-- **WHEN** 学生重修勾选课程使某毕业类别 current + 勾选 > required
+#### Scenario: 重修超毕业总分才计费
+- **WHEN** 学生重修勾选课程使毕业 GE 或 ME 总分 current + 勾选 > required
 - **THEN** 「超出学分」= 超额部分，「预估费用」= 超额 × 单价
+
+#### Scenario: ME 仅超课程组子类不收费
+- **WHEN** 学生加课勾选 ME 课使某课程组（如 4选3）子类剩余不足，但 ME 毕业总分仍未超
+- **THEN** MUST NOT 提示「超出学分，可能产生费用」，`billableCredits` 为 0
+
+### Requirement: 申请弹框顶区冻结
+申请弹框内申请说明（callout）与学分要求条 MUST 固定于弹框内容区上部；下方表单 SECTION MUST 可独立上下滚动。固定区 MUST NOT 遮挡或阻止下方内容滚动查看。
+
+#### Scenario: 滚动表单时顶区仍可见
+- **WHEN** 学生打开申请弹框并向下滚动表单 SECTION
+- **THEN** 申请说明与学分要求仍钉在上部可见
+- **AND** 下方字段与清单可继续滚动
+
+### Requirement: 选课弹框搜索分栏与收放
+加课、退课、重修共用的选择课程弹框：课程代码与课程名称 MUST 为两个独立搜索条件；搜索筛选区 MUST 提供收放按钮（展开/收起），默认展开。三模式 MUST 同源行为。
+
+#### Scenario: 代码与名称分栏过滤
+- **WHEN** 学生分别输入课程代码与课程名称并查询
+- **THEN** 列表按代码包含与名称包含独立过滤（二者同时有值时取交集）
+
+#### Scenario: 收起搜索区
+- **WHEN** 学生点击收起
+- **THEN** 筛选条件行隐藏，学分条与课程表仍可见
 
 #### Scenario: 非白名单不可超学期帽
 - **WHEN** 非白名单学生重修/加课勾选后门净学分 > 学期 creditMax

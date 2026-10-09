@@ -43,9 +43,10 @@ export function resolveCatalogCourseSection(item) {
 }
 
 /**
- * 回填展示字段（课名跟语言；教师/周次/上课时间跟课库分组）
+ * 回填展示字段（课名跟语言；默认教师/周次/上课时间跟课库分组）
  * @param {object} item
- * @param {{ locale?: 'zh'|'en'|boolean }} [opts]
+ * @param {{ locale?: 'zh'|'en'|boolean, preserveSchedule?: boolean }} [opts]
+ *   preserveSchedule：仅同步课名/学分等，保留结果项排课字段（我的选课 list/课表同源）
  */
 export function hydrateSelectedCourseDisplay(item, opts = {}) {
   if (!item) return item
@@ -55,6 +56,7 @@ export function hydrateSelectedCourseDisplay(item, opts = {}) {
       : opts.locale === false || opts.locale === 'en'
         ? 'en'
         : 'zh'
+  const preserveSchedule = opts.preserveSchedule === true
   const { course, section } = resolveCatalogCourseSection(item)
   if (!course) {
     const fallbackName =
@@ -65,18 +67,38 @@ export function hydrateSelectedCourseDisplay(item, opts = {}) {
     return {
       ...item,
       courseName: fallbackName,
+      courseNameEn:
+        locale === 'en'
+          ? fallbackName
+          : item.courseNameEn || item.courseName || fallbackName,
       displaySection: item,
     }
   }
-  const courseName = getCourseDisplayName(course, locale)
-  if (!section) {
+  // 合并结果项中文名，避免 catalog 仅有英文 name 时覆盖中文 seed
+  const displayCourse = {
+    ...course,
+    nameZh: course.nameZh || item.courseName,
+    courseName: item.courseName || course.courseName,
+    nameEn: course.nameEn || item.courseNameEn,
+    courseNameEn: item.courseNameEn || course.nameEn || course.name,
+  }
+  const courseName = getCourseDisplayName(displayCourse, locale)
+  const courseNameEn =
+    getCourseDisplayName(displayCourse, 'en') ||
+    item.courseNameEn ||
+    course.name ||
+    courseName
+  if (!section || preserveSchedule) {
     return {
       ...item,
       courseCode: course.code || item.courseCode,
       courseName,
+      courseNameEn,
       credits: course.credits ?? item.credits,
       type: course.type || item.type,
-      displaySection: item,
+      schoolElectiveCategory:
+        item.schoolElectiveCategory || resolveSchoolElectiveCategory(course),
+      displaySection: preserveSchedule ? item : section || item,
     }
   }
   return {
@@ -84,6 +106,7 @@ export function hydrateSelectedCourseDisplay(item, opts = {}) {
     courseId: course.id || item.courseId,
     courseCode: course.code || item.courseCode,
     courseName,
+    courseNameEn,
     credits: course.credits ?? item.credits,
     type: course.type || item.type,
     sectionId: section.id || item.sectionId,

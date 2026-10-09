@@ -17,11 +17,11 @@ const DEMO_REGISTRATION_SEMESTER_INDEX = {
 }
 
 /** 本学期可选 GE/ME 学分上限（演示）
- * 演示生 XMUM2309001：GE 18 / ME 22，覆盖已选约 13/18，允许继续提交选课
+ * 演示生 XMUM2309001：GE 6 / ME 22；GE 帽整体限制，不再按 GE01-04 分类限制
  */
 const DEMO_TERM_CREDIT_CAPS = {
-  default: { geMax: 18, meMax: 22 },
-  XMUM2309001: { geMax: 18, meMax: 22 },
+  default: { geMax: 6, meMax: 22 },
+  XMUM2309001: { geMax: 6, meMax: 22 },
   COS2504015: { geMax: 12, meMax: 12 },
 }
 

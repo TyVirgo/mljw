@@ -9,7 +9,6 @@ import {
   sortCoursesForStudentDemo,
   getRound3EffectiveRemaining,
   isSectionFullForAudience,
-  courseMatchesStudentSchoolElective,
   getDefaultStudentSchoolElectiveCategory,
   resolveSchoolElectiveCategory,
 } from './selectableCourses.js'
@@ -50,7 +49,10 @@ import {
   creditCapForCourseType,
   isGraduateStudent,
 } from './studentAudience.js'
-import { checkTermCategoryCreditCapForCourse } from './studentRegistrationContext.js'
+import {
+  checkTermCategoryCreditCapForCourse,
+  checkGraduationGeCapForCourse,
+} from './studentRegistrationContext.js'
 import { normalizeRegistrationType } from './registrationTypes.js'
 import { studentPendingAssignCourses } from './studentPendingAssignState.js'
 import {
@@ -170,6 +172,29 @@ export function getHardScheduleConflictGate(course, section) {
   return checkHardScheduleConflict(section, baseline)
 }
 
+/**
+ * 本轮选课表：当前批 + 当前轮确认课（排除 admin）
+ */
+function includeConfirmedInRoundTable(item, { batchId, batchType, roundKey }) {
+  if (!item || item.intent === 'waitlist') return false
+  if (item.sourceType === 'admin') return false
+  if (batchId && item.batchId && item.batchId !== batchId) return false
+  if (batchType && item.type && normalizeRegistrationType(item.type) !== batchType) return false
+  if (normalizeCartRoundKey(item.roundKey) !== normalizeCartRoundKey(roundKey)) return false
+  return true
+}
+
+/**
+ * 学分累计：同类型、非 admin、轮次 ≤ 当前轮（可跨批）
+ */
+function includeConfirmedInCreditProgress(item, { batchType, roundKey }) {
+  if (!item || item.intent === 'waitlist') return false
+  if (item.sourceType === 'admin') return false
+  if (batchType && item.type && normalizeRegistrationType(item.type) !== batchType) return false
+  if (roundOrderIndexOf(item.roundKey) > roundOrderIndexOf(roundKey)) return false
+  return true
+}
+
 export const myRegistrationList = computed(() => {
   const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
   const batch = getActiveBatch()
@@ -186,15 +211,15 @@ export const myRegistrationList = computed(() => {
     }
     return list
   }
+  // R2/R3：本轮表只含当前批当前轮所选（不含 R1 待分配/更早轮确认）
   for (const item of studentConfirmedCourses.value) {
-    // 本轮选课情况：按当前批次隔离，避免 GE/ME、R2/R3 串 demo
-    if (batchId && item.batchId && item.batchId !== batchId) continue
-    if (!item.batchId && batchType && item.type && item.type !== batchType) continue
+    if (!includeConfirmedInRoundTable(item, { batchId, batchType, roundKey })) continue
     list.push({ ...item, status: 'success' })
   }
   for (const item of studentFailedRegistrations.value) {
     if (batchId && item.batchId && item.batchId !== batchId) continue
     if (!item.batchId && batchType && item.type && item.type !== batchType) continue
+    if (item.roundKey && normalizeCartRoundKey(item.roundKey) !== roundKey) continue
     list.push({ ...item, status: 'failed' })
   }
   return list
@@ -286,9 +311,16 @@ export function listLiveTermCreditCourses(extraCourse) {
   return out
 }
 
+/** 轮次序：preselect(R1) → main(R2) → supplement(R3)；未知轮次视为当前轮之后（不进累计） */
+const ROUND_ORDER_INDEX = { preselect: 0, main: 1, supplement: 2 }
+
+function roundOrderIndexOf(roundKey) {
+  return ROUND_ORDER_INDEX[normalizeCartRoundKey(roundKey)] ?? Number.POSITIVE_INFINITY
+}
+
 /**
- * 与「本轮选课情况」表同源的学分课：按当前批次隔离
- * R1(preselect)=该批待分配；R2/R3=该批已确认（不含排队）
+ * 本轮学分统计用课（可与本轮表门数分离）
+ * R1(preselect)=该批待分配；R2/R3=≤当前轮已确认（同类型、非 admin，可跨批）
  * @param {object} [batch]
  */
 export function listRoundStatusCreditCourses(batch = getActiveBatch(), options = {}) {
@@ -302,12 +334,10 @@ export function listRoundStatusCreditCourses(batch = getActiveBatch(), options =
       return true
     })
   }
-  return studentConfirmedCourses.value.filter((item) => {
-    if (item.intent === 'waitlist') return false
-    if (batchId && item.batchId && item.batchId !== batchId) return false
-    if (!item.batchId && batchType && item.type && item.type !== batchType) return false
-    return true
-  })
+  // R2/R3 学分：≤当前轮已确认（同类型、非 admin），不含 R1 pending
+  return studentConfirmedCourses.value.filter((item) =>
+    includeConfirmedInCreditProgress(item, { batchType, roundKey }),
+  )
 }
 
 function sumCreditsByTypeFromList(items) {
@@ -347,6 +377,44 @@ export function getTermElectiveCreditProgress(studentId, options = {}) {
   }
 }
 
+/** R1 允许提交倍数（相对学期 geMax/meMax）；R2/R3 无此概念 */
+export const ME_R1_SUBMIT_CREDIT_MULTIPLIER = 2
+export const R1_SUBMIT_CREDIT_MULTIPLIER = ME_R1_SUBMIT_CREDIT_MULTIPLIER
+
+/**
+ * 第一轮提交学分三卡：学期要求 / 允许最大(2×) / 本轮已选（按批次 GE|ME）
+ * @param {object} [batch]
+ */
+export function getR1CreditSubmitStats(batch = getActiveBatch()) {
+  const caps = getTermCreditCaps()
+  const kind = batch?.type === 'GE' ? 'GE' : 'ME'
+  const termRequired =
+    kind === 'GE' ? Number(caps.geMax) || 0 : Number(caps.meMax) || 0
+  const submitMax = termRequired * R1_SUBMIT_CREDIT_MULTIPLIER
+  const sums = sumCreditsByTypeFromList(
+    listRoundStatusCreditCourses(batch, { roundKey: 'preselect' }),
+  )
+  const selected = kind === 'GE' ? sums.ge : sums.me
+  return { kind, termRequired, submitMax, selected }
+}
+
+/** @deprecated 使用 getR1CreditSubmitStats */
+export function getMeR1CreditSubmitStats(batch = getActiveBatch()) {
+  return getR1CreditSubmitStats(batch)
+}
+
+function resolveTermCreditCapForKind(kind, caps, roundKey) {
+  let cap = creditCapForCourseType(kind, caps)
+  // R1：允许提交最大学分 = 2×学期要求（GE/ME）；R2/R3 仍用原帽
+  if (
+    (kind === 'ME' || kind === 'GE') &&
+    normalizeCartRoundKey(roundKey) === 'preselect'
+  ) {
+    cap = cap * R1_SUBMIT_CREDIT_MULTIPLIER
+  }
+  return cap
+}
+
 function assertTermCreditCap(course) {
   if (!course) return { ok: true }
   const caps = getTermCreditCaps()
@@ -356,7 +424,7 @@ function assertTermCreditCap(course) {
     course,
   ])
   const kind = normalizeRegistrationType(course.type)
-  const cap = creditCapForCourseType(kind, caps)
+  const cap = resolveTermCreditCapForKind(kind, caps, activeCartRoundKey.value)
   const used = kind === 'GE' ? next.ge : next.me
   if (used > cap) {
     return {
@@ -377,7 +445,7 @@ export function checkTermCreditCapForCourse(course) {
   return assertTermCreditCap(course)
 }
 
-export { checkTermCategoryCreditCapForCourse }
+export { checkTermCategoryCreditCapForCourse, checkGraduationGeCapForCourse }
 
 function assertSectionHasSeat(section) {
   if (!section) return { ok: false, errorKey: 'courseRegistration.student.sectionFull' }
@@ -435,6 +503,9 @@ function assertEligibleAndNotInCart(course, section) {
   }
   const creditGate = assertTermCreditCap(course)
   if (!creditGate.ok) return creditGate
+  // 在线选课：毕业 GE ≤18 硬拦（加退课不走此闸，超 18 仅缴费提醒）
+  const gradGeGate = checkGraduationGeCapForCourse(course)
+  if (!gradGeGate.ok) return gradGeGate
   const categoryGate = checkTermCategoryCreditCapForCourse(course)
   if (!categoryGate.ok) return categoryGate
   const r3Gate = assertRound3AudienceCapacity(course)
@@ -858,7 +929,7 @@ function upsertMonitorRow(studentFields, batch, historyAction) {
     termElectiveProgress: existing?.termElectiveProgress ?? {
       ge: 4,
       me: 6,
-      geMax: 18,
+      geMax: 6,
       meMax: 22,
     },
     termGeCategories: existing?.termGeCategories ?? {
@@ -873,14 +944,14 @@ function upsertMonitorRow(studentFields, batch, historyAction) {
       business: 2,
       science: 3,
       aiOpen: 3,
-      required: { humanities: 12, business: 12, science: 12, aiOpen: 12 },
+      required: { humanities: 5, business: 5, science: 4, aiOpen: 2 },
     },
     g1Progress: existing?.g1Progress ?? {
       humanities: 5,
       business: 2,
       science: 3,
       aiOpen: 3,
-      required: { humanities: 12, business: 12, science: 12, aiOpen: 12 },
+      required: { humanities: 5, business: 5, science: 4, aiOpen: 2 },
     },
     schedule,
     issues: credits === 0 ? ['notRegistered'] : credits < creditMin ? ['creditBelowMin'] : [],
@@ -1219,14 +1290,12 @@ export function getStudentEnrolledCourses(studentId = getStudentProfileFields().
 export function getSelectableCoursesForStudent(roundKey, options = {}) {
   const batch = options.batchId ? getBatchById(options.batchId) : getActiveBatch()
   const preferredType = batch?.type === 'GE' ? 'GE' : 'ME'
-  const studentCat =
-    getStudentProfileFields().schoolElectiveCategory || getDefaultStudentSchoolElectiveCategory()
+  // 校选类别改由列表搜索驱动（默认学生本人类别），此处不再硬滤
   const courseBatchId = batch?.demoCourseSourceBatchId || batch?.id
   const studentProgramme = getStudentProfileFields().programme || ''
   const courses = getCoursesByBatch(courseBatchId).filter(
     (course) =>
       course.type === preferredType &&
-      courseMatchesStudentSchoolElective(course, studentCat) &&
       courseMatchesStudentProgramme(course, studentProgramme),
   )
   const resolvedRound =

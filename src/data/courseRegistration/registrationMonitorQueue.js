@@ -2,15 +2,15 @@ import { ref } from 'vue'
 import { LONG_SEMESTER_CREDIT_MIN, LONG_SEMESTER_CREDIT_MAX } from './registrationRules.js'
 import { deriveMonitorIssues, getMonitorGraduationInsight } from './monitorCreditInsights.js'
 
-const DEFAULT_ELECTIVE_CAPS = { geMax: 18, meMax: 22 }
+const DEFAULT_ELECTIVE_CAPS = { geMax: 6, meMax: 22 }
 
-/** Demo：毕业 GE 文/商/理/AI与开放选修（首次选课已选≡本学期） */
+/** Demo：毕业 GE 文/商/理/AI与开放选修（首次选课已选≡本学期；四类和 16 < 毕业总分 18） */
 const DEFAULT_GRADUATION_GE = {
   humanities: 0,
   business: 3,
   science: 0,
   aiOpen: 0,
-  required: { humanities: 12, business: 12, science: 12, aiOpen: 12 },
+  required: { humanities: 5, business: 5, science: 4, aiOpen: 2 },
 }
 
 const DEFAULT_GRADUATION_ME = {

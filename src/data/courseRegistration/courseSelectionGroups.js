@@ -1,11 +1,38 @@
 /**
  * 选课课程组（跨课程约束包）— 学生端展示用。
- * 开课侧配置挂在批次 selectionGroups；本期仅解析/排序/配色，不校验选满。
+ * 开课侧配置挂在批次 selectionGroups；最低学分 = 组内最低 minPick 门学分之和。
  */
+
+import { selectableCourses } from './selectableCourses.js'
 
 /**
  * @typedef {{ id: string, name: string, nameEn: string, courseCodes: string[], minPick: number, intake?: string, groupLabel?: string, intakeLineZh?: string, intakeLineEn?: string }} SelectionGroup
  */
+
+/**
+ * 课程组最低学分要求：组内课学分升序取前 minPick 门之和
+ * @param {SelectionGroup | null | undefined} group
+ * @returns {number}
+ */
+export function computeSelectionGroupMinCredits(group) {
+  if (!group?.courseCodes?.length) return 0
+  const minPick = Number(group.minPick) || 1
+  const credits = []
+  for (const code of group.courseCodes) {
+    const upper = String(code || '').trim().toUpperCase()
+    if (!upper) continue
+    const course = selectableCourses.value.find(
+      (c) => String(c.code || '').trim().toUpperCase() === upper,
+    )
+    const cr = Number(course?.credits) || 0
+    if (cr > 0) credits.push(cr)
+  }
+  credits.sort((a, b) => a - b)
+  const n = Math.min(minPick, credits.length)
+  let sum = 0
+  for (let i = 0; i < n; i += 1) sum += credits[i]
+  return sum
+}
 
 /**
  * @param {unknown} raw

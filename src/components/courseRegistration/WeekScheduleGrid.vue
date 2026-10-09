@@ -9,11 +9,18 @@ import '../../styles/course-registration-list.css'
 
 const props = defineProps({
   schedule: { type: Array, default: () => [] },
-  /** 展示必修/已确认/本轮选择图例 */
+  /** 展示图层图例 */
   showLegend: { type: Boolean, default: false },
+  /**
+   * register：必修 / 已确认选修 / 本轮选择
+   * myResult：必修 / 选修 / 申请 / 管理员添加（无本轮选择）
+   */
+  legendMode: { type: String, default: 'register' },
   /** 撑满父级高度，行高随可用空间放大 */
   stretch: { type: Boolean, default: false },
 })
+
+const isMyResultLegend = computed(() => props.legendMode === 'myResult')
 
 const { t, isZh } = useAppI18n()
 
@@ -168,6 +175,9 @@ function blockClass(slot) {
   const stacked = slot.laneCount > 1 ? 'is-narrow' : ''
   if (layer === 'required') return ['cell-block', 'is-required', stroke, stacked]
   if (layer === 'preview') return ['cell-block', 'is-preview', stroke, stacked]
+  if (layer === 'application') return ['cell-block', 'is-application', stroke, stacked]
+  if (layer === 'admin') return ['cell-block', 'is-admin', stroke, stacked]
+  if (layer === 'elective') return ['cell-block', 'is-confirmed', stroke, stacked]
   return ['cell-block', 'is-confirmed', stroke, stacked]
 }
 
@@ -214,6 +224,11 @@ function layerLabel(slot) {
   const layer = slot.layer || (slot.preview ? 'preview' : 'confirmed')
   if (layer === 'required') return t('courseRegistration.student.scheduleLegendRequired')
   if (layer === 'preview') return t('courseRegistration.student.scheduleLegendPreview')
+  if (layer === 'application') return t('courseRegistration.student.scheduleLegendApplication')
+  if (layer === 'admin') return t('courseRegistration.student.scheduleLegendAdmin')
+  if (layer === 'elective' || isMyResultLegend.value) {
+    return t('courseRegistration.student.scheduleLegendElective')
+  }
   return t('courseRegistration.student.scheduleLegendConfirmed')
 }
 
@@ -266,16 +281,35 @@ function conflictTip(slot) {
           t('courseRegistration.student.scheduleLegendRequired')
         }}
       </li>
-      <li>
-        <span class="lg-swatch is-confirmed is-solid" />{{
-          t('courseRegistration.student.scheduleLegendConfirmed')
-        }}
-      </li>
-      <li>
-        <span class="lg-swatch is-preview is-dashed" />{{
-          t('courseRegistration.student.scheduleLegendPreview')
-        }}
-      </li>
+      <template v-if="isMyResultLegend">
+        <li>
+          <span class="lg-swatch is-confirmed is-solid" />{{
+            t('courseRegistration.student.scheduleLegendElective')
+          }}
+        </li>
+        <li>
+          <span class="lg-swatch is-application is-solid" />{{
+            t('courseRegistration.student.scheduleLegendApplication')
+          }}
+        </li>
+        <li>
+          <span class="lg-swatch is-admin is-solid" />{{
+            t('courseRegistration.student.scheduleLegendAdmin')
+          }}
+        </li>
+      </template>
+      <template v-else>
+        <li>
+          <span class="lg-swatch is-confirmed is-solid" />{{
+            t('courseRegistration.student.scheduleLegendConfirmed')
+          }}
+        </li>
+        <li>
+          <span class="lg-swatch is-preview is-dashed" />{{
+            t('courseRegistration.student.scheduleLegendPreview')
+          }}
+        </li>
+      </template>
     </ul>
 
     <div class="week-grid">
@@ -398,6 +432,14 @@ function conflictTip(slot) {
 
 .lg-swatch.is-confirmed.is-solid {
   background: #93c5fd;
+}
+
+.lg-swatch.is-application.is-solid {
+  background: #f59e0b;
+}
+
+.lg-swatch.is-admin.is-solid {
+  background: #0d9488;
 }
 
 .lg-swatch.is-preview.is-dashed {
@@ -597,6 +639,16 @@ function conflictTip(slot) {
 .cell-block.is-confirmed.is-solid {
   background: #93c5fd;
   color: #1e3a8a;
+}
+
+.cell-block.is-application.is-solid {
+  background: #f59e0b;
+  color: #78350f;
+}
+
+.cell-block.is-admin.is-solid {
+  background: #0d9488;
+  color: #fff;
 }
 
 .cell-block.is-preview.is-dashed,

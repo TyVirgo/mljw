@@ -213,9 +213,14 @@ export function getCourseLocalizedName(code, course = {}, locale = 'en') {
   const key = String(code || '').trim()
   const loc = locale === 'zh' ? 'zh' : 'en'
   const raw = BRIEFS_BY_CODE[key]
-  if (raw?.name) return pickLocale(raw.name, loc) || course.name || key
-  if (loc === 'zh' && course.nameZh) return String(course.nameZh)
-  return String(course.name || key || '')
+  if (raw?.name) {
+    const fromBrief = pickLocale(raw.name, loc)
+    if (fromBrief) return fromBrief
+  }
+  if (loc === 'zh') {
+    return String(course.nameZh || course.courseName || course.name || key || '')
+  }
+  return String(course.nameEn || course.name || course.courseNameEn || course.courseName || key || '')
 }
 
 /**

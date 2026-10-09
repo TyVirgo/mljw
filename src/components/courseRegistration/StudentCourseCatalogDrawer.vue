@@ -37,6 +37,7 @@ const sortedCourses = computed(() =>
           <table class="data-table">
             <thead>
               <tr>
+                <th class="col-serial">{{ t('common.serialNo') }}</th>
                 <th>{{ t('courseRegistration.courses.code') }}</th>
                 <th>{{ t('courseRegistration.courses.name') }}</th>
                 <th>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</th>
@@ -45,7 +46,8 @@ const sortedCourses = computed(() =>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="course in sortedCourses" :key="course.id || course.code">
+              <tr v-for="(course, index) in sortedCourses" :key="course.id || course.code">
+                <td class="col-serial">{{ index + 1 }}</td>
                 <td class="nowrap">
                   <CourseCodeSourcePopover :code="course.code" :course="course" />
                 </td>
@@ -57,7 +59,7 @@ const sortedCourses = computed(() =>
                 <td class="col-credits">{{ course.credits }}</td>
               </tr>
               <tr v-if="!sortedCourses.length">
-                <td colspan="5" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="6" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -82,6 +84,12 @@ const sortedCourses = computed(() =>
 
 .cr-catalog-drawer :deep(.table-wrap) {
   margin: 0;
+}
+
+.col-serial {
+  width: 56px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .col-credits {

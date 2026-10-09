@@ -51,17 +51,20 @@ export function resolveTermCategoryKey(course = {}) {
 }
 
 /**
+ * GE/ME 免费额度均按毕业总分剩余（子类不参与计费）
  * @param {object} planRemaining
  * @param {'GE'|'ME'} type
- * @param {string} categoryKey humanities|business|science|aiOpen|group*
+ * @param {string} [_categoryKey] 保留参数兼容调用方；计费忽略
  */
-function remainingForTypeCategory(planRemaining, type, categoryKey) {
-  const bucket = type === 'GE' ? planRemaining?.geCategory : planRemaining?.meCategory
-  if (bucket && categoryKey != null && bucket[categoryKey] != null && bucket[categoryKey] !== '') {
-    return Math.max(0, Number(bucket[categoryKey]) || 0)
+function remainingForTypeCategory(planRemaining, type, _categoryKey) {
+  void _categoryKey
+  if (type === 'GE') {
+    return Math.max(0, Number(planRemaining?.geRemaining) || 0)
   }
-  const fallback = type === 'GE' ? planRemaining?.geRemaining : planRemaining?.meRemaining
-  return Math.max(0, Number(fallback) || 0)
+  if (type === 'ME') {
+    return Math.max(0, Number(planRemaining?.meRemaining) || 0)
+  }
+  return 0
 }
 
 /**
@@ -73,7 +76,7 @@ function remainingForTypeCategory(planRemaining, type, categoryKey) {
  *   meRemaining?: number,
  *   geCategory?: Record<string, number>,
  *   meCategory?: Record<string, number>,
- * }} [opts.planRemaining] 毕业类别剩余（非学期）
+ * }} [opts.planRemaining] 毕业总分剩余（非学期；子类桶仅兼容）
  * @param {string} [opts.eligibilitySource] prior_drop | deferment_gap
  */
 export function estimateCourseFee({
@@ -99,7 +102,7 @@ export function estimateCourseFee({
   let billableCredits = 0
   let reason = 'none'
 
-  // 加课 / 重修统一：仅超毕业 GE/ME 类别才计费；超学期帽不收费
+  // 加课 / 重修统一：仅超毕业 GE/ME 总分才计费；子类超额不收费；超学期帽不收费
   if (
     action === 'Retake' ||
     action === 'RetakeDrop' ||
@@ -110,11 +113,11 @@ export function estimateCourseFee({
     if (type === 'GE') {
       const rem = remainingForTypeCategory(planRemaining, 'GE', categoryKey)
       billableCredits = Math.max(0, credits - rem)
-      reason = billableCredits > 0 ? 'ge_graduation_category_excess' : 'plan_covered'
+      reason = billableCredits > 0 ? 'ge_graduation_total_excess' : 'plan_covered'
     } else if (type === 'ME') {
       const rem = remainingForTypeCategory(planRemaining, 'ME', categoryKey)
       billableCredits = Math.max(0, credits - rem)
-      reason = billableCredits > 0 ? 'me_graduation_category_excess' : 'plan_covered'
+      reason = billableCredits > 0 ? 'me_graduation_total_excess' : 'plan_covered'
     } else if (eligibilitySource === 'prior_drop' || eligibilitySource === 'deferment_gap') {
       billableCredits = 0
       reason = 'plan_covered'
@@ -156,15 +159,18 @@ export function boostPlanRemainingFromDrops(planRemaining = {}, dropLines = []) 
   const next = clonePlanRemaining(planRemaining)
   for (const drop of dropLines || []) {
     const dropCr = Number(drop.credits) || 0
-    const dropCat = resolveTermCategoryKey(drop)
     const dropType = String(drop.type || '').toUpperCase()
-    if (!(dropCr > 0 && dropCat && (dropType === 'GE' || dropType === 'ME'))) continue
-    const bucketKey = dropType === 'GE' ? 'geCategory' : 'meCategory'
+    if (!(dropCr > 0 && (dropType === 'GE' || dropType === 'ME'))) continue
     const totalKey = dropType === 'GE' ? 'geRemaining' : 'meRemaining'
-    const bucket = { ...(next[bucketKey] || {}) }
-    bucket[dropCat] = Math.max(0, (Number(bucket[dropCat]) || 0) + dropCr)
-    next[bucketKey] = bucket
+    // 计费只看总分：拟退一律释放总分剩余
     next[totalKey] = Math.max(0, (Number(next[totalKey]) || 0) + dropCr)
+    const dropCat = resolveTermCategoryKey(drop)
+    if (dropCat) {
+      const bucketKey = dropType === 'GE' ? 'geCategory' : 'meCategory'
+      const bucket = { ...(next[bucketKey] || {}) }
+      bucket[dropCat] = Math.max(0, (Number(bucket[dropCat]) || 0) + dropCr)
+      next[bucketKey] = bucket
+    }
   }
   return next
 }

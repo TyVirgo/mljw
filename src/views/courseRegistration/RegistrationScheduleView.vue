@@ -333,7 +333,7 @@ function addDropTitle(row) {
 
 .schedule-data-table {
   width: 100%;
-  min-width: 1320px;
+  min-width: 1680px;
   border-collapse: collapse;
   font-size: 12px;
   table-layout: auto;
@@ -381,9 +381,10 @@ function addDropTitle(row) {
 }
 
 .schedule-data-table .col-round {
-  min-width: 200px;
-  max-width: 240px;
+  min-width: 280px;
   white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .schedule-data-table .col-result-release {

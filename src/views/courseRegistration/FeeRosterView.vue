@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import CourseRegistrationCallout from '../../components/courseRegistration/CourseRegistrationCallout.vue'
 import FeeRosterCoursesDrawer from '../../components/courseRegistration/FeeRosterCoursesDrawer.vue'
-import FeeRosterPaidImportModal from '../../components/courseRegistration/FeeRosterPaidImportModal.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   feeRosterRows,
@@ -39,7 +38,6 @@ const applied = ref(emptyFilters())
 const currentPage = ref(1)
 const pageSize = ref(20)
 const detailStudent = ref(null)
-const paidImportVisible = ref(false)
 
 const filteredDetails = computed(() =>
   filterFeeRosterDetailRows(feeRosterRows.value, { ...applied.value }),
@@ -106,10 +104,6 @@ function handleExport() {
     `fee-roster-${timestamp}.xlsx`,
     { t },
   )
-}
-
-function onImported() {
-  currentPage.value = 1
 }
 </script>
 
@@ -238,9 +232,6 @@ function onImported() {
           >
             {{ t('common.export') }}
           </button>
-          <button type="button" class="btn btn-primary" @click="paidImportVisible = true">
-            {{ t('common.import') }}
-          </button>
         </div>
       </div>
 
@@ -320,11 +311,6 @@ function onImported() {
       :visible="!!detailStudent"
       :student="detailStudent"
       @close="detailStudent = null"
-    />
-    <FeeRosterPaidImportModal
-      :visible="paidImportVisible"
-      @close="paidImportVisible = false"
-      @imported="onImported"
     />
   </div>
 </template>

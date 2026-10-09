@@ -55,15 +55,12 @@ const cellTitle = computed(
 
 .audience-round-dual.compact {
   min-width: 0;
-  max-width: 100%;
   line-height: 1.3;
   font-size: inherit;
 }
 
 .audience-round-dual.compact .round-dual-line {
   margin-bottom: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .round-dual-line {

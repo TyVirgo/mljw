@@ -14,7 +14,12 @@ import {
   normalizeCartRoundKey,
 } from './studentRegistrationStore.js'
 import { getCourseById, resolveSchoolElectiveCategory } from './selectableCourses.js'
-import { getSelectionGroupsForBatch, resolveSelectionGroup } from './courseSelectionGroups.js'
+import { getSectionMeetings } from './sectionScheduleFields.js'
+import {
+  getSelectionGroupsForBatch,
+  resolveSelectionGroup,
+  computeSelectionGroupMinCredits,
+} from './courseSelectionGroups.js'
 import {
   buildVolunteerResultRows,
   preferenceOrderConfirmed,
@@ -33,7 +38,8 @@ import { getStudentAudience } from './studentAudience.js'
 const DEFAULT_ELECTIVE = {
   ge: 4,
   me: 6,
-  geMax: 18,
+  // GE 学期整体帽 6 分（与 DEMO_TERM_CREDIT_CAPS 同口径）
+  geMax: 6,
   meMax: 22,
 }
 
@@ -43,7 +49,8 @@ export const DEFAULT_GRADUATION_GE_PROGRESS = {
   business: 5,
   science: 3,
   aiOpen: 0,
-  required: { humanities: 12, business: 12, science: 12, aiOpen: 12 },
+  // 四类之和 16 < 毕业总分 18（DEMO_PROGRAMME_CREDIT_TARGETS.geRequired），留出富余学分空间
+  required: { humanities: 5, business: 5, science: 4, aiOpen: 2 },
 }
 
 /** Demo：毕业 ME 课程组累计（首次选课：已选≡本学期；要求更大；四类之和=48） */
@@ -99,7 +106,7 @@ function schoolCatToGeKey(schoolCat) {
  * 批次课程组 → ME 四类进度键
  * @param {import('./courseSelectionGroups.js').SelectionGroup | null | undefined} group
  */
-function selectionGroupToMeKey(group) {
+export function selectionGroupToMeKey(group) {
   if (!group) return 'ordinary'
   const minPick = Number(group.minPick) || 1
   const size = Array.isArray(group.courseCodes) ? group.courseCodes.length : 0
@@ -108,6 +115,34 @@ function selectionGroupToMeKey(group) {
   if (minPick === 1 && size <= 2) return 'group2of1'
   if (minPick === 1) return 'group2of1'
   return 'ordinary'
+}
+
+/**
+ * 从批次课程组推导 ME 四类最低学分分母（组内最低 minPick 门学分之和）
+ * ordinary = max(0, totalCap - Σ组最低 - 1)，保证四类之和 < 总分帽
+ * @param {object|null|undefined} batch
+ * @param {number} totalCap 学期 meMax 或毕业 meRequired
+ */
+export function deriveMeCategoryRequiredFromBatch(batch, totalCap) {
+  const required = { group4of3: 0, group3of2: 0, group2of1: 0, ordinary: 0 }
+  const groups = getSelectionGroupsForBatch(batch)
+  for (const group of groups) {
+    const key = selectionGroupToMeKey(group)
+    if (key === 'ordinary') continue
+    const minCredits = computeSelectionGroupMinCredits(group)
+    required[key] = Math.max(Number(required[key]) || 0, minCredits)
+  }
+  const groupSum =
+    (Number(required.group4of3) || 0) +
+    (Number(required.group3of2) || 0) +
+    (Number(required.group2of1) || 0)
+  const cap = Number(totalCap) || 0
+  if (cap > 0) {
+    required.ordinary = Math.max(0, cap - groupSum - 1)
+  } else {
+    required.ordinary = Number(DEFAULT_TERM_GE_CATEGORIES.required.ordinary) || 0
+  }
+  return required
 }
 
 /**
@@ -262,7 +297,8 @@ export const DEMO_PROGRAMME_CREDIT_TARGETS = {
   mandatoryRequired: 72,
   electiveRequired: 36,
   meRequired: 24,
-  geRequired: 12,
+  // GE 毕业总分：入口卡毕业行独立口径，不按 GE01-04 分类求和（分类和 16 < 18）
+  geRequired: 18,
 }
 
 /** 按专业码覆盖培养方案学分要求；未配置则回落 DEMO_PROGRAMME_CREDIT_TARGETS */
@@ -405,7 +441,10 @@ export function getStudentCreditLayers(studentId = getStudentProfileFields().stu
   const meRequired = Number(caps.meMax) || Number(row.termElectiveProgress?.meMax) || DEFAULT_ELECTIVE.meMax
   const liveCourses =
     scope === 'confirmed'
-      ? studentConfirmedCourses.value.filter((c) => c.intent !== 'waitlist')
+      ? // 与 R3 学分累计同源：排除管理员代选，避免加退 GE 已选被 admin 抬高
+        studentConfirmedCourses.value.filter(
+          (c) => c.intent !== 'waitlist' && c.sourceType !== 'admin',
+        )
       : scope === 'round'
         ? listRoundStatusCreditCourses(options.batch, options)
         : listLiveTermCreditCourses()
@@ -548,13 +587,22 @@ function meGroupBarsFromProgress(progress) {
 
 /**
  * 本学期 ME 课程组进度（顶栏 / 入口卡 / 加退弹窗）
- * 已选一律走确认课汇总（getStudentCreditLayers），避免监控行写死分类与总分脱节
+ * 已选走 layers；分母按批次课程组最低学分之和动态覆盖
  * @param {object} [row] 监控行；仅用于解析 studentId
- * @param {{ scope?: 'term'|'round' }} [options]
+ * @param {{ scope?: 'term'|'round', batch?: object }} [options]
  */
 export function getTermGeCategoryBars(row, options) {
   const layers = getStudentCreditLayers(row?.studentId, options)
-  return meGroupBarsFromProgress(layers.termGeCategories)
+  const batch = options?.batch || getActiveBatch()
+  const meMax =
+    Number(layers.termElective?.me?.required) ||
+    Number(getTermElectiveCreditProgress(row?.studentId).meMax) ||
+    DEFAULT_ELECTIVE.meMax
+  const derived = deriveMeCategoryRequiredFromBatch(batch, meMax)
+  return meGroupBarsFromProgress({
+    ...layers.termGeCategories,
+    required: derived,
+  })
 }
 
 /**
@@ -581,12 +629,13 @@ export function wouldExceedTermElectiveCap(type, addCredits = 0, studentId) {
 }
 
 /**
- * 加退课费用：按**毕业** GE/ME 对应类别剩余（供 estimateCourseFee）
- * 只超学期要求不收费；仅超毕业类别才产生应收学分
+ * 加退课费用：按**毕业** GE/ME 总分剩余（供 estimateCourseFee）
+ * 只超学期要求不收费；仅超毕业总分才产生应收学分（子类不驱动计费）
  * @param {string} [studentId]
  */
 export function buildAddDropPlanRemaining(studentId = getStudentProfileFields().studentId) {
   const row = getStudentMonitorRow(studentId)
+  const programme = getProgrammeCreditProgress()
   const remFromBars = (bars) => {
     const out = {}
     let total = 0
@@ -597,13 +646,22 @@ export function buildAddDropPlanRemaining(studentId = getStudentProfileFields().
     }
     return { categories: out, total }
   }
-  const ge = remFromBars(getGraduationGeBars(row))
-  const me = remFromBars(getGraduationMeBars(row))
+  const geBars = getGraduationGeBars(row)
+  const meBars = remFromBars(getGraduationMeBars(row))
+  // GE/ME 毕业免费额度均按培养方案总分：required − earned（子类剩余仅兼容 boost/consume）
+  const geCurrent = geBars.reduce((sum, bar) => sum + (Number(bar.current) || 0), 0)
+  const geRequiredTotal =
+    Number(programme.geRequired) || remFromBars(geBars).total + geCurrent
+  const geRemaining = Math.max(0, geRequiredTotal - geCurrent)
+  const meRemaining =
+    programme.meRemaining != null
+      ? Math.max(0, Number(programme.meRemaining) || 0)
+      : Math.max(0, (Number(programme.meRequired) || 0) - (Number(programme.meEarned) || 0))
   return {
-    geRemaining: ge.total,
-    meRemaining: me.total,
-    geCategory: ge.categories,
-    meCategory: me.categories,
+    geRemaining,
+    meRemaining,
+    geCategory: remFromBars(geBars).categories,
+    meCategory: meBars.categories,
   }
 }
 
@@ -630,90 +688,118 @@ export function resolveAddDropFeeCategoryKey(course) {
 
 /**
  * 本学期某 GE 校选类别是否将超配额（本轮口径）
+ * 分类学期帽已停用：GE 只保留整体学期帽（geMax），不再按 GE01-04 分类限制
  * @param {'humanities'|'business'|'science'|'aiOpen'} categoryKey
  * @param {number} addCredits
  * @param {string} [studentId]
  */
 export function wouldExceedTermGeCategory(categoryKey, addCredits = 0, studentId) {
-  const layers = getStudentCreditLayers(studentId, { scope: 'round' })
-  const cat = layers.termGeElectiveCategories
-  const required = cat.required?.[categoryKey]
-  const current = cat[categoryKey]
-  if (required == null) return false
-  return Number(current) + (Number(addCredits) || 0) > Number(required)
+  void categoryKey
+  void addCredits
+  void studentId
+  return false
 }
 
 /**
- * 本学期某 ME 课程组是否将超配额（本轮口径）
- * @param {'group4of3'|'group3of2'|'group2of1'|'ordinary'} categoryKey
- * @param {number} addCredits
- * @param {string} [studentId]
+ * @deprecated ME 分类学分不再作上限；保留兼容，恒 false
  */
 export function wouldExceedTermMeGroupCategory(categoryKey, addCredits = 0, studentId) {
-  const layers = getStudentCreditLayers(studentId, { scope: 'round' })
-  const cat = layers.termGeCategories
-  const required = cat.required?.[categoryKey]
-  const current = cat[categoryKey]
-  if (required == null) return false
-  return Number(current) + (Number(addCredits) || 0) > Number(required)
-}
-
-/** @type {Record<string, string>} */
-const GE_CATEGORY_CREDIT_CAP_ERROR_KEYS = {
-  humanities: 'courseRegistration.student.categoryCreditCapExceededGeHumanities',
-  business: 'courseRegistration.student.categoryCreditCapExceededGeBusiness',
-  science: 'courseRegistration.student.categoryCreditCapExceededGeScience',
-  aiOpen: 'courseRegistration.student.categoryCreditCapExceededGeAiOpen',
-}
-
-/** @type {Record<string, string>} */
-const ME_CATEGORY_CREDIT_CAP_ERROR_KEYS = {
-  ordinary: 'courseRegistration.student.categoryCreditCapExceededMeOrdinary',
-  group4of3: 'courseRegistration.student.categoryCreditCapExceededMeGroup4of3',
-  group3of2: 'courseRegistration.student.categoryCreditCapExceededMeGroup3of2',
-  group2of1: 'courseRegistration.student.categoryCreditCapExceededMeGroup2of1',
+  void categoryKey
+  void addCredits
+  void studentId
+  return false
 }
 
 /**
- * 行级/提交：本学期具体分类（GE 校选 / ME 课程组）是否会超上限
+ * 在线选课：ME 课程组门数将超过 minPick（如 3选2 最多 2 门）
  * @param {object|null|undefined} course
- * @returns {{ ok: true } | { ok: false, errorKey: string, categoryKey?: string }}
+ * @param {{ batch?: object, roundKey?: string }} [options]
+ */
+export function wouldExceedMeGroupCourseCount(course, options = {}) {
+  if (!course) return false
+  const kind = normalizeRegistrationType(course.type)
+  if (kind !== 'ME' && kind !== 'Mandatory') return false
+  const batch = options.batch || (course.batchId && getBatchById(course.batchId)) || getActiveBatch()
+  const groups = getSelectionGroupsForBatch(batch)
+  const group = resolveSelectionGroup(course, groups)
+  if (!group) return false
+  const minPick = Number(group.minPick) || 1
+  const codeSet = new Set(
+    (group.courseCodes || []).map((c) => String(c).trim().toUpperCase()).filter(Boolean),
+  )
+  const live = listRoundStatusCreditCourses(batch, {
+    roundKey: options.roundKey || activeCartRoundKey.value,
+  })
+  const seen = new Set()
+  for (const item of live) {
+    const code = String(item.courseCode || '').trim().toUpperCase()
+    if (!code || !codeSet.has(code)) continue
+    seen.add(code)
+  }
+  const nextCode = String(course.code || course.courseCode || '').trim().toUpperCase()
+  if (nextCode && seen.has(nextCode)) return false
+  return seen.size + (nextCode ? 1 : 0) > minPick
+}
+
+/**
+ * 行级/提交：GE 分类学分闸已停用；ME 改为组内门数上限
+ * @param {object|null|undefined} course
+ * @returns {{ ok: true } | { ok: false, errorKey: string, categoryKey?: string, errorParams?: object }}
  */
 export function checkTermCategoryCreditCapForCourse(course) {
   if (!course) return { ok: true }
-  const add = Number(course.credits) || 0
-  if (add <= 0) return { ok: true }
   const kind = normalizeRegistrationType(course.type)
   if (kind === 'GE') {
-    const schoolCat = resolveSchoolElectiveCategory(course)
-    const key = schoolCatToGeKey(schoolCat)
-    if (!key) return { ok: true }
-    if (wouldExceedTermGeCategory(key, add)) {
-      return {
-        ok: false,
-        categoryKey: key,
-        errorKey:
-          GE_CATEGORY_CREDIT_CAP_ERROR_KEYS[key] ||
-          'courseRegistration.student.categoryCreditCapExceeded',
-      }
-    }
     return { ok: true }
   }
   if (kind === 'ME' || kind === 'Mandatory') {
     const batch = (course.batchId && getBatchById(course.batchId)) || getActiveBatch()
     const groups = getSelectionGroupsForBatch(batch)
     const group = resolveSelectionGroup(course, groups)
-    const key = selectionGroupToMeKey(group)
-    if (wouldExceedTermMeGroupCategory(key, add)) {
+    if (!group) return { ok: true }
+    if (wouldExceedMeGroupCourseCount(course, { batch })) {
+      const total = Array.isArray(group.courseCodes) ? group.courseCodes.length : 0
+      const min = Number(group.minPick) || 1
       return {
         ok: false,
-        categoryKey: key,
-        errorKey:
-          ME_CATEGORY_CREDIT_CAP_ERROR_KEYS[key] ||
-          'courseRegistration.student.categoryCreditCapExceeded',
+        categoryKey: selectionGroupToMeKey(group),
+        errorKey: 'courseRegistration.student.meGroupCourseCountExceeded',
+        errorParams: { min, total },
       }
     }
     return { ok: true }
+  }
+  return { ok: true }
+}
+
+/**
+ * 在线选课硬拦：GE 毕业总分将超过培养方案上限（默认 18）则禁提交。
+ * 口径与列表顶栏毕业行同源（scope=round）；加退课勿调用本函数（超 18 走缴费提醒）。
+ * @param {object|null|undefined} course
+ * @param {{ batch?: object, roundKey?: string }} [options]
+ * @returns {{ ok: true } | { ok: false, errorKey: string, errorParams?: object }}
+ */
+export function checkGraduationGeCapForCourse(course, options = {}) {
+  if (!course) return { ok: true }
+  const kind = normalizeRegistrationType(course.type)
+  if (kind !== 'GE') return { ok: true }
+  const add = Number(course.credits) || 0
+  if (add <= 0) return { ok: true }
+  const max = Number(getProgrammeCreditProgress().geRequired) || 0
+  if (max <= 0) return { ok: true }
+  const bars = getGraduationGeBars(undefined, {
+    scope: 'round',
+    batch: options.batch || getActiveBatch(),
+    roundKey: options.roundKey || activeCartRoundKey.value,
+  })
+  const current = (bars || []).reduce((sum, bar) => sum + (Number(bar.current) || 0), 0)
+  const used = current + add
+  if (used > max) {
+    return {
+      ok: false,
+      errorKey: 'courseRegistration.student.graduationGeCapExceeded',
+      errorParams: { used, max },
+    }
   }
   return { ok: true }
 }
@@ -762,19 +848,21 @@ export function getGraduationGeBars(row, options) {
 }
 
 /**
- * 毕业 ME 课程组累计：已选取本学期 ME 组进度，要求用毕业配额
+ * 毕业 ME 课程组累计：已选取本学期 ME 组进度；分母与学期同源（组内最低学分之和）
  * @param {object} [row] 监控行；缺省取当前学生
- * @param {{ scope?: 'term'|'round' }} [options]
+ * @param {{ scope?: 'term'|'round', batch?: object }} [options]
  */
 export function getGraduationMeBars(row, options) {
   const termBars = getTermGeCategoryBars(row, options)
-  const live = row || getStudentMonitorRow()
-  const required = normalizeGraduationMeProgress(
-    live?.graduationMeProgress || DEFAULT_GRADUATION_ME_PROGRESS,
-  ).required
+  const batch = options?.batch || getActiveBatch()
+  const meRequired =
+    Number(getProgrammeCreditProgress().meRequired) ||
+    Number(DEMO_PROGRAMME_CREDIT_TARGETS.meRequired) ||
+    0
+  const derived = deriveMeCategoryRequiredFromBatch(batch, meRequired)
   return termBars.map((bar) => ({
     ...bar,
-    max: Number(required[bar.key]) || bar.max,
+    max: Number(derived[bar.key]) || bar.max,
   }))
 }
 
@@ -997,7 +1085,7 @@ export function getStudentAudienceBanner(studentId) {
   const profile = getStudentProfileFields()
   const id = studentId || profile.studentId
   const audience = getStudentAudience(id)
-  const caps = profile.termCreditCaps || { geMax: 18, meMax: 22 }
+  const caps = profile.termCreditCaps || { geMax: 6, meMax: 22 }
   return {
     audience,
     registrationSemesterIndex: profile.registrationSemesterIndex,
@@ -1030,18 +1118,68 @@ export function getRoundPanelNoteKey(roundKey) {
   return map[roundKey] || 'courseRegistration.student.registerHint'
 }
 
+function extractWeekdayFromTime(time) {
+  const match = String(time || '').match(/^(\w+)\s+/)
+  return match ? match[1] : ''
+}
+
+/** 课级：自身或任一分组的 time/meetings 是否含指定星期（Mon…Fri） */
+export function courseMatchesWeekday(course, weekday) {
+  if (!weekday) return true
+  const target = String(weekday).trim()
+  if (!target) return true
+  const days = new Set()
+  const collect = (node) => {
+    if (!node) return
+    const d0 = extractWeekdayFromTime(node.time || node.classTime)
+    if (d0) days.add(d0)
+    for (const meeting of getSectionMeetings(node)) {
+      const d = extractWeekdayFromTime(meeting.time)
+      if (d) days.add(d)
+    }
+  }
+  collect(course)
+  for (const section of course.sections || []) collect(section)
+  return days.has(target)
+}
+
 export function filterStudentCourseList(courses, filters = {}) {
   let list = [...courses]
+  if (filters.code) {
+    const kw = String(filters.code).trim().toLowerCase()
+    list = list.filter((item) => String(item.code || '').toLowerCase().includes(kw))
+  }
+  if (filters.name) {
+    const kw = String(filters.name).trim().toLowerCase()
+    list = list.filter((item) => {
+      const zh = String(item.name || '').toLowerCase()
+      const en = String(item.nameEn || '').toLowerCase()
+      return zh.includes(kw) || en.includes(kw)
+    })
+  }
+  // 兼容旧 keyword（代码或名称）
   if (filters.keyword) {
-    const kw = filters.keyword.toLowerCase()
+    const kw = String(filters.keyword).toLowerCase()
     list = list.filter(
       (item) =>
-        item.code.toLowerCase().includes(kw) || item.name.toLowerCase().includes(kw),
+        String(item.code || '')
+          .toLowerCase()
+          .includes(kw) ||
+        String(item.name || '')
+          .toLowerCase()
+          .includes(kw),
     )
   }
   if (filters.type) {
     const target = normalizeRegistrationType(filters.type)
     list = list.filter((item) => normalizeRegistrationType(item.type) === target)
+  }
+  if (filters.schoolElectiveCategory) {
+    const cat = String(filters.schoolElectiveCategory)
+    list = list.filter((item) => resolveSchoolElectiveCategory(item) === cat)
+  }
+  if (filters.weekday) {
+    list = list.filter((item) => courseMatchesWeekday(item, filters.weekday))
   }
   if (filters.credits !== '' && filters.credits != null) {
     const credit = Number(filters.credits)

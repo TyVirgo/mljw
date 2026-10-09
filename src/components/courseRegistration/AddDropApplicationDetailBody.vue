@@ -25,8 +25,10 @@ import {
   displayPreviousCourseGrades,
   retakeHistoryFromCourse,
 } from '../../data/courseRegistration/studentTranscript.js'
-import { addDropLineKey } from '../../data/courseRegistration/addDropMultiItems.js'
-import { normalizeRegistrationType } from '../../data/courseRegistration/registrationTypes.js'
+import {
+  addDropLineKey,
+  buildDropCreditBreakdown,
+} from '../../data/courseRegistration/addDropMultiItems.js'
 import CourseRegistrationCallout from './CourseRegistrationCallout.vue'
 import '../../styles/movement-status-badge.css'
 
@@ -138,32 +140,31 @@ const showNeedDropField = computed(() => {
   return primary === 'Add' || primary === 'Retake'
 })
 
-/** 退课学分汇总（与表单 dropCreditBreakdown 同源） */
+/** 退课学分汇总（与表单 buildDropCreditBreakdown 同源） */
 const dropCreditBreakdown = computed(() => {
-  let me = 0
-  let ge = 0
   const items = dropItems.value
-  if (items.length) {
-    for (const item of items) {
-      if (!item) continue
-      const credits = Number(item.credits) || 0
-      if (normalizeRegistrationType(item.type) === 'GE') ge += credits
-      else me += credits
-    }
-  } else if (sections.value.showIII) {
+  let lines = items
+  if (!lines.length && sections.value.showIII) {
     const snap = snapFor('drop')
     const item = itemByAction('Drop')
     const credits = Number(item?.credits ?? snap?.credits) || 0
     const type = item?.type || snap?.type || ''
     if (credits > 0) {
-      if (normalizeRegistrationType(type) === 'GE') ge = credits
-      else me = credits
+      lines = [
+        {
+          credits,
+          type,
+          sourceType: item?.sourceType || snap?.sourceType || '',
+        },
+      ]
     }
   }
+  const raw = buildDropCreditBreakdown(lines)
   return {
-    total: String(me + ge),
-    me: String(me),
-    ge: String(ge),
+    total: String(raw.total),
+    mandatory: String(raw.mandatory),
+    me: String(raw.me),
+    ge: String(raw.ge),
   }
 })
 
@@ -634,6 +635,10 @@ function retakeRowPreviousGrades(item) {
           <div class="field-item">
             <div class="field-label">{{ t('courseRegistration.student.fieldDropTotalCredits') }}</div>
             <div class="field-value">{{ dropCreditBreakdown.total }}</div>
+          </div>
+          <div class="field-item">
+            <div class="field-label">{{ t('courseRegistration.student.fieldDropMandatoryCredits') }}</div>
+            <div class="field-value">{{ dropCreditBreakdown.mandatory }}</div>
           </div>
           <div class="field-item">
             <div class="field-label">{{ t('courseRegistration.student.fieldDropMeCredits') }}</div>

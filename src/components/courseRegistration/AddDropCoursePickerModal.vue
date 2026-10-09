@@ -10,6 +10,7 @@ import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   courseTypeOptions,
   getRegistrationTypeLabel,
+  normalizeRegistrationType,
 } from '../../data/courseRegistration/registrationTypes.js'
 import {
   schoolElectiveCategoryOptions,
@@ -35,11 +36,15 @@ import {
   projectAddDropCreditGroups,
   creditGroupsHaveTermCategoryOver,
   listTermOverCategoryKeys,
+  buildAddDropTermCreditStrip,
+  wouldExceedAddDropGeTermCap,
 } from '../../data/courseRegistration/addDropMultiItems.js'
+import AddDropTermCreditStrip from './AddDropTermCreditStrip.vue'
 import {
   attachCourseLevelRowSpans,
   courseRowKey,
 } from '../../data/courseRegistration/sectionTableRowSpans.js'
+import '../../styles/list-page-search.css'
 
 const props = defineProps({
   visible: Boolean,
@@ -59,6 +64,8 @@ const props = defineProps({
   creditBars: { type: Array, default: () => [] },
   creditGroups: { type: Array, default: () => [] },
   categoryBars: { type: Array, default: () => [] },
+  /** 学分条基线（含毕业 GE/ME + 学期 + 必修） */
+  termCreditStripBaseline: { type: Object, default: null },
   planRemaining: { type: Object, default: () => ({}) },
   /** 再次打开时预勾选（表单 dropLines / addLines） */
   preselectedLines: { type: Array, default: () => [] },
@@ -68,14 +75,18 @@ const emit = defineEmits(['close', 'confirm'])
 
 const { t, isZh } = useAppI18n()
 
-const searchDraft = ref('')
+const codeDraft = ref('')
+const nameDraft = ref('')
 const creditsDraft = ref('')
 const schoolElectiveDraft = ref('')
 const typeDraft = ref('')
-const searchApplied = ref('')
+const codeApplied = ref('')
+const nameApplied = ref('')
 const creditsApplied = ref('')
 const schoolElectiveApplied = ref('')
 const typeApplied = ref('')
+/** 搜索筛选区收放；默认展开 */
+const searchExpanded = ref(true)
 const pickedRowKey = ref('')
 const pickedRowKeys = ref([])
 const currentPage = ref(1)
@@ -95,8 +106,44 @@ const showCreditProgress = computed(
       props.action === 'AddDrop' ||
       props.action === 'Retake' ||
       props.action === 'Drop') &&
-    (props.creditGroups.length > 0 || props.creditBars.length > 0),
+    (Boolean(props.termCreditStripBaseline) ||
+      props.creditGroups.length > 0 ||
+      props.creditBars.length > 0),
 )
+
+/** 弹窗勾选 → 拟退/拟加课程（含 sourceType，供必修投影） */
+const pickerProjectionCourses = computed(() => {
+  const selectedCourses = selectedRows.value.map((r) => ({
+    ...(r.course || {}),
+    type: r.type || r.course?.type,
+    sourceType: r.sourceType || r.course?.sourceType || '',
+    credits: r.credits ?? r.course?.credits,
+    code: r.code || r.course?.code,
+    courseCode: r.code || r.course?.code || r.course?.courseCode,
+    id: r.course?.id || r.course?.courseId,
+    courseId: r.course?.courseId || r.course?.id,
+    batchId: r.course?.batchId,
+    schoolElectiveCategory:
+      r.schoolElectiveCategory || r.course?.schoolElectiveCategory || '',
+  }))
+  const dropCourses = isDrop.value
+    ? selectedCourses
+    : props.termCreditGate?.dropLines || []
+  const addCourses = isDrop.value
+    ? props.termCreditGate?.addLines || []
+    : selectedCourses
+  return { dropCourses, addCourses }
+})
+
+const termCreditStrip = computed(() => {
+  if (!props.termCreditStripBaseline) return null
+  const { dropCourses, addCourses } = pickerProjectionCourses.value
+  return buildAddDropTermCreditStrip({
+    ...props.termCreditStripBaseline,
+    dropCourses,
+    addCourses,
+  })
+})
 
 const creditDisplayGroups = computed(() => {
   let baseline = []
@@ -113,52 +160,11 @@ const creditDisplayGroups = computed(() => {
     ]
   }
   if (!baseline.length) return []
-  // 弹窗内仅跟当前勾选投影；空勾选 = 纯基线（退）或基线±表单另一侧（加）
-  const selectedCourses = selectedRows.value.map((r) => ({
-    ...(r.course || {}),
-    type: r.type || r.course?.type,
-    credits: r.credits ?? r.course?.credits,
-    code: r.code || r.course?.code,
-    courseCode: r.code || r.course?.code || r.course?.courseCode,
-    id: r.course?.id || r.course?.courseId,
-    courseId: r.course?.courseId || r.course?.id,
-    batchId: r.course?.batchId,
-    schoolElectiveCategory:
-      r.schoolElectiveCategory || r.course?.schoolElectiveCategory || '',
-  }))
-  const dropCourses = isDrop.value
-    ? selectedCourses
-    : props.termCreditGate?.dropLines || []
-  const addCourses = isDrop.value
-    ? props.termCreditGate?.addLines || []
-    : selectedCourses
+  const { dropCourses, addCourses } = pickerProjectionCourses.value
   return projectAddDropCreditGroups(baseline, { dropCourses, addCourses })
 })
 
-const geCreditGroups = computed(() =>
-  creditDisplayGroups.value.filter((g) => g.key === 'ge-grad' || g.key === 'ge'),
-)
-const meCreditGroups = computed(() =>
-  creditDisplayGroups.value.filter((g) => g.key === 'me-grad' || g.key === 'me'),
-)
-const legacyCreditGroups = computed(() =>
-  creditDisplayGroups.value.filter(
-    (g) => !['ge-grad', 'ge', 'me-grad', 'me'].includes(String(g.key || '')),
-  ),
-)
-
 const scheduleLocale = computed(() => (isZh.value ? 'zh' : 'en'))
-
-const CATEGORY_SHORT_KEYS = {
-  humanities: 'courseRegistration.student.geDemand.short.humanities',
-  business: 'courseRegistration.student.geDemand.short.business',
-  science: 'courseRegistration.student.geDemand.short.science',
-  aiOpen: 'courseRegistration.student.geDemand.short.aiOpen',
-  group4of3: 'courseRegistration.student.meGroup.short.group4of3',
-  group3of2: 'courseRegistration.student.meGroup.short.group3of2',
-  group2of1: 'courseRegistration.student.meGroup.short.group2of1',
-  ordinary: 'courseRegistration.student.meGroup.short.ordinary',
-}
 
 const creditFilterOptions = computed(() => {
   const set = new Set()
@@ -168,6 +174,23 @@ const creditFilterOptions = computed(() => {
   }
   return [...set].sort((a, b) => a - b)
 })
+
+/** 退课筛选含必修课（CORE）；加课/重修仍为 ME/GE */
+const courseTypeFilterOptions = computed(() => {
+  if (!isDrop.value) return courseTypeOptions
+  return [
+    ...courseTypeOptions,
+    {
+      value: 'CORE',
+      labelKey: 'courseRegistration.types.CORE.label',
+      descKey: 'courseRegistration.types.CORE.courseDesc',
+    },
+  ]
+})
+
+/** 退课不展示名额列；重修展示履历列；加课展示余量列 */
+const showSeatOrRetakeColumn = computed(() => !isDrop.value)
+const tableColspan = computed(() => (showSeatOrRetakeColumn.value ? 12 : 11))
 
 function sectionRowsForCourse(course) {
   const sections = Array.isArray(course.sections) ? course.sections : []
@@ -189,6 +212,7 @@ function sectionRowsForCourse(course) {
         name: course.name,
         credits: course.credits,
         type: course.type,
+        sourceType: course.sourceType || '',
         schoolElectiveCategory:
           course.schoolElectiveCategory || resolveSchoolElectiveCategory(course) || '',
         fromEnrolled: course.fromEnrolled,
@@ -224,6 +248,7 @@ function sectionRowsForCourse(course) {
       name: course.name,
       credits: course.credits,
       type: course.type,
+      sourceType: course.sourceType || '',
       schoolElectiveCategory:
         course.schoolElectiveCategory || resolveSchoolElectiveCategory(course) || '',
       fromEnrolled: course.fromEnrolled,
@@ -242,16 +267,20 @@ const flattenedRows = computed(() => {
 
 const filteredRows = computed(() => {
   let list = [...flattenedRows.value]
-  const kw = searchApplied.value.trim().toLowerCase()
-  if (kw) {
-    list = list.filter(
-      (row) =>
-        String(row.code || '')
-          .toLowerCase()
-          .includes(kw) ||
-        String(row.name || '')
-          .toLowerCase()
-          .includes(kw),
+  const codeKw = codeApplied.value.trim().toLowerCase()
+  const nameKw = nameApplied.value.trim().toLowerCase()
+  if (codeKw) {
+    list = list.filter((row) =>
+      String(row.code || '')
+        .toLowerCase()
+        .includes(codeKw),
+    )
+  }
+  if (nameKw) {
+    list = list.filter((row) =>
+      String(row.name || '')
+        .toLowerCase()
+        .includes(nameKw),
     )
   }
   if (creditsApplied.value) {
@@ -335,13 +364,10 @@ function feeActionForEstimate() {
   return props.action
 }
 
-/** 毕业剩余：含退课时先释放拟退课占用，再供逐课计费 */
+/** 毕业剩余：有拟退课即先释放占用再计费（加退表单打开加课槽时 action 可能为 Add） */
 function planRemainingForFee() {
   const drops = props.termCreditGate?.dropLines || []
-  if (
-    (props.action === 'AddDrop' || props.action === 'Retake' || props.action === 'RetakeDrop') &&
-    drops.length
-  ) {
+  if (!isDrop.value && drops.length) {
     return boostPlanRemainingFromDrops(props.planRemaining, drops)
   }
   return props.planRemaining
@@ -493,6 +519,25 @@ function toggleSelectAll(checked) {
   const rowByKey = new Map(flattenedRows.value.map((r) => [r.rowKey, r]))
   for (const row of filteredRows.value) {
     if (conflictInfo(row).conflict || isRowFull(row)) continue
+    // GE 学期帽：按累计 next 投影（勿用 selectedRows，全选过程中尚未写入）
+    if (
+      !isDrop.value &&
+      props.termCreditStripBaseline &&
+      normalizeRegistrationType(row.type || row.course?.type) === 'GE'
+    ) {
+      const addCourses = [
+        ...next.map((k) => rowByKey.get(k)).filter(Boolean).map(coursePayloadFromRow),
+        coursePayloadFromRow(row),
+      ]
+      if (
+        wouldExceedAddDropGeTermCap(props.termCreditStripBaseline, {
+          dropCourses: props.termCreditGate?.dropLines || [],
+          addCourses,
+        })
+      ) {
+        continue
+      }
+    }
     if (isDrop.value || !gate) {
       next.push(row.rowKey)
       continue
@@ -530,14 +575,17 @@ watch(
   () => props.visible,
   (visible) => {
     if (!visible) return
-    searchDraft.value = ''
+    codeDraft.value = ''
+    nameDraft.value = ''
     creditsDraft.value = ''
     schoolElectiveDraft.value = ''
     typeDraft.value = ''
-    searchApplied.value = ''
+    codeApplied.value = ''
+    nameApplied.value = ''
     creditsApplied.value = ''
     schoolElectiveApplied.value = ''
     typeApplied.value = ''
+    searchExpanded.value = true
     currentPage.value = 1
     pageSize.value = 20
     excessConfirmVisible.value = false
@@ -577,7 +625,8 @@ watch(filteredRows, (list) => {
 })
 
 function handleSearch() {
-  searchApplied.value = searchDraft.value
+  codeApplied.value = codeDraft.value
+  nameApplied.value = nameDraft.value
   creditsApplied.value = creditsDraft.value
   schoolElectiveApplied.value = schoolElectiveDraft.value
   typeApplied.value = typeDraft.value
@@ -585,11 +634,13 @@ function handleSearch() {
 }
 
 function handleReset() {
-  searchDraft.value = ''
+  codeDraft.value = ''
+  nameDraft.value = ''
   creditsDraft.value = ''
   schoolElectiveDraft.value = ''
   typeDraft.value = ''
-  searchApplied.value = ''
+  codeApplied.value = ''
+  nameApplied.value = ''
   creditsApplied.value = ''
   schoolElectiveApplied.value = ''
   typeApplied.value = ''
@@ -607,8 +658,40 @@ function isRowFull(row) {
   return Number.isFinite(rem) && rem <= 0
 }
 
+/** 行 → 学分条投影用课程载荷 */
+function coursePayloadFromRow(row) {
+  return {
+    ...(row.course || {}),
+    type: row.type || row.course?.type,
+    sourceType: row.sourceType || row.course?.sourceType || '',
+    credits: row.credits ?? row.course?.credits,
+    code: row.code || row.course?.code,
+    courseCode: row.code || row.course?.code || row.course?.courseCode,
+    id: row.course?.id || row.course?.courseId,
+    courseId: row.course?.courseId || row.course?.id,
+    batchId: row.course?.batchId,
+    schoolElectiveCategory:
+      row.schoolElectiveCategory || row.course?.schoolElectiveCategory || '',
+  }
+}
+
+/** GE 学期帽（与 R3/学分条同源）：拟加后 current > geMax 则硬拦 */
+function isRowGeTermCapBlocked(row) {
+  if (isDrop.value || row.fromEnrolled) return false
+  if (!props.termCreditStripBaseline) return false
+  const kind = normalizeRegistrationType(row.type || row.course?.type)
+  if (kind !== 'GE') return false
+  const others = selectedRows.value
+    .filter((r) => r.rowKey !== row.rowKey)
+    .map(coursePayloadFromRow)
+  return wouldExceedAddDropGeTermCap(props.termCreditStripBaseline, {
+    dropCourses: props.termCreditGate?.dropLines || [],
+    addCourses: [...others, coursePayloadFromRow(row)],
+  })
+}
+
 function isRowCreditBlocked(row) {
-  return Boolean(termGateForRow(row).blocked)
+  return Boolean(termGateForRow(row).blocked) || isRowGeTermCapBlocked(row)
 }
 
 function isRowDisabledBySibling(row) {
@@ -736,6 +819,21 @@ function seatStatusTip(row) {
   }
   if (isRowFull(row)) return t('courseRegistration.student.pickerStatusFull')
   if (isRowCreditBlocked(row)) {
+    if (isRowGeTermCapBlocked(row) && props.termCreditStripBaseline) {
+      const others = selectedRows.value
+        .filter((r) => r.rowKey !== row.rowKey)
+        .map(coursePayloadFromRow)
+      const strip = buildAddDropTermCreditStrip({
+        ...props.termCreditStripBaseline,
+        dropCourses: props.termCreditGate?.dropLines || [],
+        addCourses: [...others, coursePayloadFromRow(row)],
+      })
+      return t('courseRegistration.student.termCreditCapExceeded', {
+        type: 'GE',
+        used: strip.ge?.current ?? '—',
+        max: strip.ge?.max ?? '—',
+      })
+    }
     const categoryGate = checkTermCategoryCreditCapForCourse(row.course || row)
     if (!categoryGate.ok && categoryGate.errorKey) {
       return t(categoryGate.errorKey, categoryGate.errorParams || {})
@@ -759,15 +857,6 @@ function seatStatusClass(row) {
   if (isRowFull(row)) return 'full'
   if (termGateForRow(row).over) return 'full'
   return 'open'
-}
-
-function creditCapsuleTone(bar) {
-  const current = Number(bar?.current) || 0
-  const max = Number(bar?.max) || 0
-  if (max <= 0) return 'is-neutral'
-  if (current > max) return 'is-over'
-  if (current === max) return 'is-met'
-  return 'is-short'
 }
 
 function buildConfirmPayload(row) {
@@ -868,47 +957,41 @@ function handleClose() {
           </CourseRegistrationCallout>
 
           <div class="search-bar">
-            <div class="search-row search-row--filters">
-              <div class="search-item">
-                <label class="search-label">{{ t('courseRegistration.courses.code') }}</label>
-                <input
-                  v-model="searchDraft"
-                  type="text"
-                  class="search-input"
-                  :placeholder="t('courseRegistration.courses.librarySearchPlaceholder')"
-                  @keyup.enter="handleSearch"
-                />
-              </div>
-              <div class="search-item search-item--sm">
-                <label class="search-label">{{ t('courseRegistration.courses.credits') }}</label>
-                <select v-model="creditsDraft" class="search-select">
-                  <option value="">{{ t('common.all') }}</option>
-                  <option v-for="credit in creditFilterOptions" :key="credit" :value="String(credit)">
-                    {{ credit }}
-                  </option>
-                </select>
-              </div>
-              <div class="search-item search-item--sm">
-                <label class="search-label">{{ t('courseRegistration.courses.schoolElectiveCategory') }}</label>
-                <select v-model="schoolElectiveDraft" class="search-select">
-                  <option value="">{{ t('common.all') }}</option>
-                  <option
-                    v-for="opt in schoolElectiveCategoryOptions"
-                    :key="opt.value"
-                    :value="opt.value"
-                  >
-                    {{ isZh ? opt.zh : opt.en }}
-                  </option>
-                </select>
-              </div>
-              <div class="search-item search-item--sm">
-                <label class="search-label">{{ t('courseRegistration.courses.type') }}</label>
-                <select v-model="typeDraft" class="search-select">
-                  <option value="">{{ t('common.all') }}</option>
-                  <option v-for="opt in courseTypeOptions" :key="opt.value" :value="opt.value">
-                    {{ t(opt.labelKey) }}
-                  </option>
-                </select>
+            <div class="search-row">
+              <div class="search-fields">
+                <div class="search-item">
+                  <label>{{ t('courseRegistration.courses.code') }}</label>
+                  <input
+                    v-model="codeDraft"
+                    type="text"
+                    class="search-input"
+                    :placeholder="t('common.pleaseInput')"
+                    @keyup.enter="handleSearch"
+                  />
+                </div>
+                <div class="search-item">
+                  <label>{{ t('courseRegistration.courses.name') }}</label>
+                  <input
+                    v-model="nameDraft"
+                    type="text"
+                    class="search-input"
+                    :placeholder="t('common.pleaseInput')"
+                    @keyup.enter="handleSearch"
+                  />
+                </div>
+                <div class="search-item">
+                  <label>{{ t('courseRegistration.courses.credits') }}</label>
+                  <select v-model="creditsDraft" class="search-select">
+                    <option value="">{{ t('common.all') }}</option>
+                    <option
+                      v-for="credit in creditFilterOptions"
+                      :key="credit"
+                      :value="String(credit)"
+                    >
+                      {{ credit }}
+                    </option>
+                  </select>
+                </div>
               </div>
               <div class="search-actions">
                 <button type="button" class="btn btn-primary" @click="handleSearch">
@@ -917,96 +1000,58 @@ function handleClose() {
                 <button type="button" class="btn btn-default" @click="handleReset">
                   {{ t('common.reset') }}
                 </button>
+                <button
+                  type="button"
+                  class="toggle-link"
+                  @click="searchExpanded = !searchExpanded"
+                >
+                  {{ searchExpanded ? t('common.collapse') : t('common.more') }}
+                  <svg
+                    :class="{ up: searchExpanded }"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div v-if="searchExpanded" class="search-row search-row-secondary">
+              <div class="search-fields">
+                <div class="search-item">
+                  <label>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</label>
+                  <select v-model="schoolElectiveDraft" class="search-select">
+                    <option value="">{{ t('common.all') }}</option>
+                    <option
+                      v-for="opt in schoolElectiveCategoryOptions"
+                      :key="opt.value"
+                      :value="opt.value"
+                    >
+                      {{ isZh ? opt.zh : opt.en }}
+                    </option>
+                  </select>
+                </div>
+                <div class="search-item">
+                  <label>{{ t('courseRegistration.courses.type') }}</label>
+                  <select v-model="typeDraft" class="search-select">
+                    <option value="">{{ t('common.all') }}</option>
+                    <option
+                      v-for="opt in courseTypeFilterOptions"
+                      :key="opt.value"
+                      :value="opt.value"
+                    >
+                      {{ t(opt.labelKey) }}
+                    </option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
 
           <div v-if="showCreditProgress" class="picker-credit-progress">
-            <span class="picker-credit-label">
-              {{ t('courseRegistration.student.pickerCreditProgress') }}
-            </span>
-            <div class="picker-credit-groups">
-              <div
-                v-if="geCreditGroups.length"
-                class="picker-credit-band picker-credit-band--ge"
-              >
-                <template v-for="group in geCreditGroups" :key="group.key">
-                  <span
-                    v-if="group.total"
-                    class="cr-credit-capsule cr-credit-capsule--total"
-                    :class="creditCapsuleTone(group.total)"
-                    :title="`${t(group.total.labelKey)} ${group.total.current}/${group.total.max}`"
-                  >
-                    {{ t(group.total.labelKey) }} {{ group.total.current }}/{{ group.total.max }}
-                  </span>
-                  <span
-                    v-for="bar in group.categories || []"
-                    :key="`${group.key}-${bar.key}`"
-                    class="cr-credit-capsule"
-                    :class="creditCapsuleTone(bar)"
-                    :title="`${t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey)} ${bar.current}/${bar.max}`"
-                  >
-                    {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }}
-                    {{ bar.current }}/{{ bar.max }}
-                  </span>
-                </template>
-              </div>
-              <div
-                v-if="meCreditGroups.length"
-                class="picker-credit-band picker-credit-band--me"
-              >
-                <template v-for="group in meCreditGroups" :key="group.key">
-                  <span
-                    v-if="group.total"
-                    class="cr-credit-capsule cr-credit-capsule--total"
-                    :class="creditCapsuleTone(group.total)"
-                    :title="`${t(group.total.labelKey)} ${group.total.current}/${group.total.max}`"
-                  >
-                    {{ t(group.total.labelKey) }} {{ group.total.current }}/{{ group.total.max }}
-                  </span>
-                  <span
-                    v-for="bar in group.categories || []"
-                    :key="`${group.key}-${bar.key}`"
-                    class="cr-credit-capsule"
-                    :class="creditCapsuleTone(bar)"
-                    :title="`${t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey)} ${bar.current}/${bar.max}`"
-                  >
-                    {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }}
-                    {{ bar.current }}/{{ bar.max }}
-                  </span>
-                </template>
-              </div>
-              <div
-                v-for="(group, gi) in legacyCreditGroups"
-                :key="group.key || gi"
-                class="picker-credit-capsules picker-credit-capsules--legacy"
-              >
-                <span
-                  v-if="group.total"
-                  class="cr-credit-capsule"
-                  :class="creditCapsuleTone(group.total)"
-                >
-                  {{ t(group.total.labelKey) }} {{ group.total.current }}/{{ group.total.max }}
-                </span>
-                <span
-                  v-for="bar in group.totals || []"
-                  :key="bar.key"
-                  class="cr-credit-capsule"
-                  :class="creditCapsuleTone(bar)"
-                >
-                  {{ t(bar.labelKey) }} {{ bar.current }}/{{ bar.max }}
-                </span>
-                <span
-                  v-for="bar in group.categories || []"
-                  :key="`${group.key}-${bar.key}`"
-                  class="cr-credit-capsule"
-                  :class="creditCapsuleTone(bar)"
-                >
-                  {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }}
-                  {{ bar.current }}/{{ bar.max }}
-                </span>
-              </div>
-            </div>
+            <AddDropTermCreditStrip :strip="termCreditStrip" />
           </div>
 
           <p class="selection-meta">
@@ -1018,7 +1063,7 @@ function handleClose() {
           </p>
 
           <div class="table-wrap">
-            <table class="data-table">
+            <table class="data-table" :class="{ 'data-table--drop': isDrop }">
               <thead>
                 <tr>
                   <th class="col-check">
@@ -1042,7 +1087,7 @@ function handleClose() {
                   <th class="col-lecturer">{{ t('courseRegistration.courses.lecturer') }}</th>
                   <th class="col-week">{{ t('courseRegistration.courses.weekRange') }}</th>
                   <th class="col-time">{{ t('courseRegistration.courses.classTimeVenue') }}</th>
-                  <th class="sticky-status col-status">{{
+                  <th v-if="showSeatOrRetakeColumn" class="sticky-status col-status">{{
                     isRetakeMode
                       ? t('courseRegistration.student.pickerRetakeHistoryHeader')
                       : t('courseRegistration.student.pickerSeatCapacityHeader')
@@ -1152,7 +1197,7 @@ function handleClose() {
                       <span v-if="!retakeHistoryLines(row).length">—</span>
                     </template>
                   </td>
-                  <td v-else class="sticky-status">
+                  <td v-else-if="showSeatOrRetakeColumn" class="sticky-status">
                     <span
                       class="seat-status"
                       :class="seatStatusClass(row)"
@@ -1163,7 +1208,7 @@ function handleClose() {
                   </td>
                 </tr>
                 <tr v-if="!paginatedRows.length">
-                  <td colspan="12" class="empty-cell">{{ t('common.noData') }}</td>
+                  <td :colspan="tableColspan" class="empty-cell">{{ t('common.noData') }}</td>
                 </tr>
               </tbody>
             </table>
@@ -1276,61 +1321,7 @@ function handleClose() {
   font-size: 12px;
 }
 
-.search-bar {
-  margin-bottom: 12px;
-}
-
-.search-row--filters {
-  display: flex;
-  align-items: center;
-  gap: 12px 16px;
-  flex-wrap: wrap;
-}
-
-.search-item {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
-.search-item--sm {
-  flex: 0 0 auto;
-}
-
-.search-label {
-  flex-shrink: 0;
-  font-size: 13px;
-  color: #374151;
-  white-space: nowrap;
-}
-
-.search-input,
-.search-select {
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  box-sizing: border-box;
-  width: 180px;
-  min-width: 120px;
-  background: #fff;
-}
-
-.search-item--sm .search-select {
-  width: 100px;
-  min-width: 88px;
-}
-
-.search-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-  margin-left: auto;
-}
+/* 搜索区排版沿用 list-page-search.css（与缴费名单等列表页一致） */
 
 .picker-credit-progress {
   margin: 0 0 10px;
@@ -1404,16 +1395,17 @@ function handleClose() {
   justify-content: flex-start;
 }
 
-/* 未满：绿 */
-.cr-credit-capsule.is-short {
-  background: #ecfdf5;
-  color: #047857;
-}
-
-/* 刚好满：橙 */
-.cr-credit-capsule.is-met {
+/* 兼容旧 class：未满橙 / 选满绿（与 is-pending / is-achieved 对齐） */
+.cr-credit-capsule.is-short,
+.cr-credit-capsule.is-pending {
   background: #fff7ed;
   color: #c2410c;
+}
+
+.cr-credit-capsule.is-met,
+.cr-credit-capsule.is-achieved {
+  background: #ecfdf5;
+  color: #047857;
 }
 
 .cr-credit-capsule.is-over {
@@ -1535,6 +1527,56 @@ function handleClose() {
 
 .col-status {
   width: 10%;
+}
+
+/* 退课无余量列：列宽自适应重分配 */
+.data-table--drop {
+  table-layout: fixed;
+}
+
+.data-table--drop .col-check {
+  width: 2.25rem;
+}
+
+.data-table--drop .col-serial {
+  width: 3%;
+}
+
+.data-table--drop .col-code {
+  width: 8%;
+}
+
+.data-table--drop .col-name {
+  width: 12%;
+}
+
+.data-table--drop .col-group {
+  width: 9%;
+}
+
+.data-table--drop .col-credits {
+  width: 4%;
+}
+
+.data-table--drop .col-category {
+  width: 8%;
+}
+
+.data-table--drop .col-type {
+  width: 7%;
+}
+
+.data-table--drop .col-lecturer {
+  width: 9%;
+}
+
+.data-table--drop .col-week {
+  width: 6%;
+}
+
+.data-table--drop .col-time {
+  width: auto;
+  min-width: 0;
 }
 
 .nowrap {

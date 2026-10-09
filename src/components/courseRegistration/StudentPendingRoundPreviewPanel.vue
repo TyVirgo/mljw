@@ -5,14 +5,20 @@ import CourseCodeSourcePopover from './CourseCodeSourcePopover.vue'
 import StudentCourseCatalogDrawer from './StudentCourseCatalogDrawer.vue'
 import TablePagination from '../common/TablePagination.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { getSelectableCoursesForStudent, normalizeCartRoundKey } from '../../data/courseRegistration/studentRegistrationStore.js'
+import {
+  getSelectableCoursesForStudent,
+  normalizeCartRoundKey,
+} from '../../data/courseRegistration/studentRegistrationStore.js'
 import {
   filterStudentCourseList,
   filterCoursesByRound,
 } from '../../data/courseRegistration/studentRegistrationContext.js'
-import { courseTypeOptions, getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
+import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
 import { displayWeekRange, displayClassTimeVenueLines } from '../../data/courseRegistration/sectionScheduleFields.js'
-import { getSchoolElectiveCategoryLabel } from '../../data/departments.js'
+import {
+  schoolElectiveCategoryOptions,
+  getSchoolElectiveCategoryLabel,
+} from '../../data/departments.js'
 import { resolveSchoolElectiveCategory } from '../../data/courseRegistration/selectableCourses.js'
 import { getCourseDisplayName } from '../../data/courseRegistration/resolveSelectedCourseDisplay.js'
 import { getBatchById } from '../../data/courseRegistration/registrationBatches.js'
@@ -41,10 +47,26 @@ const props = defineProps({
 const { t, isZh } = useAppI18n()
 
 function emptySearch() {
-  return { keyword: '', type: '', credits: '', prerequisites: '' }
+  return {
+    code: '',
+    name: '',
+    schoolElectiveCategory: '',
+    weekday: '',
+    credits: '',
+    prerequisites: '',
+  }
 }
 
+const WEEKDAY_FILTER_OPTIONS = [
+  { value: 'Mon', labelKey: 'courseRegistration.student.weekdayMon' },
+  { value: 'Tue', labelKey: 'courseRegistration.student.weekdayTue' },
+  { value: 'Wed', labelKey: 'courseRegistration.student.weekdayWed' },
+  { value: 'Thu', labelKey: 'courseRegistration.student.weekdayThu' },
+  { value: 'Fri', labelKey: 'courseRegistration.student.weekdayFri' },
+]
+
 const searchState = ref({ form: emptySearch(), applied: emptySearch() })
+const searchExpanded = ref(true)
 const currentPage = ref(1)
 const pageSize = ref(50)
 const creditsFilterOpen = ref(false)
@@ -231,26 +253,85 @@ function selectionGroupRowClass(group) {
           <div class="search-item">
             <label>{{ t('courseRegistration.courses.code') }}</label>
             <input
-              :value="searchState.form.keyword"
+              :value="searchState.form.code"
               type="text"
               class="search-input"
-              :placeholder="t('courseRegistration.student.searchPlaceholder')"
-              @input="patchSearchForm({ keyword: $event.target.value })"
+              :placeholder="t('courseRegistration.student.searchCodePlaceholder')"
+              @input="patchSearchForm({ code: $event.target.value })"
             />
           </div>
           <div class="search-item">
-            <label>{{ t('courseRegistration.courses.type') }}</label>
+            <label>{{ t('courseRegistration.courses.name') }}</label>
+            <input
+              :value="searchState.form.name"
+              type="text"
+              class="search-input"
+              :placeholder="t('courseRegistration.student.searchNamePlaceholder')"
+              @input="patchSearchForm({ name: $event.target.value })"
+            />
+          </div>
+          <div class="search-item">
+            <label>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</label>
             <select
-              :value="searchState.form.type"
+              :value="searchState.form.schoolElectiveCategory"
               class="search-select"
-              @change="patchSearchForm({ type: $event.target.value })"
+              @change="patchSearchForm({ schoolElectiveCategory: $event.target.value })"
             >
               <option value="">{{ t('common.all') }}</option>
-              <option v-for="opt in courseTypeOptions" :key="opt.value" :value="opt.value">
+              <option
+                v-for="opt in schoolElectiveCategoryOptions"
+                :key="opt.value"
+                :value="opt.value"
+              >
+                {{ getSchoolElectiveCategoryLabel(opt.value, isZh) }}
+              </option>
+            </select>
+          </div>
+          <div class="search-item">
+            <label>{{ t('courseRegistration.student.weekdayFilter') }}</label>
+            <select
+              :value="searchState.form.weekday"
+              class="search-select"
+              @change="patchSearchForm({ weekday: $event.target.value })"
+            >
+              <option value="">{{ t('common.all') }}</option>
+              <option
+                v-for="opt in WEEKDAY_FILTER_OPTIONS"
+                :key="opt.value"
+                :value="opt.value"
+              >
                 {{ t(opt.labelKey) }}
               </option>
             </select>
           </div>
+        </div>
+        <div class="search-actions">
+          <button type="button" class="btn btn-primary btn-primary--vivid" @click="handleSearch">
+            {{ t('common.search') }}
+          </button>
+          <button type="button" class="btn btn-default" @click="handleReset">
+            {{ t('common.reset') }}
+          </button>
+          <button
+            type="button"
+            class="toggle-link"
+            @click="searchExpanded = !searchExpanded"
+          >
+            {{ searchExpanded ? t('common.collapse') : t('common.more') }}
+            <svg
+              :class="{ up: searchExpanded }"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div v-if="searchExpanded" class="search-row search-row-secondary">
+        <div class="search-fields">
           <div class="search-item">
             <label>{{ t('courseRegistration.courses.credits') }}</label>
             <select
@@ -278,12 +359,6 @@ function selectionGroupRowClass(group) {
               </option>
             </select>
           </div>
-        </div>
-        <div class="search-actions">
-          <button type="button" class="btn btn-primary btn-primary--vivid" @click="handleSearch">
-            {{ t('common.search') }}
-          </button>
-          <button type="button" class="btn btn-default" @click="handleReset">{{ t('common.reset') }}</button>
         </div>
       </div>
     </div>

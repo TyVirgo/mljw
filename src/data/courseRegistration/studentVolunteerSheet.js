@@ -421,9 +421,10 @@ export function buildVolunteerResultRows(batch = getActiveBatch()) {
 }
 
 /**
- * demo：ME 三门 + GE 四门待分配未确认
+ * demo：ME 三门 + GE 一门待分配未确认
  * ME：COMP201（4选3 未满）+ SE201/AI110（3选2 刚好满）
- * GE：课库 hum-demo 1～4（文/商/理/AI 轮转），学分与顶栏同源且各类未满
+ * GE：仅 hum-demo-1（商 2 分）= R1 待分配；公布后同课进 DEMO 确认半池（preselect）
+ * ME：志愿三门；中签 COMP201/AI110 同步写入确认半池；R2/R3 增量见 DEMO_ROUND_CONFIRMED_COURSES
  */
 export function seedVolunteerSheetDemo() {
   const meSpecs = [
@@ -451,34 +452,15 @@ export function seedVolunteerSheetDemo() {
   ]
   const pending = meSpecs.map((spec) => buildSelectedRowFromCatalog(spec)).filter(Boolean)
 
-  /** GE：课库同源；期望 商2/5 · AI3/4 · 文4/5 · 理2/4（均未满） */
+  /**
+   * GE：R1 默认只选一门（hum-demo-1 商 2 分），入口/顶栏学期 2/6 不满员
+   */
   const geSpecs = [
     {
       courseId: 'course-hum-demo-1',
       sectionId: 'sec-hum-demo-1-1',
       preferenceOrder: 1,
       selectedAt: '2026-04-01T09:00:00.000Z',
-      batchId: 'batch-2504-g1',
-    },
-    {
-      courseId: 'course-hum-demo-2',
-      sectionId: 'sec-hum-demo-2-1',
-      preferenceOrder: 2,
-      selectedAt: '2026-04-01T09:05:00.000Z',
-      batchId: 'batch-2504-g1',
-    },
-    {
-      courseId: 'course-hum-demo-3',
-      sectionId: 'sec-hum-demo-3-1',
-      preferenceOrder: 3,
-      selectedAt: '2026-04-01T09:10:00.000Z',
-      batchId: 'batch-2504-g1',
-    },
-    {
-      courseId: 'course-hum-demo-4',
-      sectionId: 'sec-hum-demo-4-1',
-      preferenceOrder: 4,
-      selectedAt: '2026-04-01T09:15:00.000Z',
       batchId: 'batch-2504-g1',
     },
   ]

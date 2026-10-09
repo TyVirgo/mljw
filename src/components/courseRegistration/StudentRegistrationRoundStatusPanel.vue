@@ -414,16 +414,18 @@ defineExpose({ scrollIntoView })
               {{ t('courseRegistration.student.termSummary.preferenceOrder') }}
             </th>
             <th v-else class="col-index sticky-left sticky-index">{{ t('common.serialNo') }}</th>
-            <th class="sticky-left sticky-code">{{ t('courseRegistration.courses.code') }}</th>
-            <th class="sticky-left sticky-name">{{ t('courseRegistration.courses.name') }}</th>
-            <th>{{ t('courseRegistration.courses.sectionCode') }}</th>
-            <th v-if="showSelectionGroupColumn">{{ t('courseRegistration.courses.selectionGroup') }}</th>
-            <th>{{ t('courseRegistration.courses.category') }}</th>
-            <th>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</th>
+            <th class="sticky-left sticky-code col-code">{{ t('courseRegistration.courses.code') }}</th>
+            <th class="sticky-left sticky-name col-name">{{ t('courseRegistration.courses.name') }}</th>
+            <th class="col-section">{{ t('courseRegistration.courses.sectionCode') }}</th>
+            <th v-if="showSelectionGroupColumn" class="col-selection-group">
+              {{ t('courseRegistration.courses.selectionGroup') }}
+            </th>
+            <th class="col-category">{{ t('courseRegistration.courses.category') }}</th>
+            <th class="col-school-elective">{{ t('courseRegistration.courses.schoolElectiveCategory') }}</th>
             <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
-            <th>{{ t('courseRegistration.courses.lecturer') }}</th>
-            <th>{{ t('courseRegistration.courses.weekRange') }}</th>
-            <th>{{ t('courseRegistration.courses.classTimeVenue') }}</th>
+            <th class="col-lecturer">{{ t('courseRegistration.courses.lecturer') }}</th>
+            <th class="col-week">{{ t('courseRegistration.courses.weekRange') }}</th>
+            <th class="col-time-venue">{{ t('courseRegistration.courses.classTimeVenue') }}</th>
             <th class="col-submitted-at">{{ t('courseRegistration.student.selectedAt') }}</th>
             <th
               class="sticky-right sticky-status"
@@ -504,9 +506,9 @@ defineExpose({ scrollIntoView })
                 </span>
               </span>
             </td>
-            <td class="sticky-left sticky-name nowrap">{{ item.courseName || '—' }}</td>
-            <td class="nowrap">{{ groupName(item) }}</td>
-            <td v-if="showSelectionGroupColumn" class="cr-selection-group-cell">
+            <td class="sticky-left sticky-name col-name nowrap">{{ item.courseName || '—' }}</td>
+            <td class="col-section nowrap">{{ groupName(item) }}</td>
+            <td v-if="showSelectionGroupColumn" class="col-selection-group cr-selection-group-cell">
               <template v-if="selectionGroupDisplay(item)">
                 <div class="cr-selection-group-title">
                   {{ selectionGroupLines(item).title }}
@@ -517,12 +519,12 @@ defineExpose({ scrollIntoView })
               </template>
               <template v-else>—</template>
             </td>
-            <td class="nowrap">{{ courseCategoryLabel(item) }}</td>
-            <td class="nowrap">{{ schoolElectiveCategoryLabel(item) }}</td>
+            <td class="col-category nowrap">{{ courseCategoryLabel(item) }}</td>
+            <td class="col-school-elective nowrap">{{ schoolElectiveCategoryLabel(item) }}</td>
             <td class="col-credits nowrap">{{ item.credits ?? '—' }}</td>
-            <td class="nowrap">{{ item.lecturer || '—' }}</td>
-            <td class="nowrap">{{ item.weekRange || '—' }}</td>
-            <td class="cr-time-venue">
+            <td class="col-lecturer nowrap">{{ item.lecturer || '—' }}</td>
+            <td class="col-week nowrap">{{ item.weekRange || '—' }}</td>
+            <td class="col-time-venue cr-time-venue">
               <div
                 v-for="(line, li) in displayClassTimeVenueLines(item, timeLocale)"
                 :key="li"
@@ -589,15 +591,15 @@ defineExpose({ scrollIntoView })
                   {{ t('common.serialNo') }}
                 </th>
                 <th v-else class="col-index sticky-left sticky-index">{{ t('common.serialNo') }}</th>
-                <th class="sticky-left sticky-code">{{ t('courseRegistration.courses.code') }}</th>
-                <th class="sticky-left sticky-name">{{ t('courseRegistration.courses.name') }}</th>
-                <th>{{ t('courseRegistration.courses.sectionCode') }}</th>
-                <th>{{ t('courseRegistration.courses.category') }}</th>
-                <th>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</th>
+                <th class="sticky-left sticky-code col-code">{{ t('courseRegistration.courses.code') }}</th>
+                <th class="sticky-left sticky-name col-name">{{ t('courseRegistration.courses.name') }}</th>
+                <th class="col-section">{{ t('courseRegistration.courses.sectionCode') }}</th>
+                <th class="col-category">{{ t('courseRegistration.courses.category') }}</th>
+                <th class="col-school-elective">{{ t('courseRegistration.courses.schoolElectiveCategory') }}</th>
                 <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
-                <th>{{ t('courseRegistration.courses.lecturer') }}</th>
-                <th>{{ t('courseRegistration.courses.weekRange') }}</th>
-                <th>{{ t('courseRegistration.courses.classTimeVenue') }}</th>
+                <th class="col-lecturer">{{ t('courseRegistration.courses.lecturer') }}</th>
+                <th class="col-week">{{ t('courseRegistration.courses.weekRange') }}</th>
+                <th class="col-time-venue">{{ t('courseRegistration.courses.classTimeVenue') }}</th>
                 <th class="col-submitted-at">{{ t('courseRegistration.student.selectedAt') }}</th>
                 <th
                   class="sticky-right sticky-status"
@@ -635,14 +637,14 @@ defineExpose({ scrollIntoView })
                   />
                   <template v-else>—</template>
                 </td>
-                <td class="sticky-left sticky-name nowrap">{{ item.courseName || '—' }}</td>
-                <td class="nowrap">{{ groupName(item) }}</td>
-                <td class="nowrap">{{ courseCategoryLabel(item) }}</td>
-                <td class="nowrap">{{ schoolElectiveCategoryLabel(item) }}</td>
+                <td class="sticky-left sticky-name col-name nowrap">{{ item.courseName || '—' }}</td>
+                <td class="col-section nowrap">{{ groupName(item) }}</td>
+                <td class="col-category nowrap">{{ courseCategoryLabel(item) }}</td>
+                <td class="col-school-elective nowrap">{{ schoolElectiveCategoryLabel(item) }}</td>
                 <td class="col-credits nowrap">{{ item.credits ?? '—' }}</td>
-                <td class="nowrap">{{ item.lecturer || '—' }}</td>
-                <td class="nowrap">{{ item.weekRange || '—' }}</td>
-                <td class="cr-time-venue">
+                <td class="col-lecturer nowrap">{{ item.lecturer || '—' }}</td>
+                <td class="col-week nowrap">{{ item.weekRange || '—' }}</td>
+                <td class="col-time-venue cr-time-venue">
                   <div
                     v-for="(line, li) in displayClassTimeVenueLines(item, timeLocale)"
                     :key="li"
@@ -836,14 +838,79 @@ defineExpose({ scrollIntoView })
   text-align: center;
 }
 
-.data-table--pref {
-  table-layout: fixed;
-  width: 100%;
+/* 按内容自适应列宽，避免 fixed 均分导致短列留白、长列狂换行 */
+.data-table--pref,
+.data-table--flat {
+  table-layout: auto;
+  width: max-content;
+  min-width: 100%;
 }
 
+.nowrap {
+  white-space: nowrap;
+}
+
+.col-code {
+  width: 1%;
+  min-width: 88px;
+  white-space: nowrap;
+}
+
+.col-name {
+  min-width: 168px;
+  max-width: 280px;
+  white-space: nowrap;
+}
+
+.col-section {
+  width: 1%;
+  min-width: 88px;
+  white-space: nowrap;
+}
+
+.col-selection-group {
+  min-width: 120px;
+  max-width: 180px;
+}
+
+.col-category {
+  width: 1%;
+  min-width: 72px;
+  white-space: nowrap;
+}
+
+/* GE「AI与开放选修」/ ME 同类文案单行展示 */
+.col-school-elective {
+  width: 1%;
+  min-width: 108px;
+  white-space: nowrap;
+}
+
+.col-credits {
+  width: 1%;
+  min-width: 40px;
+  max-width: 52px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.col-lecturer {
+  min-width: 120px;
+  white-space: nowrap;
+}
+
+.col-week {
+  width: 1%;
+  min-width: 52px;
+  max-width: 64px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.col-time-venue,
 .cr-time-venue {
-  min-width: 180px;
-  max-width: 300px;
+  min-width: 220px;
+  max-width: 320px;
   font-size: 12px;
   line-height: 1.35;
   white-space: normal;
@@ -853,21 +920,17 @@ defineExpose({ scrollIntoView })
   margin-top: 2px;
 }
 
-.col-credits {
-  width: 64px;
-  min-width: 64px;
-}
-
 .col-submitted-at {
-  width: 148px;
+  width: 1%;
   min-width: 136px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
 .col-actions {
-  width: 148px;
-  min-width: 148px;
+  width: 1%;
+  min-width: 64px;
+  max-width: 88px;
 }
 
 .sticky-left,
@@ -900,20 +963,20 @@ td.sticky-code:has(.hint-popover-wrap:focus-within) {
 }
 .data-table--flat .sticky-code {
   left: 56px;
-  min-width: 96px;
+  min-width: 88px;
 }
 .data-table--flat .sticky-name {
-  left: 152px;
-  min-width: 140px;
+  left: 144px;
+  min-width: 168px;
   box-shadow: 4px 0 8px -6px rgba(0, 0, 0, 0.18);
 }
 .data-table--pref .sticky-code {
   left: 116px;
-  min-width: 96px;
+  min-width: 88px;
 }
 .data-table--pref .sticky-name {
   left: 212px;
-  min-width: 140px;
+  min-width: 168px;
   box-shadow: 4px 0 8px -6px rgba(0, 0, 0, 0.18);
 }
 
@@ -922,13 +985,16 @@ td.sticky-code:has(.hint-popover-wrap:focus-within) {
 .data-table--flat .sticky-actions,
 .data-table--flat .col-actions {
   right: 0;
-  min-width: 148px;
-  width: 148px;
+  min-width: 64px;
+  width: 72px;
+  white-space: nowrap;
 }
 .data-table--pref .sticky-status,
 .data-table--flat .sticky-status {
-  right: 148px;
+  right: 72px;
   min-width: 72px;
+  width: 80px;
+  white-space: nowrap;
   box-shadow: -4px 0 8px -6px rgba(0, 0, 0, 0.18);
 }
 .data-table--pref .sticky-status--flushright,
@@ -937,12 +1003,13 @@ td.sticky-code:has(.hint-popover-wrap:focus-within) {
 }
 .data-table--pref .sticky-capacity,
 .data-table--flat .sticky-capacity {
-  right: 148px;
-  min-width: 96px;
-  width: 96px;
+  right: 72px;
+  min-width: 112px;
+  width: 112px;
   padding-left: 8px;
   padding-right: 8px;
   text-align: center;
+  white-space: nowrap;
   box-shadow: -4px 0 8px -6px rgba(0, 0, 0, 0.18);
 }
 .data-table--pref .sticky-capacity--flushright,
@@ -950,14 +1017,14 @@ td.sticky-code:has(.hint-popover-wrap:focus-within) {
   right: 0;
   box-shadow: none;
 }
-/* 有容量列时，状态列右偏移让位 */
+/* 有容量列时，状态列右偏移让位：操作 72 + 百分比 112 */
 .data-table--pref.has-capacity-col .sticky-status,
 .data-table--flat.has-capacity-col .sticky-status {
-  right: 244px;
+  right: 184px;
 }
 .data-table--pref.has-capacity-col .sticky-status--flushright,
 .data-table--flat.has-capacity-col .sticky-status--flushright {
-  right: 96px;
+  right: 112px;
 }
 
 /* 课程已选百分比胶囊（与选课列表同源） */

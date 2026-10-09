@@ -1,0 +1,105 @@
+## Tasks
+
+- [x] 1. 数据层：`studentAudience.js` `DEMO_TERM_CREDIT_CAPS` 的 `default` / `XMUM2309001` `geMax` 18 → 6（`COS2504015` 不动）
+- [x] 2. 数据层：`studentRegistrationContext.js`
+  - [x] 2.1 `DEMO_PROGRAMME_CREDIT_TARGETS.geRequired` 12 → 18
+  - [x] 2.2 `DEFAULT_GRADUATION_GE_PROGRESS.required` 改为 `{ humanities: 5, business: 5, science: 4, aiOpen: 2 }`
+  - [x] 2.3 `wouldExceedTermGeCategory` 改为直接返回 `false`，并更新注释说明分类帽已停用
+- [x] 3. 展示层：`StudentRegisterView.vue` `typeEntryCards`
+  - [x] 3.1 GE 毕业行 `graduationMax` 改用 `getProgrammeCreditProgress().geRequired`（ME 保持求和；列表工具条 `graduationElectiveBars` 同口径）
+  - [x] 3.2 GE 学期行 `creditBar.max` 直接取 `term.geMax`
+  - [x] 3.3 GE 学期胶囊附加 `hideMax: true`，模板对 GE 学期胶囊只渲染已选学分（毕业胶囊与 ME 不受影响）
+- [x] 4. 演示数据：
+  - [x] 4.1 `studentDemoSeed.js` BUS302（理，3 分）移出 GE 确认课示例（GE03 已选归 0）
+  - [x] 4.2 `studentDemoSeed.js` BUS201（AI）3 → 1 分（GE04 已选 = 1）
+  - [x] 4.3 `studentVolunteerSheet.js` 志愿待分配 GE 池改取 hum-demo 1/4/7（商/理/文 各 2 分，合计 6 = 学期帽）
+- [x] 5. 校验：检查 `wouldExceedTermGeCategory` 的错误文案（`categoryCreditCapExceededGe*`）不再会被触发，i18n 文案保留不删
+- [x] 6. 验证：`npm start`（5173）打开在线选课入口卡，核对毕业行 `6/18`、胶囊 `3/5 · 2/5 · 0/4 · 1/2`，学期行 `6/6`、胶囊 `GE01 3 · GE02 2 · GE03 0 · GE04 1`；ME 行数值不变
+  - 备注：浏览器验证通过（毕业 `6/18` + 胶囊 `2/5·2/5·2/4·0/2`，学期 `6/6` + 无分母胶囊 `2·2·2·0`，ME 不变）。已选分布与任务书示例略异：浏览器 localStorage 中确认课来自志愿发布演示（hum-demo 1/4/7 各 2 分），合计同为 6、不超帽，符合规格要求。
+- [x] 7. 范围扩展：在线选课全页面同口径（列表顶栏 / 加退课 / 监控抽屉）
+  - [x] 7.1 `StudentRegisterView.vue` 列表顶栏：`termCategoryBars` GE 加 `hideMax`；`termElectiveBars` GE 总分取 `geMax`；顶栏学期胶囊模板 hideMax 渲染
+  - [x] 7.2 `StudentAddDropView.vue` `pickerCreditGroups`：GE 毕业总分取培养方案 18、学期总分取 `geMax`、学期分类 `hideMax`
+  - [x] 7.3 `AddDropCoursePickerModal.vue`：分类胶囊（含 title）支持 `hideMax`
+  - [x] 7.4 `addDropMultiItems.js` `creditBarIsOver` 跳过 `hideMax`（GE 分类超额提示不再触发）
+  - [x] 7.5 `RegistrationMonitorDetailDrawer.vue`：毕业 GE 总分按 `row.programme` 取培养方案 18；移除本学期 GE 分类嵌套进度条
+- [x] 8. 验证：列表顶栏毕业行 `6/18` + 胶囊带分母、学期行 `6/6` + 胶囊无分母；ME 不变
+- [x] 9. 第二轮细化：颜色语义反转 + 灰色统计（展示+费用，四处同步）
+  - [x] 9.1 i18n：`zh.js` / `en.js` 新增 `geDemand.termStatSelected`（「已选：{credit}学分」/「Selected: {credit} credit(s)」）
+  - [x] 9.2 配色类：`StudentRegisterView.vue` 与 `AddDropCoursePickerModal.vue` 样式新增 `.cr-credit-capsule.is-achieved`（绿）/ `.is-pending`（橙）
+  - [x] 9.3 GE 达标色调函数：`geCapsuleTone`（≥目标绿 / <目标橙 / 无目标中性），应用于 GE 毕业分类、毕业总分（18）、学期总分（6）胶囊（入口卡 + 顶栏）
+  - [x] 9.4 学期 GE01-04 改灰色统计胶囊「GE01已选：N学分」（入口卡 + 顶栏模板）
+  - [x] 9.5 `StudentAddDropView.vue` `pickerCreditGroups`：GE 毕业分类/总分与学期总分附 `tone`，学期分类改 `isStat`
+  - [x] 9.6 `AddDropCoursePickerModal.vue`：胶囊渲染尊重 `bar.tone`，`isStat` 分类渲染灰色统计文案
+  - [x] 9.7 `RegistrationMonitorDetailDrawer.vue`：本学期 GE 分类改灰色统计行；GE 毕业分类条取消超额红色告警（达标语义）
+  - [x] 9.8 费用：`studentRegistrationContext.js` `buildAddDropPlanRemaining` GE 剩余 = 18 − 毕业已选总分；`addDropFeeRates.js` `remainingForTypeCategory` GE 走总分口径
+- [x] 10. 验证：入口卡/顶栏颜色符合新语义（学期 6/6 绿、毕业未满 18 橙、分类达标绿）；弹窗与抽屉灰色统计正常；加课费用在 ≤18 时不产生应收
+  - 备注：浏览器验证全部通过（入口卡/顶栏：学期 6/6 绿 is-achieved、毕业 6/18 橙 is-pending、毕业分类未满橙、学期分类灰色统计；弹窗：GE 总分/分类颜色正确、ME 保持 is-short/is-met 旧样式；抽屉：学期 GE 分类灰色统计行无填充、GE 毕业无红色超额告警；加课 HUM110 3 学分预估费用 0 RMB）。过程中发现并修复：弹窗 GE 总分胶囊未读取 `group.total.tone`（补 `group.total.tone || creditCapsuleTone(...)`）。
+- [x] 11. 第三轮细化——胶囊文案：GE 毕业分类胶囊统一 `GE01(已选/要求) 2/5` 格式
+  - [x] 11.1 i18n：`zh.js` / `en.js` 新增 `geDemand.selectedRequired`（`(已选/要求)` / ` (Selected/Required)`）
+  - [x] 11.2 入口卡 + 列表顶栏：GE 毕业分类胶囊渲染新格式（`statLabel` 标记）
+  - [x] 11.3 `AddDropCoursePickerModal.vue`：GE 毕业分类胶囊（含 title）同步
+  - [x] 11.4 `RegistrationMonitorDetailDrawer.vue`：GE 毕业分类行 label 加口径说明
+  - [x] 11.5 ME 分类胶囊与学期灰色统计胶囊文案不变
+- [x] 12. 第三轮细化——轮次口径与演示数据：
+  - [x] 12.1 `studentVolunteerSheet.js` `seedVolunteerSheetDemo`：GE 志愿池 3 门 → 1 门（hum-demo-1，商 2 分）
+  - [x] 12.2 R2/R3 增量复用已有确认课种子：BUS301（商 2 分，g2）、MPU402（文 3 分，g3）；管理端代选 BUS201 不计入本轮选课
+  - [x] 12.3 入口卡 + 顶栏学分统计固定 R1 口径：学期 `2/6`（橙）、毕业 `2/18`（橙）、分类仅 GE02 有 2 学分（沿用 `scope:'round'` 默认 preselect，无需改数据源）
+  - [x] 12.4 各轮「本轮选课情况」按轮次累计：`myRegistrationList` / `listRoundStatusCreditCourses` GE R2/R3 纳入 R1 待分配 + 更早轮自选确认（跨批、排除 admin）；R1 = 1 门（2 分）、R2 = 2 门（4 分）、R3 = 3 门（7 分）
+- [ ] 13. 验证：入口卡/顶栏 `2/6`、`2/18` 均橙色不满员；胶囊文案新格式四处一致；R1/R2/R3 本轮选课 1/2/3 门递增且学分统计同步；ME 不变
+- [x] 14. 第四轮——GE 选课双入口限制：
+  - [x] 14.1 新增 `checkGraduationGeCapForCourse`：GE 毕业将超 18 硬拦（与顶栏同源 round 口径）
+  - [x] 14.2 在线选课：`assertEligibleAndNotInCart` + 行级 tip/`canRegisterRow` 接入毕业硬拦；学期 6 硬拦保持
+  - [x] 14.3 i18n：`graduationGeCapExceeded`（zh/en）
+  - [x] 14.4 加退课不接入毕业硬拦，超 18 仍走缴费提醒
+  - [x] 14.5 `creditBarIsOver` 跳过 `isStat`，避免灰色统计/分类超最低误判
+- [ ] 15. 验证：在线选课超学期 6 / 超毕业 18 均硬拦+提示；分类已超最低仍可选（总分未超时）；加退课超 18 仅缴费提醒可提交
+- [x] 16. 第五轮——ME 最低学分 + 门数上限：
+  - [x] 16.1 分母：`computeSelectionGroupMinCredits` + `deriveMeCategoryRequiredFromBatch`；ordinary 留缓冲
+  - [x] 16.2 文案 i18n：`4选3`/`3选2`/`2选1`/`ME选课` + `（已选/要求）`；入口卡/顶栏/弹窗/抽屉同步
+  - [x] 16.3 ME 分类附达标 tone + statLabel；毕业总分改 `meRequired`
+  - [x] 16.4 闸门：`wouldExceedMeGroupCourseCount` 门数上限；分类学分上限停用；学分只卡学期 meMax
+- [ ] 17. 验证：ME 分母为最低学分之和；文案新格式；超门数硬拦；超分类最低学分仍可选；超学期总分硬拦
+- [x] 18. 第六轮——ME R1 提交学分三卡：
+  - [x] 18.1 `assertTermCreditCap`：ME+preselect 上限改为 2×meMax；R2/R3/GE 不变
+  - [x] 18.2 导出 `getMeR1CreditSubmitStats`（要求 / 允许最大 / 已选）
+  - [x] 18.3 列表顶栏 UI：ME+R1 三卡插在按钮与胶囊之间；i18n zh/en
+- [x] 19. 验证：ME R1 见三卡且硬拦 2×meMax；R2/R3 无三卡、硬拦 meMax；GE 无三卡
+- [x] 20. 第七轮——R1 四列表（GE/ME）+ GE 双倍：
+  - [x] 20.1 `assertTermCreditCap`：preselect 时 GE/ME 均 2×学期帽；R2/R3 仍原帽
+  - [x] 20.2 `getR1CreditSubmitStats`（按批次类型取 ge/me）；兼容旧导出名
+  - [x] 20.3 顶栏：仅 R1 右对齐四列表（浅表头；胶囊进第4列）；R2/R3 独立胶囊；i18n
+- [x] 21. 验证：GE/ME R1 四列表+2×硬拦；R2/R3 无四列表、硬拦原帽
+- [x] 22. 第八轮——列表搜索 + R1 第四列底色：
+  - [x] 22.1 搜索字段：拆 code/name；校选课类型；上课时间 Mon–Fri；去掉 type
+  - [x] 22.2 `filterStudentCourseList` + 入口不再硬滤校选；默认本人类别写入 applied
+  - [x] 22.3 搜索 UI：常显/第二行收放（FeeRoster 同款）；i18n
+  - [x] 22.4 R1 第四列去浅蓝底（GE/ME）
+- [x] 23. 验证：默认校选生效；代码/名称分滤；星期过滤；收放；第四列白底
+- [x] 24. 第九轮——R1 五列重组（GE/ME）：
+  - [x] 24.1 模板：①学期已选/要求 ②允许最大 ③学期2×2 ④毕业已选/要求 ⑤毕业2×2
+  - [x] 24.2 CSS：五列 max-content；胶囊列白底 2×2；i18n 表头
+- [x] 25. 验证：GE/ME R1 五列正确；R2/R3 仍独立胶囊
+- [x] 26. 第十轮——预览搜索对齐 + 一览序号：
+  - [x] 26.1 预览：code/name/校选/weekday + 收放（学分/先修）；无 availability；默认校选
+  - [x] 26.2 课程一览抽屉第一列序号
+- [x] 27. 验证：预览搜索与 R1 同口径（无百分比）；一览有序号
+- [x] 28. 第十一轮——GE R2/R3 本轮与学分对齐：
+  - [x] 28.1 `myRegistrationList` / `listRoundStatusCreditCourses`：GE 累计只收 GE；admin 同批也排除
+  - [x] 28.2 Demo 注释与 R2=4、R3=7 一致；课表预览 GE 累计不过度按批裁剪
+- [x] 29. 验证：R2 两门 4 分；R3 三门 7 分；表与顶栏一致
+- [x] 30. 第十二轮——本轮表仅本轮 + 课表虚实分层：
+  - [x] 30.1 `myRegistrationList` R2/R3 仅当前批当前轮；学分仍 ≤当前轮已确认累计
+  - [x] 30.2 Demo：HUM201 / ME 中签写入 confirmed（preselect）；课表按类型过滤
+  - [x] 30.3 课表虚线≡本轮表；实线=更早确认；去异类型杂课
+- [x] 31. 验证：R2 表无 HUM201；课表 HUM201 实线；虚线=本轮表；GE/ME 不串
+  - 备注：脚本验证通过——GE R2 表=`BUS301`、学分=`HUM201+BUS301=4`、HUM201 实线 / BUS301 虚线、无 ME 串入；R3 表=`MPU402`、学分=7；ME R2 中签实线、无 GE 串入。若浏览器仍见旧课，清站点 localStorage 后重载。
+- [x] 32. 第十三轮——R3≤学期帽 + R2/R3 四列顶栏：
+  - [x] 32.1 Demo：MPU402(3) → MPU401(2，arts)；注释/reseed；累计 R3=6
+  - [x] 32.2 顶栏：R2/R3 复用 R1 列式，隐藏允许最大列；去掉独立胶囊矩阵
+- [x] 33. 验证：GE R3 学期 `6/6`、本轮表 MPU401=2；R2/R3 四列无 submitMax；ME 同构
+  - 备注：脚本验证 R3 表=`MPU401:2`、学分累计=6；顶栏 R2/R3 共用 `.cr-r1-credit-panel` 且 `v-if` 隐藏 submitMax。浏览器若仍见 MPU402/7 分，清 localStorage 后重载。
+- [x] 34. 第十四轮——ME 课表与 GE 虚实对齐：
+  - [x] 34.1 实线层：确认课 roundOrder **严格小于**当前轮；同轮仅虚线（本轮表）
+  - [x] 34.2 Demo：COMP101→CST201（cst-i/main）；IT102→CYS201（cys-i/supplement）；reseed
+- [x] 35. 验证：ME R2 课表仅中签实线+本轮虚线；无 COMP101；GE R2 仍 HUM 实线 / BUS 虚线
+  - 备注：脚本验证 ME R2 实线=`COMP201+AI110`、虚线=`CST201`、无 COMP101；GE R2 HUM 实线 / BUS 虚线仍正确。清 localStorage 后重载。

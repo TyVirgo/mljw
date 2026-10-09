@@ -1,10 +1,42 @@
 # 选课管理-学生选课结果与历史 — 任务清单（合并归档）
 
-> 历史 tasks 已在各次 apply 中完成。本清单仅作追溯；**无需再次实现**。
+> 历史 tasks 已在各次 apply 中完成。下列 **2026-10 增量** 为待实现/进行中。
 
 - [x] 1. 合并本菜单下历史变更包为中文需求包
 - [x] 2. 保留合并来源列表便于需求文档回溯
 - [x] 3. 删除已被合并的旧变更目录
+
+## 增量（2026-10 我的选课类型分层）
+
+- [x] 40. 数据：`listMyResultCourses` 合并必修/选修/申请/管理员；申请取 Approved Add/Retake
+- [x] 41. Demo：必修无时段实习课；确保申请层有可见行
+- [x] 42. UI：类型 Tab（全部默认）+ 按类型过滤 list/课表；允许 list⊇课表
+- [x] 43. i18n：hint / 类型标签 / 空态文案
+- [x] 44. 验证：全部含四类；二级过滤正确；无时段课仅 list
+  - 备注：脚本验证全部约 15 门；必修含 INT300 且课表不画格；申请/管理员/选修分层正常。
+- [x] 45. 全部课程结果课表与图例：
+  - [x] 45.1 Tab/文案改为「全部课程结果」
+  - [x] 45.2 `buildMyResultSchedule`：按 resultType 图层、无批次裁剪、无志愿虚线；课号去重
+  - [x] 45.3 `WeekScheduleGrid` `legendMode=myResult`：必修/选修/申请/管理员
+  - [x] 45.4 Demo 消冲突（如 BUS301 与 CYS201）
+  - [x] 45.5 验证：全部课表含四类有时段课、图例正确、无 overlap
+  - 备注：脚本验证四色图层齐全、冲突=0、INT300 不上表。
+
+## 增量（2026-10 list/课表同构与课名双语）
+
+- [x] 46.1 `dedupeMyResultCoursesByCode`：list 与课表共用课号去重
+- [x] 46.2 `buildMyResultSchedule` 按 locale hydrate 课名后再生成槽位
+- [x] 46.3 hydrate/catalog：中文界面优先 nameZh / 结果项中文名
+- [x] 46.4 `StudentMyResultView`：list 去重后渲染；课表传入当前 locale
+- [x] 46.5 脚本验证：全部有时段课号 ≡ 课表；中文课名无英文混用
+  - 备注：全部 list=14（含 INT300）、课表=13 课号一致；四 Tab 有时段≡课表；中文课名无纯英文混用；冲突=0。
+
+## 增量（2026-10 list/课表时段同源与申请无冲突）
+
+- [x] 47.1 hydrate `preserveSchedule`：我的选课 list/课表仅同步课名，时段用结果项
+- [x] 47.2 申请 demo：COMP201 等 Approved 重修时段避开 COMP3192，保证申请 Tab 无冲突
+- [x] 47.3 脚本验证：list 时段 ≡ 课表；申请 Tab 冲突=0；全部冲突仍为 0
+  - 备注：五 Tab 冲突均为 0；list 主时段与课表格子一一对应；申请 COMP201=Tue 12–14。
 
 ## 增量（2026-07 选课历史学年学期与左冻结）
 

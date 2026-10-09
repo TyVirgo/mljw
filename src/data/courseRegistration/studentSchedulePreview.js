@@ -1,5 +1,5 @@
 /**
- * 学生课表预览：必修 / 已确认选修（≤当前轮，R2 起）/ 本轮选择（虚线）
+ * 学生课表预览：必修 / 已确认选修（≤当前轮，同类型，R2 起）/ 本轮选择（虚线≡本轮表）
  */
 
 import { getActiveBatch } from './registrationBatches.js'
@@ -12,6 +12,7 @@ import {
 } from './studentVolunteerSheet.js'
 import { getSectionMeetings } from './sectionScheduleFields.js'
 import { myRegistrationList } from './studentRegistrationStore.js'
+import { normalizeRegistrationType } from './registrationTypes.js'
 
 /** 轮次顺序：数字越小越早；无 round / 管理端 / 必修视为 0（任意当前轮都可见） */
 const ROUND_ORDER = {
@@ -65,6 +66,21 @@ export function isCourseVisibleAtRound(course, currentRound) {
   const courseRound = String(course?.roundKey || '')
   if (!courseRound) return true
   return scheduleRoundOrder(courseRound) <= scheduleRoundOrder(currentRound)
+}
+
+/**
+ * 实线「已确认选修」：仅严格更早轮（同轮确认只走本轮表虚线，避免跨批同轮泄漏）
+ * @param {object} course
+ * @param {string} [currentRound]
+ */
+export function isEarlierRoundConfirmedForSchedule(course, currentRound) {
+  if (currentRound == null || currentRound === '') return true
+  const src = String(course?.sourceType || '')
+  if (src === 'required' || src === 'programme') return true
+  if (src === 'admin') return true
+  const courseRound = String(course?.roundKey || '')
+  if (!courseRound) return true
+  return scheduleRoundOrder(courseRound) < scheduleRoundOrder(currentRound)
 }
 
 /**
@@ -193,19 +209,18 @@ export function listVolunteerWishCoursesForSchedule(batch = getActiveBatch(), cu
 }
 
 /**
- * 与「本轮选课情况」同源的预览课：R1=待分配；R2/R3=已选成功（非排队/失败）
+ * 与「本轮选课情况」同源的预览课（虚线）：R1=志愿；R2/R3=本轮表成功行
  * @param {string} [currentRound]
  * @param {object} [batch]
  */
 export function listRoundStatusCoursesForSchedule(currentRound, batch = getActiveBatch()) {
   const round = String(currentRound || '')
-  const batchId = batch?.id || ''
   if (!round || round === 'preselect') {
     return listVolunteerWishCoursesForSchedule(batch, round || 'preselect')
   }
+  // myRegistrationList 已按当前批+当前轮裁剪；虚线集合 ≡ 本轮表
   return (myRegistrationList.value || [])
     .filter((item) => {
-      if (batchId && item.batchId && item.batchId !== batchId) return false
       const status = String(item.status || '')
       return status !== 'queued' && status !== 'failed' && status !== 'miss'
     })
@@ -214,6 +229,15 @@ export function listRoundStatusCoursesForSchedule(currentRound, batch = getActiv
       courseCode: item.courseCode || item.code,
       roundKey: item.roundKey || round,
     }))
+}
+
+/** 课表实线层：只保留与当前批类型一致的确认/中签课（去异类型杂课） */
+function matchesBatchType(course, batch) {
+  const batchType = batch?.type === 'GE' ? 'GE' : batch?.type === 'ME' ? 'ME' : ''
+  if (!batchType) return true
+  const courseType = normalizeRegistrationType(course?.type)
+  if (!courseType) return true
+  return courseType === batchType
 }
 
 function courseKey(item) {
@@ -273,12 +297,15 @@ export function buildPreviewSchedule({
 
   let confirmedMerged = []
   if (!isR1Round) {
-    const hitExtra = listVolunteerHitCoursesForSchedule(batch).filter((c) =>
-      isCourseVisibleAtRound(c, currentRound),
+    const hitExtra = listVolunteerHitCoursesForSchedule(batch).filter(
+      (c) =>
+        matchesBatchType(c, batch) && isEarlierRoundConfirmedForSchedule(c, currentRound),
     )
     confirmedMerged = [...(confirmed || [])].filter((c) => {
-      if (!isCourseVisibleAtRound(c, currentRound)) return false
-      // 本轮列表已有的课只留虚线一层，不在实线层重复
+      if (!matchesBatchType(c, batch)) return false
+      // 实线仅更早轮；同轮确认由本轮表虚线承载
+      if (!isEarlierRoundConfirmedForSchedule(c, currentRound)) return false
+      // 本轮表已有的课只留虚线一层，不在实线层重复
       const code = String(c.courseCode || c.code || '')
       const id = String(c.courseId || c.id || '')
       if (code && currentRoundKeys.has(code)) return false

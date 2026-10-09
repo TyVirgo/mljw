@@ -26,6 +26,8 @@ import {
   getTermElectiveCreditProgress,
   checkTermCreditCapForCourse,
   checkTermCategoryCreditCapForCourse,
+  checkGraduationGeCapForCourse,
+  getR1CreditSubmitStats,
   getStudentProfileFields,
   getHardScheduleConflictGate,
   studentPendingAssignCourses,
@@ -39,6 +41,7 @@ import {
   getTermGeElectiveCategoryBars,
   getGraduationGeBars,
   getGraduationMeBars,
+  getProgrammeCreditProgress,
   studentHasGeElectiveRequirement,
 } from '../../../data/courseRegistration/studentRegistrationContext.js'
 import {
@@ -70,10 +73,17 @@ import {
   isVolunteerListLocked,
   sortedPendingVolunteers,
 } from '../../../data/courseRegistration/studentVolunteerSheet.js'
-import { courseTypeOptions, getRegistrationTypeLabel } from '../../../data/courseRegistration/registrationTypes.js'
+import { getRegistrationTypeLabel } from '../../../data/courseRegistration/registrationTypes.js'
 import { displayWeekRange, displayClassTimeVenueLines } from '../../../data/courseRegistration/sectionScheduleFields.js'
-import { getSchoolElectiveCategoryLabel } from '../../../data/departments.js'
-import { resolveSchoolElectiveCategory, formatSectionAvailableCapacityLabel, isSectionFullForAudience } from '../../../data/courseRegistration/selectableCourses.js'
+import {
+  schoolElectiveCategoryOptions,
+  getSchoolElectiveCategoryLabel,
+} from '../../../data/departments.js'
+import {
+  resolveSchoolElectiveCategory,
+  formatSectionAvailableCapacityLabel,
+  isSectionFullForAudience,
+} from '../../../data/courseRegistration/selectableCourses.js'
 import { getCourseDisplayName } from '../../../data/courseRegistration/resolveSelectedCourseDisplay.js'
 import { isCrossAudienceReleaseActive } from '../../../data/courseRegistration/registrationRuleSettings.js'
 import {
@@ -103,8 +113,26 @@ const emit = defineEmits(['navigate', 'list-active', 'breadcrumb-extra'])
 const { t, isZh } = useAppI18n()
 
 function emptySearch() {
-  return { keyword: '', type: '', availability: '', credits: '', prerequisites: '' }
+  return {
+    code: '',
+    name: '',
+    schoolElectiveCategory: '',
+    weekday: '',
+    availability: '',
+    credits: '',
+    prerequisites: '',
+  }
 }
+
+const WEEKDAY_FILTER_OPTIONS = [
+  { value: 'Mon', labelKey: 'courseRegistration.student.weekdayMon' },
+  { value: 'Tue', labelKey: 'courseRegistration.student.weekdayTue' },
+  { value: 'Wed', labelKey: 'courseRegistration.student.weekdayWed' },
+  { value: 'Thu', labelKey: 'courseRegistration.student.weekdayThu' },
+  { value: 'Fri', labelKey: 'courseRegistration.student.weekdayFri' },
+]
+
+const searchExpanded = ref(true)
 
 const creditSummary = computed(() => getStudentCreditSummary())
 
@@ -425,40 +453,64 @@ const confirmRegisterVisible = ref(false)
 const pendingRegister = ref(null)
 
 /**
- * 学分胶囊色调：未满绿 / 刚好满橙 / 超额红
+ * 学分胶囊色调（已选/要求）：未满橙 / 选满（含超出）绿 / 无要求中性
  * @param {{ current: number, max: number }} bar
  */
 function creditCapsuleTone(bar) {
   const current = Number(bar?.current) || 0
   const max = Number(bar?.max) || 0
   if (max <= 0) return 'is-neutral'
-  if (current > max) return 'is-over'
-  if (current === max) return 'is-met'
-  return 'is-short'
+  return current >= max ? 'is-achieved' : 'is-pending'
+}
+
+/**
+ * GE 学分胶囊色调（达标语义，2026-09 需求）：
+ * 未达目标橙 / 达标（含超出）绿 / 无目标中性
+ * @param {{ current: number, max: number, tone?: string }} bar
+ */
+function geCapsuleTone(bar) {
+  if (bar?.tone) return bar.tone
+  const current = Number(bar?.current) || 0
+  const max = Number(bar?.max) || 0
+  if (max <= 0) return 'is-neutral'
+  return current >= max ? 'is-achieved' : 'is-pending'
+}
+
+/** 学期灰色统计胶囊：无达标语义，恒灰 */
+function geStatTone() {
+  return 'is-neutral'
 }
 
 /** 列表顶栏学分：与本轮选课情况同源 */
 const ROUND_CREDIT_OPTS = { scope: 'round' }
 
 /** 顶栏本学期文/商/理（GE / ME 均展示；配额分别对齐 geMax / meMax） */
-const termCategoryBars = computed(() =>
-  batchTypeTab.value === 'GE'
-    ? getTermGeElectiveCategoryBars(undefined, ROUND_CREDIT_OPTS)
-    : getTermGeCategoryBars(undefined, ROUND_CREDIT_OPTS),
-)
+const termCategoryBars = computed(() => {
+  const bars =
+    batchTypeTab.value === 'GE'
+      ? getTermGeElectiveCategoryBars(undefined, ROUND_CREDIT_OPTS)
+      : getTermGeCategoryBars(undefined, ROUND_CREDIT_OPTS)
+  if (batchTypeTab.value === 'GE') {
+    return bars.map((bar) => ({ ...bar, isStat: true, tone: geStatTone() }))
+  }
+  // ME 学期分类：最低学分分母 + 达标色 + （已选/要求）
+  return bars.map((bar) => ({ ...bar, tone: geCapsuleTone(bar), statLabel: true }))
+})
 
-/** 列表顶栏学分：总分 = Σ 分类（与分类胶囊同源） */
+/** 列表顶栏学分：GE/ME 总分均取学期帽 */
 const termElectiveBars = computed(() => {
   const cats = termCategoryBars.value
   const current = cats.reduce((sum, bar) => sum + (Number(bar.current) || 0), 0)
   const max = cats.reduce((sum, bar) => sum + (Number(bar.max) || 0), 0)
+  const term = getTermElectiveCreditProgress(undefined, ROUND_CREDIT_OPTS)
   if (batchTypeTab.value === 'GE') {
     return [
       {
         key: 'ge',
         labelKey: 'courseRegistration.student.termElectiveProgressGe',
         current,
-        max,
+        max: Number(term.geMax) || max,
+        tone: geCapsuleTone({ current, max: Number(term.geMax) || max }),
       },
     ]
   }
@@ -467,39 +519,47 @@ const termElectiveBars = computed(() => {
       key: 'me',
       labelKey: 'courseRegistration.student.termElectiveProgressMe',
       current,
-      max,
+      max: Number(term.meMax) || max,
+      tone: geCapsuleTone({ current, max: Number(term.meMax) || max }),
     },
   ]
 })
 
 /** 列表工具条：毕业学分文/商/理整组 */
-const graduationCategoryBars = computed(() =>
-  batchTypeTab.value === 'GE'
-    ? getGraduationGeBars(undefined, ROUND_CREDIT_OPTS)
-    : getGraduationMeBars(undefined, ROUND_CREDIT_OPTS),
-)
+const graduationCategoryBars = computed(() => {
+  const bars =
+    batchTypeTab.value === 'GE'
+      ? getGraduationGeBars(undefined, ROUND_CREDIT_OPTS)
+      : getGraduationMeBars(undefined, ROUND_CREDIT_OPTS)
+  return bars.map((bar) => ({ ...bar, tone: geCapsuleTone(bar), statLabel: true }))
+})
 
 /** 列表工具条：毕业学分类型总分（在本学期公共/专业选修左侧） */
 const graduationElectiveBars = computed(() => {
   const cats = graduationCategoryBars.value
   const current = cats.reduce((sum, bar) => sum + (Number(bar.current) || 0), 0)
   const max = cats.reduce((sum, bar) => sum + (Number(bar.max) || 0), 0)
+  const programme = getProgrammeCreditProgress()
   if (batchTypeTab.value === 'GE') {
+    const geGradMax = Number(programme.geRequired) || max
     return [
       {
         key: 'ge-grad',
         labelKey: 'courseRegistration.student.graduationElectiveProgressGe',
         current,
-        max,
+        max: geGradMax,
+        tone: geCapsuleTone({ current, max: geGradMax }),
       },
     ]
   }
+  const meGradMax = Number(programme.meRequired) || max
   return [
     {
       key: 'me-grad',
       labelKey: 'courseRegistration.student.graduationElectiveProgressMe',
       current,
-      max,
+      max: meGradMax,
+      tone: geCapsuleTone({ current, max: meGradMax }),
     },
   ]
 })
@@ -648,7 +708,14 @@ const typeEntryCards = computed(() => {
     })
     const graduationCategoryBars = type === 'GE' ? gradGeBars : gradMeBars
     const graduationCurrent = graduationCategoryBars.reduce((sum, bar) => sum + (Number(bar.current) || 0), 0)
-    const graduationMax = graduationCategoryBars.reduce((sum, bar) => sum + (Number(bar.max) || 0), 0)
+    // GE/ME 毕业总分均用培养方案口径，不按四类最低求和
+    const programme = getProgrammeCreditProgress()
+    const graduationMax =
+      type === 'GE'
+        ? Number(programme.geRequired) ||
+          graduationCategoryBars.reduce((sum, bar) => sum + (Number(bar.max) || 0), 0)
+        : Number(programme.meRequired) ||
+          graduationCategoryBars.reduce((sum, bar) => sum + (Number(bar.max) || 0), 0)
     return {
       type,
       titleKey:
@@ -668,29 +735,56 @@ const typeEntryCards = computed(() => {
               labelKey: 'courseRegistration.student.graduationElectiveProgressGe',
               current: graduationCurrent,
               max: graduationMax,
+              tone: geCapsuleTone({ current: graduationCurrent, max: graduationMax }),
             }
           : {
               key: 'me-grad',
               labelKey: 'courseRegistration.student.graduationElectiveProgressMe',
               current: graduationCurrent,
               max: graduationMax,
+              tone: geCapsuleTone({ current: graduationCurrent, max: graduationMax }),
             },
-      graduationCategoryBars,
+      graduationCategoryBars:
+        // GE/ME 毕业分类：达标语义 + 「（已选/要求）」口径说明
+        graduationCategoryBars.map((bar) => ({
+          ...bar,
+          tone: geCapsuleTone(bar),
+          statLabel: true,
+        })),
       creditBar:
         type === 'GE'
           ? {
               key: 'ge',
               labelKey: 'courseRegistration.student.termElectiveProgressGe',
               current: termCurrent,
-              max: termMax || term.geMax,
+              // GE 整体学期帽：直接取 geMax，不再用分类分母求和
+              max: term.geMax,
+              tone: geCapsuleTone({ current: termCurrent, max: term.geMax }),
             }
           : {
               key: 'me',
               labelKey: 'courseRegistration.student.termElectiveProgressMe',
               current: termCurrent,
-              max: termMax || term.meMax,
+              max: term.meMax || termMax,
+              tone: geCapsuleTone({
+                current: termCurrent,
+                max: term.meMax || termMax,
+              }),
             },
-      categoryBars: termCategoryBarsForType,
+      categoryBars:
+        type === 'GE'
+          ? // GE 学期分类：灰色统计
+            termCategoryBarsForType.map((bar) => ({
+              ...bar,
+              isStat: true,
+              tone: geStatTone(),
+            }))
+          : // ME 学期分类：保留分母 + 达标色 + （已选/要求）
+            termCategoryBarsForType.map((bar) => ({
+              ...bar,
+              tone: geCapsuleTone(bar),
+              statLabel: true,
+            })),
     }
   })
 })
@@ -912,6 +1006,10 @@ function eligibilityDetailLabel(course, section) {
   if (!creditGate.ok) {
     return t(creditGate.errorKey, creditGate.errorParams || {})
   }
+  const gradGeGate = checkGraduationGeCapForCourse(course)
+  if (!gradGeGate.ok) {
+    return t(gradGeGate.errorKey, gradGeGate.errorParams || {})
+  }
   const categoryGate = checkTermCategoryCreditCapForCourse(course)
   if (!categoryGate.ok) {
     return t(categoryGate.errorKey, categoryGate.errorParams || {})
@@ -928,6 +1026,46 @@ function eligibilityDetailLabel(course, section) {
 const isPreselectRound = computed(
   () => normalizeCartRoundKey(selectedRound.value) === 'preselect',
 )
+
+/** R1 五列含「允许最大」；R2/R3 同列式但隐藏该列 */
+const showR1SubmitMaxColumn = computed(() => isPreselectRound.value)
+
+const r1CreditStats = computed(() => {
+  if (!showR1SubmitMaxColumn.value) {
+    return { kind: 'ME', termRequired: 0, submitMax: 0, selected: 0 }
+  }
+  // 依赖本轮名单变化以刷新已选
+  void myRegistrationList.value
+  void studentPendingAssignCourses.value
+  return getR1CreditSubmitStats(activeBatch.value)
+})
+
+const r1TermSelectedRequiredLabelKey = computed(() =>
+  batchTypeTab.value === 'GE'
+    ? 'courseRegistration.student.r1Credit.termSelectedRequiredGe'
+    : 'courseRegistration.student.r1Credit.termSelectedRequiredMe',
+)
+
+const r1GradSelectedRequiredLabelKey = computed(() =>
+  batchTypeTab.value === 'GE'
+    ? 'courseRegistration.student.r1Credit.gradSelectedRequiredGe'
+    : 'courseRegistration.student.r1Credit.gradSelectedRequiredMe',
+)
+
+const r1TermTotalBar = computed(() => termElectiveBars.value[0] || { current: 0, max: 0 })
+const r1GradTotalBar = computed(() => graduationElectiveBars.value[0] || { current: 0, max: 0 })
+
+const r1SubmitOver = computed(
+  () => r1CreditStats.value.selected > r1CreditStats.value.submitMax,
+)
+
+/** R1：超 2×帽标红；R2/R3：超学期要求帽标红 */
+const termCreditValueOver = computed(() => {
+  if (showR1SubmitMaxColumn.value) return r1SubmitOver.value
+  const cur = Number(r1TermTotalBar.value.current) || 0
+  const max = Number(r1TermTotalBar.value.max) || 0
+  return max > 0 && cur > max
+})
 
 const showVolunteerSheet = computed(() =>
   shouldShowVolunteerSheetPanel(selectedRound.value, studentAudience.value),
@@ -997,11 +1135,13 @@ function canRegisterRow(course, section) {
     if (isCourseOccupied(course.id, section.id)) return false
     if (!getHardScheduleConflictGate(course, section).ok) return false
     if (!checkTermCreditCapForCourse(course).ok) return false
+    if (!checkGraduationGeCapForCourse(course).ok) return false
     return checkTermCategoryCreditCapForCourse(course).ok
   }
   if (isCourseOccupied(course.id, section.id)) return false
   if (!getHardScheduleConflictGate(course, section).ok) return false
   if (!checkTermCreditCapForCourse(course).ok) return false
+  if (!checkGraduationGeCapForCourse(course).ok) return false
   if (!checkTermCategoryCreditCapForCourse(course).ok) return false
   if (selectedRound.value === 'preselect') return true
   return !isSectionFull(section)
@@ -1193,52 +1333,65 @@ function confirmRegisterSubmit() {
           </div>
           <dl class="cr-type-entry-meta">
             <div>
-              <dt>{{ t('courseRegistration.student.typeEntry.graduationCredits') }}</dt>
-              <dd class="cr-type-entry-credits">
-                <span
-                  class="cr-credit-capsule"
-                  :class="creditCapsuleTone(card.graduationCreditBar)"
-                >
-                  {{ t(card.graduationCreditBar.labelKey) }}
-                  {{ card.graduationCreditBar.current }}/{{ card.graduationCreditBar.max }}
-                </span>
-                <span
-                  v-if="card.graduationCategoryBars?.length"
-                  class="cr-list-context-sep"
-                  aria-hidden="true"
-                >|</span>
-                <span
-                  v-for="bar in card.graduationCategoryBars"
-                  :key="`grad-${bar.key}`"
-                  class="cr-credit-capsule"
-                  :class="creditCapsuleTone(bar)"
-                >
-                  {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }} {{ bar.current }}/{{ bar.max }}
-                </span>
-              </dd>
-            </div>
-            <div>
-              <dt>{{ t('courseRegistration.student.typeEntry.credits') }}</dt>
-              <dd class="cr-type-entry-credits">
-                <span
-                  class="cr-credit-capsule"
-                  :class="creditCapsuleTone(card.creditBar)"
-                >
-                  {{ t(card.creditBar.labelKey) }} {{ card.creditBar.current }}/{{ card.creditBar.max }}
-                </span>
-                <span
-                  v-if="card.categoryBars?.length"
-                  class="cr-list-context-sep"
-                  aria-hidden="true"
-                >|</span>
-                <span
-                  v-for="bar in card.categoryBars"
-                  :key="`term-${bar.key}`"
-                  class="cr-credit-capsule"
-                  :class="creditCapsuleTone(bar)"
-                >
-                  {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }} {{ bar.current }}/{{ bar.max }}
-                </span>
+              <dt>{{ t('courseRegistration.student.typeEntry.creditRequirements') }}</dt>
+              <dd>
+                <div class="cr-type-entry-credit-block">
+                  <span
+                    class="cr-credit-capsule cr-credit-matrix-total"
+                    :class="card.graduationCreditBar.tone || creditCapsuleTone(card.graduationCreditBar)"
+                  >
+                    {{ t(card.graduationCreditBar.labelKey) }}
+                    {{ card.graduationCreditBar.current }}/{{ card.graduationCreditBar.max }}
+                  </span>
+                  <span class="cr-list-context-sep" aria-hidden="true">{{
+                    card.graduationCategoryBars?.length ? '|' : ''
+                  }}</span>
+                  <span
+                    v-for="bar in card.graduationCategoryBars || []"
+                    :key="`grad-${bar.key}`"
+                    class="cr-credit-capsule"
+                    :class="bar.tone || creditCapsuleTone(bar)"
+                  >
+                    {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }}{{
+                      bar.statLabel
+                        ? t('courseRegistration.student.geDemand.selectedRequired')
+                        : ''
+                    }}
+                    {{ bar.current }}/{{ bar.max }}
+                  </span>
+                  <span
+                    class="cr-credit-capsule cr-credit-matrix-total"
+                    :class="card.creditBar.tone || creditCapsuleTone(card.creditBar)"
+                  >
+                    {{ t(card.creditBar.labelKey) }}
+                    {{ card.creditBar.current }}/{{ card.creditBar.max }}
+                  </span>
+                  <span class="cr-list-context-sep" aria-hidden="true">{{
+                    card.categoryBars?.length ? '|' : ''
+                  }}</span>
+                  <span
+                    v-for="bar in card.categoryBars || []"
+                    :key="`term-${bar.key}`"
+                    class="cr-credit-capsule"
+                    :class="bar.tone || creditCapsuleTone(bar)"
+                  >
+                    <template v-if="bar.isStat">
+                      {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }}{{
+                        t('courseRegistration.student.geDemand.termStatSelected', {
+                          credit: bar.current,
+                        })
+                      }}
+                    </template>
+                    <template v-else>
+                      {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }}{{
+                        bar.statLabel
+                          ? t('courseRegistration.student.geDemand.selectedRequired')
+                          : ''
+                      }}
+                      {{ bar.hideMax ? bar.current : `${bar.current}/${bar.max}` }}
+                    </template>
+                  </span>
+                </div>
               </dd>
             </div>
             <div v-if="card.batchOptions.length">
@@ -1345,26 +1498,85 @@ function confirmRegisterSubmit() {
               <div class="search-item">
                 <label>{{ t('courseRegistration.courses.code') }}</label>
                 <input
-                  :value="searchForm.keyword"
+                  :value="searchForm.code"
                   type="text"
                   class="search-input"
-                  :placeholder="t('courseRegistration.student.searchPlaceholder')"
-                  @input="patchSearchForm({ keyword: $event.target.value })"
+                  :placeholder="t('courseRegistration.student.searchCodePlaceholder')"
+                  @input="patchSearchForm({ code: $event.target.value })"
                 />
               </div>
               <div class="search-item">
-                <label>{{ t('courseRegistration.courses.type') }}</label>
+                <label>{{ t('courseRegistration.courses.name') }}</label>
+                <input
+                  :value="searchForm.name"
+                  type="text"
+                  class="search-input"
+                  :placeholder="t('courseRegistration.student.searchNamePlaceholder')"
+                  @input="patchSearchForm({ name: $event.target.value })"
+                />
+              </div>
+              <div class="search-item">
+                <label>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</label>
                 <select
-                  :value="searchForm.type"
+                  :value="searchForm.schoolElectiveCategory"
                   class="search-select"
-                  @change="patchSearchForm({ type: $event.target.value })"
+                  @change="patchSearchForm({ schoolElectiveCategory: $event.target.value })"
                 >
                   <option value="">{{ t('common.all') }}</option>
-                  <option v-for="opt in courseTypeOptions" :key="opt.value" :value="opt.value">
+                  <option
+                    v-for="opt in schoolElectiveCategoryOptions"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    {{ getSchoolElectiveCategoryLabel(opt.value, isZh) }}
+                  </option>
+                </select>
+              </div>
+              <div class="search-item">
+                <label>{{ t('courseRegistration.student.weekdayFilter') }}</label>
+                <select
+                  :value="searchForm.weekday"
+                  class="search-select"
+                  @change="patchSearchForm({ weekday: $event.target.value })"
+                >
+                  <option value="">{{ t('common.all') }}</option>
+                  <option
+                    v-for="opt in WEEKDAY_FILTER_OPTIONS"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
                     {{ t(opt.labelKey) }}
                   </option>
                 </select>
               </div>
+            </div>
+            <div class="search-actions">
+              <button type="button" class="btn btn-primary btn-primary--vivid" @click="handleSearch">
+                {{ t('common.search') }}
+              </button>
+              <button type="button" class="btn btn-default" @click="handleReset">
+                {{ t('common.reset') }}
+              </button>
+              <button
+                type="button"
+                class="toggle-link"
+                @click="searchExpanded = !searchExpanded"
+              >
+                {{ searchExpanded ? t('common.collapse') : t('common.more') }}
+                <svg
+                  :class="{ up: searchExpanded }"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div v-if="searchExpanded" class="search-row search-row-secondary">
+            <div class="search-fields">
               <div class="search-item">
                 <label>{{ capacityColumnLabel }}</label>
                 <select
@@ -1373,8 +1585,12 @@ function confirmRegisterSubmit() {
                   @change="patchSearchForm({ availability: $event.target.value })"
                 >
                   <option value="">{{ t('common.all') }}</option>
-                  <option value="open">{{ t('courseRegistration.waitlist.courseStatus.open') }}</option>
-                  <option value="full">{{ t('courseRegistration.waitlist.courseStatus.full') }}</option>
+                  <option value="open">
+                    {{ t('courseRegistration.waitlist.courseStatus.open') }}
+                  </option>
+                  <option value="full">
+                    {{ t('courseRegistration.waitlist.courseStatus.full') }}
+                  </option>
                 </select>
               </div>
               <div class="search-item">
@@ -1385,7 +1601,11 @@ function confirmRegisterSubmit() {
                   @change="patchSearchForm({ credits: $event.target.value })"
                 >
                   <option value="">{{ t('common.all') }}</option>
-                  <option v-for="credit in creditFilterOptions" :key="credit" :value="String(credit)">
+                  <option
+                    v-for="credit in creditFilterOptions"
+                    :key="credit"
+                    :value="String(credit)"
+                  >
                     {{ credit }}
                   </option>
                 </select>
@@ -1398,18 +1618,14 @@ function confirmRegisterSubmit() {
                   @change="patchSearchForm({ prerequisites: $event.target.value })"
                 >
                   <option value="">{{ t('common.all') }}</option>
-                  <option value="none">{{ t('courseRegistration.student.prerequisiteNone') }}</option>
+                  <option value="none">
+                    {{ t('courseRegistration.student.prerequisiteNone') }}
+                  </option>
                   <option v-for="code in prerequisiteFilterOptions" :key="code" :value="code">
                     {{ code }}
                   </option>
                 </select>
               </div>
-            </div>
-            <div class="search-actions">
-              <button type="button" class="btn btn-primary btn-primary--vivid" @click="handleSearch">
-                {{ t('common.search') }}
-              </button>
-              <button type="button" class="btn btn-default" @click="handleReset">{{ t('common.reset') }}</button>
             </div>
           </div>
         </div>
@@ -1449,58 +1665,82 @@ function confirmRegisterSubmit() {
             </p>
           </div>
           <div
-            class="cr-list-context-progress cr-credit-matrix"
-            aria-label="credit progress"
-            :title="
-              batchTypeTab === 'ME'
-                ? t('courseRegistration.student.graduationGe.tipCumulative', {
-                    detail: graduationGeTip,
-                  })
-                : undefined
-            "
+            class="cr-r1-credit-panel"
+            aria-label="round credit progress"
           >
-            <span
-              v-for="bar in graduationElectiveBars"
-              :key="bar.key"
-              class="cr-credit-capsule cr-credit-matrix-total"
-              :class="creditCapsuleTone(bar)"
+            <div class="cr-r1-credit-card">
+              <div class="cr-r1-credit-card-label">{{ t(r1TermSelectedRequiredLabelKey) }}</div>
+              <div
+                class="cr-r1-credit-card-value"
+                :class="{ 'is-over': termCreditValueOver }"
+              >
+                {{ r1TermTotalBar.current }}/{{ r1TermTotalBar.max }}
+              </div>
+            </div>
+            <div v-if="showR1SubmitMaxColumn" class="cr-r1-credit-card">
+              <div class="cr-r1-credit-card-label">
+                {{ t('courseRegistration.student.r1Credit.submitMax') }}
+              </div>
+              <div class="cr-r1-credit-card-value">{{ r1CreditStats.submitMax }}</div>
+            </div>
+            <div class="cr-r1-credit-card cr-r1-credit-card--capsules">
+              <div class="cr-r1-capsule-grid">
+                <span
+                  v-for="bar in termCategoryBars"
+                  :key="`r1-term-${bar.key}`"
+                  class="cr-credit-capsule"
+                  :class="bar.tone || creditCapsuleTone(bar)"
+                >
+                  <template v-if="bar.isStat">
+                    {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }}{{
+                      t('courseRegistration.student.geDemand.termStatSelected', {
+                        credit: bar.current,
+                      })
+                    }}
+                  </template>
+                  <template v-else>
+                    {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }}{{
+                      bar.statLabel
+                        ? t('courseRegistration.student.geDemand.selectedRequired')
+                        : ''
+                    }}
+                    {{ bar.hideMax ? bar.current : `${bar.current}/${bar.max}` }}
+                  </template>
+                </span>
+              </div>
+            </div>
+            <div class="cr-r1-credit-card">
+              <div class="cr-r1-credit-card-label">{{ t(r1GradSelectedRequiredLabelKey) }}</div>
+              <div class="cr-r1-credit-card-value">
+                {{ r1GradTotalBar.current }}/{{ r1GradTotalBar.max }}
+              </div>
+            </div>
+            <div
+              class="cr-r1-credit-card cr-r1-credit-card--capsules"
+              :title="
+                batchTypeTab === 'ME'
+                  ? t('courseRegistration.student.graduationGe.tipCumulative', {
+                      detail: graduationGeTip,
+                    })
+                  : undefined
+              "
             >
-              {{ t(bar.labelKey) }} {{ bar.current }}/{{ bar.max }}
-            </span>
-            <span
-              v-if="graduationCategoryBars.length"
-              class="cr-list-context-sep"
-              aria-hidden="true"
-            >|</span>
-            <span
-              v-for="bar in graduationCategoryBars"
-              :key="`grad-${bar.key}`"
-              class="cr-credit-capsule"
-              :class="creditCapsuleTone(bar)"
-            >
-              {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }} {{ bar.current }}/{{ bar.max }}
-            </span>
-            <span
-              v-for="bar in termElectiveBars"
-              :key="bar.key"
-              class="cr-credit-capsule cr-credit-matrix-total"
-              :class="creditCapsuleTone(bar)"
-            >
-              {{ t(bar.labelKey) }} {{ bar.current }}/{{ bar.max }}
-            </span>
-            <span
-              v-if="termCategoryBars.length"
-              class="cr-list-context-sep"
-              aria-hidden="true"
-            >|</span>
-            <span
-              v-for="bar in termCategoryBars"
-              :key="`term-${bar.key}`"
-              class="cr-credit-capsule"
-              :class="creditCapsuleTone(bar)"
-            >
-              {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }} {{ bar.current }}/{{ bar.max }}
-            </span>
+              <div class="cr-r1-capsule-grid">
+                <span
+                  v-for="bar in graduationCategoryBars"
+                  :key="`r1-grad-${bar.key}`"
+                  class="cr-credit-capsule"
+                  :class="bar.tone || creditCapsuleTone(bar)"
+                >
+                  {{ t(CATEGORY_SHORT_KEYS[bar.key] || bar.labelKey) }}{{
+                    bar.statLabel
+                      ? t('courseRegistration.student.geDemand.selectedRequired')
+                      : ''
+                  }}
+                  {{ bar.current }}/{{ bar.max }}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
         </div>
@@ -2341,7 +2581,33 @@ function confirmRegisterSubmit() {
 }
 
 .cr-type-entry-credit-block {
-  grid-column: 1 / -1;
+  display: grid;
+  /* 总分 | 分隔 | 4 明细 — 毕业/学期共两行左对齐，列宽共享 */
+  grid-template-columns: max-content auto repeat(4, minmax(4.75rem, max-content));
+  gap: 6px 6px;
+  align-items: center;
+  justify-content: start;
+  font-variant-numeric: tabular-nums;
+}
+
+.cr-type-entry-credit-block .cr-credit-capsule {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.cr-type-entry-credit-block .cr-credit-matrix-total {
+  width: auto;
+  justify-self: start;
+}
+
+.cr-type-entry-credit-block .cr-list-context-sep {
+  justify-self: center;
+  min-width: 8px;
 }
 
 .cr-credit-matrix--entry {
@@ -2370,18 +2636,19 @@ function confirmRegisterSubmit() {
   border: 1px solid transparent;
 }
 
-/* 未满：绿 */
-.cr-credit-capsule.is-short {
-  color: #047857;
-  background: #d1fae5;
-  border-color: #6ee7b7;
-}
-
-/* 刚好满：橙 */
-.cr-credit-capsule.is-met {
+/* 兼容旧 class：语义已与 is-pending / is-achieved 对齐 */
+.cr-credit-capsule.is-short,
+.cr-credit-capsule.is-pending {
   color: #9a3412;
   background: #ffedd5;
   border-color: #fdba74;
+}
+
+.cr-credit-capsule.is-met,
+.cr-credit-capsule.is-achieved {
+  color: #047857;
+  background: #d1fae5;
+  border-color: #6ee7b7;
 }
 
 .cr-credit-capsule.is-over {
@@ -2767,6 +3034,17 @@ function confirmRegisterSubmit() {
     justify-content: start;
     overflow-x: auto;
   }
+
+  .cr-r1-credit-panel {
+    max-width: 100%;
+  }
+}
+
+/* R1 五列：内容定宽右对齐 */
+.cr-r1-credit-panel {
+  flex: 0 0 auto;
+  width: max-content;
+  margin-left: auto;
 }
 
 .btn-sm {

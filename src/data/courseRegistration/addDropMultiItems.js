@@ -37,8 +37,9 @@ export function computeNetCreditsAfterLines(currentCredits, dropLines = [], addL
   )
 }
 
-/** 单条学分胶囊是否超额（current > max） */
+/** 单条学分胶囊是否超额（current > max；hideMax/isStat=分类帽停用或灰色统计，永不超额） */
 export function creditBarIsOver(bar) {
+  if (bar?.hideMax || bar?.isStat) return false
   const current = Number(bar?.current) || 0
   const max = Number(bar?.max) || 0
   return max > 0 && current > max
@@ -285,4 +286,133 @@ export function projectAddDropCreditGroups(baselineGroups, opts = {}) {
     )
   }
   return groups
+}
+
+/**
+ * 是否计入「必修」退课/已选（培养方案底图 / CORE / Mandatory）
+ * @param {object} course
+ */
+export function isMandatoryAddDropCourse(course) {
+  if (!course) return false
+  const source = String(course.sourceType || '')
+    .trim()
+    .toLowerCase()
+  if (source === 'required' || source === 'programme') return true
+  const type = String(course.type || course.course?.type || '').toUpperCase()
+  if (type === 'CORE' || type === 'MANDATORY') return true
+  return normalizeRegistrationType(course.type || course.course?.type) === 'Mandatory'
+}
+
+/**
+ * 退课学分四分：总 = 必修 + ME + GE
+ * @param {object[]} lines
+ * @returns {{ total: number, mandatory: number, me: number, ge: number }}
+ */
+export function buildDropCreditBreakdown(lines = []) {
+  let mandatory = 0
+  let me = 0
+  let ge = 0
+  for (const line of lines || []) {
+    if (!line) continue
+    const credits = Number(line.credits) || 0
+    if (!credits) continue
+    if (isMandatoryAddDropCourse(line)) {
+      mandatory += credits
+      continue
+    }
+    const kind = normalizeRegistrationType(line.type || line.course?.type)
+    if (kind === 'GE') ge += credits
+    else me += credits
+  }
+  return {
+    total: mandatory + me + ge,
+    mandatory,
+    me,
+    ge,
+  }
+}
+
+/**
+ * 拟加/拟退后学期 GE 是否超过 geMax（与学分条同源）
+ * @param {object|null} baseline
+ * @param {{ dropCourses?: object[], addCourses?: object[] }} [opts]
+ */
+export function wouldExceedAddDropGeTermCap(baseline, opts = {}) {
+  if (!baseline) return false
+  const strip = buildAddDropTermCreditStrip({
+    ...baseline,
+    dropCourses: opts.dropCourses || [],
+    addCourses: opts.addCourses || [],
+  })
+  const max = Number(strip.ge?.max) || 0
+  if (max <= 0) return false
+  return (Number(strip.ge?.current) || 0) > max
+}
+
+function toneForSelectedRequired(current, max) {
+  if (max > 0 && current > max) return 'is-over'
+  if (max > 0 && current >= max) return 'is-met'
+  return 'is-short'
+}
+
+/**
+ * 加退课学分条：毕业 GE/ME + 学期 GE/ME + 学期选修/必修（无分类）
+ * @param {{
+ *   geCurrent?: number, geMax?: number,
+ *   meCurrent?: number, meMax?: number,
+ *   gradGeCurrent?: number, gradGeMax?: number,
+ *   gradMeCurrent?: number, gradMeMax?: number,
+ *   mandatorySelected?: number,
+ *   dropCourses?: object[], addCourses?: object[],
+ * }} [opts]
+ */
+export function buildAddDropTermCreditStrip(opts = {}) {
+  let ge = Math.max(0, Number(opts.geCurrent) || 0)
+  let me = Math.max(0, Number(opts.meCurrent) || 0)
+  let gradGe = Math.max(0, Number(opts.gradGeCurrent) || 0)
+  let gradMe = Math.max(0, Number(opts.gradMeCurrent) || 0)
+  let mandatory = Math.max(0, Number(opts.mandatorySelected) || 0)
+  const geMax = Math.max(0, Number(opts.geMax) || 0)
+  const meMax = Math.max(0, Number(opts.meMax) || 0)
+  const gradGeMax = Math.max(0, Number(opts.gradGeMax) || 0)
+  const gradMeMax = Math.max(0, Number(opts.gradMeMax) || 0)
+
+  function apply(course, sign) {
+    if (!course) return
+    const credits = Number(course.credits) || 0
+    if (!credits) return
+    if (isMandatoryAddDropCourse(course)) {
+      mandatory = Math.max(0, mandatory + sign * credits)
+      return
+    }
+    const kind = normalizeRegistrationType(course.type || course.course?.type)
+    if (kind === 'GE') {
+      ge = Math.max(0, ge + sign * credits)
+      gradGe = Math.max(0, gradGe + sign * credits)
+    } else if (kind === 'ME') {
+      me = Math.max(0, me + sign * credits)
+      gradMe = Math.max(0, gradMe + sign * credits)
+    }
+  }
+
+  for (const c of opts.dropCourses || []) apply(c, -1)
+  for (const c of opts.addCourses || []) apply(c, 1)
+
+  return {
+    gradGe: {
+      current: gradGe,
+      max: gradGeMax,
+      tone: toneForSelectedRequired(gradGe, gradGeMax),
+    },
+    gradMe: {
+      current: gradMe,
+      max: gradMeMax,
+      tone: toneForSelectedRequired(gradMe, gradMeMax),
+    },
+    ge: { current: ge, max: geMax, tone: toneForSelectedRequired(ge, geMax) },
+    me: { current: me, max: meMax, tone: toneForSelectedRequired(me, meMax) },
+    /** 学期选修已选 = GE 已选 + ME 已选 */
+    elective: { current: ge + me, tone: 'is-neutral' },
+    mandatory: { current: mandatory, tone: 'is-neutral' },
+  }
 }

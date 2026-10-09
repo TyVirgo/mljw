@@ -26,14 +26,15 @@ import {
   SST_RATE,
   formatAmountRmb,
 } from '../../data/courseRegistration/addDropFeeRates.js'
-import { addDropLineKey } from '../../data/courseRegistration/addDropMultiItems.js'
+import {
+  addDropLineKey,
+  buildDropCreditBreakdown,
+} from '../../data/courseRegistration/addDropMultiItems.js'
 import {
   displayClassTimeVenueFromFields,
 } from '../../data/courseRegistration/sectionScheduleFields.js'
-import {
-  getRegistrationTypeLabel,
-  normalizeRegistrationType,
-} from '../../data/courseRegistration/registrationTypes.js'
+import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
+import AddDropTermCreditStrip from './AddDropTermCreditStrip.vue'
 
 const props = defineProps({
   form: { type: Object, required: true },
@@ -52,6 +53,8 @@ const props = defineProps({
   addCourse: { type: Object, default: null },
   /** 费用试算汇总 { items, total } */
   feeEstimate: { type: Object, default: null },
+  /** 学期三卡学分条 { ge, me, mandatory } */
+  termCreditStrip: { type: Object, default: null },
   /** 净学分超出学期上限（当前 − 拟退 + 拟加/重修 − 上限） */
   termCreditExcess: { type: Number, default: 0 },
 })
@@ -134,18 +137,12 @@ const addCourseCredits = computed(() => {
 })
 
 const dropCreditBreakdown = computed(() => {
-  const lines = props.form.dropLines || []
-  let me = 0
-  let ge = 0
-  for (const line of lines) {
-    const credits = Number(line.credits) || 0
-    if (normalizeRegistrationType(line.type) === 'GE') ge += credits
-    else me += credits
-  }
+  const raw = buildDropCreditBreakdown(props.form.dropLines || [])
   return {
-    total: String(me + ge),
-    me: String(me),
-    ge: String(ge),
+    total: String(raw.total),
+    mandatory: String(raw.mandatory),
+    me: String(raw.me),
+    ge: String(raw.ge),
   }
 })
 
@@ -441,13 +438,20 @@ function feeStreamLabel(stream) {
 
 <template>
   <div class="adddrop-sections">
-    <CourseRegistrationCallout variant="rule">
-      <p class="notes-title">{{ t(notesTitleKey) }}</p>
-      <ol class="notes-list">
-        <li v-for="key in noteKeys" :key="key">{{ t(key) }}</li>
-      </ol>
-    </CourseRegistrationCallout>
+    <div class="adddrop-sections__pin">
+      <CourseRegistrationCallout variant="rule">
+        <p class="notes-title">{{ t(notesTitleKey) }}</p>
+        <ol class="notes-list">
+          <li v-for="key in noteKeys" :key="key">{{ t(key) }}</li>
+        </ol>
+      </CourseRegistrationCallout>
 
+      <div v-if="termCreditStrip" class="adddrop-form-credit-strip">
+        <AddDropTermCreditStrip :strip="termCreditStrip" />
+      </div>
+    </div>
+
+    <div class="adddrop-sections__scroll">
     <div class="section-bar">{{ t('courseRegistration.student.sectionCommon') }}</div>
     <div class="form-grid">
       <div class="form-field">
@@ -677,10 +681,19 @@ function feeStreamLabel(stream) {
             </table>
           </div>
         </div>
-        <div v-if="hasDropLines" class="form-field span-2 fields-row-3">
+        <div v-if="hasDropLines" class="form-field span-2 fields-row-2">
           <div class="form-field">
             <label>{{ t('courseRegistration.student.fieldDropTotalCredits') }}</label>
             <input type="text" class="form-control" readonly :value="dropCreditBreakdown.total" />
+          </div>
+          <div class="form-field">
+            <label>{{ t('courseRegistration.student.fieldDropMandatoryCredits') }}</label>
+            <input
+              type="text"
+              class="form-control"
+              readonly
+              :value="dropCreditBreakdown.mandatory"
+            />
           </div>
           <div class="form-field">
             <label>{{ t('courseRegistration.student.fieldDropMeCredits') }}</label>
@@ -1076,6 +1089,7 @@ function feeStreamLabel(stream) {
         </span>
       </label>
     </div>
+    </div>
   </div>
 </template>
 
@@ -1084,6 +1098,23 @@ function feeStreamLabel(stream) {
   display: flex;
   flex-direction: column;
   gap: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.adddrop-sections__pin {
+  flex: 0 0 auto;
+  background: #fff;
+  z-index: 2;
+  padding-bottom: 4px;
+}
+
+.adddrop-sections__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 4px;
 }
 
 .notes-title {
@@ -1102,6 +1133,10 @@ function feeStreamLabel(stream) {
 
 .notes-list li + li {
   margin-top: 4px;
+}
+
+.adddrop-form-credit-strip {
+  margin: 12px 0 4px;
 }
 
 .adddrop-sections :deep(.cr-callout) {

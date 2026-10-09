@@ -196,3 +196,50 @@
 
 5. **曾修成绩**  
    并入重修表行内列；移除列表头「操作」。
+
+## 增量：学期三卡学分条 + 退课以必修为主（2026-10）
+
+### Decisions
+
+1. **三卡内容**  
+   - GE 学期：`已选/要求`（geMax）  
+   - ME 学期：`已选/要求`（meMax）  
+   - 必修：仅 `已选 n`（无分母）  
+   不展示毕业行、不展示分类胶囊。
+
+2. **挂载**  
+   共享 `AddDropTermCreditStrip`：申请说明与「申请信息」之间；选择课程弹窗学分区。同源投影（确认+必修底图 − 拟退 + 拟加）。
+
+3. **退课池**  
+   必修底图（`studentRequiredCourses` / CORE）优先列出；确认池选修仍可退但排后、demo 较少。修订「可退仅选修」。
+
+4. **四列排版（2026-10）**  
+   标题上行；列序 GE / ME / 选修学期已选（ge+me current）/ 必修学期已选。
+
+5. **列宽自适应 + GE≤6 同源 + CORE 文案（2026-10）**  
+   - 学分条面板 `width:100%`，四列 `repeat(4, 1fr)` 横向均分拉满（修订先前 max-content 不拉满）。  
+   - 加退 `scope=confirmed` 学分累计排除 `sourceType=admin`，与 R3 `listRoundStatusCreditCourses` 同源；`geMax=6`。拟加 GE 使学期 GE 已选 > geMax 时选课器与提交硬拦。  
+   - `getRegistrationTypeLabel('CORE')` →「必修课」（i18n `types.CORE`）。
+
+6. **退课筛选 / 名额列 / 拟退计费（2026-10）**  
+   - 退课筛选：`courseTypeFilterOptions` 在 ME/GE 外追加 CORE。  
+   - 名额列：`isDrop` 时不渲染「可选名额/总名额」。  
+   - `planRemainingForFee`：`termCreditGate.dropLines.length > 0` 即 boost，修复加退表单打开加课槽时 `action='Add'` 不释放拟退的问题。
+
+7. **退课学分 2×2 + 学分条六列（2026-10）**  
+   - `buildDropCreditBreakdown`：mandatory / me / ge 三分；`isMandatoryAddDropCourse` 优先。表单 `fields-row-2` 四格；详情 field-grid 自然 2×2。  
+   - `buildAddDropTermCreditStrip` 增加 `gradGe`/`gradMe`；展示值统一 `已选/要求`。面板 `repeat(6, 1fr)`。
+
+8. **毕业已选顺序 + 退课列宽 + 本学期基线（2026-10）**  
+   - 毕业 i18n / 数值改为已选/要求。  
+   - Drop 表加 `data-table--drop`：列宽自适应重分配。  
+   - `termCreditStripBaseline.gradGe/MeCurrent` = 学期 GE/ME 已选（本学期确认、不含 prior）；`grad*Max` 仍用培养方案要求。
+
+9. **ME 计费总分口径（2026-10）**  
+   - `remainingForTypeCategory`：ME 与 GE 一样只读总分剩余（`meRemaining` / `geRemaining`），忽略 `meCategory`。  
+   - `buildAddDropPlanRemaining.meRemaining` 对齐培养方案 `meRequired − meEarned`（与 GE 总分算法对称）。  
+   - `consume`/`boost` 仍可维护子类桶（展示/兼容），计费不读子类。
+
+10. **弹框冻结 + 搜索分栏收放（2026-10）**  
+    - 申请弹框：`adddrop-sections__pin`（说明+学分条）+ `__scroll`（表单节）；modal-body `overflow:hidden` 分区滚。  
+    - 选课器：对齐列表页 `list-page-search.css`——首行 `search-fields`（代码/名称/学分）+ 右上 `search-actions`（查询/重置/收起）；次行展开校选课类型、课程类型。
