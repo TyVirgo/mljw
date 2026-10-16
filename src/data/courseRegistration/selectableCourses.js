@@ -310,13 +310,97 @@ const initialCourses = [
     visibleFromRound: 'main',
   },
   {
+    id: 'course-math101',
+    batchId: 'batch-2504-m1',
+    code: 'MATH101',
+    name: 'Calculus I',
+    nameZh: '微积分 I',
+    credits: 4,
+    type: 'CORE',
+    sourceType: 'required',
+    isHot: false,
+    rating: 4,
+    sectionCount: 2,
+    totalCapacity: 80,
+    remainingCapacity: 28,
+    quotaSummary: 'Total 80',
+    prerequisites: [],
+    g1Category: null,
+    sections: [
+      {
+        id: 'sec-math101-1',
+        code: '01',
+        time: 'Wed 09:00–11:00',
+        room: 'A1-2-201',
+        lecturer: 'Prof. Chen',
+        enrolled: 32,
+        capacity: 40,
+      },
+      {
+        id: 'sec-math101-2',
+        code: '02',
+        time: 'Thu 14:00–16:00',
+        room: 'A1-2-202',
+        lecturer: 'Prof. Chen',
+        enrolled: 20,
+        capacity: 40,
+      },
+    ],
+    quota: { total: 80, senior: 45, freshman: 35, releaseToFreshman: true, byIntake: {} },
+    visibleFromRound: 'main',
+  },
+  /** 加课必修曾退 demo：不进课表 DEMO_REQUIRED，与 MATH101 等退课必修错开 */
+  {
+    id: 'course-chem101',
+    batchId: 'batch-2504-m1',
+    code: 'CHEM101',
+    name: 'General Chemistry',
+    nameZh: '普通化学',
+    credits: 3,
+    type: 'CORE',
+    sourceType: 'required',
+    isHot: false,
+    rating: 4,
+    sectionCount: 2,
+    totalCapacity: 70,
+    remainingCapacity: 24,
+    quotaSummary: 'Total 70',
+    prerequisites: [],
+    g1Category: null,
+    sections: [
+      {
+        id: 'sec-chem101-1',
+        code: '01',
+        time: 'Fri 08:00–10:00',
+        room: 'C2-1-101',
+        lecturer: 'Dr. Lim',
+        enrolled: 18,
+        capacity: 35,
+        meetings: [{ time: 'Fri 08:00–10:00', room: 'C2-1-101', weekRange: '1-18' }],
+      },
+      {
+        id: 'sec-chem101-2',
+        code: '02',
+        time: 'Fri 14:00–16:00',
+        room: 'C2-1-102',
+        lecturer: 'Dr. Lim',
+        enrolled: 20,
+        capacity: 35,
+        meetings: [{ time: 'Fri 14:00–16:00', room: 'C2-1-102', weekRange: '1-18' }],
+      },
+    ],
+    quota: { total: 70, senior: 40, freshman: 30, releaseToFreshman: true, byIntake: {} },
+    visibleFromRound: 'main',
+  },
+  {
     id: 'course-phys101',
     batchId: 'batch-2504-m1',
     code: 'PHYS101',
     name: 'Physics I',
     nameZh: '工程物理',
-    credits: 4,
-    type: 'ME',
+    credits: 3,
+    type: 'CORE',
+    sourceType: 'required',
     isHot: false,
     rating: 3,
     sectionCount: 2,
@@ -326,8 +410,64 @@ const initialCourses = [
     prerequisites: [],
     g1Category: null,
     sections: [
-      { id: 'sec-14', code: '01', time: 'Fri 09:00–11:00', room: 'S1-2-101', lecturer: 'Dr. Rahman', enrolled: 28, capacity: 40 },
-      { id: 'sec-phys101-2', code: '02', time: 'Tue 14:00–16:00', room: 'S1-2-102', lecturer: 'Dr. Ismail', enrolled: 22, capacity: 40 },
+      {
+        id: 'sec-phys101-1',
+        code: '01',
+        time: 'Sat 18:00–20:00',
+        room: 'A2-1-105',
+        lecturer: 'Dr. Wong',
+        enrolled: 28,
+        capacity: 40,
+      },
+      {
+        id: 'sec-phys101-2',
+        code: '02',
+        time: 'Tue 14:00–16:00',
+        room: 'S1-2-102',
+        lecturer: 'Dr. Ismail',
+        enrolled: 22,
+        capacity: 40,
+      },
+    ],
+    quota: { total: 80, senior: 45, freshman: 35, releaseToFreshman: true, byIntake: {} },
+    visibleFromRound: 'main',
+  },
+  {
+    id: 'course-int300',
+    batchId: 'batch-2504-m1',
+    code: 'INT300',
+    name: 'Professional Internship',
+    nameZh: '专业实习',
+    credits: 2,
+    type: 'CORE',
+    sourceType: 'required',
+    isHot: false,
+    rating: 4,
+    sectionCount: 2,
+    totalCapacity: 80,
+    remainingCapacity: 28,
+    quotaSummary: 'Total 80',
+    prerequisites: [],
+    g1Category: null,
+    sections: [
+      {
+        id: 'sec-int300-1',
+        code: '01',
+        time: 'Mon 09:00–11:00',
+        room: 'A1-1-101',
+        lecturer: 'Internship Supervisor',
+        enrolled: 32,
+        capacity: 40,
+      },
+      {
+        id: 'sec-int300-2',
+        code: '02',
+        time: 'Wed 14:00–16:00',
+        room: 'A1-1-102',
+        lecturer: 'Prof. Tan',
+        enrolled: 20,
+        capacity: 40,
+      },
     ],
     quota: { total: 80, senior: 45, freshman: 35, releaseToFreshman: true, byIntake: {} },
     visibleFromRound: 'main',
@@ -2443,6 +2583,35 @@ export function getCoursesByBatch(batchId) {
 
 export function getCourseById(id) {
   return selectableCourses.value.find((item) => item.id === id) || null
+}
+
+/** @param {string} code */
+export function getCourseByCode(code) {
+  const key = String(code || '')
+    .trim()
+    .toUpperCase()
+  if (!key) return null
+  return selectableCourses.value.find((item) => String(item.code || '').toUpperCase() === key) || null
+}
+
+/**
+ * 课名展示：优先课库按语言；避免同码中英混用
+ * @param {{ courseId?: string, courseCode?: string, courseName?: string, code?: string, name?: string, nameZh?: string }|null|undefined} courseOrLine
+ * @param {boolean} [isZh]
+ */
+export function resolveCourseDisplayName(courseOrLine, isZh = true) {
+  if (!courseOrLine) return ''
+  const courseId = courseOrLine.courseId || courseOrLine.id
+  const courseCode = courseOrLine.courseCode || courseOrLine.code
+  const catalog =
+    (courseId ? getCourseById(courseId) : null) ||
+    (courseCode ? getCourseByCode(courseCode) : null) ||
+    (courseOrLine.name || courseOrLine.nameZh ? courseOrLine : null)
+  if (catalog) {
+    if (isZh && catalog.nameZh) return catalog.nameZh
+    return catalog.name || courseOrLine.courseName || catalog.code || courseCode || ''
+  }
+  return courseOrLine.courseName || courseOrLine.name || courseCode || ''
 }
 
 /**

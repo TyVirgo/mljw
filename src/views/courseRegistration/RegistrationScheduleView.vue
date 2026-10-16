@@ -22,12 +22,13 @@ import {
   setSessionScheduleEnabled,
 } from '../../data/courseRegistration/sessionRegistrationSchedules.js'
 import '../../data/courseRegistration/sessionRegistrationSchedules.js'
+import '../../styles/list-page-search.css'
 import '../../styles/course-registration-list.css'
 
 const { t } = useAppI18n()
 
-const searchForm = ref({ academicSession: '' })
-const appliedSearch = ref({ academicSession: '' })
+const searchForm = ref({ academicSession: '', enabled: '' })
+const appliedSearch = ref({ academicSession: '', enabled: '' })
 const currentPage = ref(1)
 const pageSize = ref(20)
 const selectedSessions = ref([])
@@ -43,6 +44,11 @@ const rows = computed(() => {
   let list = listSessionSchedules()
   if (appliedSearch.value.academicSession) {
     list = list.filter((r) => r.academicSession.includes(appliedSearch.value.academicSession))
+  }
+  if (appliedSearch.value.enabled === 'on') {
+    list = list.filter((r) => r.enabled !== false)
+  } else if (appliedSearch.value.enabled === 'off') {
+    list = list.filter((r) => r.enabled === false)
   }
   return list.sort((a, b) => String(b.academicSession).localeCompare(String(a.academicSession)))
 })
@@ -72,8 +78,8 @@ function handleSearch() {
 }
 
 function handleReset() {
-  searchForm.value = { academicSession: '' }
-  appliedSearch.value = { academicSession: '' }
+  searchForm.value = { academicSession: '', enabled: '' }
+  appliedSearch.value = { academicSession: '', enabled: '' }
   currentPage.value = 1
   selectedSessions.value = []
 }
@@ -180,6 +186,18 @@ function addDropTitle(row) {
                 <option v-for="opt in registrationAcademicSessionOptions" :key="opt" :value="opt">
                   {{ opt }}
                 </option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ t('courseRegistration.schedule.colEnabled') }}</label>
+              <select
+                v-model="searchForm.enabled"
+                class="search-select"
+                :class="{ 'is-empty': !searchForm.enabled }"
+              >
+                <option value="">{{ t('common.all') }}</option>
+                <option value="on">{{ t('courseRegistration.schedule.enabledOn') }}</option>
+                <option value="off">{{ t('courseRegistration.schedule.enabledOff') }}</option>
               </select>
             </div>
           </div>

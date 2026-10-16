@@ -1,77 +1,163 @@
 <script setup>
 /**
- * 白名单先修豁免：多选课程（按课号去重）
+ * 白名单选课：
+ * - course：先修豁免（按课号勾选；课级 rowspan）
+ * - section：未来必修 / 换组（一课一勾选 = 该课全部教学班 ref；课级 rowspan）
  */
 import { ref, computed, watch, nextTick } from 'vue'
 import TablePagination from '../common/TablePagination.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { selectableCourses } from '../../data/courseRegistration/selectableCourses.js'
-import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
+import { displayClassTimeVenueLines } from '../../data/courseRegistration/sectionScheduleFields.js'
+import { isMandatoryAddDropCourse } from '../../data/courseRegistration/addDropMultiItems.js'
+import {
+  whitelistSectionRefKey,
+  normalizeWhitelistSectionRefs,
+  parseWhitelistSectionRefKey,
+} from '../../data/courseRegistration/whitelistSectionRefs.js'
 import '../../styles/list-page-search.css'
 
 const props = defineProps({
   visible: Boolean,
-  /** 已选课号 */
   selectedCodes: { type: Array, default: () => [] },
+  selectedSections: { type: Array, default: () => [] },
+  /** @type {'course'|'section'} */
+  selectionUnit: { type: String, default: 'course' },
+  coreOnly: { type: Boolean, default: false },
+  titleKey: { type: String, default: 'courseRegistration.whitelist.prereqCoursePickTitle' },
+  hintKey: { type: String, default: 'courseRegistration.whitelist.prereqCoursePickHint' },
 })
 
 const emit = defineEmits(['close', 'confirm'])
 
-const { t } = useAppI18n()
+const { t, locale } = useAppI18n()
 
 const searchForm = ref(emptySearch())
 const appliedSearch = ref(emptySearch())
 const pickedCodes = ref([])
+const pickedSectionKeys = ref([])
 const currentPage = ref(1)
 const pageSize = ref(20)
 const selectAllEl = ref(null)
 
-const courseRows = computed(() => {
-  const map = new Map()
+const scheduleLocale = computed(() => (locale.value === 'en' ? 'en' : 'zh'))
+const isSectionUnit = computed(() => props.selectionUnit === 'section')
+
+/** 按课聚合（分页单位） */
+const courseBlocks = computed(() => {
+  const blocks = []
   for (const c of selectableCourses.value || []) {
     const code = String(c.code || '').trim()
-    if (!code || map.has(code)) continue
-    map.set(code, {
+    if (!code) continue
+    if (props.coreOnly && !isMandatoryAddDropCourse(c)) continue
+    const sections = Array.isArray(c.sections) && c.sections.length
+      ? c.sections
+      : [
+          {
+            id: `${c.id || code}-01`,
+            code: c.sectionCode || '01',
+            name: c.sectionName || '',
+            time: c.time || c.classTime || '',
+            room: c.room || c.venue || '',
+            lecturer: c.lecturer || c.lecturers || '',
+            weekRange: c.weekRange || '1-18',
+            meetings: c.meetings,
+          },
+        ]
+    const sectionLines = []
+    for (const section of sections) {
+      const secCode = String(section.code || section.id || '01').trim() || '01'
+      sectionLines.push({
+        sectionKey: whitelistSectionRefKey({ courseCode: code, sectionCode: secCode }),
+        sectionCode: secCode,
+        groupLabel: groupLabelFor(secCode, section),
+        lecturer: String(section.lecturer || section.lecturers || c.lecturer || '').trim() || '—',
+        timeLines: displayClassTimeVenueLines(
+          {
+            ...section,
+            time: section.time || section.classTime || '',
+            room: section.room || section.venue || '',
+            weekRange: section.weekRange || '1-18',
+          },
+          scheduleLocale.value,
+        ),
+      })
+    }
+    sectionLines.sort((a, b) => String(a.sectionCode).localeCompare(String(b.sectionCode)))
+    blocks.push({
       code,
       name: c.name || code,
       credits: c.credits,
-      type: c.type || '',
+      sectionKeys: sectionLines.map((s) => s.sectionKey).filter(Boolean),
+      sectionLines,
     })
   }
-  return [...map.values()].sort((a, b) => a.code.localeCompare(b.code))
+  return blocks.sort((a, b) => a.code.localeCompare(b.code))
 })
 
-const filteredRows = computed(() => {
+const filteredBlocks = computed(() => {
   const code = String(appliedSearch.value.courseCode || '')
     .trim()
     .toLowerCase()
   const name = String(appliedSearch.value.courseName || '')
     .trim()
     .toLowerCase()
-  return courseRows.value.filter((row) => {
-    if (code && !String(row.code).toLowerCase().includes(code)) return false
-    if (name && !String(row.name).toLowerCase().includes(name)) return false
+  return courseBlocks.value.filter((block) => {
+    if (code && !String(block.code).toLowerCase().includes(code)) return false
+    if (name && !String(block.name).toLowerCase().includes(name)) return false
     return true
   })
 })
 
-const totalCount = computed(() => filteredRows.value.length)
-const paginatedRows = computed(() => {
+const totalCount = computed(() => filteredBlocks.value.length)
+
+const paginatedBlocks = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
-  return filteredRows.value.slice(start, start + pageSize.value)
+  return filteredBlocks.value.slice(start, start + pageSize.value)
 })
 
+/** 展平为组行 + 课级 rowspan 元数据 */
+const paginatedRows = computed(() => {
+  const rows = []
+  for (const block of paginatedBlocks.value) {
+    const span = Math.max(1, block.sectionLines.length)
+    block.sectionLines.forEach((line, idx) => {
+      rows.push({
+        rowKey: `${block.code}::${line.sectionKey}`,
+        code: block.code,
+        name: block.name,
+        credits: block.credits,
+        sectionKeys: block.sectionKeys,
+        ...line,
+        _span: {
+          course: idx === 0 ? { show: true, rowspan: span } : { show: false },
+        },
+      })
+    })
+  }
+  return rows
+})
+
+const pageCourseCodes = computed(() => paginatedBlocks.value.map((b) => b.code))
+
 const pageAllSelected = computed(() => {
-  const rows = paginatedRows.value
-  if (!rows.length) return false
-  return rows.every((row) => pickedCodes.value.includes(row.code))
+  const codes = pageCourseCodes.value
+  if (!codes.length) return false
+  return codes.every((code) => isCoursePicked(code))
 })
 
 const pageSomeSelected = computed(() => {
-  const rows = paginatedRows.value
-  if (!rows.length) return false
-  const n = rows.filter((row) => pickedCodes.value.includes(row.code)).length
-  return n > 0 && n < rows.length
+  const codes = pageCourseCodes.value
+  if (!codes.length) return false
+  const n = codes.filter((code) => isCoursePicked(code)).length
+  return n > 0 && n < codes.length
+})
+
+const pickedCount = computed(() => {
+  if (isSectionUnit.value) {
+    return courseBlocks.value.filter((b) => isCourseFullyPicked(b)).length
+  }
+  return pickedCodes.value.length
 })
 
 watch(
@@ -81,6 +167,9 @@ watch(
     searchForm.value = emptySearch()
     appliedSearch.value = emptySearch()
     pickedCodes.value = [...(props.selectedCodes || [])].map((c) => String(c).trim()).filter(Boolean)
+    pickedSectionKeys.value = normalizeWhitelistSectionRefs(props.selectedSections || []).map(
+      (r) => whitelistSectionRefKey(r),
+    )
     currentPage.value = 1
     pageSize.value = 20
   },
@@ -90,12 +179,49 @@ function emptySearch() {
   return { courseCode: '', courseName: '' }
 }
 
-function isPicked(code) {
+function groupLabelFor(secCode, section) {
+  const name = String(section?.name || section?.sectionName || '').trim()
+  if (name) return name
+  return t('courseRegistration.courses.sectionNameDisplay', { code: secCode })
+}
+
+function blockByCode(code) {
+  return courseBlocks.value.find((b) => b.code === code) || null
+}
+
+function isCourseFullyPicked(block) {
+  const keys = block?.sectionKeys || []
+  if (!keys.length) return false
+  return keys.every((k) => pickedSectionKeys.value.includes(k))
+}
+
+function isCoursePicked(code) {
+  if (isSectionUnit.value) {
+    const block = blockByCode(code)
+    return block ? isCourseFullyPicked(block) : false
+  }
   return pickedCodes.value.includes(code)
 }
 
-function toggleRow(row) {
-  const code = row.code
+function courseSpan(row) {
+  return row?._span?.course || { show: true, rowspan: 1 }
+}
+
+function toggleCourse(code) {
+  const block = blockByCode(code)
+  if (!block) return
+  if (isSectionUnit.value) {
+    const set = new Set(pickedSectionKeys.value)
+    const keys = block.sectionKeys || []
+    const allOn = keys.length > 0 && keys.every((k) => set.has(k))
+    if (allOn) {
+      for (const k of keys) set.delete(k)
+    } else {
+      for (const k of keys) set.add(k)
+    }
+    pickedSectionKeys.value = [...set]
+    return
+  }
   const set = new Set(pickedCodes.value)
   if (set.has(code)) set.delete(code)
   else set.add(code)
@@ -103,18 +229,34 @@ function toggleRow(row) {
 }
 
 function togglePageSelectAll() {
+  const codes = pageCourseCodes.value
+  if (isSectionUnit.value) {
+    const set = new Set(pickedSectionKeys.value)
+    if (pageAllSelected.value) {
+      for (const code of codes) {
+        const block = blockByCode(code)
+        for (const k of block?.sectionKeys || []) set.delete(k)
+      }
+    } else {
+      for (const code of codes) {
+        const block = blockByCode(code)
+        for (const k of block?.sectionKeys || []) set.add(k)
+      }
+    }
+    pickedSectionKeys.value = [...set]
+    return
+  }
   const set = new Set(pickedCodes.value)
-  const pageCodes = paginatedRows.value.map((row) => row.code)
   if (pageAllSelected.value) {
-    for (const code of pageCodes) set.delete(code)
+    for (const code of codes) set.delete(code)
   } else {
-    for (const code of pageCodes) set.add(code)
+    for (const code of codes) set.add(code)
   }
   pickedCodes.value = [...set]
 }
 
 watch(
-  [pageAllSelected, pageSomeSelected, paginatedRows, pickedCodes],
+  [pageAllSelected, pageSomeSelected, paginatedRows, pickedCodes, pickedSectionKeys],
   async () => {
     await nextTick()
     if (selectAllEl.value) {
@@ -139,11 +281,14 @@ function handleOverlayClick(event) {
 }
 
 function handleConfirm() {
+  if (isSectionUnit.value) {
+    emit(
+      'confirm',
+      pickedSectionKeys.value.map(parseWhitelistSectionRefKey).filter(Boolean),
+    )
+    return
+  }
   emit('confirm', [...pickedCodes.value])
-}
-
-function typeLabel(type) {
-  return getRegistrationTypeLabel(type, t)
 }
 </script>
 
@@ -152,7 +297,7 @@ function typeLabel(type) {
     <div v-if="visible" class="modal-overlay" @click="handleOverlayClick">
       <div class="modal-panel" role="dialog" aria-modal="true">
         <div class="modal-header">
-          <h3>{{ t('courseRegistration.whitelist.prereqCoursePickTitle') }}</h3>
+          <h3>{{ t(titleKey) }}</h3>
           <button type="button" class="modal-close" @click="emit('close')">×</button>
         </div>
         <div class="modal-body">
@@ -189,7 +334,7 @@ function typeLabel(type) {
             </div>
           </div>
           <p class="pick-hint">
-            {{ t('courseRegistration.whitelist.prereqCoursePickHint', { n: pickedCodes.length }) }}
+            {{ t(hintKey, { n: pickedCount }) }}
           </p>
           <div class="table-wrap">
             <table class="data-table">
@@ -200,38 +345,72 @@ function typeLabel(type) {
                       ref="selectAllEl"
                       type="checkbox"
                       :checked="pageAllSelected"
-                      :disabled="!paginatedRows.length"
+                      :disabled="!pageCourseCodes.length"
                       :aria-label="t('courseRegistration.whitelist.prereqSelectAllPage')"
                       @change="togglePageSelectAll"
                     />
                   </th>
                   <th>{{ t('courseRegistration.courses.code') }}</th>
                   <th>{{ t('courseRegistration.courses.name') }}</th>
+                  <th>{{ t('courseRegistration.student.fieldGroupNo') }}</th>
                   <th>{{ t('courseRegistration.courses.credits') }}</th>
-                  <th>{{ t('courseRegistration.courses.type') }}</th>
+                  <th>{{ t('courseRegistration.courses.lecturer') }}</th>
+                  <th>{{ t('courseRegistration.courses.classTimeVenue') }}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr
                   v-for="row in paginatedRows"
-                  :key="row.code"
-                  :class="{ selected: isPicked(row.code) }"
-                  @click="toggleRow(row)"
+                  :key="row.rowKey"
+                  :class="{ selected: isCoursePicked(row.code) }"
+                  @click="toggleCourse(row.code)"
                 >
-                  <td class="col-check" @click.stop>
+                  <td
+                    v-if="courseSpan(row).show"
+                    class="col-check cell-course"
+                    :rowspan="courseSpan(row).rowspan"
+                    @click.stop
+                  >
                     <input
                       type="checkbox"
-                      :checked="isPicked(row.code)"
-                      @change="toggleRow(row)"
+                      :checked="isCoursePicked(row.code)"
+                      @change="toggleCourse(row.code)"
                     />
                   </td>
-                  <td>{{ row.code }}</td>
-                  <td>{{ row.name }}</td>
-                  <td>{{ row.credits }}</td>
-                  <td>{{ typeLabel(row.type) }}</td>
+                  <td
+                    v-if="courseSpan(row).show"
+                    class="cell-course"
+                    :rowspan="courseSpan(row).rowspan"
+                  >
+                    {{ row.code }}
+                  </td>
+                  <td
+                    v-if="courseSpan(row).show"
+                    class="cell-course"
+                    :rowspan="courseSpan(row).rowspan"
+                  >
+                    {{ row.name }}
+                  </td>
+                  <td>{{ row.groupLabel }}</td>
+                  <td
+                    v-if="courseSpan(row).show"
+                    class="cell-course"
+                    :rowspan="courseSpan(row).rowspan"
+                  >
+                    {{ row.credits }}
+                  </td>
+                  <td>{{ row.lecturer }}</td>
+                  <td class="col-time" :title="row.timeLines.join('\n') || undefined">
+                    <template v-if="row.timeLines.length">
+                      <div v-for="(tl, li) in row.timeLines" :key="li" class="time-line">
+                        {{ tl }}
+                      </div>
+                    </template>
+                    <template v-else>—</template>
+                  </td>
                 </tr>
                 <tr v-if="!paginatedRows.length">
-                  <td colspan="5" class="empty-cell">{{ t('common.noData') }}</td>
+                  <td colspan="7" class="empty-cell">{{ t('common.noData') }}</td>
                 </tr>
               </tbody>
             </table>
@@ -267,7 +446,7 @@ function typeLabel(type) {
   padding: 24px;
 }
 .modal-panel {
-  width: min(880px, 100%);
+  width: min(1080px, 100%);
   max-height: min(86vh, 900px);
   background: #fff;
   border-radius: 10px;
@@ -327,27 +506,45 @@ function typeLabel(type) {
 .data-table th,
 .data-table td {
   padding: 8px 10px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
   text-align: left;
+  vertical-align: middle;
 }
 .data-table th {
   background: #f9fafb;
-  color: #374151;
   font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
 }
-.data-table tr {
+.data-table tbody tr {
   cursor: pointer;
 }
-.data-table tr.selected {
+.data-table tbody tr:hover {
+  background: #f8fafc;
+}
+.data-table tbody tr.selected {
   background: #eff6ff;
 }
+.data-table td.cell-course[rowspan] {
+  vertical-align: middle;
+}
 .col-check {
-  width: 36px;
+  width: 40px;
+  text-align: center;
+}
+.col-time {
+  min-width: 12em;
+  white-space: normal;
+  line-height: 1.35;
+  vertical-align: top;
+}
+.time-line + .time-line {
+  margin-top: 2px;
 }
 .empty-cell {
   text-align: center;
   color: #9ca3af;
-  padding: 24px !important;
+  padding: 24px 10px !important;
 }
 .modal-footer {
   display: flex;
@@ -356,7 +553,7 @@ function typeLabel(type) {
   padding: 12px 18px;
   border-top: 1px solid #e5e7eb;
 }
-.btn {
+.modal-footer .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -368,12 +565,12 @@ function typeLabel(type) {
   cursor: pointer;
   border: 1px solid transparent;
 }
-.btn-primary {
+.modal-footer .btn-primary {
   background: #2563eb;
   color: #fff;
   border-color: #2563eb;
 }
-.btn-default {
+.modal-footer .btn-default {
   background: #fff;
   border-color: #d1d5db;
   color: #374151;

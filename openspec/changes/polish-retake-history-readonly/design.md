@@ -54,6 +54,12 @@ estimateRetakeFee({ course, dropCourse, feeWaiverOffset })
 
 `listTranscriptForRetakeCourse` 同时按 `retakeCourseId` 与课号匹配，避免 courseId 为课号时带出为空。
 
+### 9. 重修类型默认不及格重修
+
+- `RETAKE_TYPE_OPTIONS`：`failed` 置顶，其次 `improve_grade`。
+- 新建/切到 `Retake`|`RetakeDrop` 且 `retakeType` 为空时默认 `failed`；编辑已有申请保留原值。
+- 下拉去掉 `value=""` 的「请选择」；`retakeTypeFirstHint` 文案不动。
+
 ## Risks / Trade-offs
 
 - [先选重修再改退费抵免] → watch feeWaiver / dropCourse 重算 feeEstimate（computed 已覆盖表单；弹窗仅在打开时用当前值）。

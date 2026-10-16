@@ -27,7 +27,7 @@ export function isRetakeDropLinkedType(type) {
 }
 
 /**
- * @typedef {'serial'|'applicationNo'|'status'|'type'|'studentId'|'studentName'|'academicSession'|'addCourse'|'dropCourse'|'retakeCourse'|'section'|'weekRange'|'classTimeVenue'|'lecturers'|'excessCredits'|'fee'|'retakeType'|'feeWaiver'|'credits'|'bill'|'paymentRemindCount'|'paymentRemaining'|'submittedAt'|'actions'} AddDropListColumnId
+ * @typedef {'serial'|'applicationNo'|'status'|'type'|'needDrop'|'studentId'|'studentName'|'programme'|'academicSession'|'addCourse'|'dropCourse'|'retakeCourse'|'section'|'weekRange'|'classTimeVenue'|'lecturers'|'excessCredits'|'fee'|'retakeType'|'feeWaiver'|'credits'|'bill'|'paymentRemindCount'|'paymentRemaining'|'submittedAt'|'actions'} AddDropListColumnId
  */
 
 /** @type {Record<string, AddDropListColumnId[]>} */
@@ -120,7 +120,7 @@ export const ADD_DROP_LIST_COLUMNS_BY_TYPE = {
 export function getAddDropApprovalListColumns(type = '', opts = {}) {
   const prefix = []
   if (opts.showCheck) prefix.push('check')
-  prefix.push('serial', 'applicationNo', 'status', 'type')
+  prefix.push('serial', 'applicationNo', 'status', 'type', 'needDrop')
 
   /** 费用相关：超出学分 → 预估费用 → 账单 [→ 发送邮件次数 → 缴费剩余] */
   const feeBlock = opts.showPaymentRemaining
@@ -134,7 +134,7 @@ export function getAddDropApprovalListColumns(type = '', opts = {}) {
     middle.push('retakeType')
   }
 
-  return [...prefix, ...middle, 'submittedAt', 'actions']
+  return [...prefix, ...middle, 'programme', 'submittedAt', 'actions']
 }
 
 /** 学生端混合列表公共列（个性字段进详情） */
@@ -143,6 +143,7 @@ export const ADD_DROP_COMMON_LIST_COLUMNS = [
   'applicationNo',
   'academicSession',
   'type',
+  'needDrop',
   'status',
   'submittedAt',
   'actions',

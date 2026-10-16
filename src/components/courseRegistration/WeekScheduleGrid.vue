@@ -13,7 +13,7 @@ const props = defineProps({
   showLegend: { type: Boolean, default: false },
   /**
    * register：必修 / 已确认选修 / 本轮选择
-   * myResult：必修 / 选修 / 申请 / 管理员添加（无本轮选择）
+   * myResult：必修课 / 选修课
    */
   legendMode: { type: String, default: 'register' },
   /** 撑满父级高度，行高随可用空间放大 */
@@ -175,8 +175,10 @@ function blockClass(slot) {
   const stacked = slot.laneCount > 1 ? 'is-narrow' : ''
   if (layer === 'required') return ['cell-block', 'is-required', stroke, stacked]
   if (layer === 'preview') return ['cell-block', 'is-preview', stroke, stacked]
-  if (layer === 'application') return ['cell-block', 'is-application', stroke, stacked]
-  if (layer === 'admin') return ['cell-block', 'is-admin', stroke, stacked]
+  // 旧 other/application/admin：我的课程并入选修色
+  if (layer === 'other' || layer === 'application' || layer === 'admin') {
+    return ['cell-block', 'is-confirmed', stroke, stacked]
+  }
   if (layer === 'elective') return ['cell-block', 'is-confirmed', stroke, stacked]
   return ['cell-block', 'is-confirmed', stroke, stacked]
 }
@@ -224,11 +226,12 @@ function layerLabel(slot) {
   const layer = slot.layer || (slot.preview ? 'preview' : 'confirmed')
   if (layer === 'required') return t('courseRegistration.student.scheduleLegendRequired')
   if (layer === 'preview') return t('courseRegistration.student.scheduleLegendPreview')
-  if (layer === 'application') return t('courseRegistration.student.scheduleLegendApplication')
-  if (layer === 'admin') return t('courseRegistration.student.scheduleLegendAdmin')
-  if (layer === 'elective' || isMyResultLegend.value) {
-    return t('courseRegistration.student.scheduleLegendElective')
+  if (layer === 'elective' || layer === 'other' || layer === 'application' || layer === 'admin') {
+    return isMyResultLegend.value
+      ? t('courseRegistration.student.scheduleLegendElective')
+      : t('courseRegistration.student.scheduleLegendConfirmed')
   }
+  if (isMyResultLegend.value) return t('courseRegistration.student.scheduleLegendElective')
   return t('courseRegistration.student.scheduleLegendConfirmed')
 }
 
@@ -268,7 +271,7 @@ function conflictTip(slot) {
 <template>
   <div
     class="week-grid-wrap"
-    :class="{ 'is-stretch': stretch }"
+    :class="{ 'is-stretch': stretch, 'is-my-result': isMyResultLegend }"
     :style="{
       '--week-grid-row-h': `${effectiveRowH}px`,
       '--week-grid-body-h': stretch ? '100%' : `${BODY_H}px`,
@@ -285,16 +288,6 @@ function conflictTip(slot) {
         <li>
           <span class="lg-swatch is-confirmed is-solid" />{{
             t('courseRegistration.student.scheduleLegendElective')
-          }}
-        </li>
-        <li>
-          <span class="lg-swatch is-application is-solid" />{{
-            t('courseRegistration.student.scheduleLegendApplication')
-          }}
-        </li>
-        <li>
-          <span class="lg-swatch is-admin is-solid" />{{
-            t('courseRegistration.student.scheduleLegendAdmin')
           }}
         </li>
       </template>
@@ -427,19 +420,16 @@ function conflictTip(slot) {
 }
 
 .lg-swatch.is-required.is-solid {
-  background: #7c3aed;
+  background: #1d4ed8;
 }
 
 .lg-swatch.is-confirmed.is-solid {
-  background: #93c5fd;
+  background: #bfdbfe;
+  border: 1px solid #93c5fd;
 }
 
-.lg-swatch.is-application.is-solid {
+.lg-swatch.is-other.is-solid {
   background: #f59e0b;
-}
-
-.lg-swatch.is-admin.is-solid {
-  background: #0d9488;
 }
 
 .lg-swatch.is-preview.is-dashed {
@@ -631,24 +621,20 @@ function conflictTip(slot) {
   white-space: normal;
 }
 
+/* 必修 / 已确认选修（我的课表 + 在线选课预览共用） */
 .cell-block.is-required.is-solid {
-  background: #7c3aed;
+  background: #1d4ed8;
   color: #fff;
 }
 
 .cell-block.is-confirmed.is-solid {
-  background: #93c5fd;
-  color: #1e3a8a;
+  background: #bfdbfe;
+  color: #111827;
 }
 
-.cell-block.is-application.is-solid {
+.cell-block.is-other.is-solid {
   background: #f59e0b;
   color: #78350f;
-}
-
-.cell-block.is-admin.is-solid {
-  background: #0d9488;
-  color: #fff;
 }
 
 .cell-block.is-preview.is-dashed,

@@ -10,6 +10,8 @@ const props = defineProps({
   localFile: { type: Object, default: null },
   downloadLabel: { type: String, default: '' },
   showFileIcon: { type: Boolean, default: true },
+  /** 在预览（眼）后展示下载图标 */
+  showDownload: { type: Boolean, default: false },
 })
 
 const { t } = useAppI18n()
@@ -50,7 +52,7 @@ function downloadFile() {
     </button>
     <button
       type="button"
-      class="eye-btn"
+      class="icon-btn"
       :aria-label="t('common.previewAttachment')"
       :title="t('common.previewAttachment')"
       @click="openPreview"
@@ -58,6 +60,20 @@ function downloadFile() {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
         <circle cx="12" cy="12" r="3" />
+      </svg>
+    </button>
+    <button
+      v-if="showDownload"
+      type="button"
+      class="icon-btn"
+      :aria-label="t('common.downloadAttachment')"
+      :title="t('common.downloadAttachment')"
+      @click="downloadFile"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
       </svg>
     </button>
 
@@ -95,7 +111,7 @@ function downloadFile() {
   height: 16px;
   flex-shrink: 0;
 }
-.eye-btn {
+.icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -108,11 +124,11 @@ function downloadFile() {
   color: #6b7280;
   cursor: pointer;
 }
-.eye-btn svg {
+.icon-btn svg {
   width: 18px;
   height: 18px;
 }
-.eye-btn:hover {
+.icon-btn:hover {
   color: #2563eb;
   background: #eff6ff;
 }

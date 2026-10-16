@@ -5,6 +5,23 @@
 import { entryHasActivePermission, getSupplementEntry } from './supplementListQueue.js'
 import { normalizeRegistrationType } from './registrationTypes.js'
 import { resolveAddDropFeeCategoryKey } from './studentRegistrationContext.js'
+import { getCourseByCode, getCourseById } from './selectableCourses.js'
+
+/** 审批行补齐 type，便于学分条按 GE/ME/必修投影 */
+function enrichItemForCreditStrip(item) {
+  if (!item) return item
+  if (item.type || item.sourceType) return item
+  const catalog =
+    (item.courseId && getCourseById(item.courseId)) ||
+    getCourseByCode(item.courseCode || item.code) ||
+    null
+  if (!catalog) return item
+  return {
+    ...item,
+    type: catalog.type || item.type,
+    sourceType: catalog.sourceType || item.sourceType,
+  }
+}
 
 /**
  * @param {object} line
@@ -60,6 +77,22 @@ export function creditGroupsHaveTermCategoryOver(groups = []) {
     }
   }
   return false
+}
+
+/**
+ * 学分条 GE/ME 学期总分超额（仅 cur > max；顶格不计）
+ * @param {{ ge?: { current?: number, max?: number }, me?: { current?: number, max?: number } }|null|undefined} strip
+ * @returns {number}
+ */
+export function sumGeMeTermStripExcess(strip) {
+  let excess = 0
+  for (const key of ['ge', 'me']) {
+    const bar = strip?.[key]
+    const cur = Number(bar?.current) || 0
+    const max = Number(bar?.max) || 0
+    if (max > 0 && cur > max) excess += cur - max
+  }
+  return excess
 }
 
 /**
@@ -136,9 +169,29 @@ export function computeTermCreditExcess(currentCredits, dropLines = [], addLines
  * @param {string} studentId
  * @returns {boolean}
  */
+/** 白名单学期超上限默认可超学分 */
+export const DEFAULT_CREDIT_BYPASS_EXTRA = 3
+export const CREDIT_BYPASS_EXTRA_MIN = 1
+export const CREDIT_BYPASS_EXTRA_MAX = 3
+
 export function hasWhitelistCreditMaxBypass(studentId) {
   const entry = getSupplementEntry(studentId)
   return entryHasActivePermission(entry, 'bypassCreditMax')
+}
+
+/**
+ * 白名单允许超学期上限的学分数（1–3）；无权限返回 0
+ * @param {string} studentId
+ */
+export function getWhitelistCreditBypassExtra(studentId) {
+  const entry = getSupplementEntry(studentId)
+  if (!entry || !entryHasActivePermission(entry, 'bypassCreditMax')) return 0
+  const perm = (entry.permissions || []).find((p) => p.key === 'bypassCreditMax' && p.enabled !== false)
+  const n = Number(perm?.extraCredits)
+  if (Number.isFinite(n) && n >= CREDIT_BYPASS_EXTRA_MIN) {
+    return Math.min(CREDIT_BYPASS_EXTRA_MAX, Math.floor(n))
+  }
+  return DEFAULT_CREDIT_BYPASS_EXTRA
 }
 
 /**
@@ -150,6 +203,7 @@ export function hasWhitelistCreditMaxBypass(studentId) {
  * @param {object[]} opts.addLines 已选加/重修（不含候选）
  * @param {number} opts.candidateCredits
  * @param {boolean} opts.bypassCreditMax
+ * @param {number} [opts.creditBypassExtra] 可超额度 1–3；bypass 开启且未传时按 3
  */
 export function evaluateTermCreditGate({
   currentCredits,
@@ -158,10 +212,11 @@ export function evaluateTermCreditGate({
   addLines = [],
   candidateCredits = 0,
   bypassCreditMax = false,
+  creditBypassExtra,
 }) {
   const max = Number(creditMax) || 0
   if (max <= 0) {
-    return { over: false, blocked: false, net: Number(currentCredits) || 0, excess: 0 }
+    return { over: false, blocked: false, net: Number(currentCredits) || 0, excess: 0, allowedExtra: 0 }
   }
   const net = computeNetCreditsAfterLines(currentCredits, dropLines, [
     ...addLines,
@@ -169,11 +224,23 @@ export function evaluateTermCreditGate({
   ])
   const excess = Math.max(0, net - max)
   const over = excess > 0
+  const allowedExtra = bypassCreditMax
+    ? Math.min(
+        CREDIT_BYPASS_EXTRA_MAX,
+        Math.max(
+          CREDIT_BYPASS_EXTRA_MIN,
+          Number.isFinite(Number(creditBypassExtra))
+            ? Math.floor(Number(creditBypassExtra))
+            : DEFAULT_CREDIT_BYPASS_EXTRA,
+        ),
+      )
+    : 0
   return {
     over,
-    blocked: over && !bypassCreditMax,
+    blocked: over && (!bypassCreditMax || excess > allowedExtra),
     net,
     excess,
+    allowedExtra,
   }
 }
 
@@ -362,6 +429,7 @@ function toneForSelectedRequired(current, max) {
  *   meCurrent?: number, meMax?: number,
  *   gradGeCurrent?: number, gradGeMax?: number,
  *   gradMeCurrent?: number, gradMeMax?: number,
+ *   gradMandatoryCurrent?: number, gradMandatoryMax?: number,
  *   mandatorySelected?: number,
  *   dropCourses?: object[], addCourses?: object[],
  * }} [opts]
@@ -371,11 +439,13 @@ export function buildAddDropTermCreditStrip(opts = {}) {
   let me = Math.max(0, Number(opts.meCurrent) || 0)
   let gradGe = Math.max(0, Number(opts.gradGeCurrent) || 0)
   let gradMe = Math.max(0, Number(opts.gradMeCurrent) || 0)
+  let gradMandatory = Math.max(0, Number(opts.gradMandatoryCurrent) || 0)
   let mandatory = Math.max(0, Number(opts.mandatorySelected) || 0)
   const geMax = Math.max(0, Number(opts.geMax) || 0)
   const meMax = Math.max(0, Number(opts.meMax) || 0)
   const gradGeMax = Math.max(0, Number(opts.gradGeMax) || 0)
   const gradMeMax = Math.max(0, Number(opts.gradMeMax) || 0)
+  const gradMandatoryMax = Math.max(0, Number(opts.gradMandatoryMax) || 0)
 
   function apply(course, sign) {
     if (!course) return
@@ -383,6 +453,7 @@ export function buildAddDropTermCreditStrip(opts = {}) {
     if (!credits) return
     if (isMandatoryAddDropCourse(course)) {
       mandatory = Math.max(0, mandatory + sign * credits)
+      gradMandatory = Math.max(0, gradMandatory + sign * credits)
       return
     }
     const kind = normalizeRegistrationType(course.type || course.course?.type)
@@ -409,10 +480,199 @@ export function buildAddDropTermCreditStrip(opts = {}) {
       max: gradMeMax,
       tone: toneForSelectedRequired(gradMe, gradMeMax),
     },
+    /** 毕业必修已选/要求（仅供学分情况 tip；七列不展示） */
+    gradMandatory: {
+      current: gradMandatory,
+      max: gradMandatoryMax,
+      tone: toneForSelectedRequired(gradMandatory, gradMandatoryMax),
+    },
     ge: { current: ge, max: geMax, tone: toneForSelectedRequired(ge, geMax) },
     me: { current: me, max: meMax, tone: toneForSelectedRequired(me, meMax) },
     /** 学期选修已选 = GE 已选 + ME 已选 */
     elective: { current: ge + me, tone: 'is-neutral' },
     mandatory: { current: mandatory, tone: 'is-neutral' },
+    /** 已选总学分 = 学期选修 + 学期必修 */
+    totalSelected: { current: ge + me + mandatory, tone: 'is-neutral' },
   }
+}
+
+/**
+ * 按学分要求条数据汇总毕业累计未修（要求 − 已选）
+ * @param {object|null|undefined} strip
+ * @returns {{ mandatory: number, ge: number, me: number, hasDeficit: boolean }}
+ */
+export function summarizeAddDropStripCreditGaps(strip) {
+  const geCur = Number(strip?.gradGe?.current) || 0
+  const geMax = Number(strip?.gradGe?.max) || 0
+  const meCur = Number(strip?.gradMe?.current) || 0
+  const meMax = Number(strip?.gradMe?.max) || 0
+  const manCur = Number(strip?.gradMandatory?.current) || 0
+  const manMax = Number(strip?.gradMandatory?.max) || 0
+  const mandatory = Math.max(0, manMax - manCur)
+  const ge = Math.max(0, geMax - geCur)
+  const me = Math.max(0, meMax - meCur)
+  return {
+    mandatory,
+    ge,
+    me,
+    hasDeficit: mandatory > 0 || ge > 0 || me > 0,
+  }
+}
+
+/** 有学分要求条的加/退/重修场景均展示学分情况 tip */
+export function shouldShowAddDropCreditSituationTip(appType) {
+  return (
+    appType === 'Add' ||
+    appType === 'Drop' ||
+    appType === 'Retake' ||
+    appType === 'AddDrop' ||
+    appType === 'RetakeDrop'
+  )
+}
+
+/**
+ * 本次申请按动作汇总学分（加课 / 重修 / 退课）
+ * @param {object[]} items
+ * @returns {{ add: number, retake: number, drop: number }}
+ */
+export function sumApplicationActionCredits(items = []) {
+  let add = 0
+  let retake = 0
+  let drop = 0
+  for (const item of items || []) {
+    const credits = Number(item?.credits) || 0
+    if (!credits) continue
+    if (item.action === 'Drop') drop += credits
+    else if (item.action === 'Retake') retake += credits
+    else if (item.action === 'Add') add += credits
+  }
+  return { add, retake, drop }
+}
+
+/** @param {object} [baseline] */
+export function normalizeTermCreditStripBaseline(baseline = {}) {
+  return {
+    geCurrent: Number(baseline.geCurrent) || 0,
+    geMax: Number(baseline.geMax) || 0,
+    meCurrent: Number(baseline.meCurrent) || 0,
+    meMax: Number(baseline.meMax) || 0,
+    gradGeCurrent: Number(baseline.gradGeCurrent) || 0,
+    gradGeMax: Number(baseline.gradGeMax) || 0,
+    gradMeCurrent: Number(baseline.gradMeCurrent) || 0,
+    gradMeMax: Number(baseline.gradMeMax) || 0,
+    gradMandatoryCurrent: Number(baseline.gradMandatoryCurrent) || 0,
+    gradMandatoryMax: Number(baseline.gradMandatoryMax) || 0,
+    mandatorySelected: Number(baseline.mandatorySelected) || 0,
+  }
+}
+
+const DEFAULT_TERM_CREDIT_BASELINE = {
+  geCurrent: 3,
+  geMax: 6,
+  meCurrent: 8,
+  meMax: 22,
+  gradGeCurrent: 3,
+  gradGeMax: 18,
+  gradMeCurrent: 8,
+  gradMeMax: 24,
+  gradMandatoryCurrent: 54,
+  gradMandatoryMax: 72,
+  mandatorySelected: 9,
+}
+
+/**
+ * 由提交时学分条反推申请前基线（将加/退作用反向）
+ * @param {object|null} strip
+ * @param {object[]} [items]
+ */
+export function inferTermCreditStripBaseline(strip, items = []) {
+  if (!strip) return null
+  const enriched = (items || []).map(enrichItemForCreditStrip)
+  const drops = enriched.filter((i) => i.action === 'Drop')
+  const adds = enriched.filter((i) => i.action === 'Add' || i.action === 'Retake')
+  const reversed = buildAddDropTermCreditStrip({
+    geCurrent: Number(strip.ge?.current) || 0,
+    geMax: Number(strip.ge?.max) || 0,
+    meCurrent: Number(strip.me?.current) || 0,
+    meMax: Number(strip.me?.max) || 0,
+    gradGeCurrent: Number(strip.gradGe?.current) || 0,
+    gradGeMax: Number(strip.gradGe?.max) || 0,
+    gradMeCurrent: Number(strip.gradMe?.current) || 0,
+    gradMeMax: Number(strip.gradMe?.max) || 0,
+    gradMandatoryCurrent: Number(strip.gradMandatory?.current) || 0,
+    gradMandatoryMax: Number(strip.gradMandatory?.max) || 0,
+    mandatorySelected: Number(strip.mandatory?.current) || 0,
+    // 反向：把加课当退、退课当加
+    dropCourses: adds,
+    addCourses: drops,
+  })
+  return {
+    geCurrent: reversed.ge.current,
+    geMax: reversed.ge.max,
+    meCurrent: reversed.me.current,
+    meMax: reversed.me.max,
+    gradGeCurrent: reversed.gradGe.current,
+    gradGeMax: reversed.gradGe.max,
+    gradMeCurrent: reversed.gradMe.current,
+    gradMeMax: reversed.gradMe.max,
+    gradMandatoryCurrent: reversed.gradMandatory?.current || 0,
+    gradMandatoryMax: reversed.gradMandatory?.max || 0,
+    mandatorySelected: reversed.mandatory.current,
+  }
+}
+
+/**
+ * 解析申请学分基线：显式 baseline → strip 反推 → demo 默认
+ * @param {object|null} app
+ */
+export function resolveApplicationTermCreditBaseline(app) {
+  if (!app) return { ...DEFAULT_TERM_CREDIT_BASELINE }
+  if (app.termCreditStripBaseline) {
+    return normalizeTermCreditStripBaseline(app.termCreditStripBaseline)
+  }
+  const inferred = inferTermCreditStripBaseline(app.termCreditStrip, app.items || [])
+  if (inferred) return inferred
+  return { ...DEFAULT_TERM_CREDIT_BASELINE }
+}
+
+/**
+ * 审批弹框动态学分条：仅「通过」行计入
+ * @param {object|null} app
+ * @param {Record<string, string>} [decisionsByKey] lineKey → approved|rejected|update_required|pending
+ */
+export function buildApprovalDecisionTermCreditStrip(app, decisionsByKey = {}) {
+  const items = Array.isArray(app?.items) ? app.items : []
+  const baseline = resolveApplicationTermCreditBaseline(app)
+  const approved = items
+    .filter((item, idx) => {
+      const key = addDropLineKey(item) || String(idx)
+      return decisionsByKey[key] === 'approved'
+    })
+    .map(enrichItemForCreditStrip)
+  return buildAddDropTermCreditStrip({
+    ...baseline,
+    dropCourses: approved.filter((i) => i.action === 'Drop'),
+    addCourses: approved.filter((i) => i.action === 'Add' || i.action === 'Retake'),
+  })
+}
+
+/**
+ * demo / 无快照时：按 items 投影生成学分要求条（固定基线）
+ * @param {object[]} items
+ * @param {object} [baseline]
+ */
+export function buildDemoTermCreditStripFromItems(items = [], baseline = {}) {
+  const dropCourses = (items || []).filter((i) => i.action === 'Drop')
+  const addCourses = (items || []).filter(
+    (i) => i.action === 'Add' || i.action === 'Retake',
+  )
+  const base = normalizeTermCreditStripBaseline({
+    ...DEFAULT_TERM_CREDIT_BASELINE,
+    ...baseline,
+  })
+  return buildAddDropTermCreditStrip({
+    ...base,
+    dropCourses,
+    addCourses,
+  })
 }

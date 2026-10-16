@@ -482,11 +482,23 @@ export function listVolunteerCourseSummaries(filters = {}) {
   }
   const courseCode = String(filters.courseCode || '').trim().toLowerCase()
   const courseName = String(filters.courseName || '').trim().toLowerCase()
+  const courseType = String(filters.courseType || '').trim()
+  const sectionCode = String(filters.sectionCode || '').trim().toLowerCase()
+  const credits = String(filters.credits ?? '').trim()
   if (courseCode) {
     list = list.filter((r) => String(r.courseCode || '').toLowerCase().includes(courseCode))
   }
   if (courseName) {
     list = list.filter((r) => String(r.courseName || '').toLowerCase().includes(courseName))
+  }
+  if (courseType) {
+    list = list.filter((r) => String(r.courseType || '') === courseType)
+  }
+  if (sectionCode) {
+    list = list.filter((r) => String(r.sectionCode || '').toLowerCase().includes(sectionCode))
+  }
+  if (credits !== '') {
+    list = list.filter((r) => String(r.credits) === credits)
   }
   if (filters.keyword) {
     const kw = String(filters.keyword).toLowerCase()
@@ -508,6 +520,46 @@ export function listVolunteerCourseSummaries(filters = {}) {
 export function getVolunteerSectionState(courseId, sectionId) {
   const key = sectionStateKey(courseId, sectionId)
   return volunteerCourseStates.value.find((c) => c.key === key) || null
+}
+
+/**
+ * 将课程×分组汇总行展开为志愿学生明细（导出用）
+ * @param {Array<{ courseId: string, sectionId: string, batchName?: string, courseCode?: string, courseName?: string, sectionCode?: string }>} sectionRows
+ * @param {{ volunteersByKey?: Map<string, object[]> }} [options] 可选覆盖名单（抽屉草稿）
+ * @returns {object[]}
+ */
+export function listVolunteerDetailRowsForSections(sectionRows, options = {}) {
+  const list = Array.isArray(sectionRows) ? sectionRows : []
+  const override = options.volunteersByKey
+  const out = []
+  for (const meta of list) {
+    if (!meta?.courseId || !meta?.sectionId) continue
+    const state = getVolunteerSectionState(meta.courseId, meta.sectionId)
+    const key = sectionStateKey(meta.courseId, meta.sectionId)
+    const volunteers = override?.get?.(key) || state?.volunteers || []
+    const lottery = usesSelectedRoster(state)
+    const cap = Number(state?.seniorCapacity ?? state?.capacity) || 0
+    volunteers.forEach((v, idx) => {
+      const selected = lottery ? Boolean(v.selected) : idx < cap
+      out.push({
+        batchName: meta.batchName || state?.batchName || '',
+        courseId: meta.courseId,
+        sectionId: meta.sectionId,
+        courseCode: meta.courseCode || state?.courseCode || '',
+        courseName: meta.courseName || state?.courseName || '',
+        sectionCode: meta.sectionCode || state?.sectionCode || '',
+        studentId: v.studentId,
+        studentName: v.studentName,
+        programme: v.programme,
+        intake: v.intake,
+        relativeSemester: v.relativeSemester,
+        submittedAt: v.submittedAt,
+        isGraduate: Boolean(v.isGraduate || isGraduateStudent(v.studentId)),
+        selected,
+      })
+    })
+  }
+  return out
 }
 
 /** @deprecated 兼容旧调用：仅 courseId 时取该课第一个分组 */

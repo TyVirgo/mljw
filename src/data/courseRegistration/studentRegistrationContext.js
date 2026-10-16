@@ -14,6 +14,7 @@ import {
   normalizeCartRoundKey,
 } from './studentRegistrationStore.js'
 import { getCourseById, resolveSchoolElectiveCategory } from './selectableCourses.js'
+import { courseMatchesUnifiedCategoryFilter } from './unifiedCourseCategory.js'
 import { getSectionMeetings } from './sectionScheduleFields.js'
 import {
   getSelectionGroupsForBatch,
@@ -1174,9 +1175,18 @@ export function filterStudentCourseList(courses, filters = {}) {
     const target = normalizeRegistrationType(filters.type)
     list = list.filter((item) => normalizeRegistrationType(item.type) === target)
   }
-  if (filters.schoolElectiveCategory) {
+  // 统一课程类别码（GE01/ME01/required）；兼容旧校选码 arts/business…
+  if (filters.courseCategory) {
+    list = list.filter((item) =>
+      courseMatchesUnifiedCategoryFilter(item, filters.courseCategory),
+    )
+  } else if (filters.schoolElectiveCategory) {
     const cat = String(filters.schoolElectiveCategory)
-    list = list.filter((item) => resolveSchoolElectiveCategory(item) === cat)
+    if (/^(GE|ME)0[1-4]$|^required$/i.test(cat)) {
+      list = list.filter((item) => courseMatchesUnifiedCategoryFilter(item, cat))
+    } else {
+      list = list.filter((item) => resolveSchoolElectiveCategory(item) === cat)
+    }
   }
   if (filters.weekday) {
     list = list.filter((item) => courseMatchesWeekday(item, filters.weekday))

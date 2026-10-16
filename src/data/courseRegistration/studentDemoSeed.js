@@ -19,17 +19,21 @@ import {
 import { getCourseById, resolveSchoolElectiveCategory, syncSelectableSectionsFromConfirmed } from './selectableCourses.js'
 import { normalizeRegistrationType } from './registrationTypes.js'
 import { sumLiveMeGroupCredits } from './studentRegistrationContext.js'
+import { creditCapForCourseType, getTermCreditCaps } from './studentAudience.js'
 
 const DEMO_STUDENT_ID = DEFAULT_MOCK_CURRENT_STUDENT_ID
 
 /**
- * 轮次自选成功半池 — 按批次隔离（GE/ME、R2/R3 不共用）
- * ME：R1 中签 COMP201+AI110（preselect/m1）+ R2 CST201（cst-i/main）+ R3 CYS201（cys-i/supplement）
- * GE 学分累计（不含 admin）：R1=HUM201(2)；R2=+BUS301(2)→4；R3=+MPU401(2)→6（≤geMax）
- * 本轮表仅当前轮；课表实线仅更早轮确认（同轮跨批不泄漏）
+ * 轮次自选成功半池 — 按批次分档挂载，历轮按类型+roundKey 跨档同步
+ * ME：R1 中签 COMP201+SE201+AI110（preselect/m1）+ R2 CST201（cst-i/main）+ R3 CYS201（cys-i/supplement）
+ * GE 学分累计（不含 admin）：R1=HUM201(2)；R2=+BUS301(2)→4；R3=+MPU401(2)→6（≤geMax；超则动态不加）
+ * R1 本轮=pending；R2/R3 本轮=当前轮确认、历轮=更早轮确认；课表虚线≡本轮、实线≡历轮+必修
  * 另：GE 代选 BUS201 挂 g2（不进本轮选课/学分累计）
  */
 const DEMO_TERM_ACADEMIC_SESSION = '2026/09'
+
+/** 轮次序号：用于增量 demo 按轮写入 */
+const DEMO_ROUND_ORDER = { preselect: 0, main: 1, supplement: 2 }
 
 const DEMO_ROUND_CONFIRMED_COURSES = [
   {
@@ -71,10 +75,30 @@ const DEMO_ROUND_CONFIRMED_COURSES = [
     meetings: [{ time: 'Wed 11:00–13:00', room: 'D5-3-203', weekRange: '1-18' }],
   },
   {
+    courseId: 'course-se201',
+    courseCode: 'SE201',
+    courseName: '软件工程导论',
+    courseNameEn: 'Intro to Software Engineering',
+    credits: 3,
+    type: 'ME',
+    sectionId: 'sec-se201-1',
+    sectionCode: '01',
+    time: 'Wed 14:00–16:00',
+    weekRange: '1-18',
+    room: 'D5-1-301',
+    lecturer: 'Dr. Lee',
+    lecturerEn: 'Dr. Lee',
+    batchId: 'batch-2504-m1',
+    schoolElectiveCategory: 'arts',
+    roundKey: 'preselect',
+    meetings: [{ time: 'Wed 14:00–16:00', room: 'D5-1-301', weekRange: '1-18' }],
+  },
+  {
     courseId: 'course-ai110',
     courseCode: 'AI110',
-    courseName: '人工智能导论',
+    courseName: 'Introduction to AI',
     courseNameEn: 'Introduction to AI',
+    courseNameZh: '人工智能导论',
     credits: 3,
     type: 'ME',
     sectionId: 'sec-ai110-1',
@@ -175,6 +199,16 @@ const DEMO_ROUND_CONFIRMED_COURSES = [
   isRetake: false,
 }))
 
+/** R1 基线确认课（含 SE201 中签）；不含 R2/R3 增量 */
+const DEMO_BASE_ROUND_COURSES = DEMO_ROUND_CONFIRMED_COURSES.filter(
+  (item) => item.roundKey === 'preselect',
+)
+
+/** 每轮默认增量一门（GE/ME 的 main/supplement）；按学分帽动态纳入 */
+const DEMO_INCREMENTAL_ROUND_COURSES = DEMO_ROUND_CONFIRMED_COURSES.filter(
+  (item) => item.roundKey === 'main' || item.roundKey === 'supplement',
+)
+
 /**
  * 管理端代选样例：BUS201 挂 GE R2 批（sourceType=admin）
  * 不计入 GE「本轮选课」累计（R2=HUM201+BUS301→4；R3=+MPU401→6）
@@ -220,8 +254,9 @@ export const DEMO_REQUIRED_COURSES = [
   {
     courseId: 'course-math101',
     courseCode: 'MATH101',
-    courseName: '微积分 I',
+    courseName: 'Calculus I',
     courseNameEn: 'Calculus I',
+    courseNameZh: '微积分 I',
     credits: 4,
     type: 'CORE',
     sectionId: 'sec-math101-1',
@@ -241,8 +276,9 @@ export const DEMO_REQUIRED_COURSES = [
   {
     courseId: 'course-phys101',
     courseCode: 'PHYS101',
-    courseName: '工程物理',
-    courseNameEn: 'Physics for Engineers',
+    courseName: 'Physics I',
+    courseNameEn: 'Physics I',
+    courseNameZh: '工程物理',
     credits: 3,
     type: 'CORE',
     sectionId: 'sec-phys101-1',
@@ -289,6 +325,72 @@ export const DEMO_REQUIRED_COURSES = [
 
 const DEMO_CONFIRMED_COUNT = DEMO_CONFIRMED_COURSES.length
 
+/**
+ * 是否为 R2/R3 默认增量 demo 课（按学分帽可剔除）
+ * @param {object} item
+ */
+function isIncrementalDemoConfirmed(item) {
+  if (!item) return false
+  return DEMO_INCREMENTAL_ROUND_COURSES.some(
+    (demo) =>
+      demo.courseId === item.courseId &&
+      demo.batchId === item.batchId &&
+      demo.roundKey === item.roundKey,
+  )
+}
+
+/**
+ * 同类型已选学分（不含 admin）
+ * @param {object[]} courses
+ * @param {string} type
+ */
+function sumTypeCreditsExcludingAdmin(courses, type) {
+  const kind = normalizeRegistrationType(type)
+  return (courses || []).reduce((sum, item) => {
+    if (!item || item.sourceType === 'admin') return sum
+    if (normalizeRegistrationType(item.type) !== kind) return sum
+    return sum + (Number(item.credits) || 0)
+  }, 0)
+}
+
+/**
+ * 按 GE/ME 学期学分帽处理每轮默认增量课
+ * @param {{ allowAdd?: boolean }} [options] allowAdd=true 仅首次 seed：可写入缺省增量课；
+ *   false（运行期）：只保留仍不超帽的已有增量课，退课腾学分也不回填
+ */
+export function reconcileIncrementalDemoConfirmedCourses(options = {}) {
+  const allowAdd = options.allowAdd === true
+  const caps = getTermCreditCaps()
+  const kept = studentConfirmedCourses.value.filter((item) => !isIncrementalDemoConfirmed(item))
+  const sortIncremental = (a, b) =>
+    (DEMO_ROUND_ORDER[a.roundKey] ?? 99) - (DEMO_ROUND_ORDER[b.roundKey] ?? 99) ||
+    String(a.type).localeCompare(String(b.type))
+
+  const candidates = allowAdd
+    ? [...DEMO_INCREMENTAL_ROUND_COURSES].sort(sortIncremental)
+    : studentConfirmedCourses.value
+        .filter((item) => isIncrementalDemoConfirmed(item))
+        .slice()
+        .sort(sortIncremental)
+
+  const next = [...kept]
+  for (const demo of candidates) {
+    const cap = Number(creditCapForCourseType(demo.type, caps)) || 0
+    const current = sumTypeCreditsExcludingAdmin(next, demo.type)
+    if (current + (Number(demo.credits) || 0) <= cap) {
+      next.push({ ...demo })
+    }
+  }
+  const prevKey = studentConfirmedCourses.value
+    .map((item) => `${item.courseId}|${item.sectionId}|${item.roundKey}`)
+    .join(';')
+  const nextKey = next.map((item) => `${item.courseId}|${item.sectionId}|${item.roundKey}`).join(';')
+  if (prevKey === nextKey) return
+  studentConfirmedCourses.value = next
+  studentSchedule.value = buildDemoSchedule(next)
+  syncSelectableSectionsFromConfirmed(next)
+}
+
 function parseSectionSchedule(time, courseCode) {
   const match = String(time || '').match(/^(\w+)\s+(\d+):(\d+)[–-](\d+):(\d+)/)
   if (!match) return null
@@ -304,7 +406,7 @@ function buildDemoSchedule(courses) {
   return courses.map((item) => parseSectionSchedule(item.time, item.courseCode)).filter(Boolean)
 }
 
-/** 学生加退课 demo：覆盖类型/状态/退课通道；学分按单覆盖，仅少量超限样本 */
+/** 学生加退课 demo：覆盖类型/状态；dropChannel 仍供业务逻辑，详情不再展示；学分按单覆盖，仅少量超限样本 */
 function buildDemoAddDropApplications(credits, schedule) {
   const creditMax = resolveTermCreditMax(DEMO_TERM_ACADEMIC_SESSION)
   const creditMin = resolveTermCreditMin(DEMO_TERM_ACADEMIC_SESSION)
@@ -313,6 +415,7 @@ function buildDemoAddDropApplications(credits, schedule) {
     studentId: DEMO_STUDENT_ID,
     studentName: 'Tan Wei Ming',
     programme: 'SWE',
+    programmeName: 'Software Engineering',
     intake: '2409',
     academicSession: DEMO_TERM_ACADEMIC_SESSION,
     contactPhone: '0123456789',
@@ -329,7 +432,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 22,
       type: 'Add',
       status: 'Pending',
-      submittedAt: '2026-07-15 09:30',
+      submittedAt: '2026-07-15 09:30:00',
       billStatus: 'pending',
       billAmount: 320,
       reason: 'Need STAT201 for programme progression (over credit max)',
@@ -343,7 +446,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 14,
       type: 'Add',
       status: 'Approved',
-      submittedAt: '2026-07-08 14:20',
+      submittedAt: '2026-07-08 14:20:00',
       billStatus: 'paid',
       billAmount: 480,
       reason: 'Complete GE writing requirement',
@@ -357,7 +460,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 16,
       type: 'Drop',
       status: 'Approved',
-      submittedAt: '2026-07-12 16:05',
+      submittedAt: '2026-07-12 16:05:00',
       billStatus: 'none',
       billAmount: 0,
       dropChannel: 'self',
@@ -374,7 +477,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 16,
       type: 'Drop',
       status: 'Pending',
-      submittedAt: '2026-07-13 11:40',
+      submittedAt: '2026-07-13 11:40:00',
       billStatus: 'none',
       billAmount: 0,
       dropChannel: 'self',
@@ -391,7 +494,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 18,
       type: 'Drop',
       status: 'Pending',
-      submittedAt: '2026-07-14 09:15',
+      submittedAt: '2026-07-14 09:15:00',
       billStatus: 'none',
       billAmount: 0,
       dropChannel: 'special',
@@ -409,7 +512,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 15,
       type: 'Drop',
       status: 'Rejected',
-      submittedAt: '2026-07-06 15:20',
+      submittedAt: '2026-07-06 15:20:00',
       billStatus: 'none',
       billAmount: 0,
       dropChannel: 'special',
@@ -427,11 +530,13 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 16,
       type: 'Retake',
       status: 'Pending',
-      submittedAt: '2026-07-14 13:50',
+      submittedAt: '2026-07-14 13:50:00',
       currentCredits: 22,
       billStatus: 'pending',
       billAmount: 320,
       reason: 'Retake after failed attempt',
+      addNotes: '希望安排在上午时段，方便兼顾实习。',
+      retakeType: 'failed',
       items: [
         {
           action: 'Retake',
@@ -452,10 +557,12 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 22,
       type: 'Retake',
       status: 'Approved',
-      submittedAt: '2026-07-11 10:25',
+      submittedAt: '2026-07-11 10:25:00',
       billStatus: 'pending',
       billAmount: 480,
       reason: 'Improve major core grade',
+      addNotes: '提升成绩重修，无额外说明。',
+      retakeType: 'improve_grade',
       items: [
         {
           action: 'Retake',
@@ -479,7 +586,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 22,
       type: 'RetakeDrop',
       status: 'Pending',
-      submittedAt: '2026-07-16 11:20',
+      submittedAt: '2026-07-16 11:20:00',
       billStatus: 'pending',
       billAmount: 1100,
       excessCredits: 2,
@@ -487,9 +594,10 @@ function buildDemoAddDropApplications(credits, schedule) {
       teachingWeek: 3,
       feeWaiver: true,
       reason: 'Credit load full — drop IT102 then retake MATH201',
+      addNotes: '退 IT102 腾学分后重修线性代数。',
       gradeEarned: 'F',
       academicSessionTaken: '2025/09',
-      previousCourseGradesText: '2025/09 不及格\n2024/09 缺考',
+      previousCourseGradesText: '2025/09 45分\n2024/09 缺考',
       retakeType: 'failed',
       items: [
         { action: 'Drop', courseCode: 'IT102', credits: 2, section: '01', time: 'Mon 09:00–11:00' },
@@ -513,7 +621,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 22,
       type: 'RetakeDrop',
       status: 'Approved',
-      submittedAt: '2026-07-14 10:05',
+      submittedAt: '2026-07-14 10:05:00',
       billStatus: 'pending',
       billAmount: 550,
       excessCredits: 1,
@@ -523,7 +631,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       reason: 'Retake COMP201 with elective drop (non-clash slot)',
       gradeEarned: 'F',
       academicSessionTaken: '2024/09',
-      previousCourseGradesText: '2024/09 不及格',
+      previousCourseGradesText: '2024/09 42分',
       retakeType: 'failed',
       items: [
         { action: 'Drop', courseCode: 'ENGL201', credits: 3, section: '01', time: 'Wed 09:00–12:00' },
@@ -549,7 +657,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 21,
       type: 'RetakeDrop',
       status: 'Approved',
-      submittedAt: '2026-07-10 09:30',
+      submittedAt: '2026-07-10 09:30:00',
       billStatus: 'none',
       billAmount: 0,
       excessCredits: 0,
@@ -559,8 +667,8 @@ function buildDemoAddDropApplications(credits, schedule) {
       reason: 'Full credit offset after linked drop',
       gradeEarned: 'D',
       academicSessionTaken: '2024/09',
-      previousCourseGradesText: '2024/09 及格',
-      retakeType: 'improve',
+      previousCourseGradesText: '2024/09 60分',
+      retakeType: 'improve_grade',
       items: [
         { action: 'Drop', courseCode: 'HUM110', credits: 3, section: '01', time: 'Fri 09:00–12:00' },
         {
@@ -585,17 +693,20 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 22,
       type: 'RetakeDrop',
       status: 'Rejected',
-      submittedAt: '2026-07-09 14:20',
+      submittedAt: '2026-07-09 14:20:00',
       billStatus: 'none',
       billAmount: 0,
-      excessCredits: 4,
+      /** 已驳回：不计毕业计费/账单，避免详情「超出>0 费用=0」 */
+      excessCredits: 0,
+      billableCredits: 0,
       dropChannel: 'self',
       teachingWeek: 3,
       feeWaiver: false,
       reason: 'No fee waiver; clash unresolved',
+      dropReason: 'No fee waiver; clash unresolved',
       gradeEarned: 'F',
       academicSessionTaken: '2023/09',
-      previousCourseGradesText: '2023/09 不及格',
+      previousCourseGradesText: '2023/09 45分',
       retakeType: 'failed',
       items: [
         { action: 'Drop', courseCode: 'BUS201', credits: 3, section: '01', time: 'Tue 14:00–17:00' },
@@ -621,7 +732,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 22,
       type: 'RetakeDrop',
       status: 'Cancelled',
-      submittedAt: '2026-07-08 11:00',
+      submittedAt: '2026-07-08 11:00:00',
       billStatus: 'cancelled',
       billAmount: 550,
       excessCredits: 1,
@@ -631,7 +742,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       reason: 'Cancelled retake-drop before review',
       gradeEarned: 'F',
       academicSessionTaken: '2025/09',
-      previousCourseGradesText: '2025/09 不及格\n2024/09 及格',
+      previousCourseGradesText: '2025/09 45分\n2024/09 60分',
       retakeType: 'failed',
       items: [
         { action: 'Drop', courseCode: 'SCI110', credits: 3, section: '01', time: 'Wed 14:00–17:00' },
@@ -655,7 +766,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 20,
       type: 'RetakeDrop',
       status: 'Pending',
-      submittedAt: '2026-07-15 16:45',
+      submittedAt: '2026-07-15 16:45:00',
       billStatus: 'pending',
       billAmount: 0,
       excessCredits: 0,
@@ -665,8 +776,8 @@ function buildDemoAddDropApplications(credits, schedule) {
       reason: 'Retake ENGL201 with full credit offset from SCI110',
       gradeEarned: 'D',
       academicSessionTaken: '2024/09',
-      previousCourseGradesText: '2024/09 及格',
-      retakeType: 'improve',
+      previousCourseGradesText: '2024/09 60分',
+      retakeType: 'improve_grade',
       items: [
         { action: 'Drop', courseCode: 'SCI110', credits: 3, section: '02', time: 'Fri 14:00–16:00' },
         {
@@ -691,7 +802,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 16,
       type: 'AddDrop',
       status: 'Pending',
-      submittedAt: '2026-07-14 17:00',
+      submittedAt: '2026-07-14 17:00:00',
       billStatus: 'pending',
       billAmount: 320,
       dropChannel: 'self',
@@ -711,7 +822,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 15,
       type: 'AddDrop',
       status: 'Approved',
-      submittedAt: '2026-07-05 11:00',
+      submittedAt: '2026-07-05 11:00:00',
       billStatus: 'paid',
       billAmount: 480,
       dropChannel: 'self',
@@ -724,11 +835,14 @@ function buildDemoAddDropApplications(credits, schedule) {
           action: 'Add',
           courseCode: 'COMP3192',
           credits: 4,
-          section: '01',
-          time: 'Wed 14:00–16:00',
-          room: 'D5-3-301',
+          /** 课库 sec03：避开 SE201 Wed14–16、CST201 Thu10–12（与课库一致） */
+          section: '03',
+          time: 'Mon 08:00–10:00',
+          room: 'D5-3-303',
           weekRange: '1-18',
-          lecturer: 'Dr. Wong',
+          lecturer: 'Dr. Lim',
+          type: 'ME',
+          schoolElectiveCategory: 'arts',
           retakeGrade: 'F',
           fee: 480,
         },
@@ -742,7 +856,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 29,
       type: 'AddDrop',
       status: 'Pending',
-      submittedAt: '2026-07-15 08:45',
+      submittedAt: '2026-07-15 08:45:00',
       billStatus: 'pending',
       billAmount: 320,
       dropChannel: 'self',
@@ -762,7 +876,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 16,
       type: 'Drop',
       status: 'Cancelled',
-      submittedAt: '2026-07-04 16:30',
+      submittedAt: '2026-07-04 16:30:00',
       billStatus: 'cancelled',
       billAmount: 0,
       dropChannel: 'self',
@@ -778,7 +892,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       ...baseStudent,
       type: 'Add',
       status: 'Pending',
-      submittedAt: '2026-07-16 10:00',
+      submittedAt: '2026-07-16 10:00:00',
       currentCredits: 22,
       billStatus: 'pending',
       billAmount: 1500,
@@ -792,7 +906,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       ...baseStudent,
       type: 'Add',
       status: 'Rejected',
-      submittedAt: '2026-07-03 09:20',
+      submittedAt: '2026-07-03 09:20:00',
       billStatus: 'none',
       billAmount: 0,
       reason: 'Rejected overload request',
@@ -805,7 +919,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       ...baseStudent,
       type: 'Add',
       status: 'Cancelled',
-      submittedAt: '2026-07-02 08:10',
+      submittedAt: '2026-07-02 08:10:00',
       currentCredits: 22,
       billStatus: 'cancelled',
       billAmount: 1600,
@@ -819,7 +933,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       ...baseStudent,
       type: 'Drop',
       status: 'Pending',
-      submittedAt: '2026-07-16 14:30',
+      submittedAt: '2026-07-16 14:30:00',
       billStatus: 'none',
       billAmount: 0,
       dropChannel: 'special',
@@ -836,7 +950,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       ...baseStudent,
       type: 'Drop',
       status: 'Rejected',
-      submittedAt: '2026-07-01 11:00',
+      submittedAt: '2026-07-01 11:00:00',
       billStatus: 'none',
       billAmount: 0,
       dropChannel: 'special',
@@ -852,7 +966,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       ...baseStudent,
       type: 'Retake',
       status: 'Approved',
-      submittedAt: '2026-07-05 13:00',
+      submittedAt: '2026-07-05 13:00:00',
       currentCredits: 22,
       billStatus: 'paid',
       billAmount: 2200,
@@ -880,7 +994,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       ...baseStudent,
       type: 'Retake',
       status: 'Rejected',
-      submittedAt: '2026-07-04 10:40',
+      submittedAt: '2026-07-04 10:40:00',
       billStatus: 'none',
       billAmount: 0,
       reason: 'Rejected grade-improve retake',
@@ -904,7 +1018,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       ...baseStudent,
       type: 'Retake',
       status: 'Cancelled',
-      submittedAt: '2026-07-03 12:00',
+      submittedAt: '2026-07-03 12:00:00',
       currentCredits: 22,
       billStatus: 'cancelled',
       billAmount: 2200,
@@ -929,7 +1043,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       ...baseStudent,
       type: 'AddDrop',
       status: 'Rejected',
-      submittedAt: '2026-07-07 09:50',
+      submittedAt: '2026-07-07 09:50:00',
       billStatus: 'none',
       billAmount: 0,
       dropChannel: 'self',
@@ -948,7 +1062,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       ...baseStudent,
       type: 'AddDrop',
       status: 'Cancelled',
-      submittedAt: '2026-07-06 08:20',
+      submittedAt: '2026-07-06 08:20:00',
       currentCredits: 22,
       billStatus: 'cancelled',
       billAmount: 1500,
@@ -968,7 +1082,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       ...baseStudent,
       type: 'Retake',
       status: 'Pending',
-      submittedAt: '2026-07-17 09:00',
+      submittedAt: '2026-07-17 09:00:00',
       currentCredits: 22,
       billStatus: 'pending',
       billAmount: 2200,
@@ -1008,6 +1122,7 @@ function syncDemoAddDropApplications(credits, schedule) {
     !typeCoverageOk ||
     retakeDropCount < 5 ||
     studentApps.some((app) => !app.academicSession) ||
+    studentApps.some((app) => !String(app.programme || '').trim()) ||
     studentApps.some((app) => app.type === 'Replace') ||
     studentApps.some((app) => String(app.submittedAt || '').includes('2025-09')) ||
     // 旧 seed：COMP201 重修 Wed 14–16 与 COMP3192 冲突 → 强制重种
@@ -1018,6 +1133,15 @@ function syncDemoAddDropApplications(credits, schedule) {
           String(line.action || '') === 'Retake' &&
           String(line.time || '').includes('Wed 14:00'),
       ),
+    ) ||
+    // 旧 seed：COMP3192 Add 仍为 Wed 14 / Thu 10（撞 SE201 / CST201）→ 强制重种为课库 sec03
+    studentApps.some((app) =>
+      (app.items || []).some((line) => {
+        if (String(line.courseCode || '') !== 'COMP3192') return false
+        if (String(line.action || '') !== 'Add') return false
+        const time = String(line.time || '')
+        return time.includes('Wed 14:00') || time.includes('Thu 10:00')
+      }),
     ) ||
     studentApps.some(
       (app) =>
@@ -1187,6 +1311,7 @@ function syncDemoMonitor(courses) {
       ...sumLiveMeGroupCredits(courses),
       required: { group4of3: 16, group3of2: 12, group2of1: 8, ordinary: 12 },
     },
+    graduationMandatoryProgress: { current: 54, required: 72 },
     schedule,
     issues,
     history: [
@@ -1209,35 +1334,19 @@ let seeded = false
 export function seedStudentRegistrationDemo() {
   // 分批确认课：缺种子 / 校选类别 / 旧冲突时段则重灌
   const needsReseed =
-    studentConfirmedCourses.value.length !== DEMO_CONFIRMED_COUNT ||
     studentConfirmedCourses.value.some((item) => !item.selectedAt || !item.sourceType) ||
     studentConfirmedCourses.value.some((item) => !item.schoolElectiveCategory) ||
     !studentConfirmedCourses.value.some(
       (item) => item.courseCode === 'BUS201' && item.schoolElectiveCategory === 'ai_open',
     ) ||
     !studentConfirmedCourses.value.some(
-      (item) =>
-        item.courseCode === 'CST201' &&
-        item.batchId === 'batch-me-cst-i' &&
-        item.roundKey === 'main',
-    ) ||
-    !studentConfirmedCourses.value.some(
-      (item) =>
-        item.courseCode === 'CYS201' &&
-        item.batchId === 'batch-me-cys-i' &&
-        item.roundKey === 'supplement',
-    ) ||
-    !studentConfirmedCourses.value.some(
-      (item) =>
-        item.courseCode === 'MPU401' &&
-        item.batchId === 'batch-2504-g3' &&
-        Number(item.credits) === 2,
-    ) ||
-    !studentConfirmedCourses.value.some(
       (item) => item.courseCode === 'HUM201' && item.roundKey === 'preselect',
     ) ||
     !studentConfirmedCourses.value.some(
       (item) => item.courseCode === 'COMP201' && item.roundKey === 'preselect',
+    ) ||
+    !studentConfirmedCourses.value.some(
+      (item) => item.courseCode === 'SE201' && item.roundKey === 'preselect',
     ) ||
     !studentConfirmedCourses.value.some(
       (item) => item.courseCode === 'AI110' && item.roundKey === 'preselect',
@@ -1258,14 +1367,19 @@ export function seedStudentRegistrationDemo() {
       (item) =>
         (item.courseCode === 'CST202' || item.courseCode === 'BUS302' || item.courseCode === 'MPU401') &&
         String(item.time || '').includes('Mon 08:00'),
-    )
+    ) ||
+    studentConfirmedCourses.value.length <
+      DEMO_BASE_ROUND_COURSES.length + DEMO_ADMIN_CONFIRMED_COURSES.length
   if (needsReseed) {
+    // 先写入全量（含增量），再按学分帽 reconcile
     studentConfirmedCourses.value = DEMO_CONFIRMED_COURSES.map((item) => ({ ...item }))
     studentRequiredCourses.value = DEMO_REQUIRED_COURSES.map((item) => ({ ...item }))
     studentSchedule.value = buildDemoSchedule(studentConfirmedCourses.value)
     // 随确认半池缩减一并重置待分配示意
     studentPendingAssignCourses.value = []
   }
+  // R2/R3 默认增量课：仅首次 seed 可写入；超帽不写
+  reconcileIncrementalDemoConfirmedCourses({ allowAdd: true })
   // 课库分组时间与确认半池对齐（目录/预览同源）
   syncSelectableSectionsFromConfirmed(studentConfirmedCourses.value)
   // 学分分类与毕业进度每次启动对齐（首次选课叙事）
@@ -1288,7 +1402,7 @@ export function seedStudentRegistrationDemo() {
     studentRequiredCourses.value = DEMO_REQUIRED_COURSES.map((item) => ({ ...item }))
   }
 
-  // 在线选课：待分配未确认，可提交志愿；结果页快照另存，不锁死提交
+  // 在线选课：R1 待分配未确认，可提交志愿；R2/R3 本轮课留确认半池；结果页快照另存
   seedVolunteerRegisterDemo()
 
   syncDemoAddDropApplications(
@@ -1338,6 +1452,10 @@ export function seedStudentRegistrationDemo() {
       graduationMeProgress: {
         ...meCats,
         required: { group4of3: 16, group3of2: 12, group2of1: 8, ordinary: 12 },
+      },
+      graduationMandatoryProgress: row.graduationMandatoryProgress || {
+        current: 54,
+        required: 72,
       },
     }
   } else {

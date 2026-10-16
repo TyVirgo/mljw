@@ -11,6 +11,8 @@ import {
   expirePaymentOrderIfNeeded,
   getOrderRemainingMs,
   getPaymentOrderById,
+  paymentLines,
+  syncOrderMoneyFromLines,
   PAYMENT_ORDER_TTL_MS,
 } from '../../data/courseRegistration/studentCoursePaymentStore.js'
 
@@ -31,11 +33,11 @@ const paidOrderSnapshot = ref(null)
 let timer = null
 let checkTimer = null
 
-/** 以 store 中的最新订单为准 */
+/** 以 store 中的最新订单为准，并按行重算含税应付 */
 const liveOrder = computed(() => {
   const id = props.order?.id
-  if (!id) return props.order
-  return getPaymentOrderById(id) || props.order
+  const raw = id ? getPaymentOrderById(id) || props.order : props.order
+  return syncOrderMoneyFromLines(raw, paymentLines.value)
 })
 
 const isOpen = computed(() => liveOrder.value?.status === 'open')
@@ -156,11 +158,15 @@ function onConfirmPaid() {
       /* 演示容错：落账异常仍展示成功 */
     }
 
-    paidOrderSnapshot.value = paid || {
+    const fallback = {
       ...snapshot,
       status: 'paid',
       paidAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
     }
+    paidOrderSnapshot.value = syncOrderMoneyFromLines(
+      paid || fallback,
+      paymentLines.value,
+    )
     phase.value = 'success'
   }, CHECK_DELAY_MS)
 }

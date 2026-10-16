@@ -18,17 +18,39 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /** 可选导出类型，如明细/汇总；空则不展示 */
+  modes: {
+    type: Array,
+    default: () => [],
+  },
+  /** 当前导出类型（受控时可与 modes 联用） */
+  mode: {
+    type: String,
+    default: '',
+  },
 })
 
-const emit = defineEmits(['close', 'confirm'])
+const emit = defineEmits(['close', 'confirm', 'update:mode'])
 
 const availableFields = ref([])
 const selectedFields = ref([])
 const availableChecked = ref([])
 const selectedChecked = ref([])
 const exportScope = ref('currentPage')
+const exportMode = ref('')
 const toastVisible = ref(false)
 let toastTimer = null
+
+function syncFieldsFromProps() {
+  selectedFields.value = props.fields
+    .filter((item) => item.selectedByDefault !== false)
+    .map((item) => ({ ...item }))
+  availableFields.value = props.fields
+    .filter((item) => item.selectedByDefault === false)
+    .map((item) => ({ ...item }))
+  availableChecked.value = []
+  selectedChecked.value = []
+}
 
 function showToast(message) {
   toastVisible.value = true
@@ -60,17 +82,35 @@ watch(
   () => props.visible,
   (visible) => {
     if (!visible) return
-    selectedFields.value = props.fields
-      .filter((item) => item.selectedByDefault !== false)
-      .map((item) => ({ ...item }))
-    availableFields.value = props.fields
-      .filter((item) => item.selectedByDefault === false)
-      .map((item) => ({ ...item }))
-    availableChecked.value = []
-    selectedChecked.value = []
+    syncFieldsFromProps()
     exportScope.value = 'currentPage'
+    const defaultMode = props.mode || props.modes[0]?.value || ''
+    exportMode.value = defaultMode
+    if (defaultMode && defaultMode !== props.mode) emit('update:mode', defaultMode)
   },
 )
+
+watch(
+  () => props.fields,
+  () => {
+    if (!props.visible) return
+    syncFieldsFromProps()
+  },
+  { deep: true },
+)
+
+watch(
+  () => props.mode,
+  (value) => {
+    if (!props.visible) return
+    if (value && value !== exportMode.value) exportMode.value = value
+  },
+)
+
+function onModeChange(value) {
+  exportMode.value = value
+  emit('update:mode', value)
+}
 
 function toggleAvailable(key) {
   const index = availableChecked.value.indexOf(key)
@@ -111,6 +151,7 @@ function handleConfirm() {
     emit('confirm', {
       selectedFields: props.fields.map((item) => item.key),
       exportScope: exportScope.value,
+      exportMode: exportMode.value || props.mode || '',
     })
     return
   }
@@ -125,6 +166,7 @@ function handleConfirm() {
   emit('confirm', {
     selectedFields: selectedFields.value.map((item) => item.key),
     exportScope: exportScope.value,
+    exportMode: exportMode.value || props.mode || '',
   })
 }
 </script>
@@ -230,6 +272,20 @@ function handleConfirm() {
           </div>
         </div>
 
+        <div v-if="modes.length" class="export-setting">
+          <span class="setting-label"><span class="required">*</span> {{ t('exportModal.exportType') }}</span>
+          <div class="setting-options">
+            <label v-for="opt in modes" :key="opt.value" class="setting-option">
+              <input
+                type="radio"
+                :value="opt.value"
+                :checked="exportMode === opt.value"
+                @change="onModeChange(opt.value)"
+              />
+              <span>{{ opt.label }}</span>
+            </label>
+          </div>
+        </div>
         <div class="export-setting" :class="{ 'export-setting-scope-only': scopeOnly }">
           <span class="setting-label"><span class="required">*</span> {{ t('exportModal.exportSetting') }}</span>
           <div class="setting-options" :class="{ 'setting-options-column': scopeOnly }">

@@ -9,13 +9,13 @@ import CourseRegistrationCallout from './CourseRegistrationCallout.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
   courseTypeOptions,
-  getRegistrationTypeLabel,
   normalizeRegistrationType,
 } from '../../data/courseRegistration/registrationTypes.js'
 import {
-  schoolElectiveCategoryOptions,
-  getSchoolElectiveCategoryLabel,
-} from '../../data/departments.js'
+  formatUnifiedCourseCategoryLabel,
+  unifiedCourseCategoryFilterOptions,
+  courseMatchesUnifiedCategoryFilter,
+} from '../../data/courseRegistration/unifiedCourseCategory.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 import {
   displayClassTimeVenueLines,
@@ -30,7 +30,10 @@ import {
   consumePlanRemaining,
 } from '../../data/courseRegistration/addDropFeeRates.js'
 import { resolveSchoolElectiveCategory } from '../../data/courseRegistration/selectableCourses.js'
-import { formatGradeToZh } from '../../data/courseRegistration/studentTranscript.js'
+import {
+  formatGradeToZh,
+  filterTranscriptRowsForSection,
+} from '../../data/courseRegistration/studentTranscript.js'
 import {
   evaluateTermCreditGate,
   projectAddDropCreditGroups,
@@ -38,12 +41,23 @@ import {
   listTermOverCategoryKeys,
   buildAddDropTermCreditStrip,
   wouldExceedAddDropGeTermCap,
+  isMandatoryAddDropCourse,
 } from '../../data/courseRegistration/addDropMultiItems.js'
 import AddDropTermCreditStrip from './AddDropTermCreditStrip.vue'
 import {
   attachCourseLevelRowSpans,
   courseRowKey,
 } from '../../data/courseRegistration/sectionTableRowSpans.js'
+import {
+  isCoreOtherSectionReaddBlocked,
+  mergeCoreLockOriginLines,
+} from '../../data/courseRegistration/addDropFormSections.js'
+import {
+  getSelectionGroupDisplayLines,
+  selectionGroupToneIndex,
+  sortSectionRowsBySelectionGroup,
+} from '../../data/courseRegistration/courseSelectionGroups.js'
+import { GE_VIRTUAL_SELECTION_GROUP } from '../../data/courseRegistration/retakeSubstitutePool.js'
 import '../../styles/list-page-search.css'
 
 const props = defineProps({
@@ -69,6 +83,16 @@ const props = defineProps({
   planRemaining: { type: Object, default: () => ({}) },
   /** 再次打开时预勾选（表单 dropLines / addLines） */
   preselectedLines: { type: Array, default: () => [] },
+  /** 白名单：允许添加未来学期必修课申请 */
+  allowFutureMandatory: { type: Boolean, default: false },
+  /** 白名单：允许添加未来学期选修课申请 */
+  allowFutureElective: { type: Boolean, default: false },
+  /** @type {{ geCredits?: number, meCredits?: number } | null} */
+  futureElectiveConfig: { type: Object, default: null },
+  /** 本学期必修允许换组的课+教学班白名单 */
+  coreSectionSwitchSections: { type: Array, default: () => [] },
+  /** 重修无拟退时：在读必修原分组（课+组） */
+  originSectionLines: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['close', 'confirm'])
@@ -78,13 +102,16 @@ const { t, isZh } = useAppI18n()
 const codeDraft = ref('')
 const nameDraft = ref('')
 const creditsDraft = ref('')
+/** @deprecated 已合并为 courseCategory；保留字段避免旧调用报错 */
 const schoolElectiveDraft = ref('')
 const typeDraft = ref('')
+const courseCategoryDraft = ref('')
 const codeApplied = ref('')
 const nameApplied = ref('')
 const creditsApplied = ref('')
 const schoolElectiveApplied = ref('')
 const typeApplied = ref('')
+const courseCategoryApplied = ref('')
 /** 搜索筛选区收放；默认展开 */
 const searchExpanded = ref(true)
 const pickedRowKey = ref('')
@@ -96,16 +123,67 @@ const pendingConfirmPayload = ref(null)
 const selectAllEl = ref(null)
 
 const isDrop = computed(() => props.action === 'Drop')
+const isRetakeMode = computed(() => props.action === 'Retake')
+const isAddMode = computed(() => props.action === 'Add' || props.action === 'AddDrop')
 const useMultiple = computed(() => Boolean(props.multiple))
-const showAddEligibilityTip = computed(
-  () => props.action === 'Add' || props.action === 'AddDrop',
+const showAddEligibilityTip = computed(() => isAddMode.value)
+const showRetakeSubstituteTip = computed(() => isRetakeMode.value)
+const addEligibilityTipKey = computed(() => {
+  if (props.allowFutureMandatory && props.allowFutureElective) {
+    return 'courseRegistration.student.pickerAddEligibilityTipWithFutureBoth'
+  }
+  if (props.allowFutureElective) {
+    return 'courseRegistration.student.pickerAddEligibilityTipWithFutureElective'
+  }
+  if (props.allowFutureMandatory) {
+    return 'courseRegistration.student.pickerAddEligibilityTipWithFuture'
+  }
+  return 'courseRegistration.student.pickerAddEligibilityTip'
+})
+
+const addEligibilityTipParams = computed(() => ({
+  ge: props.futureElectiveConfig?.geCredits ?? '—',
+  me: props.futureElectiveConfig?.meCredits ?? '—',
+}))
+/** 加课/重修：类别 Tab（必修 / 公选 / 专选）；退课不加 */
+const showCourseTypeTabs = computed(() => isRetakeMode.value || isAddMode.value)
+const COURSE_TYPE_TABS = [
+  { key: 'core', type: 'CORE', labelKey: 'courseRegistration.student.retakePickerTab.core' },
+  { key: 'ge', type: 'GE', labelKey: 'courseRegistration.student.retakePickerTab.ge' },
+  { key: 'me', type: 'ME', labelKey: 'courseRegistration.student.retakePickerTab.me' },
+]
+const courseTypeTab = ref('core')
+const courseTypeTabs = computed(() =>
+  COURSE_TYPE_TABS.map((tab) => ({
+    key: tab.key,
+    type: tab.type,
+    label: t(tab.labelKey),
+  })),
 )
+function selectCourseTypeTab(key) {
+  if (courseTypeTab.value === key) return
+  courseTypeTab.value = key
+  currentPage.value = 1
+  // Tab 已按类型分流，清空次级「课程类型」筛选以免空表
+  typeDraft.value = ''
+  typeApplied.value = ''
+}
+function rowMatchesCourseTypeTab(row, wantType) {
+  const type = String(row.type || row.course?.type || '').toUpperCase()
+  const source = String(row.sourceType || row.course?.sourceType || '').toLowerCase()
+  if (wantType === 'CORE') {
+    return type === 'CORE' || type === 'MANDATORY' || source === 'required'
+  }
+  return type === wantType
+}
+/** 学分要求条：加/退/加退/重修/重修关联（同源七列条） */
 const showCreditProgress = computed(
   () =>
     (props.action === 'Add' ||
       props.action === 'AddDrop' ||
+      props.action === 'Drop' ||
       props.action === 'Retake' ||
-      props.action === 'Drop') &&
+      props.action === 'RetakeDrop') &&
     (Boolean(props.termCreditStripBaseline) ||
       props.creditGroups.length > 0 ||
       props.creditBars.length > 0),
@@ -175,9 +253,9 @@ const creditFilterOptions = computed(() => {
   return [...set].sort((a, b) => a - b)
 })
 
-/** 退课筛选含必修课（CORE）；加课/重修仍为 ME/GE */
+/** 退课/重修筛选含必修课（CORE） */
 const courseTypeFilterOptions = computed(() => {
-  if (!isDrop.value) return courseTypeOptions
+  if (!isDrop.value && !isRetakeMode.value) return courseTypeOptions
   return [
     ...courseTypeOptions,
     {
@@ -188,26 +266,71 @@ const courseTypeFilterOptions = computed(() => {
   ]
 })
 
-/** 退课不展示名额列；重修展示履历列；加课展示余量列 */
+/** 退课不展示名额列；加课（含必修）与重修展示；不可选写明详细原因 */
 const showSeatOrRetakeColumn = computed(() => !isDrop.value)
-const tableColspan = computed(() => (showSeatOrRetakeColumn.value ? 12 : 11))
+/** 加课/重修必修 Tab：末列为「是否可选」（无名额数字） */
+const useCoreSelectableColumn = computed(
+  () => showSeatOrRetakeColumn.value && courseTypeTab.value === 'core',
+)
+const showRetakeHistoryColumn = computed(() => isRetakeMode.value)
+/** 加课必修 Tab：原上课学期（名额列前） */
+const showOriginalSessionColumn = computed(
+  () => isAddMode.value && courseTypeTab.value === 'core',
+)
+/** 重修课程组列：仅专业选修 Tab（公选/必修均隐藏） */
+const showSelectionGroupColumn = computed(
+  () => isRetakeMode.value && courseTypeTab.value === 'me',
+)
+const tableColspan = computed(() => {
+  let n = 11
+  if (showSeatOrRetakeColumn.value) n += 1
+  if (showRetakeHistoryColumn.value) n += 1
+  if (showOriginalSessionColumn.value) n += 1
+  if (showSelectionGroupColumn.value) n += 1
+  return n
+})
+
+/** 加退选课器：必修演示名额约 5（不改课库源数据） */
+function isCoreLikeCourse(course) {
+  const type = normalizeRegistrationType(course?.type) || String(course?.type || '').toUpperCase()
+  return type === 'CORE' || course?.sourceType === 'required'
+}
+
+function addDropCoreSeatParts(rowKey) {
+  const capacity = 5
+  let h = 0
+  const s = String(rowKey || '')
+  for (let i = 0; i < s.length; i += 1) h = (h + s.charCodeAt(i) * (i + 1)) % 6
+  const remaining = h
+  return { capacity, remaining, enrolled: capacity - remaining }
+}
 
 function sectionRowsForCourse(course) {
   const sections = Array.isArray(course.sections) ? course.sections : []
-  // 重修模式：每课只取首段一行，不再展开全部分组
-  const pickSections = props.action === 'Retake' ? sections.slice(0, 1) : sections
+  // 重修展开全部分组（对齐在线选课课程分组列）
+  const pickSections = sections
+  const selectionGroup = course.selectionGroup || null
+  const scaleCore = !isDrop.value && isCoreLikeCourse(course)
   if (pickSections.length) {
     return pickSections.map((section) => {
-      const capacity =
+      const rowKey = section.id || `${course.id || course.code}::${section.code}`
+      let capacity =
         Number(section.capacity) ||
         Number(course.totalCapacity) ||
         0
-      const enrolled = Number(section.enrolled) || 0
-      const remaining = Math.max(0, capacity - enrolled)
+      let enrolled = Number(section.enrolled) || 0
+      let remaining = Math.max(0, capacity - enrolled)
+      if (scaleCore) {
+        const scaled = addDropCoreSeatParts(rowKey)
+        capacity = scaled.capacity
+        enrolled = scaled.enrolled
+        remaining = scaled.remaining
+      }
       return {
-        rowKey: section.id || `${course.id || course.code}::${section.code}`,
+        rowKey,
         course,
         section: { ...section, capacity, enrolled },
+        selectionGroup,
         code: course.code,
         name: course.name,
         credits: course.credits,
@@ -215,6 +338,7 @@ function sectionRowsForCourse(course) {
         sourceType: course.sourceType || '',
         schoolElectiveCategory:
           course.schoolElectiveCategory || resolveSchoolElectiveCategory(course) || '',
+        originalAcademicSession: course.originalAcademicSession || '',
         fromEnrolled: course.fromEnrolled,
         remainingCapacity: remaining,
       }
@@ -222,14 +346,21 @@ function sectionRowsForCourse(course) {
   }
   const code = course.sectionCode || '01'
   const remRaw = Number(course.remainingCapacity)
-  const totalCap =
+  let totalCap =
     Number(course.totalCapacity) ||
     (Number.isFinite(remRaw) ? remRaw : 0) ||
     0
-  const remaining = Number.isFinite(remRaw) ? Math.max(0, remRaw) : totalCap
-  const enrolled = Math.max(0, totalCap - remaining)
+  let remaining = Number.isFinite(remRaw) ? Math.max(0, remRaw) : totalCap
+  let enrolled = Math.max(0, totalCap - remaining)
+  const rowKey = course.sectionId || `enrolled-${course.code || course.id}-${code}`
+  if (scaleCore) {
+    const scaled = addDropCoreSeatParts(rowKey)
+    totalCap = scaled.capacity
+    remaining = scaled.remaining
+    enrolled = scaled.enrolled
+  }
   const section = {
-    id: course.sectionId || `enrolled-${course.code || course.id}-${code}`,
+    id: rowKey,
     code,
     name: course.sectionName || '',
     time: course.time || course.classTime || '',
@@ -244,6 +375,7 @@ function sectionRowsForCourse(course) {
       rowKey: section.id,
       course,
       section,
+      selectionGroup,
       code: course.code,
       name: course.name,
       credits: course.credits,
@@ -251,10 +383,16 @@ function sectionRowsForCourse(course) {
       sourceType: course.sourceType || '',
       schoolElectiveCategory:
         course.schoolElectiveCategory || resolveSchoolElectiveCategory(course) || '',
+      originalAcademicSession: course.originalAcademicSession || '',
       fromEnrolled: course.fromEnrolled,
       remainingCapacity: remaining,
     },
   ]
+}
+
+function originalSessionLabel(row) {
+  const v = String(row?.originalAcademicSession || row?.course?.originalAcademicSession || '').trim()
+  return v || '—'
 }
 
 const flattenedRows = computed(() => {
@@ -262,11 +400,26 @@ const flattenedRows = computed(() => {
   for (const course of props.courses || []) {
     list.push(...sectionRowsForCourse(course))
   }
-  return list
+  if (!isRetakeMode.value) return list
+  const groups = []
+  const seen = new Set()
+  for (const row of list) {
+    const g = row.selectionGroup
+    if (g?.id && !seen.has(g.id)) {
+      seen.add(g.id)
+      groups.push(g)
+    }
+  }
+  return groups.length ? sortSectionRowsBySelectionGroup(list, groups) : list
 })
 
 const filteredRows = computed(() => {
   let list = [...flattenedRows.value]
+  if (showCourseTypeTabs.value) {
+    const tab = COURSE_TYPE_TABS.find((x) => x.key === courseTypeTab.value)
+    const want = tab?.type || 'CORE'
+    list = list.filter((row) => rowMatchesCourseTypeTab(row, want))
+  }
   const codeKw = codeApplied.value.trim().toLowerCase()
   const nameKw = nameApplied.value.trim().toLowerCase()
   if (codeKw) {
@@ -287,16 +440,18 @@ const filteredRows = computed(() => {
     const target = Number(creditsApplied.value)
     list = list.filter((row) => Number(row.credits) === target)
   }
-  if (schoolElectiveApplied.value) {
-    list = list.filter(
-      (row) =>
-        String(row.schoolElectiveCategory || row.course?.schoolElectiveCategory || '') ===
-        String(schoolElectiveApplied.value),
-    )
-  }
-  if (typeApplied.value) {
-    list = list.filter(
-      (row) => String(row.type || '').toUpperCase() === String(typeApplied.value).toUpperCase(),
+  if (courseCategoryApplied.value) {
+    list = list.filter((row) =>
+      courseMatchesUnifiedCategoryFilter(
+        {
+          type: row.type || row.course?.type,
+          schoolElectiveCategory:
+            row.schoolElectiveCategory || row.course?.schoolElectiveCategory,
+          code: row.code || row.course?.code,
+          id: row.courseId || row.course?.id,
+        },
+        courseCategoryApplied.value,
+      ),
     )
   }
   return list
@@ -311,7 +466,7 @@ const paginatedRows = computed(() => {
     course: row.course || row,
   }))
   if (isRetakeMode.value) {
-    return attachCourseLevelRowSpans(rowsForSpan, start, { flat: true })
+    return mergeRetakeSelectionGroupSpans(attachCourseLevelRowSpans(rowsForSpan, start))
   }
   let firstCourseIndex = 0
   const seen = new Set()
@@ -328,14 +483,39 @@ function spanCell(row, field) {
   return row?._span?.[field] || { show: true, rowspan: 1 }
 }
 
+/** 重修：课程组列跨同组多门课合并（对齐在线选课视觉） */
+function mergeRetakeSelectionGroupSpans(rows) {
+  const out = (rows || []).map((row) => ({ ...row, _span: { ...(row._span || {}) } }))
+  let i = 0
+  while (i < out.length) {
+    const gid = out[i].selectionGroup?.id
+    if (!gid) {
+      i += 1
+      continue
+    }
+    let j = i + 1
+    while (j < out.length && out[j].selectionGroup?.id === gid) j += 1
+    const span = j - i
+    for (let k = i; k < j; k += 1) {
+      out[k]._span = {
+        ...out[k]._span,
+        selectionGroup: k === i ? { show: true, rowspan: span } : { show: false },
+      }
+    }
+    i = j
+  }
+  return out
+}
+
+/** 全局已选行（跨 Tab；学分条 / 已选门数 / 确认均同源） */
 const selectedRow = computed(
-  () => filteredRows.value.find((r) => r.rowKey === pickedRowKey.value) || null,
+  () => flattenedRows.value.find((r) => r.rowKey === pickedRowKey.value) || null,
 )
 
 const selectedRows = computed(() => {
   if (!useMultiple.value) return selectedRow.value ? [selectedRow.value] : []
-  const set = new Set(pickedRowKeys.value)
-  return filteredRows.value.filter((r) => set.has(r.rowKey))
+  const byKey = new Map(flattenedRows.value.map((r) => [r.rowKey, r]))
+  return pickedRowKeys.value.map((k) => byKey.get(k)).filter(Boolean)
 })
 
 function termGateForRow(row) {
@@ -355,6 +535,7 @@ function termGateForRow(row) {
     addLines: alreadyPicked,
     candidateCredits: Number(row.credits) || 0,
     bypassCreditMax: Boolean(gate.bypassCreditMax),
+    creditBypassExtra: gate.creditBypassExtra,
   })
 }
 
@@ -376,7 +557,9 @@ function planRemainingForFee() {
 const selectedFeeEstimate = computed(() => {
   const rows = selectedRows.value
   if (!rows.length) return null
-  if (isDrop.value || !showCreditProgress.value) return null
+  if (isDrop.value) return null
+  // 加课依赖学分条上下文；重修整门计费不依赖学分条
+  if (!isRetakeMode.value && !showCreditProgress.value) return null
   const feeAction = feeActionForEstimate()
   if (feeAction !== 'Add' && feeAction !== 'Retake') return null
   let remaining = planRemainingForFee()
@@ -395,7 +578,13 @@ const selectedFeeEstimate = computed(() => {
 })
 
 const showFooterExcessHint = computed(() => {
-  // 缴费类提示：仅毕业类别超额（billableCredits > 0）；学期超限走白名单提示
+  // 加课：毕业类别超额提示；重修走整门计费文案
+  if (isRetakeMode.value) return false
+  return Number(selectedFeeEstimate.value?.billableCredits) > 0
+})
+
+const showFooterRetakeFeeHint = computed(() => {
+  if (!isRetakeMode.value) return false
   return Number(selectedFeeEstimate.value?.billableCredits) > 0
 })
 
@@ -485,6 +674,9 @@ const selectAllCandidates = computed(() => {
   return filteredRows.value.filter((row) => !isRowDisabled(row) || isRowChecked(row))
 })
 
+/** 无一可选行且无已勾选时，表头全选置灰 */
+const selectAllEnabled = computed(() => selectAllCandidates.value.length > 0)
+
 const allSelected = computed(() => {
   const list = selectAllCandidates.value
   if (!list.length) return false
@@ -507,7 +699,7 @@ watch(allSelected, () => {
 })
 
 function toggleSelectAll(checked) {
-  if (!useMultiple.value) return
+  if (!useMultiple.value || !selectAllEnabled.value) return
   const filteredKeySet = new Set(filteredRows.value.map((r) => r.rowKey))
   if (!checked) {
     pickedRowKeys.value = pickedRowKeys.value.filter((k) => !filteredKeySet.has(k))
@@ -518,7 +710,26 @@ function toggleSelectAll(checked) {
   const gate = props.termCreditGate
   const rowByKey = new Map(flattenedRows.value.map((r) => [r.rowKey, r]))
   for (const row of filteredRows.value) {
-    if (conflictInfo(row).conflict || isRowFull(row)) continue
+    if (
+      conflictInfo(row).conflict ||
+      isRowFull(row) ||
+      isRowBlockedByCoreSectionLock(row)
+    ) {
+      continue
+    }
+    // 同课单分组：next 已含同课号则跳过
+    if (!isDrop.value && !row.fromEnrolled) {
+      const code = String(row.code || row.course?.code || '')
+      if (
+        code &&
+        next.some((k) => {
+          const r = rowByKey.get(k)
+          return r && String(r.code || r.course?.code || '') === code
+        })
+      ) {
+        continue
+      }
+    }
     // GE 学期帽：按累计 next 投影（勿用 selectedRows，全选过程中尚未写入）
     if (
       !isDrop.value &&
@@ -553,6 +764,7 @@ function toggleSelectAll(checked) {
       addLines: already,
       candidateCredits: Number(row.credits) || 0,
       bypassCreditMax: Boolean(gate.bypassCreditMax),
+      creditBypassExtra: gate.creditBypassExtra,
     })
     if (!g.blocked) next.push(row.rowKey)
   }
@@ -563,13 +775,26 @@ function toggleSelectAll(checked) {
 const excessConfirmMessage = computed(() => {
   const payload = pendingConfirmPayload.value
   if (!payload?.fee?.billableCredits) return ''
-  const first = payload.selections?.[0] || payload
+  const selections = Array.isArray(payload.selections) ? payload.selections : []
+  if (isRetakeMode.value) {
+    return t('courseRegistration.student.pickerRetakeFeeConfirm', {
+      count: selections.length || 1,
+      billable: payload.fee.billableCredits,
+    })
+  }
+  const first = selections[0] || payload
   return t('courseRegistration.student.pickerExcessCreditConfirm', {
     excess: payload.fee.billableCredits,
     course: first.course?.code || '',
     credits: first.course?.credits || 0,
   })
 })
+
+const feeConfirmTitle = computed(() =>
+  isRetakeMode.value
+    ? t('courseRegistration.student.pickerRetakeFeeTitle')
+    : t('courseRegistration.student.pickerExcessCreditTitle'),
+)
 
 watch(
   () => props.visible,
@@ -580,11 +805,14 @@ watch(
     creditsDraft.value = ''
     schoolElectiveDraft.value = ''
     typeDraft.value = ''
+    courseCategoryDraft.value = ''
+    courseCategoryApplied.value = ''
     codeApplied.value = ''
     nameApplied.value = ''
     creditsApplied.value = ''
     schoolElectiveApplied.value = ''
     typeApplied.value = ''
+    courseTypeTab.value = 'core'
     searchExpanded.value = true
     currentPage.value = 1
     pageSize.value = 20
@@ -628,8 +856,9 @@ function handleSearch() {
   codeApplied.value = codeDraft.value
   nameApplied.value = nameDraft.value
   creditsApplied.value = creditsDraft.value
-  schoolElectiveApplied.value = schoolElectiveDraft.value
-  typeApplied.value = typeDraft.value
+  courseCategoryApplied.value = courseCategoryDraft.value
+  schoolElectiveApplied.value = ''
+  typeApplied.value = ''
   currentPage.value = 1
 }
 
@@ -639,6 +868,8 @@ function handleReset() {
   creditsDraft.value = ''
   schoolElectiveDraft.value = ''
   typeDraft.value = ''
+  courseCategoryDraft.value = ''
+  courseCategoryApplied.value = ''
   codeApplied.value = ''
   nameApplied.value = ''
   creditsApplied.value = ''
@@ -652,8 +883,19 @@ function conflictInfo(row) {
   return getSectionMeetingsConflictInfo(row.section, props.scheduleBaseline)
 }
 
+/**
+ * 学生端必修不因名额已满拦截（可超额申请；审批仍可见名额）
+ * @param {object} row
+ */
+function isCoreSeatExempt(row) {
+  if (isDrop.value) return false
+  return isCoreLikeCourse(row.course || row)
+}
+
 function isRowFull(row) {
   if (isDrop.value || row.fromEnrolled) return false
+  // 必修：学生申请不拦名额
+  if (isCoreSeatExempt(row)) return false
   const rem = Number(row.remainingCapacity)
   return Number.isFinite(rem) && rem <= 0
 }
@@ -695,10 +937,8 @@ function isRowCreditBlocked(row) {
 }
 
 function isRowDisabledBySibling(row) {
-  // 加课/重修：同一课程只允许选一个分组，选了其一后其余置灰
-  // 重修模式每课只展一行，且不启用此锁
+  // 加课/重修：同一课程只允许选一个课程分组；同课程组内不同课程仍可多选
   if (isDrop.value || row.fromEnrolled) return false
-  if (props.action === 'Retake') return false
   if (isRowChecked(row)) return false
   const code = String(row.code || row.course?.code || '')
   if (!code) return false
@@ -710,12 +950,78 @@ function isRowDisabledBySibling(row) {
   )
 }
 
+/** 加课行 → 课+组线 */
+function rowAsCourseSectionLine(row) {
+  return {
+    courseId: row.course?.id || row.id,
+    courseCode: row.code || row.course?.code,
+    sectionId: row.section?.id,
+    sectionCode: row.section?.code,
+    type: row.course?.type || row.type,
+    sourceType: row.course?.sourceType || row.sourceType,
+    course: row.course,
+  }
+}
+
+function originLinesFromEligibleCourses() {
+  const lines = []
+  for (const course of props.courses || []) {
+    if (!isMandatoryAddDropCourse(course)) continue
+    const sectionCode = String(course.originalSectionCode || '').trim()
+    if (!sectionCode) continue
+    lines.push({
+      courseId: course.id,
+      courseCode: course.code,
+      sectionCode,
+      type: course.type,
+      sourceType: course.sourceType || 'required',
+    })
+  }
+  return lines
+}
+
+/**
+ * 换组锁原组：拟退 ∪ 资格种子（同课拟退优先）
+ * 曾：有任意拟退则整表只用 dropLines，导致 CHEM 等种子原组丢失
+ */
+function originLinesForCoreLock() {
+  const drops = props.termCreditGate?.dropLines || []
+  // 重修已不加换组锁；保留 enrolled 回退供旧调用路径
+  if (isRetakeMode.value || props.action === 'Retake' || props.action === 'RetakeDrop') {
+    const enrolled = props.originSectionLines || []
+    if (enrolled.length) return enrolled
+    return originLinesFromEligibleCourses()
+  }
+  if (props.action === 'Add' || props.action === 'AddDrop') {
+    return mergeCoreLockOriginLines(drops, originLinesFromEligibleCourses())
+  }
+  return []
+}
+
+/**
+ * 本学期必修换组锁：仅加课 / 加退课；重修不限制
+ * 默认只许同组加回；白名单命中目标组可换组
+ */
+function isRowBlockedByCoreSectionLock(row) {
+  if (isDrop.value || row.fromEnrolled) return false
+  // 重修 / 重修（退课）不施加换组锁
+  if (props.action !== 'Add' && props.action !== 'AddDrop') {
+    return false
+  }
+  return isCoreOtherSectionReaddBlocked(
+    rowAsCourseSectionLine(row),
+    originLinesForCoreLock(),
+    props.coreSectionSwitchSections,
+  )
+}
+
 function isRowDisabled(row) {
   return (
     conflictInfo(row).conflict ||
     isRowFull(row) ||
     isRowCreditBlocked(row) ||
-    isRowDisabledBySibling(row)
+    isRowDisabledBySibling(row) ||
+    isRowBlockedByCoreSectionLock(row)
   )
 }
 
@@ -738,17 +1044,22 @@ function pickRow(row) {
   pickedRowKeys.value = [row.rowKey]
 }
 
-function typeLabel(item) {
-  return getRegistrationTypeLabel(item.type, t)
-}
-
-function schoolElectiveLabel(row) {
+/**
+ * 统一课程类别
+ * @param {object} row
+ */
+function courseCategoryLabel(row) {
   const course = row.course || row
-  const value =
-    row.schoolElectiveCategory ||
-    course.schoolElectiveCategory ||
-    resolveSchoolElectiveCategory(course)
-  return getSchoolElectiveCategoryLabel(value, isZh.value)
+  return formatUnifiedCourseCategoryLabel(
+    {
+      type: row.type || course.type,
+      schoolElectiveCategory:
+        row.schoolElectiveCategory || course.schoolElectiveCategory,
+      code: row.code || course.code,
+      id: row.courseId || course.id,
+    },
+    t,
+  )
 }
 
 function sectionLabel(row) {
@@ -767,16 +1078,42 @@ function timeVenueLines(row) {
   return displayClassTimeVenueLines(row.section, scheduleLocale.value)
 }
 
-const isRetakeMode = computed(() => props.action === 'Retake')
-
+/** 曾修列：仅匹配本教学班的履历；无则空（模板展示「-」） */
 function retakeHistoryLines(row) {
-  const rows = row?.course?.retakeHistory || row?.retakeHistory || []
-  if (!Array.isArray(rows) || !rows.length) return []
-  return rows.map((r) => {
+  const course = row?.course || row
+  const lines = []
+  const all = course?.retakeHistory || row?.retakeHistory || []
+  const rows = filterTranscriptRowsForSection(all, row?.section)
+  for (const r of rows) {
     const session = String(r.academicSession || '').trim()
-    const gradeZh = formatGradeToZh(r.grade)
-    return [session, gradeZh].filter(Boolean).join(' ')
-  }).filter(Boolean)
+    const gradeZh = formatGradeToZh(r)
+    const line = [session, gradeZh].filter(Boolean).join(' ')
+    if (line) lines.push(line)
+  }
+  return lines
+}
+
+function selectionGroupDisplayLines(group) {
+  return getSelectionGroupDisplayLines(group, isZh.value)
+}
+
+function selectionGroupRowClass(group) {
+  if (!showSelectionGroupColumn.value || !group) return undefined
+  // 重修选课器：虚拟 GE 组整表同色 → 不挂底色
+  if (group.id === GE_VIRTUAL_SELECTION_GROUP.id) return undefined
+  const groups = []
+  const seen = new Set()
+  for (const row of flattenedRows.value) {
+    const g = row.selectionGroup
+    if (g?.id && !seen.has(g.id)) {
+      seen.add(g.id)
+      groups.push(g)
+    }
+  }
+  return [
+    'cr-selection-group-row',
+    `cr-selection-group-row--tone-${selectionGroupToneIndex(group, groups)}`,
+  ]
 }
 
 function seatCapacityParts(row) {
@@ -796,13 +1133,32 @@ function seatCapacityParts(row) {
   }
 }
 
+/** 末列表头：必修「是否可选」；公选/专选「可选名额/总名额」 */
+function seatColumnHeaderLabel() {
+  if (useCoreSelectableColumn.value) {
+    return t('courseRegistration.student.pickerSelectableHeader')
+  }
+  return t('courseRegistration.student.pickerSeatCapacityHeader')
+}
+
+/**
+ * 末列文案：必修可选→「是」；公选/专选可选→余量/总量；不可选→原因
+ * @param {object} row
+ */
 function seatStatusLabel(row) {
   if (isDrop.value || row.fromEnrolled) return t('courseRegistration.student.pickerStatusEnrolled')
-  if (conflictInfo(row).conflict) return t('courseRegistration.student.pickerStatusConflict')
-  if (isRowFull(row)) return t('courseRegistration.student.pickerStatusFull')
-  if (isRowCreditBlocked(row)) return t('courseRegistration.student.pickerStatusOverCredit')
+  if (isRowDisabled(row)) {
+    return (
+      seatStatusTip(row) ||
+      t('courseRegistration.student.pickerStatusConflict')
+    )
+  }
   if (termGateForRow(row).over && props.termCreditGate?.bypassCreditMax) {
     return t('courseRegistration.student.pickerOverCreditBypassHint')
+  }
+  // 必修 Tab / 必修行：绿色「是」（不展示名额比）
+  if (useCoreSelectableColumn.value || isCoreSeatExempt(row)) {
+    return t('courseRegistration.student.pickerSelectableYes')
   }
   const { remaining, total } = seatCapacityParts(row)
   if (remaining != null && total != null) return `${remaining}/${total}`
@@ -812,12 +1168,27 @@ function seatStatusLabel(row) {
 /** 不可选状态完整说明（有余量/名额数字不返回 tip） */
 function seatStatusTip(row) {
   if (isDrop.value || row.fromEnrolled) return ''
+  if (isRowDisabledBySibling(row)) {
+    return t('courseRegistration.student.pickerSameCourseSectionPicked')
+  }
+  if (isRowBlockedByCoreSectionLock(row)) {
+    return t('courseRegistration.student.coreMustSameSectionReadd')
+  }
   const conflict = conflictInfo(row)
   if (conflict.conflict) {
     const hard = buildHardScheduleConflictResult(conflict)
     return t(hard.errorKey, hard.errorParams || {})
   }
-  if (isRowFull(row)) return t('courseRegistration.student.pickerStatusFull')
+  if (isRowFull(row)) {
+    const { remaining, total } = seatCapacityParts(row)
+    if (remaining != null && total != null) {
+      return t('courseRegistration.student.pickerStatusFullTip', {
+        remaining,
+        total,
+      })
+    }
+    return t('courseRegistration.student.pickerStatusFullTipPlain')
+  }
   if (isRowCreditBlocked(row)) {
     if (isRowGeTermCapBlocked(row) && props.termCreditStripBaseline) {
       const others = selectedRows.value
@@ -852,6 +1223,8 @@ function seatStatusTip(row) {
 
 function seatStatusClass(row) {
   if (isDrop.value || row.fromEnrolled) return ''
+  if (isRowDisabledBySibling(row)) return 'conflict'
+  if (isRowBlockedByCoreSectionLock(row)) return 'conflict'
   if (isRowCreditBlocked(row)) return 'conflict'
   if (conflictInfo(row).conflict) return 'conflict'
   if (isRowFull(row)) return 'full'
@@ -953,10 +1326,13 @@ function handleClose() {
 
         <div class="modal-body">
           <CourseRegistrationCallout v-if="showAddEligibilityTip" variant="info" class="picker-tip">
-            <p>{{ t('courseRegistration.student.pickerAddEligibilityTip') }}</p>
+            <p>{{ t(addEligibilityTipKey, addEligibilityTipParams) }}</p>
+          </CourseRegistrationCallout>
+          <CourseRegistrationCallout v-else-if="showRetakeSubstituteTip" variant="info" class="picker-tip">
+            <p>{{ t('courseRegistration.student.pickerRetakeSubstituteTip') }}</p>
           </CourseRegistrationCallout>
 
-          <div class="search-bar">
+          <div class="search-bar picker-search-bar">
             <div class="search-row">
               <div class="search-fields">
                 <div class="search-item">
@@ -992,6 +1368,22 @@ function handleClose() {
                     </option>
                   </select>
                 </div>
+                <div
+                  v-if="showCourseTypeTabs || searchExpanded"
+                  class="search-item"
+                >
+                  <label>{{ t('courseRegistration.courses.category') }}</label>
+                  <select v-model="courseCategoryDraft" class="search-select">
+                    <option value="">{{ t('common.all') }}</option>
+                    <option
+                      v-for="opt in unifiedCourseCategoryFilterOptions"
+                      :key="opt.value"
+                      :value="opt.value"
+                    >
+                      {{ opt.labelKey ? t(opt.labelKey) : opt.label }}
+                    </option>
+                  </select>
+                </div>
               </div>
               <div class="search-actions">
                 <button type="button" class="btn btn-primary" @click="handleSearch">
@@ -1001,6 +1393,7 @@ function handleClose() {
                   {{ t('common.reset') }}
                 </button>
                 <button
+                  v-if="!showCourseTypeTabs"
                   type="button"
                   class="toggle-link"
                   @click="searchExpanded = !searchExpanded"
@@ -1018,40 +1411,32 @@ function handleClose() {
                 </button>
               </div>
             </div>
-            <div v-if="searchExpanded" class="search-row search-row-secondary">
-              <div class="search-fields">
-                <div class="search-item">
-                  <label>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</label>
-                  <select v-model="schoolElectiveDraft" class="search-select">
-                    <option value="">{{ t('common.all') }}</option>
-                    <option
-                      v-for="opt in schoolElectiveCategoryOptions"
-                      :key="opt.value"
-                      :value="opt.value"
-                    >
-                      {{ isZh ? opt.zh : opt.en }}
-                    </option>
-                  </select>
-                </div>
-                <div class="search-item">
-                  <label>{{ t('courseRegistration.courses.type') }}</label>
-                  <select v-model="typeDraft" class="search-select">
-                    <option value="">{{ t('common.all') }}</option>
-                    <option
-                      v-for="opt in courseTypeFilterOptions"
-                      :key="opt.value"
-                      :value="opt.value"
-                    >
-                      {{ t(opt.labelKey) }}
-                    </option>
-                  </select>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div v-if="showCreditProgress" class="picker-credit-progress">
-            <AddDropTermCreditStrip :strip="termCreditStrip" />
+            <AddDropTermCreditStrip
+              :strip="termCreditStrip"
+              :application-type="action"
+            />
+          </div>
+
+          <div
+            v-if="showCourseTypeTabs"
+            class="picker-retake-type-tabs"
+            role="tablist"
+          >
+            <button
+              v-for="tab in courseTypeTabs"
+              :key="tab.key"
+              type="button"
+              role="tab"
+              class="picker-retake-type-tab"
+              :class="{ active: courseTypeTab === tab.key }"
+              :aria-selected="courseTypeTab === tab.key"
+              @click="selectCourseTypeTab(tab.key)"
+            >
+              {{ tab.label }}
+            </button>
           </div>
 
           <p class="selection-meta">
@@ -1062,8 +1447,16 @@ function handleClose() {
             }}
           </p>
 
-          <div class="table-wrap">
-            <table class="data-table" :class="{ 'data-table--drop': isDrop }">
+          <div class="table-wrap" :class="{ 'table-wrap--hscroll': isRetakeMode }">
+            <table
+              class="data-table"
+              :class="{
+                'data-table--drop': isDrop,
+                'data-table--fill': !isDrop && !isRetakeMode,
+                'data-table--retake-hscroll': isRetakeMode,
+                'data-table--has-seat': showSeatOrRetakeColumn,
+              }"
+            >
               <thead>
                 <tr>
                   <th class="col-check">
@@ -1072,6 +1465,7 @@ function handleClose() {
                       ref="selectAllEl"
                       type="checkbox"
                       :checked="allSelected"
+                      :disabled="!selectAllEnabled"
                       :aria-label="t('courseRegistration.student.pickerSelectAll')"
                       @change="toggleSelectAll($event.target.checked)"
                       @click.stop
@@ -1080,28 +1474,54 @@ function handleClose() {
                   <th class="col-serial">{{ t('common.serialNo') }}</th>
                   <th class="col-code">{{ t('courseRegistration.courses.code') }}</th>
                   <th class="col-name">{{ t('courseRegistration.courses.name') }}</th>
-                  <th class="col-group">{{ t('courseRegistration.courses.sectionCode') }}</th>
+                  <th v-if="showSelectionGroupColumn" class="col-selection-group">
+                    <span class="th-label-with-tip">
+                      {{ t('courseRegistration.courses.selectionGroup') }}
+                      <span
+                        class="tip-icon"
+                        :title="t('courseRegistration.courses.selectionGroupTip')"
+                        :aria-label="t('courseRegistration.courses.selectionGroupTip')"
+                        tabindex="0"
+                      >?</span>
+                    </span>
+                  </th>
+                  <th class="col-group">{{ t('courseRegistration.student.fieldGroupNo') }}</th>
                   <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
-                  <th class="col-category">{{ t('courseRegistration.courses.schoolElectiveCategory') }}</th>
-                  <th class="col-type">{{ t('courseRegistration.courses.type') }}</th>
+                  <th class="col-category">{{ t('courseRegistration.courses.category') }}</th>
                   <th class="col-lecturer">{{ t('courseRegistration.courses.lecturer') }}</th>
                   <th class="col-week">{{ t('courseRegistration.courses.weekRange') }}</th>
                   <th class="col-time">{{ t('courseRegistration.courses.classTimeVenue') }}</th>
-                  <th v-if="showSeatOrRetakeColumn" class="sticky-status col-status">{{
-                    isRetakeMode
-                      ? t('courseRegistration.student.pickerRetakeHistoryHeader')
-                      : t('courseRegistration.student.pickerSeatCapacityHeader')
-                  }}</th>
+                  <th
+                    v-if="showRetakeHistoryColumn"
+                    class="col-retake-history sticky-retake-history"
+                  >
+                    {{ t('courseRegistration.student.pickerRetakeHistoryHeader') }}
+                  </th>
+                  <th
+                    v-if="showOriginalSessionColumn"
+                    class="col-original-session"
+                  >
+                    {{ t('courseRegistration.student.pickerOriginalSessionHeader') }}
+                  </th>
+                  <th
+                    v-if="showSeatOrRetakeColumn"
+                    class="col-status sticky-status"
+                  >
+                    {{ seatColumnHeaderLabel() }}
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 <tr
                   v-for="row in paginatedRows"
                   :key="row.rowKey"
-                  :class="{
-                    selected: isRowChecked(row),
-                    disabled: isRowDisabled(row),
-                  }"
+                  :class="[
+                    {
+                      selected: isRowChecked(row),
+                      disabled: isRowDisabled(row),
+                    },
+                    selectionGroupRowClass(row.selectionGroup),
+                  ]"
                   @click="pickRow(row)"
                 >
                   <td class="col-check">
@@ -1143,6 +1563,24 @@ function handleClose() {
                   >
                     {{ row.name }}
                   </td>
+                  <td
+                    v-if="showSelectionGroupColumn && spanCell(row, 'selectionGroup')?.show"
+                    class="cell-selection-group"
+                    :rowspan="spanCell(row, 'selectionGroup').rowspan"
+                  >
+                    <template v-if="row.selectionGroup">
+                      <div class="sg-title">
+                        {{ selectionGroupDisplayLines(row.selectionGroup).title }}
+                      </div>
+                      <div
+                        v-if="selectionGroupDisplayLines(row.selectionGroup).intakeLine"
+                        class="sg-intake"
+                      >
+                        {{ selectionGroupDisplayLines(row.selectionGroup).intakeLine }}
+                      </div>
+                    </template>
+                    <template v-else>—</template>
+                  </td>
                   <td>{{ sectionLabel(row) }}</td>
                   <td
                     v-if="spanCell(row, 'credits')?.show"
@@ -1152,18 +1590,11 @@ function handleClose() {
                     {{ row.credits }}
                   </td>
                   <td
-                    v-if="spanCell(row, 'schoolCat')?.show"
-                    class="cell-course"
-                    :rowspan="spanCell(row, 'schoolCat').rowspan"
-                  >
-                    {{ schoolElectiveLabel(row) }}
-                  </td>
-                  <td
                     v-if="spanCell(row, 'type')?.show"
                     class="cell-course"
                     :rowspan="spanCell(row, 'type').rowspan"
                   >
-                    {{ typeLabel(row) }}
+                    {{ courseCategoryLabel(row) }}
                   </td>
                   <td>{{ lecturerLabel(row) }}</td>
                   <td>{{ weekLabel(row) }}</td>
@@ -1181,23 +1612,30 @@ function handleClose() {
                     <template v-else>—</template>
                   </td>
                   <td
-                    v-if="isRetakeMode"
-                    class="sticky-status cr-retake-history"
-                    :rowspan="spanCell(row, 'retakeHistory')?.rowspan || 1"
+                    v-if="showRetakeHistoryColumn"
+                    class="cr-retake-history sticky-retake-history"
                   >
-                    <template v-if="spanCell(row, 'retakeHistory')?.show">
-                      <div
-                        v-for="(line, hi) in retakeHistoryLines(row)"
-                        :key="hi"
-                        class="cr-retake-history-line"
-                        :title="line"
-                      >
-                        {{ line }}
-                      </div>
-                      <span v-if="!retakeHistoryLines(row).length">—</span>
-                    </template>
+                    <div
+                      v-for="(line, hi) in retakeHistoryLines(row)"
+                      :key="hi"
+                      class="cr-retake-history-line"
+                      :title="line"
+                    >
+                      {{ line }}
+                    </div>
+                    <span v-if="!retakeHistoryLines(row).length">—</span>
                   </td>
-                  <td v-else-if="showSeatOrRetakeColumn" class="sticky-status">
+                  <td
+                    v-if="showOriginalSessionColumn && spanCell(row, 'originalSession')?.show"
+                    class="cell-course col-original-session"
+                    :rowspan="spanCell(row, 'originalSession').rowspan"
+                  >
+                    {{ originalSessionLabel(row) }}
+                  </td>
+                  <td
+                    v-if="showSeatOrRetakeColumn"
+                    class="col-status sticky-status"
+                  >
                     <span
                       class="seat-status"
                       :class="seatStatusClass(row)"
@@ -1226,6 +1664,9 @@ function handleClose() {
           <p v-if="showFooterTermOverBypassHint" class="footer-excess-hint footer-excess-hint--whitelist">
             {{ whitelistTermOverFooterText }}
           </p>
+          <p v-else-if="showFooterRetakeFeeHint" class="footer-excess-hint">
+            {{ t('courseRegistration.student.pickerFooterRetakeFeeHint') }}
+          </p>
           <p v-else-if="showFooterExcessHint" class="footer-excess-hint">
             {{ t('courseRegistration.student.pickerFooterExcessHint') }}
           </p>
@@ -1241,7 +1682,7 @@ function handleClose() {
 
     <ConfirmDialog
       :visible="excessConfirmVisible"
-      :title="t('courseRegistration.student.pickerExcessCreditTitle')"
+      :title="feeConfirmTitle"
       :message="excessConfirmMessage"
       :confirm-text="t('common.confirm')"
       :cancel-text="t('common.cancel')"
@@ -1266,7 +1707,7 @@ function handleClose() {
 }
 
 .modal-panel {
-  width: min(1100px, 100%);
+  width: min(1320px, 100%);
   max-height: min(86vh, 900px);
   background: #fff;
   border-radius: 10px;
@@ -1321,7 +1762,44 @@ function handleClose() {
   font-size: 12px;
 }
 
-/* 搜索区排版沿用 list-page-search.css（与缴费名单等列表页一致） */
+/* 搜索区：流式填满，放不下再换行；控件略收以减少右侧空白 */
+.picker-search-bar .search-item input:not([type='checkbox']):not([type='radio']),
+.picker-search-bar .search-item select,
+.picker-search-bar .search-input,
+.picker-search-bar .search-select {
+  width: 120px;
+  min-width: 96px;
+}
+
+.picker-retake-type-tabs {
+  display: flex;
+  gap: 0;
+  margin: 0 0 12px;
+  padding: 0;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.picker-retake-type-tab {
+  padding: 10px 18px;
+  font-size: 14px;
+  color: #6b7280;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.picker-retake-type-tab:hover {
+  color: #2563eb;
+}
+
+.picker-retake-type-tab.active {
+  color: #2563eb;
+  font-weight: 600;
+  border-bottom-color: #2563eb;
+}
 
 .picker-credit-progress {
   margin: 0 0 10px;
@@ -1425,9 +1903,14 @@ function handleClose() {
 }
 
 .table-wrap {
-  overflow-x: hidden;
+  overflow-x: auto;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
+}
+
+.table-wrap--hscroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .data-table {
@@ -1438,15 +1921,28 @@ function handleClose() {
   font-size: 12px;
 }
 
+/* 重修：铺满内容区；时间列吃剩余；右侧曾修/名额冻结，过窄时可横滑 */
+.data-table--retake-hscroll {
+  width: 100%;
+  min-width: 100%;
+  table-layout: fixed;
+}
+
 .data-table th,
 .data-table td {
   padding: 5px 6px;
   border-bottom: 1px solid #e5e7eb;
+  border-right: 1px solid #e5e7eb;
   text-align: left;
   vertical-align: middle;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.data-table th:last-child,
+.data-table td:last-child {
+  border-right: none;
 }
 
 .data-table thead th {
@@ -1456,17 +1952,21 @@ function handleClose() {
   white-space: nowrap;
 }
 
-.data-table td.cell-course[rowspan] {
+.data-table td.cell-course[rowspan],
+.data-table td.cell-selection-group[rowspan] {
   vertical-align: middle;
+  border-left: 1px solid #d1d5db;
+  border-right: 1px solid #d1d5db;
 }
 
 .data-table tbody tr {
   cursor: pointer;
 }
 
+/* 不叠加悬停/选中浅蓝；课程组 tone 底色保留 */
 .data-table tbody tr:hover,
 .data-table tbody tr.selected {
-  background: #eff6ff;
+  background: transparent;
 }
 
 .data-table tbody tr.disabled {
@@ -1522,11 +2022,92 @@ function handleClose() {
 }
 
 .col-time {
-  width: 22%;
+  width: auto;
+}
+
+.col-original-session {
+  width: 7%;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .col-status {
   width: 10%;
+  text-align: center;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.col-retake-history {
+  width: 10%;
+}
+
+.col-selection-group {
+  width: 8%;
+}
+
+/* 加课：铺满内容区，时间列吃剩余宽度 */
+.data-table--fill .col-time {
+  width: auto;
+  min-width: 0;
+}
+
+.data-table--fill .col-name {
+  width: 12%;
+}
+
+.data-table--fill .col-lecturer {
+  width: 9%;
+}
+
+/* 重修：列宽重分配，消除右侧留白 */
+.data-table--retake-hscroll .col-check {
+  width: 2.25rem;
+}
+
+.data-table--retake-hscroll .col-serial {
+  width: 3%;
+}
+
+.data-table--retake-hscroll .col-code {
+  width: 7%;
+}
+
+.data-table--retake-hscroll .col-name {
+  width: 11%;
+}
+
+.data-table--retake-hscroll .col-selection-group {
+  width: 7%;
+}
+
+.data-table--retake-hscroll .col-group {
+  width: 7%;
+}
+
+.data-table--retake-hscroll .col-credits {
+  width: 3.5%;
+}
+
+.data-table--retake-hscroll .col-category {
+  width: 7%;
+}
+
+.data-table--retake-hscroll .col-type {
+  width: 6%;
+}
+
+.data-table--retake-hscroll .col-lecturer {
+  width: 8%;
+}
+
+.data-table--retake-hscroll .col-week {
+  width: 5%;
+}
+
+.data-table--retake-hscroll .col-time {
+  width: auto;
+  min-width: 0;
 }
 
 /* 退课无余量列：列宽自适应重分配 */
@@ -1603,6 +2184,8 @@ function handleClose() {
 .cr-retake-history {
   line-height: 1.3;
   white-space: nowrap;
+  text-align: left;
+  vertical-align: middle;
 }
 
 .cr-retake-history-line {
@@ -1616,10 +2199,67 @@ function handleClose() {
   margin-top: 1px;
 }
 
+.th-label-with-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.th-label-with-tip .tip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid #9ca3af;
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.col-selection-group {
+  min-width: 7em;
+}
+
+.cell-selection-group {
+  vertical-align: middle;
+  line-height: 1.25;
+}
+
+.sg-title {
+  font-weight: 600;
+  color: #111827;
+}
+
+.sg-intake {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.cr-selection-group-row--tone-0 > td {
+  background: #dbeafe;
+}
+
+.cr-selection-group-row--tone-1 > td {
+  background: #fef9c3;
+}
+
 .empty-cell {
   text-align: center;
   color: #9ca3af;
   padding: 24px !important;
+}
+
+.seat-status {
+  display: inline-block;
+  text-align: center;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
+  max-width: 100%;
 }
 
 .seat-status.open {
@@ -1631,25 +2271,76 @@ function handleClose() {
   color: #b91c1c;
 }
 
-.sticky-status {
+/* 右侧冻结：名额(16em) | 曾修… */
+.col-status.sticky-status,
+td.sticky-status {
   position: sticky;
   right: 0;
   z-index: 2;
+  width: 16em;
+  min-width: 16em;
+  max-width: 16em;
   background: #fff;
+  text-align: center;
+  vertical-align: middle;
+  box-shadow: -2px 0 0 #e5e7eb;
+  white-space: normal;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
-thead .sticky-status {
+.col-retake-history.sticky-retake-history,
+td.sticky-retake-history {
+  position: sticky;
+  right: 16em;
+  z-index: 2;
+  width: 8.5em;
+  min-width: 8.5em;
+  max-width: 8.5em;
+  background: #fff;
+  vertical-align: middle;
+  box-shadow: -4px 0 8px rgba(15, 23, 42, 0.06);
+}
+
+thead .sticky-status,
+thead .sticky-retake-history {
   z-index: 3;
   background: #f9fafb;
 }
 
-.data-table tbody tr:hover .sticky-status,
-.data-table tbody tr.selected .sticky-status {
-  background: #eff6ff;
+thead .sticky-status {
+  text-align: center;
 }
 
-.data-table tbody tr.disabled .sticky-status {
+/* 悬停不改 sticky 底色，避免与名额列错位感 */
+.data-table tbody tr:hover .sticky-status,
+.data-table tbody tr.selected .sticky-status,
+.data-table tbody tr:hover .sticky-retake-history,
+.data-table tbody tr.selected .sticky-retake-history {
+  background: #fff;
+}
+
+.data-table tbody tr.disabled .sticky-status,
+.data-table tbody tr.disabled .sticky-retake-history {
   background: #f9fafb;
+}
+
+.data-table tbody tr.cr-selection-group-row--tone-0 > .sticky-status,
+.data-table tbody tr.cr-selection-group-row--tone-0 > .sticky-retake-history,
+.data-table tbody tr.cr-selection-group-row--tone-0:hover .sticky-status,
+.data-table tbody tr.cr-selection-group-row--tone-0.selected .sticky-status,
+.data-table tbody tr.cr-selection-group-row--tone-0:hover .sticky-retake-history,
+.data-table tbody tr.cr-selection-group-row--tone-0.selected .sticky-retake-history {
+  background: #dbeafe;
+}
+
+.data-table tbody tr.cr-selection-group-row--tone-1 > .sticky-status,
+.data-table tbody tr.cr-selection-group-row--tone-1 > .sticky-retake-history,
+.data-table tbody tr.cr-selection-group-row--tone-1:hover .sticky-status,
+.data-table tbody tr.cr-selection-group-row--tone-1.selected .sticky-status,
+.data-table tbody tr.cr-selection-group-row--tone-1:hover .sticky-retake-history,
+.data-table tbody tr.cr-selection-group-row--tone-1.selected .sticky-retake-history {
+  background: #fef9c3;
 }
 
 .modal-footer {

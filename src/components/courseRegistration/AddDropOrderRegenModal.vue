@@ -31,7 +31,7 @@ watch(
   ([visible]) => {
     if (!visible) return
     errorKey.value = ''
-    dueLocal.value = toDatetimeLocalValue(defaultRegenDueAt(2))
+    dueLocal.value = toDatetimeLocalValue(defaultRegenDueAt(3))
   },
   { immediate: true },
 )

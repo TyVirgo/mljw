@@ -6,8 +6,7 @@ import { ref, computed, watch } from 'vue'
 import TablePagination from '../common/TablePagination.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { listTargetCourseSectionOptions } from '../../data/courseRegistration/registrationResult.js'
-import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
-import { getSchoolElectiveCategoryLabel } from '../../data/departments.js'
+import { formatUnifiedCourseCategoryLabel } from '../../data/courseRegistration/unifiedCourseCategory.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 import '../../styles/list-page-search.css'
 
@@ -18,7 +17,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'select'])
 
-const { t, isZh } = useAppI18n()
+const { t } = useAppI18n()
 
 const searchForm = ref(emptySearch())
 const appliedSearch = ref(emptySearch())
@@ -85,12 +84,20 @@ function sectionDisplayName(row) {
   return row.sectionName || formatCourseSectionName(row.sectionCode || row, t)
 }
 
-function courseTypeLabel(type) {
-  return getRegistrationTypeLabel(type, t)
-}
-
-function schoolElectiveLabel(value) {
-  return getSchoolElectiveCategoryLabel(value, isZh.value)
+/**
+ * 统一课程类别（合并原类型 + 校选）
+ * @param {object} row
+ */
+function courseCategoryLabel(row) {
+  return formatUnifiedCourseCategoryLabel(
+    {
+      type: row.courseType || row.type,
+      schoolElectiveCategory: row.schoolElectiveCategory,
+      code: row.courseCode,
+      id: row.courseId,
+    },
+    t,
+  )
 }
 
 function selectRow(row) {
@@ -186,8 +193,7 @@ function handleConfirm() {
                   <th>{{ t('courseRegistration.courses.code') }}</th>
                   <th>{{ t('courseRegistration.courses.name') }}</th>
                   <th>{{ t('courseRegistration.courses.sectionCode') }}</th>
-                  <th>{{ t('courseRegistration.courses.type') }}</th>
-                  <th>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</th>
+                  <th>{{ t('courseRegistration.courses.category') }}</th>
                   <th>{{ t('courseRegistration.courses.credits') }}</th>
                 </tr>
               </thead>
@@ -209,12 +215,11 @@ function handleConfirm() {
                   <td>{{ row.courseCode }}</td>
                   <td>{{ row.courseName }}</td>
                   <td>{{ sectionDisplayName(row) }}</td>
-                  <td>{{ courseTypeLabel(row.courseType) }}</td>
-                  <td>{{ schoolElectiveLabel(row.schoolElectiveCategory) }}</td>
+                  <td>{{ courseCategoryLabel(row) }}</td>
                   <td>{{ row.credits ?? '—' }}</td>
                 </tr>
                 <tr v-if="!paginatedRows.length">
-                  <td colspan="7" class="empty-cell">
+                  <td colspan="6" class="empty-cell">
                     {{
                       batchId
                         ? t('common.noData')

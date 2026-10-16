@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import TablePagination from '../../components/common/TablePagination.vue'
+import ExportModal from '../../components/common/ExportModal.vue'
 import CourseRegistrationCallout from '../../components/courseRegistration/CourseRegistrationCallout.vue'
 import FeeRosterCoursesDrawer from '../../components/courseRegistration/FeeRosterCoursesDrawer.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
@@ -11,12 +12,13 @@ import {
   aggregateFeeRosterStudents,
   formatFeeRosterStudentExportRow,
   formatFeeRosterCourseExportRow,
+  isFeeRosterRowPaid,
 } from '../../data/courseRegistration/feeRosterQueue.js'
 import {
   feeRosterStudentExportFields,
   feeRosterCourseExportFields,
 } from '../../data/courseRegistration/courseRegistrationExportFields.js'
-import { exportMultiSheetExcel } from '../../utils/exportCourseRegistrationExcel.js'
+import { exportCourseRegistrationData } from '../../utils/exportCourseRegistrationExcel.js'
 import '../../styles/list-page-search.css'
 import '../../styles/course-registration-list.css'
 
@@ -38,6 +40,10 @@ const applied = ref(emptyFilters())
 const currentPage = ref(1)
 const pageSize = ref(20)
 const detailStudent = ref(null)
+const exportModalVisible = ref(false)
+/** detail | summary */
+const exportMode = ref('detail')
+const selectedKeys = ref([])
 
 const filteredDetails = computed(() =>
   filterFeeRosterDetailRows(feeRosterRows.value, { ...applied.value }),
@@ -53,15 +59,41 @@ const paginatedRows = computed(() => {
   return students.value.slice(start, start + pageSize.value)
 })
 
+function feeStudentKey(row) {
+  return `${row.studentId}::${String(row.isPaid || 'N').toUpperCase()}`
+}
+
+const hasSelection = computed(() => selectedKeys.value.length > 0)
+const allPageSelected = computed(() => {
+  if (!paginatedRows.value.length) return false
+  return paginatedRows.value.every((row) => selectedKeys.value.includes(feeStudentKey(row)))
+})
+
+const exportModes = computed(() => [
+  { value: 'detail', label: t('courseRegistration.result.exportDetail') },
+  { value: 'summary', label: t('courseRegistration.result.exportSummary') },
+])
+
+const exportFields = computed(() => {
+  const list = exportMode.value === 'summary' ? feeRosterStudentExportFields : feeRosterCourseExportFields
+  return list.map((f) => ({ key: f.key, label: t(f.labelKey) }))
+})
+
+function clearSelection() {
+  selectedKeys.value = []
+}
+
 function handleSearch() {
   applied.value = { ...searchForm.value }
   currentPage.value = 1
+  clearSelection()
 }
 
 function handleReset() {
   searchForm.value = emptyFilters()
   applied.value = emptyFilters()
   currentPage.value = 1
+  clearSelection()
 }
 
 function outstandingLabel(value) {
@@ -79,31 +111,77 @@ function openCourses(row) {
   detailStudent.value = row
 }
 
-function handleExport() {
+function toggleSelectAll(event) {
+  const pageKeys = paginatedRows.value.map((row) => feeStudentKey(row))
+  if (event.target.checked) {
+    selectedKeys.value = [...new Set([...selectedKeys.value, ...pageKeys])]
+  } else {
+    selectedKeys.value = selectedKeys.value.filter((key) => !pageKeys.includes(key))
+  }
+}
+
+function toggleSelect(key) {
+  const index = selectedKeys.value.indexOf(key)
+  if (index === -1) selectedKeys.value.push(key)
+  else selectedKeys.value.splice(index, 1)
+}
+
+function openExportModal() {
   if (!students.value.length) return
-  const studentIds = new Set(students.value.map((s) => s.studentId))
-  const courseRows = filteredDetails.value.filter(
-    (row) => studentIds.has(row.studentId) && String(row.courseCode || '').trim(),
+  exportMode.value = 'detail'
+  exportModalVisible.value = true
+}
+
+/**
+ * 按范围取学生汇总行
+ * @param {string} exportScope
+ */
+function resolveStudentRows(exportScope) {
+  if (exportScope === 'selectedRows') {
+    const keySet = new Set(selectedKeys.value)
+    return students.value.filter((row) => keySet.has(feeStudentKey(row)))
+  }
+  if (exportScope === 'currentPage') return paginatedRows.value
+  return students.value
+}
+
+/**
+ * 学生汇总行 → 课程明细（匹配学号 + 已缴状态）
+ * @param {object[]} studentRows
+ */
+function resolveCourseRowsForStudents(studentRows) {
+  const pairs = new Set(
+    studentRows.map((s) => `${s.studentId}::${String(s.isPaid || 'N').toUpperCase()}`),
   )
+  return filteredDetails.value.filter((row) => {
+    if (!String(row.courseCode || '').trim()) return false
+    const paid = isFeeRosterRowPaid(row) ? 'Y' : 'N'
+    return pairs.has(`${row.studentId}::${paid}`)
+  })
+}
+
+function handleExportConfirm({ selectedFields, exportScope }) {
+  const isSummary = exportMode.value === 'summary'
+  const fieldDefs = isSummary ? feeRosterStudentExportFields : feeRosterCourseExportFields
+  const columns = fieldDefs.filter((col) => selectedFields.includes(col.key))
+  const studentRows = resolveStudentRows(exportScope)
+  const exportRows = isSummary ? studentRows : resolveCourseRowsForStudents(studentRows)
+  if (!exportRows.length) {
+    window.alert(t('common.noData'))
+    return
+  }
   const timestamp = new Date().toISOString().slice(0, 10)
-  exportMultiSheetExcel(
-    [
-      {
-        name: t('courseRegistration.feeRoster.sheetStudents'),
-        rows: students.value,
-        columns: feeRosterStudentExportFields,
-        formatRow: formatFeeRosterStudentExportRow,
-      },
-      {
-        name: t('courseRegistration.feeRoster.sheetCourses'),
-        rows: courseRows,
-        columns: feeRosterCourseExportFields,
-        formatRow: formatFeeRosterCourseExportRow,
-      },
-    ],
-    `fee-roster-${timestamp}.xlsx`,
-    { t },
-  )
+  exportCourseRegistrationData({
+    rows: exportRows,
+    columns,
+    formatRow: isSummary ? formatFeeRosterStudentExportRow : formatFeeRosterCourseExportRow,
+    filename: `fee-roster-${isSummary ? 'summary' : 'detail'}-${timestamp}.xlsx`,
+    sheetName: isSummary
+      ? t('courseRegistration.feeRoster.sheetStudents')
+      : t('courseRegistration.feeRoster.sheetCourses'),
+    i18n: { t },
+  })
+  exportModalVisible.value = false
 }
 </script>
 
@@ -226,9 +304,9 @@ function handleExport() {
         <div class="toolbar-actions">
           <button
             type="button"
-            class="btn btn-default"
+            class="btn btn-outline"
             :disabled="!students.length"
-            @click="handleExport"
+            @click="openExportModal"
           >
             {{ t('common.export') }}
           </button>
@@ -240,6 +318,9 @@ function handleExport() {
           <table class="data-table">
             <thead>
               <tr>
+                <th class="col-check">
+                  <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
+                </th>
                 <th>{{ t('common.serialNo') }}</th>
                 <th>{{ t('courseRegistration.monitor.studentId') }}</th>
                 <th>{{ t('courseRegistration.monitor.studentName') }}</th>
@@ -265,7 +346,14 @@ function handleExport() {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(row, index) in paginatedRows" :key="`${row.studentId}-${row.isPaid}`">
+              <tr v-for="(row, index) in paginatedRows" :key="feeStudentKey(row)">
+                <td class="col-check">
+                  <input
+                    type="checkbox"
+                    :checked="selectedKeys.includes(feeStudentKey(row))"
+                    @change="toggleSelect(feeStudentKey(row))"
+                  />
+                </td>
                 <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
                 <td>{{ row.studentId }}</td>
                 <td>{{ row.studentName }}</td>
@@ -297,7 +385,7 @@ function handleExport() {
                 </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="14" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="15" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -311,6 +399,16 @@ function handleExport() {
       :visible="!!detailStudent"
       :student="detailStudent"
       @close="detailStudent = null"
+    />
+
+    <ExportModal
+      :visible="exportModalVisible"
+      :fields="exportFields"
+      :has-selected-rows="hasSelection"
+      :modes="exportModes"
+      v-model:mode="exportMode"
+      @close="exportModalVisible = false"
+      @confirm="handleExportConfirm"
     />
   </div>
 </template>

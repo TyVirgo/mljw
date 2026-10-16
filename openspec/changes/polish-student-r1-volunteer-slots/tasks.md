@@ -75,3 +75,84 @@
 - [x] 12.1 预览数据与本轮选课情况同源（R1 待分配 / R2·R3 已选）；不认结果页 releaseMode 清空
 - [x] 12.2 WeekScheduleGrid 同格叠显多块虚线
 - [x] 12.3 更新 proposal/design/spec；勾选本 tasks
+
+## 13. R1–R3 分块累计 + 跨轮退选（增量 2026-10；志愿范围见 §16 纠偏）
+
+- [x] 13.1 `shouldShowVolunteerSheetPanel` 覆盖 R1–R3；`isVolunteerListLocked` 不再因非 preselect 锁死
+- [x] 13.2 提交：志愿模式下 main/supplement 走待分配；`applyPendingAssignRegistration` 写入当前 roundKey
+- [x] 13.3 Store：历轮确认列表 API；学分 = 历轮确认 + 本轮 pending；pending 按批+轮过滤
+- [x] 13.4 `StudentRegistrationRoundStatusPanel`：本轮志愿块 + 历轮已选块；历轮无次序列；两块均可退选
+- [x] 13.5 Demo：当前开放轮本轮课进 pending；更早轮留 confirmed；课表虚线 ≡ 本轮志愿
+- [x] 13.6 i18n（分块标题）；更新 proposal/design/spec；勾选本 tasks
+
+## 14. 选课情况文案 / 两表对齐 / 课表排除代选（增量 2026-10）
+
+- [x] 14.1 外层标题「选课情况」；志愿计数移至「本轮志愿」右侧并缩小字号；i18n zh/en
+- [x] 14.2 本轮/历轮表列宽对齐（历轮左占位 + 右百分比空列）；除百分比外上下对齐
+- [x] 14.3 在线选课课表预览排除 admin；实线≡历轮已选+必修，虚线≡本轮志愿
+- [x] 14.4 更新 proposal/design/spec；勾选本 tasks
+
+## 15. 志愿列左对齐 + GE 毕业学分卡橙底（增量 2026-10）
+
+- [x] 15.1 选课情况表「志愿次序 / 序号」列改左对齐
+- [x] 15.2 仅 GE「毕业学分 已选/要求」卡橙底（对齐 is-short 胶囊）；R1–R3；学期/ME 不变
+- [x] 15.3 更新 proposal；勾选本 tasks
+
+## 16. 纠偏：R2/R3 非志愿、本轮已选成功（增量 2026-10）
+
+- [x] 16.1 `shouldShowVolunteerSheetPanel` 仅 R1；`isVolunteerListLocked` 恢复非 preselect 锁
+- [x] 16.2 提交：仅 R1 走 pending；去掉 `seedOpenRoundPendingVolunteers`
+- [x] 16.3 面板：R2/R3 本轮=确认成功、历轮仍分块；文案「本轮已选」；学分/课表对齐
+- [x] 16.4 更新 proposal/design/spec；勾选本 tasks
+
+## 17. 毕业学分卡橙/绿 + 搜索间距 + 历轮退选同步（增量 2026-10）
+
+- [x] 17.1 GE/ME 毕业学分总分卡：未满橙、选满浅绿；R1–R3
+- [x] 17.2 在线选课搜索区（GE/ME 全轮）加大条件间距、首行铺满右侧空白
+- [x] 17.3 历轮退选后学分顶栏与名额列即时刷新（确认/加固 enrolled 响应式）
+- [x] 17.4 更新 proposal/design；勾选本 tasks
+
+## 18. 回退搜索自适应 + R2/R3 可退确认课 + 空态/门数文案（增量 2026-10）
+
+- [x] 18.1 回退学生页搜索区自适应 CSS（恢复 gap 8px 14px；去掉首行 space-between 铺满）
+- [x] 18.2 `unselectConfirmedCourse`：确认课优先退选，不因残留 pending + 志愿锁误拦 R2/R3
+- [x] 18.3 选课情况空态：缩短占位高度；居中「暂无选课」
+- [x] 18.4 i18n：本轮/历轮等「（N 门）」→「（N 门课程）」；更新 proposal/design/spec；勾选本 tasks
+
+## 19. 历轮空态 + 加粗 + 搜索一行 + SE201 中签 + 学分门控 demo（增量 2026-10）
+
+- [x] 19.1 R2/R3 历轮块常显；0 门保留区域 +「暂无选课」；旁注「门课程」加粗
+- [x] 19.2 仅在线选课搜索条件单行（容量/学分/先修并入首行）并收紧间距
+- [x] 19.3 SE201 中签写入确认半池；结果 demo hit；R2/R3 历轮+课表同步
+- [x] 19.4 GE/ME 增量 demo 课按学分帽动态纳入/移除；seed/加退选/切轮调用；更新 artifacts；勾选本 tasks
+
+## 20. demo 仅首次加 + 学期学分卡满绿（增量 2026-10）
+
+- [x] 20.1 `reconcileIncrementalDemoConfirmedCourses`：仅首次 allowAdd；运行期只剔超帽、退课不回填
+- [x] 20.2 GE/ME 学期学分总分卡：已选≥要求浅绿；更新 proposal/design/spec；勾选本 tasks
+
+## 21. R1 手加课跨轮晋升确认（增量 2026-10）
+
+- [x] 21.1 `promoteR1PendingToConfirmed`：R2/R3 将同类型 R1 pending 写入确认半池并清 pending
+- [x] 21.2 列表态进 R2/R3 触发晋升；GE/ME 历轮+课表可见；更新 artifacts；勾选本 tasks
+
+## 22. 学期单批 + 页内切 R1/R2/R3（增量 2026-10 · 大）
+
+- [x] 22.1 g1/m1 标记 unified；隐藏 g2/g3/cst/cys 学生入口；课库/种子 batchId 对齐
+- [x] 22.2 列表三轮 tabs + 可操作不锁死 openKey；切轮晋升；更新 artifacts；勾选本 tasks
+- [x] 22.3 **§23 取代**：回退统一批入口（见 §23）
+
+## 23. 永远成功 + 恢复分档入口 + 跨轮同步（增量 2026-10）
+
+- [x] 23.1 排队 onComplete 去掉随机失败，一律确认成功
+- [x] 23.2 回退 unified/hidden/页内 tabs；恢复分档入口与种子 batchId；保留 promote/历轮同步；更新 artifacts；勾选本 tasks
+
+## 24. 晋升复制不删 pending（增量 2026-10 · 方案 A）
+
+- [x] 24.1 `promoteR1PendingToConfirmed` 只复制入确认半池，保留 pending
+- [x] 24.2 回 R1 本轮志愿可回显；后轮历轮仍见前轮；更新 artifacts；勾选本 tasks
+
+## 25. 排队默认展 + 统一课程类别（增量 2026-10）
+
+- [x] 25.1 排队中分块不跟 isExpanded，有数据即展示
+- [x] 25.2 新增统一类别工具；选课菜单双列合并为课程类别（含筛选）；更新 artifacts；勾选本 tasks

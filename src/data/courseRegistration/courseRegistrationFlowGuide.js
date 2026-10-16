@@ -26,7 +26,7 @@ export const semesterPhases = [
     key: 'D',
     labelKey: 'courseRegistration.flowGuide.phases.D.label',
     descKey: 'courseRegistration.flowGuide.phases.D.desc',
-    relatedPageIds: ['crs-register', 'cr-monitor', 'cr-log'],
+    relatedPageIds: ['crs-register', 'cr-monitor', 'cr-result'],
   },
   {
     key: 'E',
@@ -50,7 +50,7 @@ export const semesterPhases = [
     key: 'H',
     labelKey: 'courseRegistration.flowGuide.phases.H.label',
     descKey: 'courseRegistration.flowGuide.phases.H.desc',
-    relatedPageIds: ['cr-result', 'crs-result', 'cr-log', 'cr-monitor'],
+    relatedPageIds: ['cr-result', 'cr-section-roster', 'crs-result', 'cr-monitor'],
   },
 ]
 
@@ -103,14 +103,14 @@ export const adminFlowNodes = [
     order: 7,
     menuKey: 'menu.crResult',
     descKey: 'courseRegistration.flowGuide.nodes.crResult',
-    phaseKeys: ['C', 'H'],
+    phaseKeys: ['C', 'D', 'H'],
   },
   {
-    pageId: 'cr-log',
+    pageId: 'cr-section-roster',
     order: 8,
-    menuKey: 'menu.crLog',
-    descKey: 'courseRegistration.flowGuide.nodes.crLog',
-    phaseKeys: ['D', 'H'],
+    menuKey: 'menu.crSectionRoster',
+    descKey: 'courseRegistration.flowGuide.nodes.crSectionRoster',
+    phaseKeys: ['H'],
   },
 ]
 

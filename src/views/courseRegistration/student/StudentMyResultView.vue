@@ -1,6 +1,6 @@
 <script setup>
 /**
- * 我的选课：全部类型（选修/必修/申请/管理员）分层；默认 list，可看课表
+ * 我的课程：一级全量进页；二级筛只过滤表格；课表始终全量；搜索可收放
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import StudentPageShell from '../../../components/courseRegistration/StudentPageShell.vue'
@@ -12,12 +12,13 @@ import { getBatchById } from '../../../data/courseRegistration/registrationBatch
 import { displayClassTimeVenueLines } from '../../../data/courseRegistration/sectionScheduleFields.js'
 import { resolveSchoolElectiveCategory } from '../../../data/courseRegistration/selectableCourses.js'
 import { hydrateSelectedCourseDisplay } from '../../../data/courseRegistration/resolveSelectedCourseDisplay.js'
-import { getSchoolElectiveCategoryLabel } from '../../../data/departments.js'
+import { formatUnifiedCourseCategoryLabel } from '../../../data/courseRegistration/unifiedCourseCategory.js'
 import StudentSchedulePreviewPanel from '../../../components/courseRegistration/StudentSchedulePreviewPanel.vue'
 import ApplicationDetailDrawer from '../../../components/common/ApplicationDetailDrawer.vue'
 import {
   MY_RESULT_TYPE_TABS,
   listMyResultCoursesByType,
+  listUntimedMyResultCourses,
   buildMyResultSchedule,
 } from '../../../data/courseRegistration/studentMyResultCourses.js'
 import '../../../styles/list-page-search.css'
@@ -32,19 +33,34 @@ const { t, isZh } = useAppI18n()
 function emptySearch() {
   return {
     name: '',
+    code: '',
     academicSession: '',
     credits: '',
     section: '',
     lecturer: '',
-    weekRange: '',
-    classTimeVenue: '',
-    selectedAt: '',
+    weekFrom: '',
+    weekTo: '',
+    weekday: '',
+    selectedAtStart: '',
+    selectedAtEnd: '',
   }
 }
 
+const WEEKDAY_FILTER_OPTIONS = [
+  { value: 'Mon', labelKey: 'courseRegistration.student.weekdayMon' },
+  { value: 'Tue', labelKey: 'courseRegistration.student.weekdayTue' },
+  { value: 'Wed', labelKey: 'courseRegistration.student.weekdayWed' },
+  { value: 'Thu', labelKey: 'courseRegistration.student.weekdayThu' },
+  { value: 'Fri', labelKey: 'courseRegistration.student.weekdayFri' },
+  { value: 'Sat', labelKey: 'courseRegistration.student.weekdaySat' },
+  { value: 'Sun', labelKey: 'courseRegistration.student.weekdaySun' },
+]
+
+/** 二级分类筛：默认全部（一级页即全量） */
 const activeTypeTab = ref('all')
 const searchForm = ref(emptySearch())
 const appliedSearch = ref(emptySearch())
+const searchExpanded = ref(true)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const scheduleDrawerVisible = ref(false)
@@ -52,7 +68,10 @@ const scheduleDrawerVisible = ref(false)
 const typeTabs = computed(() =>
   MY_RESULT_TYPE_TABS.map((key) => ({
     key,
-    label: t(`courseRegistration.student.myResultType.${key}`),
+    label:
+      key === 'all'
+        ? t('common.all')
+        : t(`courseRegistration.student.myResultType.${key}`),
   })),
 )
 
@@ -64,15 +83,45 @@ watch(activeTypeTab, () => {
   currentPage.value = 1
 })
 
+/** 表格：随二级分类筛 */
 const scopedRawCourses = computed(() => listMyResultCoursesByType(activeTypeTab.value))
 
-/** 课表 = 当前类型有时段课（按 resultType 着色；无批次裁剪；无本轮虚线；课名跟 locale） */
+/** 课表：始终全部课程（必修/选修两色；与二级筛无关） */
+const allRawCoursesForSchedule = computed(() => listMyResultCoursesByType('all'))
+
 const finalScheduleSlots = computed(() =>
-  buildMyResultSchedule(scopedRawCourses.value, { locale: isZh.value ? 'zh' : 'en' }),
+  buildMyResultSchedule(allRawCoursesForSchedule.value, {
+    locale: isZh.value ? 'zh' : 'en',
+  }),
 )
 
 const scheduleSlotCount = computed(() => finalScheduleSlots.value.length)
 const scheduleToolbarLabel = computed(() => t('courseRegistration.student.scheduleToolbarButton'))
+const schedulePreviewSubtitle = computed(() =>
+  t('courseRegistration.student.schedulePreviewFinalHintAll'),
+)
+
+/** 无排课时段已选课（如 INT300 实习）→ 课表 footer 提示 */
+const untimedMyResultCourses = computed(() => listUntimedMyResultCourses())
+
+const untimedScheduleTipText = computed(() => {
+  const rows = untimedMyResultCourses.value
+  if (!rows.length) return ''
+  const labels = rows
+    .map((row) => {
+      const code = String(row.courseCode || row.code || '').trim()
+      const name = isZh.value
+        ? row.courseName || row.courseNameEn || ''
+        : row.courseNameEn || row.courseName || ''
+      if (code && name) return `${code} ${name}`
+      return code || name
+    })
+    .filter(Boolean)
+  if (!labels.length) return ''
+  return t('courseRegistration.student.scheduleUntimedCoursesTip', {
+    courses: labels.join(isZh.value ? '、' : ', '),
+  })
+})
 
 function openScheduleDrawer() {
   scheduleDrawerVisible.value = true
@@ -112,6 +161,7 @@ const allCourseRows = computed(() =>
       courseId: item.courseId,
       code: item.courseCode,
       name: item.courseName || '—',
+      type: item.type,
       resultType: raw.resultType || 'elective',
       schoolElectiveCategory: resolveSchoolElectiveCategory({
         type: item.type,
@@ -127,6 +177,7 @@ const allCourseRows = computed(() =>
       timeVenueText: timeVenueLines.join('\n') || '—',
       credits: item.credits,
       selectedAt: formatSelectedAt(item.selectedAt),
+      selectedAtRaw: item.selectedAt || '',
     }
   }),
 )
@@ -144,27 +195,125 @@ function uniqueOptions(getter) {
 const creditOptions = computed(() => uniqueOptions((row) => row.credits))
 const academicSessionOptions = computed(() => uniqueOptions((row) => row.academicSession))
 const sectionOptions = computed(() => uniqueOptions((row) => row.section))
-const lecturerOptions = computed(() => uniqueOptions((row) => row.lecturer))
-const weekRangeOptions = computed(() => uniqueOptions((row) => row.weekRange))
-const classTimeVenueOptions = computed(() => uniqueOptions((row) => row.timeVenueText))
-const selectedAtOptions = computed(() => uniqueOptions((row) => row.selectedAt))
+
+/** @param {string} raw */
+function parseWeekSpan(raw) {
+  const text = String(raw || '').trim()
+  if (!text || text === '—') return null
+  const range = text.match(/(\d+)\s*[-–~到至]\s*(\d+)/)
+  if (range) {
+    const from = Number(range[1])
+    const to = Number(range[2])
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return null
+    return { from: Math.min(from, to), to: Math.max(from, to) }
+  }
+  const single = text.match(/(\d+)/)
+  if (!single) return null
+  const n = Number(single[1])
+  if (!Number.isFinite(n)) return null
+  return { from: n, to: n }
+}
+
+/**
+ * @param {{ from: number, to: number }|null} span
+ * @param {string|number} fromRaw
+ * @param {string|number} toRaw
+ */
+function weekSpanOverlaps(span, fromRaw, toRaw) {
+  const fromStr = String(fromRaw ?? '').trim()
+  const toStr = String(toRaw ?? '').trim()
+  if (!fromStr && !toStr) return true
+  if (!span) return false
+  const qFrom = fromStr ? Number(fromStr) : 1
+  const qTo = toStr ? Number(toStr) : 99
+  if (!Number.isFinite(qFrom) || !Number.isFinite(qTo)) return true
+  const a = Math.min(qFrom, qTo)
+  const b = Math.max(qFrom, qTo)
+  return span.from <= b && span.to >= a
+}
+
+/** @param {string} value */
+function parseSelectedAtDay(value) {
+  const raw = String(value || '').trim()
+  if (!raw || raw === '—') return null
+  const dmy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+  if (dmy) {
+    const d = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]))
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+  const ymd = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (ymd) {
+    const d = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]))
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+  const parsed = new Date(raw)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function dayKey(date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
+/**
+ * @param {string} displayAt
+ * @param {string} rawAt
+ * @param {string} startYmd
+ * @param {string} endYmd
+ */
+function selectedAtInRange(displayAt, rawAt, startYmd, endYmd) {
+  if (!startYmd && !endYmd) return true
+  const day = parseSelectedAtDay(displayAt) || parseSelectedAtDay(rawAt)
+  if (!day) return false
+  if (startYmd) {
+    const start = parseSelectedAtDay(startYmd)
+    if (start && dayKey(day) < dayKey(start)) return false
+  }
+  if (endYmd) {
+    const end = parseSelectedAtDay(endYmd)
+    if (end && dayKey(day) > dayKey(end)) return false
+  }
+  return true
+}
+
+const WEEKDAY_MATCHERS = {
+  Mon: ['mon', 'monday', '星期一', '周一'],
+  Tue: ['tue', 'tuesday', '星期二', '周二'],
+  Wed: ['wed', 'wednesday', '星期三', '周三'],
+  Thu: ['thu', 'thursday', '星期四', '周四'],
+  Fri: ['fri', 'friday', '星期五', '周五'],
+  Sat: ['sat', 'saturday', '星期六', '周六'],
+  Sun: ['sun', 'sunday', '星期日', '周日'],
+}
+
+/** @param {string} text @param {string} weekday */
+function textHasWeekday(text, weekday) {
+  const hay = String(text || '').toLowerCase()
+  if (!hay || !weekday) return false
+  const needles = WEEKDAY_MATCHERS[weekday] || [String(weekday).toLowerCase()]
+  return needles.some((n) => hay.includes(n))
+}
 
 const filteredCourseRows = computed(() => {
   const f = appliedSearch.value
-  const keyword = String(f.name || '').trim().toLowerCase()
+  const nameKw = String(f.name || '').trim().toLowerCase()
+  const codeKw = String(f.code || '').trim().toLowerCase()
+  const lecturerKw = String(f.lecturer || '').trim().toLowerCase()
   return allCourseRows.value.filter((row) => {
-    if (keyword) {
-      const name = String(row.name || '').toLowerCase()
-      const code = String(row.code || '').toLowerCase()
-      if (!name.includes(keyword) && !code.includes(keyword)) return false
-    }
+    if (nameKw && !String(row.name || '').toLowerCase().includes(nameKw)) return false
+    if (codeKw && !String(row.code || '').toLowerCase().includes(codeKw)) return false
     if (f.academicSession && String(row.academicSession) !== String(f.academicSession)) return false
     if (f.credits !== '' && String(row.credits) !== String(f.credits)) return false
     if (f.section && String(row.section) !== String(f.section)) return false
-    if (f.lecturer && String(row.lecturer) !== String(f.lecturer)) return false
-    if (f.weekRange && String(row.weekRange) !== String(f.weekRange)) return false
-    if (f.classTimeVenue && String(row.timeVenueText) !== String(f.classTimeVenue)) return false
-    if (f.selectedAt && String(row.selectedAt) !== String(f.selectedAt)) return false
+    if (lecturerKw && !String(row.lecturer || '').toLowerCase().includes(lecturerKw)) return false
+    if (f.weekFrom || f.weekTo) {
+      if (!weekSpanOverlaps(parseWeekSpan(row.weekRange), f.weekFrom, f.weekTo)) return false
+    }
+    if (f.weekday && !textHasWeekday(row.timeVenueText, f.weekday)) return false
+    if (
+      !selectedAtInRange(row.selectedAt, row.selectedAtRaw, f.selectedAtStart, f.selectedAtEnd)
+    ) {
+      return false
+    }
     return true
   })
 })
@@ -201,7 +350,11 @@ function selectTypeTab(key) {
     <div class="page-card">
       <p class="cr-my-result-hint">{{ t('courseRegistration.student.myResultHint') }}</p>
 
-      <div class="adddrop-type-tabs cr-my-result-type-tabs" role="tablist">
+      <div
+        class="adddrop-type-tabs cr-my-result-type-tabs"
+        role="tablist"
+        :aria-label="t('courseRegistration.student.myResultTypeFilterLabel')"
+      >
         <button
           v-for="tab in typeTabs"
           :key="tab.key"
@@ -225,7 +378,17 @@ function selectTypeTab(key) {
                 v-model="searchForm.name"
                 type="text"
                 class="search-input"
-                :placeholder="t('courseRegistration.student.resultSearchPlaceholder')"
+                :placeholder="t('courseRegistration.student.searchNamePlaceholder')"
+                @keyup.enter="handleSearch"
+              />
+            </div>
+            <div class="search-item">
+              <label>{{ t('courseRegistration.courses.code') }}</label>
+              <input
+                v-model="searchForm.code"
+                type="text"
+                class="search-input"
+                :placeholder="t('courseRegistration.student.searchCodePlaceholder')"
                 @keyup.enter="handleSearch"
               />
             </div>
@@ -252,34 +415,57 @@ function selectTypeTab(key) {
                 </option>
               </select>
             </div>
-            <div class="search-item">
-              <label>{{ t('courseRegistration.courses.lecturer') }}</label>
-              <select v-model="searchForm.lecturer" class="search-select">
-                <option value="">{{ t('common.all') }}</option>
-                <option v-for="opt in lecturerOptions" :key="opt" :value="opt">{{ opt }}</option>
-              </select>
-            </div>
-            <div class="search-item">
-              <label>{{ t('courseRegistration.courses.weekRange') }}</label>
-              <select v-model="searchForm.weekRange" class="search-select">
-                <option value="">{{ t('common.all') }}</option>
-                <option v-for="opt in weekRangeOptions" :key="opt" :value="opt">{{ opt }}</option>
-              </select>
-            </div>
-            <div class="search-item">
-              <label>{{ t('courseRegistration.courses.classTimeVenue') }}</label>
-              <select v-model="searchForm.classTimeVenue" class="search-select">
-                <option value="">{{ t('common.all') }}</option>
-                <option v-for="opt in classTimeVenueOptions" :key="opt" :value="opt">{{ opt }}</option>
-              </select>
-            </div>
-            <div class="search-item">
-              <label>{{ t('courseRegistration.student.selectedAt') }}</label>
-              <select v-model="searchForm.selectedAt" class="search-select">
-                <option value="">{{ t('common.all') }}</option>
-                <option v-for="opt in selectedAtOptions" :key="opt" :value="opt">{{ opt }}</option>
-              </select>
-            </div>
+            <template v-if="searchExpanded">
+              <div class="search-item">
+                <label>{{ t('courseRegistration.courses.lecturer') }}</label>
+                <input
+                  v-model="searchForm.lecturer"
+                  type="text"
+                  class="search-input"
+                  :placeholder="t('courseRegistration.courses.lecturer')"
+                  @keyup.enter="handleSearch"
+                />
+              </div>
+              <div class="search-item search-item-range">
+                <label>{{ t('courseRegistration.student.weekRangeFromTo') }}</label>
+                <input
+                  v-model="searchForm.weekFrom"
+                  type="number"
+                  min="1"
+                  class="search-input"
+                  placeholder="1"
+                  @keyup.enter="handleSearch"
+                />
+                <span class="range-sep">{{ t('common.to') }}</span>
+                <input
+                  v-model="searchForm.weekTo"
+                  type="number"
+                  min="1"
+                  class="search-input"
+                  placeholder="14"
+                  @keyup.enter="handleSearch"
+                />
+              </div>
+              <div class="search-item">
+                <label>{{ t('courseRegistration.student.weekdayClassFilter') }}</label>
+                <select v-model="searchForm.weekday" class="search-select">
+                  <option value="">{{ t('common.all') }}</option>
+                  <option
+                    v-for="opt in WEEKDAY_FILTER_OPTIONS"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    {{ t(opt.labelKey) }}
+                  </option>
+                </select>
+              </div>
+              <div class="search-item search-item-range">
+                <label>{{ t('courseRegistration.student.selectedAtRange') }}</label>
+                <input v-model="searchForm.selectedAtStart" type="date" class="search-input" />
+                <span class="range-sep">{{ t('common.to') }}</span>
+                <input v-model="searchForm.selectedAtEnd" type="date" class="search-input" />
+              </div>
+            </template>
           </div>
           <div class="search-actions">
             <button type="button" class="btn btn-primary" @click="handleSearch">
@@ -287,6 +473,18 @@ function selectTypeTab(key) {
             </button>
             <button type="button" class="btn btn-default" @click="handleReset">
               {{ t('common.reset') }}
+            </button>
+            <button type="button" class="toggle-link" @click="searchExpanded = !searchExpanded">
+              {{ searchExpanded ? t('common.collapse') : t('common.more') }}
+              <svg
+                :class="{ up: searchExpanded }"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </button>
           </div>
         </div>
@@ -311,7 +509,7 @@ function selectTypeTab(key) {
                 <th class="col-sticky-left col-no">{{ t('common.serialNo') }}</th>
                 <th class="col-sticky-left col-code">{{ t('courseRegistration.courses.code') }}</th>
                 <th class="col-sticky-left col-name">{{ t('courseRegistration.courses.name') }}</th>
-                <th>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</th>
+                <th>{{ t('courseRegistration.courses.category') }}</th>
                 <th>{{ t('courseRegistration.batch.academicSession') }}</th>
                 <th>{{ t('courseRegistration.courses.credits') }}</th>
                 <th>{{ t('courseRegistration.courses.sectionCode') }}</th>
@@ -326,7 +524,7 @@ function selectTypeTab(key) {
                 <td class="col-sticky-left col-no">{{ (currentPage - 1) * pageSize + index + 1 }}</td>
                 <td class="col-sticky-left col-code">{{ row.code }}</td>
                 <td class="col-sticky-left col-name">{{ row.name }}</td>
-                <td>{{ getSchoolElectiveCategoryLabel(row.schoolElectiveCategory, isZh) }}</td>
+                <td>{{ formatUnifiedCourseCategoryLabel(row, t) }}</td>
                 <td>{{ row.academicSession }}</td>
                 <td>{{ row.credits }}</td>
                 <td>{{ formatSectionName(row.section) }}</td>
@@ -370,24 +568,75 @@ function selectTypeTab(key) {
     <ApplicationDetailDrawer
       :visible="scheduleDrawerVisible"
       :title="t('courseRegistration.student.schedulePreviewTitle')"
-      :subtitle="t('courseRegistration.student.schedulePreviewFinalHint')"
+      :subtitle="schedulePreviewSubtitle"
       @close="scheduleDrawerVisible = false"
     >
       <StudentSchedulePreviewPanel
         embedded
+        show-legend
         legend-mode="myResult"
         :schedule="finalScheduleSlots"
       />
       <template #footer>
-        <button type="button" class="btn btn-primary" @click="scheduleDrawerVisible = false">
-          {{ t('common.close') }}
-        </button>
+        <div class="schedule-drawer-footer">
+          <p v-if="untimedScheduleTipText" class="schedule-untimed-tip" role="note">
+            <span class="schedule-untimed-tip-badge">{{ t('courseRegistration.student.scheduleUntimedTipBadge') }}</span>
+            <span class="schedule-untimed-tip-text">{{ untimedScheduleTipText }}</span>
+          </p>
+          <button type="button" class="btn btn-primary" @click="scheduleDrawerVisible = false">
+            {{ t('common.close') }}
+          </button>
+        </div>
       </template>
     </ApplicationDetailDrawer>
   </StudentPageShell>
 </template>
 
 <style scoped>
+.schedule-drawer-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.schedule-untimed-tip {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #1e40af;
+  text-align: left;
+}
+
+.schedule-untimed-tip-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.schedule-untimed-tip-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .cr-my-result-hint {
   margin: 0 0 12px;
   padding: 10px 12px;

@@ -1,5 +1,6 @@
 /**
- * 列表页搜索区统一布局：条件左上左对齐，查询/重置同一行右上对齐。
+ * 列表页搜索区统一布局：条件流式换行填满，查询/重置贴右。
+ * 次要条件应放在同一 .search-fields 内用 v-if 切换，勿再拆 search-row-secondary。
  */
 .search-bar {
   margin-bottom: 16px;
@@ -12,7 +13,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
 }
 
@@ -29,7 +30,7 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-start;
-  gap: 12px 20px;
+  gap: 10px 14px;
   flex: 1;
   min-width: 0;
 }
@@ -55,8 +56,8 @@
 .search-bar .search-item select,
 .search-bar .search-input,
 .search-bar .search-select {
-  width: 180px;
-  min-width: 120px;
+  width: 148px;
+  min-width: 100px;
   height: 32px;
   padding: 0 10px;
   border: 1px solid #d1d5db;
@@ -65,6 +66,12 @@
   color: #111827;
   background: #fff;
   box-sizing: border-box;
+}
+
+.search-bar .search-item-range > input:not([type='checkbox']):not([type='radio']),
+.search-bar .search-item-range > .search-input {
+  width: 120px;
+  min-width: 88px;
 }
 
 .search-bar .search-item input:focus,
@@ -151,9 +158,24 @@
   min-width: 72px;
 }
 
-.search-bar .range-sep {
+.search-bar .range-sep,
+.search-bar .range-unit {
   font-size: 13px;
   color: #6b7280;
+  flex-shrink: 0;
+}
+
+.search-bar .search-item-range {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.search-bar .search-item-range > label {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .search-bar .search-item-switch {

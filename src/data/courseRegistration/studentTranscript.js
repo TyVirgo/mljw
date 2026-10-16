@@ -5,34 +5,69 @@
 import { getCurrentStudentId } from '../mockCurrentStudent.js'
 import { getPreviousAcademicSession } from '../intakeSets.js'
 
-/** 字母成绩 → 中文等级（展示用） */
-const LETTER_GRADE_ZH = {
-  A: '优秀',
-  'A-': '优秀',
-  'B+': '良好',
-  B: '良好',
-  'B-': '良好',
-  'C+': '中等',
-  C: '中等',
-  'C-': '中等',
-  D: '及格',
-  F: '不及格',
-  M: '缺考',
+/** 字母成绩 → 约定百分制（无 score 字段时回退；60 及格线） */
+const LETTER_GRADE_SCORE = {
+  A: 95,
+  'A-': 90,
+  'B+': 85,
+  B: 80,
+  'B-': 75,
+  'C+': 72,
+  C: 70,
+  'C-': 65,
+  D: 60,
+  F: 45,
 }
 
 /**
- * @param {string} grade
+ * @param {string|object|null|undefined} gradeOrRow
+ * @returns {number|null} 0–100；缺考无分返回 null
+ */
+export function resolveGradeScore(gradeOrRow) {
+  if (gradeOrRow != null && typeof gradeOrRow === 'object') {
+    const s = Number(gradeOrRow.score)
+    if (Number.isFinite(s)) return Math.min(100, Math.max(0, s))
+    return resolveGradeScore(gradeOrRow.grade)
+  }
+  const raw = String(gradeOrRow || '').trim()
+  if (!raw) return null
+  if (/^\d+(\.\d+)?$/.test(raw)) {
+    return Math.min(100, Math.max(0, Number(raw)))
+  }
+  if (LETTER_GRADE_SCORE[raw] != null) return LETTER_GRADE_SCORE[raw]
+  const upper = raw.toUpperCase()
+  if (LETTER_GRADE_SCORE[upper] != null) return LETTER_GRADE_SCORE[upper]
+  const norm = raw[0].toUpperCase() + raw.slice(1)
+  if (LETTER_GRADE_SCORE[norm] != null) return LETTER_GRADE_SCORE[norm]
+  if (upper === 'M') return null
+  return null
+}
+
+/**
+ * 展示用成绩：百分制数字加「分」；缺考显示「缺考」
+ * @param {string|object|null|undefined} gradeOrRow
+ * @returns {string}
+ */
+export function formatGradeDisplay(gradeOrRow) {
+  if (gradeOrRow != null && typeof gradeOrRow === 'object') {
+    const letter = String(gradeOrRow.grade || '').trim().toUpperCase()
+    if (letter === 'M' && (gradeOrRow.score == null || gradeOrRow.score === '')) {
+      return '缺考'
+    }
+  } else if (String(gradeOrRow || '').trim().toUpperCase() === 'M') {
+    return '缺考'
+  }
+  const score = resolveGradeScore(gradeOrRow)
+  if (score != null) return `${Math.round(score)}分`
+  return ''
+}
+
+/**
+ * @param {string|object|null|undefined} grade
  * @returns {string}
  */
 export function formatGradeToZh(grade) {
-  const raw = String(grade || '').trim()
-  if (!raw) return ''
-  if (LETTER_GRADE_ZH[raw]) return LETTER_GRADE_ZH[raw]
-  const upper = raw.toUpperCase()
-  if (LETTER_GRADE_ZH[upper]) return LETTER_GRADE_ZH[upper]
-  // B- / A+ 等：首字母大写
-  const norm = raw[0].toUpperCase() + raw.slice(1)
-  return LETTER_GRADE_ZH[norm] || raw
+  return formatGradeDisplay(grade)
 }
 
 /**
@@ -48,6 +83,7 @@ const TRANSCRIPT_BY_STUDENT = {
       courseName: 'Algorithms Fundamentals',
       credits: 3,
       grade: 'F',
+      score: 41,
       academicSession: '2025/02',
       feeStream: 'science',
       type: 'ME',
@@ -70,6 +106,7 @@ const TRANSCRIPT_BY_STUDENT = {
       courseName: 'Operating Systems Intro',
       credits: 3,
       grade: 'F',
+      score: 35,
       academicSession: '2025/04',
       feeStream: 'science',
       type: 'ME',
@@ -81,6 +118,7 @@ const TRANSCRIPT_BY_STUDENT = {
       courseName: 'Database Basics',
       credits: 3,
       grade: 'F',
+      score: 48,
       academicSession: '2025/02',
       feeStream: 'science',
       type: 'ME',
@@ -103,18 +141,126 @@ const TRANSCRIPT_BY_STUDENT = {
       courseName: 'Web Development',
       credits: 3,
       grade: 'F',
+      score: 42,
       academicSession: '2025/02',
       feeStream: 'science',
       type: 'ME',
       retakeCourseId: 'course-web210',
     },
-    // —— 提升池（及格）——
+    // —— GE 挂科池（不及格重修 · 公共选修）——
+    {
+      id: 'tr-sci110-f',
+      courseCode: 'SCI110',
+      courseName: 'Scientific Reasoning',
+      credits: 3,
+      grade: 'F',
+      score: 38,
+      academicSession: '2025/04',
+      feeStream: 'science',
+      type: 'GE',
+      g1Category: 'Science',
+      schoolElectiveCategory: 'science',
+      retakeCourseId: 'course-sci110',
+    },
+    {
+      id: 'tr-sci110-d',
+      courseCode: 'SCI110',
+      courseName: 'Scientific Reasoning',
+      credits: 3,
+      grade: 'D',
+      score: 58,
+      academicSession: '2024/09',
+      feeStream: 'science',
+      type: 'GE',
+      g1Category: 'Science',
+      schoolElectiveCategory: 'science',
+      retakeCourseId: 'course-sci110',
+    },
+    {
+      id: 'tr-fin110-f',
+      courseCode: 'FIN110',
+      courseName: 'Personal Finance Literacy',
+      credits: 3,
+      grade: 'F',
+      score: 47,
+      academicSession: '2025/02',
+      feeStream: 'business',
+      type: 'GE',
+      g1Category: 'Business',
+      schoolElectiveCategory: 'business',
+      retakeCourseId: 'course-fin110',
+    },
+    // —— 必修同课重修（仅同课，无组内替代；与我的课表必修同源）——
+    {
+      id: 'tr-math101-f',
+      courseCode: 'MATH101',
+      courseName: 'Calculus I',
+      credits: 4,
+      grade: 'F',
+      academicSession: '2025/04',
+      feeStream: 'science',
+      type: 'CORE',
+      sourceType: 'required',
+      retakeCourseId: 'course-math101',
+    },
+    {
+      id: 'tr-phys101-f',
+      courseCode: 'PHYS101',
+      courseName: 'Physics for Engineers',
+      credits: 3,
+      grade: 'F',
+      academicSession: '2025/04',
+      feeStream: 'science',
+      type: 'CORE',
+      sourceType: 'required',
+      retakeCourseId: 'course-phys101',
+    },
+    {
+      id: 'tr-phys101-d',
+      courseCode: 'PHYS101',
+      courseName: 'Physics for Engineers',
+      credits: 3,
+      grade: 'D',
+      academicSession: '2025/02',
+      feeStream: 'science',
+      type: 'CORE',
+      sourceType: 'required',
+      retakeCourseId: 'course-phys101',
+    },
+    // —— 提升池（及格，含 60；必修 / GE / ME 均有）——
+    {
+      id: 'tr-int300-b',
+      courseCode: 'INT300',
+      courseName: 'Professional Internship',
+      credits: 2,
+      grade: 'B',
+      score: 78,
+      academicSession: '2025/04',
+      feeStream: 'science',
+      type: 'CORE',
+      sourceType: 'required',
+      retakeCourseId: 'course-int300',
+    },
+    {
+      id: 'tr-int300-c',
+      courseCode: 'INT300',
+      courseName: 'Professional Internship',
+      credits: 2,
+      grade: 'C',
+      score: 68,
+      academicSession: '2024/09',
+      feeStream: 'science',
+      type: 'CORE',
+      sourceType: 'required',
+      retakeCourseId: 'course-int300',
+    },
     {
       id: 'tr-stat201-c',
       courseCode: 'STAT201',
       courseName: 'Probability & Statistics',
       credits: 3,
       grade: 'C',
+      score: 70,
       academicSession: '2025/04',
       feeStream: 'science',
       type: 'ME',
@@ -176,6 +322,7 @@ const TRANSCRIPT_BY_STUDENT = {
       academicSession: '2025/04',
       feeStream: 'science',
       type: 'ME',
+      sectionCode: '02',
       retakeCourseId: 'course-comp201',
     },
     {
@@ -255,7 +402,30 @@ const DEFAULT_TRANSCRIPT = TRANSCRIPT_BY_STUDENT.XMUM2309001
  * @param {string} [studentId]
  */
 export function getStudentTranscript(studentId = getCurrentStudentId()) {
-  return TRANSCRIPT_BY_STUDENT[studentId] || DEFAULT_TRANSCRIPT
+  const rows = TRANSCRIPT_BY_STUDENT[studentId] || DEFAULT_TRANSCRIPT
+  // 未标注教学班的 demo 履历默认挂 01，避免曾修列按课复用到全部分组
+  return rows.map((row) => ({
+    ...row,
+    sectionCode: String(row.sectionCode || '01').trim(),
+  }))
+}
+
+/**
+ * 曾修履历按教学班过滤：无分组码则不展示
+ * @param {object[]} rows
+ * @param {object} [section]
+ * @returns {object[]}
+ */
+export function filterTranscriptRowsForSection(rows, section) {
+  const code = String(section?.code || '').trim()
+  const id = String(section?.id || '').trim()
+  if (!code && !id) return []
+  return (rows || []).filter((row) => {
+    const sc = String(row.sectionCode || '').trim()
+    const sid = String(row.sectionId || '').trim()
+    if (!sc && !sid) return false
+    return (sc && sc === code) || (sid && sid === id)
+  })
 }
 
 /** 不及格 / 缺考 → 挂科重修；及格 → 刷分 */
@@ -264,11 +434,16 @@ export function defaultRetakeTypeFromGrade(grade) {
 }
 
 /**
- * @param {string} grade
+ * @param {string|object|null|undefined} gradeOrRow
  * @returns {boolean}
  */
-export function isFailingGrade(grade) {
-  const g = String(grade || '').toUpperCase()
+export function isFailingGrade(gradeOrRow) {
+  const score = resolveGradeScore(gradeOrRow)
+  if (score != null) return score < 60
+  const g =
+    gradeOrRow != null && typeof gradeOrRow === 'object'
+      ? String(gradeOrRow.grade || '').toUpperCase()
+      : String(gradeOrRow || '').toUpperCase()
   return g === 'F' || g === 'M'
 }
 
@@ -299,7 +474,7 @@ export function listTranscriptLatestByRetakeType(
   }
 
   return [...latestByKey.values()].filter((row) => {
-    const failing = isFailingGrade(row.grade)
+    const failing = isFailingGrade(row)
     return wantFailed ? failing : !failing
   })
 }
@@ -358,16 +533,16 @@ export function findTranscriptForRetakeCourse(
 }
 
 /**
- * 多行「学年学期 中文等级」展示文本
+ * 多行「学年学期 分数」展示文本
  * @param {object[]} rows
  */
 export function formatPreviousCourseGradesText(rows) {
   return (rows || [])
     .map((row) => {
       const session = String(row.academicSession || '').trim()
-      const gradeZh = formatGradeToZh(row.grade)
-      if (!session && !gradeZh) return ''
-      return [session, gradeZh].filter(Boolean).join(' ')
+      const gradeText = formatGradeDisplay(row)
+      if (!session && !gradeText) return ''
+      return [session, gradeText].filter(Boolean).join(' ')
     })
     .filter(Boolean)
     .join('\n')
@@ -381,9 +556,12 @@ export function displayPreviousCourseGrades(app) {
   const text = String(app?.previousCourseGradesText || '').trim()
   if (text) return text
   const session = String(app?.academicSessionTaken || '').trim()
-  const gradeZh = formatGradeToZh(app?.gradeEarned)
-  if (!session && !gradeZh) return ''
-  return [session, gradeZh].filter(Boolean).join(' ')
+  const gradeText = formatGradeDisplay({
+    grade: app?.gradeEarned,
+    score: app?.gradeScore ?? app?.score,
+  })
+  if (!session && !gradeText) return ''
+  return [session, gradeText].filter(Boolean).join(' ')
 }
 
 /**
@@ -403,10 +581,13 @@ export function retakeHistoryFromCourse(course, academicSession, studentId = get
         ? `${course.code || ''} ${course.name || ''}`.trim()
         : '',
     gradeEarned: row?.grade || '',
+    gradeScore: resolveGradeScore(row),
     academicSessionTaken: row?.academicSession || getPreviousAcademicSession(academicSession),
     previousCourseGradesText: formatPreviousCourseGradesText(rows),
     /** 最新一条成绩（供表单列展示；不覆盖用户已选 retakeType） */
     latestGrade: row?.grade || '',
+    latestGradeScore: resolveGradeScore(row),
+    latestGradeZh: formatGradeDisplay(row),
     latestGradeSession: row?.academicSession || '',
   }
 }

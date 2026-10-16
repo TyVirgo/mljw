@@ -2,6 +2,8 @@
 import { computed, ref } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import {
+  activeCartRoundKey,
+  listPriorRoundConfirmedCourses,
   myRegistrationList,
   unselectConfirmedCourse,
   openMyCourseQueueProgress,
@@ -17,14 +19,13 @@ import {
 } from '../../data/courseRegistration/studentVolunteerSheet.js'
 import { displayClassTimeVenueLines } from '../../data/courseRegistration/sectionScheduleFields.js'
 import { listPendingVolunteerTimeConflicts, listPendingVolunteerMultiSections, volunteerRowHasMultiSection } from '../../data/courseRegistration/volunteerPendingConflict.js'
-import { getCourseById, resolveSchoolElectiveCategory } from '../../data/courseRegistration/selectableCourses.js'
+import { getCourseById } from '../../data/courseRegistration/selectableCourses.js'
 import {
   getSectionVolunteerDisplayCount,
   volunteerCourseStates,
 } from '../../data/courseRegistration/preselectVolunteerConfirm.js'
 import { hydrateSelectedCourseDisplay } from '../../data/courseRegistration/resolveSelectedCourseDisplay.js'
-import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
-import { getSchoolElectiveCategoryLabel } from '../../data/departments.js'
+import { formatUnifiedCourseCategoryLabel } from '../../data/courseRegistration/unifiedCourseCategory.js'
 import { getActiveBatch } from '../../data/courseRegistration/registrationBatches.js'
 import {
   getSelectionGroupsForBatch,
@@ -74,13 +75,20 @@ function isFailedStatus(status) {
   return status === 'failed' || status === 'miss'
 }
 
-/** 待分配可退选；失败行不可；R2/R3 已选成功可退 */
+/** 待分配可退选；失败行不可；非志愿已选成功可退 */
 function rowCanUnselect(item) {
   if (!actionsEnabled.value) return false
   if (isFailedStatus(item?.status)) return false
   if (props.showVolunteerOrder) {
     return (item?.status || 'pendingAssign') === 'pendingAssign'
   }
+  return item?.status !== 'queued'
+}
+
+/** 历轮已选：窗口期内可退，不受志愿锁约束 */
+function rowCanUnselectPrior(item) {
+  if (!props.roundOpen || !isRegistrationPhaseForUnselect()) return false
+  if (isFailedStatus(item?.status)) return false
   return item?.status !== 'queued'
 }
 
@@ -94,10 +102,10 @@ function hydrateRow(item) {
   return hydrateSelectedCourseDisplay(item, { locale: isZh.value ? 'zh' : 'en' })
 }
 
-/** R1 待分配志愿 */
+/** 本轮待分配志愿（按当前轮过滤） */
 const allVolunteerRows = computed(() => {
   if (!props.showVolunteerOrder) return []
-  return sortedPendingVolunteers().map((item) =>
+  return sortedPendingVolunteers(undefined, activeCartRoundKey.value).map((item) =>
     hydrateRow({
       ...item,
       status: item.status || 'pendingAssign',
@@ -105,7 +113,20 @@ const allVolunteerRows = computed(() => {
   )
 })
 
-/** R2/R3 已选（非排队） */
+/** 历轮已选（严格早于当前轮；R1–R3 均可） */
+const priorRoundRows = computed(() =>
+  listPriorRoundConfirmedCourses({ roundKey: activeCartRoundKey.value }).map(hydrateRow),
+)
+
+/** R2/R3 常显历轮块（含 0 门空态）；R1 仅有历轮数据时显示 */
+const showPriorSection = computed(() => {
+  if (!props.showVolunteerOrder) return true
+  return priorRoundRows.value.length > 0
+})
+
+const isPriorEmpty = computed(() => !priorRoundRows.value.length)
+
+/** 非志愿：本轮已选（非排队） */
 const allPrimaryRows = computed(() => {
   if (props.showVolunteerOrder) return []
   const list = myRegistrationList.value || []
@@ -127,9 +148,8 @@ const primaryRows = computed(() =>
 const previewRows = computed(() => primaryRows.value.slice(0, COLLAPSED_PREVIEW))
 const extraRows = computed(() => primaryRows.value.slice(COLLAPSED_PREVIEW))
 
-const showDrawerRail = computed(
-  () => extraRows.value.length > 0 || queuedRows.value.length > 0,
-)
+/** 仅「本轮超出预览行」需要展开轨；排队块已默认展示 */
+const showDrawerRail = computed(() => extraRows.value.length > 0)
 
 /** 收起前 3 行；展开同一张表追加其余行（不另开表头） */
 const visiblePrimaryRows = computed(() => {
@@ -152,27 +172,60 @@ const selectionGroups = computed(() =>
   showSelectionGroupColumn.value ? getSelectionGroupsForBatch(getActiveBatch()) : [],
 )
 
-/** 空表 colspan：与当前表头列数一致 */
+const isPrimaryEmpty = computed(() => !visiblePrimaryRows.value.length)
+
+/** 空表 colspan：与当前表头列数一致（占位行撑开高度，文案用浮层居中；类别已合并为一列） */
 const emptyColspan = computed(() => {
-  let n = props.showVolunteerOrder ? 13 : 12
+  let n = props.showVolunteerOrder ? 12 : 11
   if (showSelectionGroupColumn.value) n += 1
   if (showActionsColumn.value) n += 1
-  if (props.showVolunteerOrder) n += 1 // 课程已选百分比列
+  if (props.showVolunteerOrder) n += 1
   return n
 })
 
 const panelTitle = computed(() => {
-  if (props.showVolunteerOrder) {
-    return t('courseRegistration.student.roundStatusPanel.titleWithPending', {
-      count: allVolunteerRows.value.length,
-    })
+  if (props.showVolunteerOrder || showPriorSection.value) {
+    return t('courseRegistration.student.roundStatusPanel.panelTitle')
   }
   return t('courseRegistration.student.roundStatusPanel.titleWithSelected', {
     count: allPrimaryRows.value.length,
   })
 })
 
-/** R1 仅保留拖拽说明；R2/R3 门数已并入标题，无副标题 */
+const currentVolunteerHeading = computed(() =>
+  t('courseRegistration.student.roundStatusPanel.currentVolunteerSection'),
+)
+
+const pendingCountBesideLabel = computed(() =>
+  t('courseRegistration.student.roundStatusPanel.pendingCountBeside', {
+    count: allVolunteerRows.value.length,
+  }),
+)
+
+const currentSelectedHeading = computed(() =>
+  t('courseRegistration.student.roundStatusPanel.currentSelectedSection'),
+)
+
+const selectedCountBesideLabel = computed(() =>
+  t('courseRegistration.student.roundStatusPanel.selectedCountBeside', {
+    count: allPrimaryRows.value.length,
+  }),
+)
+
+const priorRoundHeading = computed(() =>
+  t('courseRegistration.student.roundStatusPanel.priorRoundHeading'),
+)
+
+const priorCountBesideLabel = computed(() =>
+  t('courseRegistration.student.roundStatusPanel.selectedCountBeside', {
+    count: priorRoundRows.value.length,
+  }),
+)
+
+/** R2/R3 展示「本轮已选」分块标题 */
+const showCurrentSelectedHeading = computed(() => !props.showVolunteerOrder)
+
+/** 志愿模式保留拖拽说明 */
 const panelSubtitle = computed(() => {
   if (!props.showVolunteerOrder) return ''
   return t('courseRegistration.student.volunteerSheet.orderLiveHintDragOnly')
@@ -228,20 +281,21 @@ function groupName(item) {
   })
 }
 
-/** 校选类别：行内字段优先，否则回落课库，ME 默认与专业一致（demo 文科） */
-function schoolElectiveCategoryLabel(item) {
-  const lib = getCourseById(item?.courseId)
-  const raw = resolveSchoolElectiveCategory({
-    ...(lib || {}),
-    ...item,
-    type: item?.type || lib?.type,
-  })
-  return getSchoolElectiveCategoryLabel(raw, isZh.value)
-}
-
-/** 课程类别：公共选修 / 专业选修 */
+/**
+ * 统一课程类别：必修课 / GE01–04 / ME01–04
+ * @param {object} item
+ */
 function courseCategoryLabel(item) {
-  return getRegistrationTypeLabel(item?.type, t)
+  const lib = getCourseById(item?.courseId)
+  return formatUnifiedCourseCategoryLabel(
+    {
+      ...(lib || {}),
+      ...item,
+      type: item?.type || lib?.type,
+      schoolElectiveCategory: item?.schoolElectiveCategory || lib?.schoolElectiveCategory,
+    },
+    t,
+  )
 }
 
 function statusLabel(status) {
@@ -293,9 +347,9 @@ function preferenceLabel(item, index) {
   return t('courseRegistration.student.volunteerSheet.slotLabel', { n })
 }
 
-/** 提交时间展示（志愿/选课写入的 selectedAt） */
+/** 提交时间展示：成功用 selectedAt；失败兼容 failedAt */
 function submissionTimeLabel(item) {
-  return formatSelectedAt(item?.selectedAt || item?.submittedAt)
+  return formatSelectedAt(item?.selectedAt || item?.submittedAt || item?.failedAt)
 }
 
 function toggleExpanded() {
@@ -395,7 +449,18 @@ defineExpose({ scrollIntoView })
       </div>
     </header>
 
-    <div class="table-wrap">
+    <h4 v-if="showVolunteerOrder" class="cr-round-block-title">
+      <span>{{ currentVolunteerHeading }}</span>
+      <span class="cr-round-block-meta">{{ pendingCountBesideLabel }}</span>
+    </h4>
+    <h4 v-else-if="showCurrentSelectedHeading" class="cr-round-block-title">
+      <span>{{ currentSelectedHeading }}</span>
+      <span class="cr-round-block-meta">{{ selectedCountBesideLabel }}</span>
+    </h4>
+    <div
+      class="table-wrap"
+      :class="{ 'is-empty': isPrimaryEmpty }"
+    >
       <table
         class="data-table"
         :class="[
@@ -421,7 +486,6 @@ defineExpose({ scrollIntoView })
               {{ t('courseRegistration.courses.selectionGroup') }}
             </th>
             <th class="col-category">{{ t('courseRegistration.courses.category') }}</th>
-            <th class="col-school-elective">{{ t('courseRegistration.courses.schoolElectiveCategory') }}</th>
             <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
             <th class="col-lecturer">{{ t('courseRegistration.courses.lecturer') }}</th>
             <th class="col-week">{{ t('courseRegistration.courses.weekRange') }}</th>
@@ -446,10 +510,8 @@ defineExpose({ scrollIntoView })
           </tr>
         </thead>
         <tbody>
-          <tr v-if="!visiblePrimaryRows.length">
-            <td :colspan="emptyColspan" class="empty-cell">
-              {{ t('courseRegistration.student.roundStatusPanel.emptyNoCourses') }}
-            </td>
+          <tr v-if="isPrimaryEmpty">
+            <td :colspan="emptyColspan" class="empty-cell-spacer" aria-hidden="true" />
           </tr>
           <tr
             v-for="(item, index) in visiblePrimaryRows"
@@ -520,7 +582,6 @@ defineExpose({ scrollIntoView })
               <template v-else>—</template>
             </td>
             <td class="col-category nowrap">{{ courseCategoryLabel(item) }}</td>
-            <td class="col-school-elective nowrap">{{ schoolElectiveCategoryLabel(item) }}</td>
             <td class="col-credits nowrap">{{ item.credits ?? '—' }}</td>
             <td class="col-lecturer nowrap">{{ item.lecturer || '—' }}</td>
             <td class="col-week nowrap">{{ item.weekRange || '—' }}</td>
@@ -565,10 +626,166 @@ defineExpose({ scrollIntoView })
           </tr>
         </tbody>
       </table>
+      <div
+        v-if="isPrimaryEmpty"
+        class="table-empty-overlay"
+        role="status"
+      >
+        <p class="table-empty-title">
+          {{ t('courseRegistration.student.roundStatusPanel.emptyNoCourses') }}
+        </p>
+      </div>
     </div>
 
-    <div v-if="showDrawerRail" class="cr-round-drawer">
-      <div v-if="queuedRows.length" v-show="isExpanded" class="cr-round-drawer-body">
+    <template v-if="showPriorSection">
+      <h4 class="cr-round-block-title cr-round-block-title--prior">
+        <span>{{ priorRoundHeading }}</span>
+        <span class="cr-round-block-meta">{{ priorCountBesideLabel }}</span>
+      </h4>
+      <div class="table-wrap" :class="{ 'is-empty': isPriorEmpty }">
+        <table
+          class="data-table data-table--prior"
+          :class="[
+            showVolunteerOrder ? 'data-table--pref' : 'data-table--flat',
+            { 'has-capacity-col': showVolunteerOrder },
+          ]"
+        >
+          <thead>
+            <tr>
+              <th
+                v-if="showVolunteerOrder"
+                class="col-drag sticky-left sticky-drag"
+                aria-hidden="true"
+              />
+              <th
+                v-if="showVolunteerOrder"
+                class="col-pref sticky-left sticky-pref"
+              >
+                {{ t('common.serialNo') }}
+              </th>
+              <th v-else class="col-index sticky-left sticky-index">
+                {{ t('common.serialNo') }}
+              </th>
+              <th class="sticky-left sticky-code col-code">{{ t('courseRegistration.courses.code') }}</th>
+              <th class="sticky-left sticky-name col-name">{{ t('courseRegistration.courses.name') }}</th>
+              <th class="col-section">{{ t('courseRegistration.courses.sectionCode') }}</th>
+              <th v-if="showSelectionGroupColumn" class="col-selection-group">
+                {{ t('courseRegistration.courses.selectionGroup') }}
+              </th>
+              <th class="col-category">{{ t('courseRegistration.courses.category') }}</th>
+              <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
+              <th class="col-lecturer">{{ t('courseRegistration.courses.lecturer') }}</th>
+              <th class="col-week">{{ t('courseRegistration.courses.weekRange') }}</th>
+              <th class="col-time-venue">{{ t('courseRegistration.courses.classTimeVenue') }}</th>
+              <th class="col-submitted-at">{{ t('courseRegistration.student.selectedAt') }}</th>
+              <th
+                class="sticky-right sticky-status"
+                :class="{ 'sticky-status--flushright': !showActionsColumn }"
+              >
+                {{ t('common.status') }}
+              </th>
+              <th
+                v-if="showVolunteerOrder"
+                class="sticky-right sticky-capacity"
+                :class="{ 'sticky-capacity--flushright': !showActionsColumn }"
+                aria-hidden="true"
+              />
+              <th v-if="showActionsColumn" class="col-actions sticky-right sticky-actions">
+                {{ t('common.actions') }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="isPriorEmpty">
+              <td :colspan="emptyColspan" class="empty-cell-spacer" aria-hidden="true" />
+            </tr>
+            <tr v-for="(item, index) in priorRoundRows" :key="`prior-${rowKey(item)}`">
+              <td
+                v-if="showVolunteerOrder"
+                class="col-drag sticky-left sticky-drag"
+                aria-hidden="true"
+              />
+              <td
+                v-if="showVolunteerOrder"
+                class="col-pref sticky-left sticky-pref nowrap"
+              >
+                {{ index + 1 }}
+              </td>
+              <td v-else class="col-index sticky-left sticky-index">{{ index + 1 }}</td>
+              <td class="sticky-left sticky-code nowrap">
+                <CourseCodeSourcePopover
+                  v-if="item.courseCode"
+                  :code="item.courseCode"
+                  :course="item"
+                />
+                <template v-else>—</template>
+              </td>
+              <td class="sticky-left sticky-name col-name nowrap">{{ item.courseName || '—' }}</td>
+              <td class="col-section nowrap">{{ groupName(item) }}</td>
+              <td v-if="showSelectionGroupColumn" class="col-selection-group cr-selection-group-cell">
+                <template v-if="selectionGroupDisplay(item)">
+                  <div class="cr-selection-group-title">
+                    {{ selectionGroupLines(item).title }}
+                  </div>
+                  <div class="cr-selection-group-intake">
+                    {{ selectionGroupLines(item).intakeLine }}
+                  </div>
+                </template>
+                <template v-else>—</template>
+              </td>
+              <td class="col-category nowrap">{{ courseCategoryLabel(item) }}</td>
+              <td class="col-credits nowrap">{{ item.credits ?? '—' }}</td>
+              <td class="col-lecturer nowrap">{{ item.lecturer || '—' }}</td>
+              <td class="col-week nowrap">{{ item.weekRange || '—' }}</td>
+              <td class="col-time-venue cr-time-venue">
+                <div
+                  v-for="(line, li) in displayClassTimeVenueLines(item, timeLocale)"
+                  :key="li"
+                  class="cr-time-venue-line"
+                >
+                  {{ line }}
+                </div>
+              </td>
+              <td class="col-submitted-at nowrap">{{ submissionTimeLabel(item) }}</td>
+              <td
+                class="sticky-right sticky-status"
+                :class="{ 'sticky-status--flushright': !showActionsColumn }"
+              >
+                <span class="status-tag" :class="statusClass(item.status)">
+                  {{ statusLabel(item.status) }}
+                </span>
+              </td>
+              <td
+                v-if="showVolunteerOrder"
+                class="sticky-right sticky-capacity"
+                :class="{ 'sticky-capacity--flushright': !showActionsColumn }"
+                aria-hidden="true"
+              />
+              <td v-if="showActionsColumn" class="col-actions sticky-right sticky-actions">
+                <button
+                  v-if="rowCanUnselectPrior(item)"
+                  type="button"
+                  class="link-btn danger"
+                  @click="handleUnselect(item)"
+                >
+                  {{ t('courseRegistration.student.unselect') }}
+                </button>
+                <span v-else class="muted">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-if="isPriorEmpty" class="table-empty-overlay" role="status">
+          <p class="table-empty-title">
+            {{ t('courseRegistration.student.roundStatusPanel.emptyNoCourses') }}
+          </p>
+        </div>
+      </div>
+    </template>
+
+    <div v-if="queuedRows.length || showDrawerRail" class="cr-round-drawer">
+      <!-- 排队中：有数据即默认展示，不跟「展开更多」 -->
+      <div v-if="queuedRows.length" class="cr-round-drawer-body">
         <div class="table-wrap cr-round-drawer-table">
           <h4 class="cr-round-drawer-section-title">
             {{ t('courseRegistration.student.volunteerSheet.queuedSection') }}
@@ -595,7 +812,6 @@ defineExpose({ scrollIntoView })
                 <th class="sticky-left sticky-name col-name">{{ t('courseRegistration.courses.name') }}</th>
                 <th class="col-section">{{ t('courseRegistration.courses.sectionCode') }}</th>
                 <th class="col-category">{{ t('courseRegistration.courses.category') }}</th>
-                <th class="col-school-elective">{{ t('courseRegistration.courses.schoolElectiveCategory') }}</th>
                 <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
                 <th class="col-lecturer">{{ t('courseRegistration.courses.lecturer') }}</th>
                 <th class="col-week">{{ t('courseRegistration.courses.weekRange') }}</th>
@@ -640,7 +856,6 @@ defineExpose({ scrollIntoView })
                 <td class="sticky-left sticky-name col-name nowrap">{{ item.courseName || '—' }}</td>
                 <td class="col-section nowrap">{{ groupName(item) }}</td>
                 <td class="col-category nowrap">{{ courseCategoryLabel(item) }}</td>
-                <td class="col-school-elective nowrap">{{ schoolElectiveCategoryLabel(item) }}</td>
                 <td class="col-credits nowrap">{{ item.credits ?? '—' }}</td>
                 <td class="col-lecturer nowrap">{{ item.lecturer || '—' }}</td>
                 <td class="col-week nowrap">{{ item.weekRange || '—' }}</td>
@@ -687,6 +902,7 @@ defineExpose({ scrollIntoView })
       </div>
 
       <div
+        v-if="showDrawerRail"
         class="cr-round-drawer-rail"
         role="button"
         tabindex="0"
@@ -749,6 +965,33 @@ defineExpose({ scrollIntoView })
   color: #6b7280;
 }
 
+.cr-round-block-title {
+  margin: 10px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 4px;
+}
+
+.cr-round-block-meta {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.cr-round-block-title--prior {
+  margin-top: 14px;
+}
+
+.data-table--prior .col-pref {
+  font-weight: 500;
+  color: #374151;
+  text-align: left;
+}
+
 .table-wrap {
   overflow-x: auto;
   overflow-y: visible;
@@ -757,6 +1000,43 @@ defineExpose({ scrollIntoView })
   background: #fff;
   position: relative;
   z-index: 1;
+}
+
+/* 空态：保留表结构，浮层相对可见区域居中（避免 flex+宽表/sticky 布局异常） */
+.table-wrap.is-empty {
+  position: relative;
+}
+
+.empty-cell-spacer {
+  height: 72px;
+  padding: 0 !important;
+  border-bottom: none !important;
+  background: #fff;
+}
+
+.table-empty-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 72px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.table-empty-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6b7280;
+  letter-spacing: 0.02em;
+  text-align: center;
 }
 
 /* hover tip 时放开裁切（overflow-x:auto 会连带裁切纵向弹出层） */
@@ -822,7 +1102,7 @@ defineExpose({ scrollIntoView })
 .col-index {
   width: 56px;
   min-width: 56px;
-  text-align: center;
+  text-align: left;
 }
 
 .col-pref {
@@ -830,12 +1110,13 @@ defineExpose({ scrollIntoView })
   min-width: 88px;
   font-weight: 600;
   color: #1d4ed8;
+  text-align: left;
 }
 
 .data-table--queue .col-pref {
   font-weight: 500;
   color: #374151;
-  text-align: center;
+  text-align: left;
 }
 
 /* 按内容自适应列宽，避免 fixed 均分导致短列留白、长列狂换行 */

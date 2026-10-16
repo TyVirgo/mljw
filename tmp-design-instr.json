@@ -1,0 +1,34 @@
+﻿{
+  "changeName": "monitor-risk-stats-remind",
+  "artifactId": "design",
+  "schemaName": "spec-driven",
+  "changeDir": "D:\\project_list\\ly\\mljw\\ly-cea-pjxt-jcsj-ui\\openspec\\changes\\monitor-risk-stats-remind",
+  "planningHome": {
+    "kind": "repo",
+    "root": "D:\\project_list\\ly\\mljw\\ly-cea-pjxt-jcsj-ui",
+    "changesDir": "D:\\project_list\\ly\\mljw\\ly-cea-pjxt-jcsj-ui\\openspec\\changes",
+    "defaultSchema": "spec-driven"
+  },
+  "outputPath": "design.md",
+  "resolvedOutputPath": "D:\\project_list\\ly\\mljw\\ly-cea-pjxt-jcsj-ui\\openspec\\changes\\monitor-risk-stats-remind\\design.md",
+  "existingOutputPaths": [],
+  "description": "Technical design document with implementation details",
+  "instruction": "Create the design document that explains HOW to implement the change.\n\nWhen to include design.md (create only if any apply):\n- Cross-cutting change (multiple services/modules) or new architectural pattern\n- New external dependency or significant data model changes\n- Security, performance, or migration complexity\n- Ambiguity that benefits from technical decisions before coding\n\nSections:\n- **Context**: Background, current state, constraints, stakeholders\n- **Goals / Non-Goals**: What this design achieves and explicitly excludes\n- **Decisions**: Key technical choices with rationale (why X over Y?). Include alternatives considered for each decision.\n- **Risks / Trade-offs**: Known limitations, things that could go wrong. Format: [Risk] 鈫?Mitigation\n- **Migration Plan**: Steps to deploy, rollback strategy (if applicable)\n- **Open Questions**: Outstanding decisions or unknowns to resolve\n\nFocus on architecture and approach, not line-by-line implementation.\nReference the proposal for motivation and specs for requirements.\n\nGood design docs explain the \"why\" behind technical decisions.\n",
+  "context": "椤圭洰鍚嶇О锛歭y-cea-pjxt-jcsj-ui锛堟暀鍔″熀纭€鏁版嵁鍓嶇锛塡n鎶€鏈爤锛歏ue 3 (Composition API + script setup)銆乂ite 5銆佸師鐢?CSS锛坰coped锛塡n璇█锛氱晫闈㈡枃妗堜娇鐢?i18n锛坰rc/i18n/锛夛紝閫氳繃 useAppI18n composable 鎴?$tr 璁块棶\n璺敱锛氭棤 vue-router锛岄〉闈㈠垏鎹㈢敱 App.vue 涓?currentPageId + v-if 鎺у埗\n鑿滃崟锛歴rc/config/menu.js 瀹氫箟 sidebar 鑿滃崟涓?developedPages\n鏁版嵁灞傦細src/data/*.js 鏈湴 mock 鏁版嵁 + localStorage 鎸佷箙鍖朶n缁勪欢绾﹀畾锛歕n  - 椤甸潰瑙嗗浘鏀惧湪 src/views/\n  - 鍙鐢ㄧ粍浠舵斁鍦?src/components/锛坈ommon/ 瀛愮洰褰曟斁閫氱敤缁勪欢锛塡n  - composables 鏀惧湪 src/composables/\n  - Excel 瀵煎嚭宸ュ叿鏀惧湪 src/utils/export*.js锛堜娇鐢?xlsx 搴擄級\nUI 椋庢牸锛氱櫧鑹插崱鐗?+ 鍦嗚 + 娴呯伆鑳屾櫙 (#f3f4f6)锛屼笌鐜版湁椤甸潰淇濇寔涓€鑷碶n鏂板椤甸潰姝ラ锛氬垱寤?View 鈫?娉ㄥ唽鍒?App.vue 鈫?鍔犲叆 menu.js 鈫?琛ュ厖 i18n 鏂囨",
+  "rules": [
+    "璁捐鏂囨。浣跨敤涓枃",
+    "闇€璇存槑褰卞搷鐨勬枃浠惰矾寰勫拰缁勪欢缁撴瀯"
+  ],
+  "template": "## Context\n\n<!-- Background and current state -->\n\n## Goals / Non-Goals\n\n**Goals:**\n<!-- What this design aims to achieve -->\n\n**Non-Goals:**\n<!-- What is explicitly out of scope -->\n\n## Decisions\n\n<!-- Key design decisions and rationale -->\n\n## Risks / Trade-offs\n\n<!-- Known risks and trade-offs -->\n",
+  "dependencies": [
+    {
+      "id": "proposal",
+      "done": false,
+      "path": "proposal.md",
+      "description": "Initial proposal document outlining the change"
+    }
+  ],
+  "unlocks": [
+    "tasks"
+  ]
+}

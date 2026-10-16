@@ -254,11 +254,25 @@ export function listRoundCourseSummaries(roundKey, filters = {}) {
 
   const courseCode = String(filters.courseCode || '').trim().toLowerCase()
   const courseName = String(filters.courseName || '').trim().toLowerCase()
+  const courseType = String(filters.courseType || '').trim()
+  const sectionCode = String(filters.sectionCode || '').trim().toLowerCase()
+  const credits = String(filters.credits ?? '').trim()
   if (courseCode) {
     courses = courses.filter((c) => String(c.code || '').toLowerCase().includes(courseCode))
   }
   if (courseName) {
     courses = courses.filter((c) => String(c.name || '').toLowerCase().includes(courseName))
+  }
+  if (courseType) {
+    courses = courses.filter((c) => String(c.type || '') === courseType)
+  }
+  if (credits !== '') {
+    courses = courses.filter((c) => String(c.credits) === credits)
+  }
+  if (sectionCode) {
+    courses = courses.filter((c) =>
+      (c.sections || []).some((s) => String(s?.code || '').toLowerCase().includes(sectionCode)),
+    )
   }
   if (filters.keyword) {
     const kw = String(filters.keyword).toLowerCase()
@@ -305,8 +319,9 @@ export function listRoundCourseSummaries(roundKey, filters = {}) {
         seniorCap,
         specialAddedCount: specialRoster.length,
         effectiveCapacityLabel: `${enrolledTotal}/${totalCapacity}`,
-        freshmanCapacityLabel: `${enrolledFreshman}/${freshmanCap}`,
-        seniorCapacityLabel: `${enrolledSenior}/${seniorCap}`,
+        // 二/三轮课程维：新老生列仅展示已选分子
+        freshmanCapacityLabel: String(enrolledFreshman),
+        seniorCapacityLabel: String(enrolledSenior),
       }
     })
     .filter(Boolean)

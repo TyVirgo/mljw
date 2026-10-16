@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick, onBeforeUnmount } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
 import {
@@ -8,10 +8,20 @@ import {
   validateApprovalForm,
 } from '../../data/movementApprovalEngine.js'
 import { getApprovalActionLabel } from '../../utils/approvalActionLabels.js'
-import { displayPrimaryType } from '../../data/courseRegistration/addDropFormSections.js'
-import { addDropLineKey } from '../../data/courseRegistration/addDropMultiItems.js'
+import {
+  addDropLineKey,
+  buildApprovalDecisionTermCreditStrip,
+} from '../../data/courseRegistration/addDropMultiItems.js'
+import { addDropTypeLabelKey } from '../../data/courseRegistration/addDropTypeDisplay.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 import { displayClassTimeVenueFromFields } from '../../data/courseRegistration/sectionScheduleFields.js'
+import {
+  resolveCourseDisplayName,
+  getCourseById,
+  getCourseByCode,
+} from '../../data/courseRegistration/selectableCourses.js'
+import { formatUnifiedCourseCategoryFromLine } from '../../data/courseRegistration/unifiedCourseCategory.js'
+import AddDropTermCreditStrip from './AddDropTermCreditStrip.vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -30,15 +40,22 @@ const timeLocale = computed(() => (isZh.value ? 'zh' : 'en'))
 
 const selectedAction = ref('')
 const comments = ref('')
-const generateBill = ref(true)
 const showPresets = ref(false)
+const presetBtnRef = ref(null)
+const presetListStyle = ref({})
 const formError = ref('')
 const submitConfirmVisible = ref(false)
 const pendingPayload = ref(null)
-/** @type {import('vue').Ref<Record<string, 'approved' | 'rejected' | 'pending'>>} */
+/** @type {import('vue').Ref<Record<string, 'approved' | 'rejected' | 'update_required' | 'pending'>>} */
 const lineDecisionsMap = ref({})
 /** @type {import('vue').Ref<Record<string, boolean>>} */
 const selectedKeysMap = ref({})
+
+const LINE_ACTION_OPTIONS = [
+  { value: 'approved', labelKey: 'approvalModal.action.approved' },
+  { value: 'rejected', labelKey: 'approvalModal.action.rejected' },
+  { value: 'update_required', labelKey: 'approvalModal.action.updateRequired' },
+]
 
 const summaryItems = computed(() => {
   if (props.targetCount > 1) return []
@@ -46,6 +63,12 @@ const summaryItems = computed(() => {
 })
 
 const showLineOps = computed(() => summaryItems.value.length > 0)
+
+/** 顶部学分要求：仅「通过」行计入，与学生勾选/移除同源算法 */
+const liveTermCreditStrip = computed(() => {
+  if (!showLineOps.value || !props.application) return null
+  return buildApprovalDecisionTermCreditStrip(props.application, lineDecisionsMap.value)
+})
 
 const selectedKeyList = computed(() =>
   Object.keys(selectedKeysMap.value).filter((k) => selectedKeysMap.value[k]),
@@ -65,8 +88,22 @@ function resolveI18nLabel(key, fallback) {
 }
 
 function actionTypeLabel(action) {
-  const primary = displayPrimaryType(action) || action
-  return resolveI18nLabel(`courseRegistration.approval.type.${primary}`, primary || '—')
+  return resolveI18nLabel(addDropTypeLabelKey(action), action || '—')
+}
+
+function itemCourseName(item) {
+  return resolveCourseDisplayName(item, isZh.value) || '—'
+}
+
+/**
+ * 审批明细「课程类型」：统一类别
+ * @param {object|null|undefined} item
+ */
+function itemCourseTypeLabel(item) {
+  return formatUnifiedCourseCategoryFromLine(item, t, {
+    getCourseById,
+    getCourseByCode,
+  })
 }
 
 function itemKey(item, idx) {
@@ -114,7 +151,8 @@ function initLineDecisions() {
   for (const [idx, item] of summaryItems.value.entries()) {
     const key = itemKey(item, idx)
     const d = item.lineDecision
-    map[key] = d === 'approved' || d === 'rejected' ? d : 'pending'
+    map[key] =
+      d === 'approved' || d === 'rejected' || d === 'update_required' ? d : 'pending'
     sel[key] = true
   }
   lineDecisionsMap.value = map
@@ -124,10 +162,12 @@ function initLineDecisions() {
 watch(
   () => props.visible,
   (visible) => {
-    if (!visible) return
+    if (!visible) {
+      showPresets.value = false
+      return
+    }
     selectedAction.value = ''
     comments.value = ''
-    generateBill.value = true
     showPresets.value = false
     formError.value = ''
     submitConfirmVisible.value = false
@@ -159,9 +199,9 @@ const submitConfirmMessage = computed(() => {
   return template.replace('{count}', String(props.targetCount))
 })
 
-const showBillOption = computed(
-  () => props.showGenerateBill && selectedAction.value === 'Approved',
-)
+/** 批量无行表：整单 Action + Comments；有行表时仅表下公共 Comments */
+const showWholeForm = computed(() => !showLineOps.value)
+const showSharedComments = computed(() => showLineOps.value || showWholeForm.value)
 
 function setLineDecision(key, decision) {
   lineDecisionsMap.value = { ...lineDecisionsMap.value, [key]: decision }
@@ -172,6 +212,7 @@ function toggleRowSelected(key, checked) {
 }
 
 function toggleSelectAll(checked) {
+  if (!summaryItems.value.length) return
   const sel = { ...selectedKeysMap.value }
   for (const [idx, item] of summaryItems.value.entries()) {
     sel[itemKey(item, idx)] = checked
@@ -190,21 +231,13 @@ function applyDecisionToSelected(decision) {
   lineDecisionsMap.value = map
 }
 
-function approveAllLines() {
-  applyDecisionToSelected('approved')
-}
-
-function rejectAllLines() {
-  applyDecisionToSelected('rejected')
-}
-
 function buildLineDecisionsPayload(action) {
   if (!showLineOps.value) return undefined
   const out = {}
   for (const [idx, item] of summaryItems.value.entries()) {
     const key = itemKey(item, idx)
     let resolved
-    if (action === 'Rejected') {
+    if (action === 'Rejected' || action === 'Update Required') {
       resolved = 'rejected'
     } else {
       const d = lineDecisionsMap.value[key]
@@ -216,6 +249,80 @@ function buildLineDecisionsPayload(action) {
   return out
 }
 
+/**
+ * 由行决策推导整单 action / lineDecisions / comment / generateBill
+ * @returns {{ ok: true, payload: object } | { ok: false, errorKey: string }}
+ */
+function resolvePayloadFromLines() {
+  const entries = summaryItems.value.map((item, idx) => {
+    const key = itemKey(item, idx)
+    return {
+      key,
+      idx,
+      item,
+      decision: lineDecisionsMap.value[key] || 'pending',
+    }
+  })
+  if (!entries.length) {
+    return { ok: false, errorKey: 'courseRegistration.approval.lineDecisionRequired' }
+  }
+  if (entries.some((e) => e.decision === 'pending')) {
+    return { ok: false, errorKey: 'courseRegistration.approval.lineDecisionRequired' }
+  }
+  const allUpdate = entries.every((e) => e.decision === 'update_required')
+  const anyUpdate = entries.some((e) => e.decision === 'update_required')
+  if (anyUpdate && !allUpdate) {
+    return { ok: false, errorKey: 'courseRegistration.approval.lineUpdateMixed' }
+  }
+  const comment = String(comments.value || '').trim()
+  if (allUpdate) {
+    if (!comment) {
+      return { ok: false, errorKey: 'courseRegistration.approval.lineCommentRequired' }
+    }
+    return {
+      ok: true,
+      payload: {
+        action: 'Update Required',
+        comment,
+        generateBill: false,
+        lineDecisions: buildLineDecisionsPayload('Update Required'),
+      },
+    }
+  }
+  const allRejected = entries.every((e) => e.decision === 'rejected')
+  if (allRejected) {
+    if (!comment) {
+      return { ok: false, errorKey: 'courseRegistration.approval.lineCommentRequired' }
+    }
+    return {
+      ok: true,
+      payload: {
+        action: 'Rejected',
+        comment,
+        generateBill: false,
+        lineDecisions: buildLineDecisionsPayload('Rejected'),
+      },
+    }
+  }
+  // Approved 或部分通过（含通过行）
+  const out = {}
+  for (const e of entries) {
+    const resolved = e.decision === 'rejected' ? 'rejected' : 'approved'
+    out[e.idx] = resolved
+    out[e.key] = resolved
+  }
+  const hasApproved = entries.some((e) => e.decision === 'approved')
+  return {
+    ok: true,
+    payload: {
+      action: 'Approved',
+      comment,
+      generateBill: Boolean(props.showGenerateBill && hasApproved),
+      lineDecisions: out,
+    },
+  }
+}
+
 function handleClose() {
   emit('close')
 }
@@ -224,12 +331,61 @@ function handleOverlayClick(event) {
   if (event.target === event.currentTarget) handleClose()
 }
 
+function updatePresetListPosition() {
+  const el = presetBtnRef.value
+  if (!el) return
+  const r = el.getBoundingClientRect()
+  presetListStyle.value = {
+    position: 'fixed',
+    left: `${Math.max(8, r.left)}px`,
+    bottom: `${Math.max(8, window.innerHeight - r.top + 4)}px`,
+    zIndex: 3200,
+  }
+}
+
+function togglePresets() {
+  showPresets.value = !showPresets.value
+  if (showPresets.value) {
+    nextTick(() => updatePresetListPosition())
+  }
+}
+
+function onPresetReposition() {
+  if (showPresets.value) updatePresetListPosition()
+}
+
 function insertPreset(text) {
   comments.value = text.slice(0, 200)
   showPresets.value = false
 }
 
+watch(showPresets, (open) => {
+  if (open) {
+    window.addEventListener('resize', onPresetReposition)
+    window.addEventListener('scroll', onPresetReposition, true)
+  } else {
+    window.removeEventListener('resize', onPresetReposition)
+    window.removeEventListener('scroll', onPresetReposition, true)
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onPresetReposition)
+  window.removeEventListener('scroll', onPresetReposition, true)
+})
+
 function handleConfirm() {
+  if (showLineOps.value) {
+    const resolved = resolvePayloadFromLines()
+    if (!resolved.ok) {
+      formError.value = t(resolved.errorKey)
+      return
+    }
+    formError.value = ''
+    pendingPayload.value = resolved.payload
+    submitConfirmVisible.value = true
+    return
+  }
   const errors = validateApprovalForm(selectedAction.value, comments.value)
   if (errors.action) {
     formError.value = tr(errors.action)
@@ -243,8 +399,9 @@ function handleConfirm() {
   pendingPayload.value = {
     action: selectedAction.value,
     comment: comments.value.trim(),
-    generateBill: selectedAction.value === 'Approved' ? generateBill.value : false,
-    lineDecisions: buildLineDecisionsPayload(selectedAction.value),
+    generateBill:
+      selectedAction.value === 'Approved' ? Boolean(props.showGenerateBill) : false,
+    lineDecisions: undefined,
   }
   submitConfirmVisible.value = true
 }
@@ -264,6 +421,27 @@ function cancelSubmit() {
 function sectionLabel(item) {
   return formatCourseSectionName(item?.section || item?.sectionCode || item?.sectionName, t) || '—'
 }
+
+/** @returns {{ label: string, tone: '' | 'open' | 'full' }} */
+function seatCapacityDisplay(item) {
+  const remRaw = Number(item?.remainingCapacity)
+  const capRaw = Number(item?.capacity ?? item?.sectionCapacity)
+  if (!Number.isFinite(capRaw) || capRaw <= 0) return { label: '—', tone: '' }
+  const remaining = Number.isFinite(remRaw) && remRaw >= 0 ? Math.min(remRaw, capRaw) : null
+  if (remaining == null) return { label: `—/${capRaw}`, tone: '' }
+  return {
+    label: `${remaining}/${capRaw}`,
+    tone: remaining > 0 ? 'open' : 'full',
+  }
+}
+
+function seatCapacityLabel(item) {
+  return seatCapacityDisplay(item).label
+}
+
+function seatCapacityTone(item) {
+  return seatCapacityDisplay(item).tone
+}
 </script>
 
 <template>
@@ -271,31 +449,45 @@ function sectionLabel(item) {
     <div v-if="visible" class="modal-overlay" @click="handleOverlayClick">
       <div class="modal-panel" :class="{ 'modal-panel--wide': showLineOps }" role="dialog" aria-modal="true" @click.stop>
         <div class="modal-header">
-          <h2 class="modal-title">{{ tr('Approval') }}</h2>
+          <h2 class="modal-title">{{ t('courseRegistration.approval.modalTitle') }}</h2>
           <button type="button" class="modal-close" :aria-label="t('common.close')" @click="handleClose">×</button>
         </div>
 
         <div class="modal-body">
           <p v-if="batchHint" class="batch-hint">{{ batchHint }}</p>
 
+          <div v-if="liveTermCreditStrip" class="approval-credit-strip">
+            <AddDropTermCreditStrip
+              :strip="liveTermCreditStrip"
+              :application-type="application?.type || ''"
+            />
+          </div>
+
           <div v-if="showLineOps" class="lines-summary">
-            <div class="section-bar">{{ t('courseRegistration.approval.itemsSummary') }}</div>
             <div class="lines-summary-actions">
               <button
                 type="button"
                 class="btn btn-outline btn-sm"
                 :disabled="!hasSelectedLines"
-                @click="approveAllLines"
+                @click="applyDecisionToSelected('approved')"
               >
-                {{ t('courseRegistration.approval.lineApproveAll') }}
+                {{ t('courseRegistration.approval.linePassAll') }}
               </button>
               <button
                 type="button"
                 class="btn btn-outline btn-sm"
                 :disabled="!hasSelectedLines"
-                @click="rejectAllLines"
+                @click="applyDecisionToSelected('rejected')"
               >
-                {{ t('courseRegistration.approval.lineRejectAll') }}
+                {{ t('courseRegistration.approval.lineFailAll') }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-outline btn-sm"
+                :disabled="!hasSelectedLines"
+                @click="applyDecisionToSelected('update_required')"
+              >
+                {{ t('courseRegistration.approval.lineReturnAll') }}
               </button>
             </div>
             <div class="lines-table-wrap">
@@ -306,18 +498,21 @@ function sectionLabel(item) {
                       <input
                         type="checkbox"
                         :checked="allSelected"
+                        :disabled="!summaryItems.length"
                         :aria-label="t('courseRegistration.approval.lineSelectAll')"
                         @change="toggleSelectAll($event.target.checked)"
                       />
                     </th>
-                    <th class="col-type">{{ t('courseRegistration.approval.typeLabel') }}</th>
+                    <th class="col-app-type">{{ t('courseRegistration.approval.typeLabel') }}</th>
                     <th class="col-code">{{ t('courseRegistration.courses.code') }}</th>
                     <th class="col-name">{{ t('courseRegistration.courses.name') }}</th>
+                    <th class="col-course-type">{{ t('courseRegistration.courses.type') }}</th>
                     <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
                     <th class="col-group">{{ t('courseRegistration.student.fieldGroupNo') }}</th>
                     <th class="col-week">{{ t('courseRegistration.student.fieldWeekRange') }}</th>
                     <th class="col-time">{{ t('courseRegistration.student.fieldClassTimeVenue') }}</th>
                     <th class="col-lecturer">{{ t('courseRegistration.student.fieldLecturers') }}</th>
+                    <th class="col-seats">{{ t('courseRegistration.student.pickerSeatCapacityHeader') }}</th>
                     <th class="col-op">{{ t('courseRegistration.approval.lineDecision') }}</th>
                   </tr>
                 </thead>
@@ -330,9 +525,10 @@ function sectionLabel(item) {
                         @change="toggleRowSelected(itemKey(item, idx), $event.target.checked)"
                       />
                     </td>
-                    <td class="col-type" :title="actionTypeLabel(item.action)">{{ actionTypeLabel(item.action) }}</td>
+                    <td class="col-app-type" :title="actionTypeLabel(item.action)">{{ actionTypeLabel(item.action) }}</td>
                     <td class="col-code" :title="item.courseCode || ''">{{ item.courseCode || '—' }}</td>
-                    <td class="col-name" :title="item.courseName || ''">{{ item.courseName || '—' }}</td>
+                    <td class="col-name" :title="itemCourseName(item)">{{ itemCourseName(item) }}</td>
+                    <td class="col-course-type" :title="itemCourseTypeLabel(item)">{{ itemCourseTypeLabel(item) }}</td>
                     <td class="col-credits">{{ item.credits ?? '—' }}</td>
                     <td class="col-group" :title="sectionLabel(item)">{{ sectionLabel(item) }}</td>
                     <td class="col-week" :title="itemWeekRange(item)">{{ itemWeekRange(item) }}</td>
@@ -350,23 +546,28 @@ function sectionLabel(item) {
                       <template v-else>—</template>
                     </td>
                     <td class="col-lecturer" :title="itemLecturer(item)">{{ itemLecturer(item) }}</td>
-                    <td class="op-cell">
-                      <button
-                        type="button"
-                        class="btn btn-sm"
-                        :class="{ active: lineDecisionsMap[itemKey(item, idx)] === 'approved' }"
-                        @click="setLineDecision(itemKey(item, idx), 'approved')"
-                      >
-                        {{ t('courseRegistration.approval.lineApprove') }}
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-sm"
-                        :class="{ active: lineDecisionsMap[itemKey(item, idx)] === 'rejected' }"
-                        @click="setLineDecision(itemKey(item, idx), 'rejected')"
-                      >
-                        {{ t('courseRegistration.approval.lineReject') }}
-                      </button>
+                    <td class="col-seats" :title="seatCapacityLabel(item)">
+                      <span class="seat-status" :class="seatCapacityTone(item)">
+                        {{ seatCapacityLabel(item) }}
+                      </span>
+                    </td>
+                    <td class="col-op op-cell">
+                      <div class="radio-group line-op-radios">
+                        <label
+                          v-for="opt in LINE_ACTION_OPTIONS"
+                          :key="opt.value"
+                          class="radio-item"
+                        >
+                          <input
+                            type="radio"
+                            :name="'line-op-' + itemKey(item, idx)"
+                            :value="opt.value"
+                            :checked="lineDecisionsMap[itemKey(item, idx)] === opt.value"
+                            @change="setLineDecision(itemKey(item, idx), opt.value)"
+                          />
+                          <span>{{ t(opt.labelKey) }}</span>
+                        </label>
+                      </div>
                     </td>
                   </tr>
                 </tbody>
@@ -374,8 +575,8 @@ function sectionLabel(item) {
             </div>
           </div>
 
-          <div class="form-table">
-            <div class="form-row">
+          <div v-if="showSharedComments" class="form-table" :class="{ 'form-table--after-lines': showLineOps }">
+            <div v-if="showWholeForm" class="form-row">
               <div class="form-label">{{ tr('Action') }}</div>
               <div class="form-value">
                 <div class="radio-group">
@@ -395,38 +596,43 @@ function sectionLabel(item) {
                     class="comments-input"
                     maxlength="200"
                     rows="5"
-                    :placeholder="t('common.pleaseInput')"
+                    :placeholder="
+                      showLineOps
+                        ? t('courseRegistration.approval.lineCommentPlaceholder')
+                        : t('common.pleaseInput')
+                    "
                   />
                   <div class="comments-footer">
                     <div class="presets-wrap">
-                      <button type="button" class="preset-btn" @click="showPresets = !showPresets">
+                      <button
+                        ref="presetBtnRef"
+                        type="button"
+                        class="preset-btn"
+                        @click="togglePresets"
+                      >
                         {{ tr('Common Comments') }}
                       </button>
-                      <div v-if="showPresets" class="preset-list">
-                        <button
-                          v-for="(preset, index) in commonApprovalComments"
-                          :key="index"
-                          type="button"
-                          class="preset-item"
-                          @click="insertPreset(preset)"
+                      <Teleport to="body">
+                        <div
+                          v-if="showPresets"
+                          class="add-drop-approval-preset-list"
+                          :style="presetListStyle"
                         >
-                          {{ tr(preset) }}
-                        </button>
-                      </div>
+                          <button
+                            v-for="(preset, index) in commonApprovalComments"
+                            :key="index"
+                            type="button"
+                            class="add-drop-approval-preset-item"
+                            @click="insertPreset(preset)"
+                          >
+                            {{ tr(preset) }}
+                          </button>
+                        </div>
+                      </Teleport>
                     </div>
                     <span class="char-count">{{ comments.length }}/200</span>
                   </div>
                 </div>
-              </div>
-            </div>
-            <div v-if="showBillOption" class="form-row">
-              <div class="form-label">{{ t('courseRegistration.approval.billLabel') }}</div>
-              <div class="form-value bill-option-value">
-                <label class="checkbox-row">
-                  <input v-model="generateBill" type="checkbox" />
-                  {{ t('courseRegistration.approval.generateBill') }}
-                </label>
-                <p class="bill-option-hint">{{ t('courseRegistration.approval.generateBillHint') }}</p>
               </div>
             </div>
           </div>
@@ -479,7 +685,7 @@ function sectionLabel(item) {
 }
 
 .modal-panel--wide {
-  max-width: min(1280px, 96vw);
+  max-width: min(1320px, 98vw);
 }
 
 .modal-header {
@@ -520,18 +726,12 @@ function sectionLabel(item) {
   color: #2563eb;
 }
 
-.lines-summary {
-  margin-bottom: 16px;
+.approval-credit-strip {
+  margin: 0 0 16px;
 }
 
-.section-bar {
-  margin: 0 0 10px;
-  padding: 8px 12px;
-  background: #f3f4f6;
-  border-radius: 4px;
-  font-size: 15px;
-  font-weight: 700;
-  color: #1f2937;
+.lines-summary {
+  margin-bottom: 16px;
 }
 
 .lines-summary-actions {
@@ -543,16 +743,17 @@ function sectionLabel(item) {
 }
 
 .lines-table-wrap {
-  overflow-x: hidden;
+  overflow-x: auto;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
 }
 
 .lines-table {
   width: 100%;
+  min-width: 1280px;
   table-layout: fixed;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .lines-table th,
@@ -561,15 +762,26 @@ function sectionLabel(item) {
   border-bottom: 1px solid #f3f4f6;
   text-align: left;
   vertical-align: middle;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.lines-table th.col-seats,
+.lines-table th.col-course-type,
+.lines-table th.col-app-type,
+.lines-table th.col-op,
+.lines-table td.col-op,
+.lines-table td.op-cell {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 
 .lines-table th {
   background: #f9fafb;
   font-weight: 600;
   color: #374151;
+  white-space: nowrap;
 }
 
 .lines-table tbody tr:last-child td {
@@ -581,49 +793,96 @@ function sectionLabel(item) {
   text-align: center;
   padding-left: 6px;
   padding-right: 2px;
-  overflow: visible;
 }
 
-.col-type {
-  width: 7%;
+.col-app-type {
+  width: 7.5em;
+  white-space: nowrap;
+}
+
+.col-course-type {
+  width: 6.5em;
+  min-width: 5.5em;
+  white-space: nowrap;
 }
 
 .col-code {
-  width: 8%;
+  width: 6em;
+  white-space: nowrap;
 }
 
 .col-name {
   width: 12%;
+  max-width: none;
+  white-space: nowrap;
 }
 
 .col-credits {
-  width: 5%;
+  width: 3em;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .col-group {
-  width: 9%;
+  width: 7em;
+  max-width: none;
+  white-space: nowrap;
 }
 
 .col-week {
-  width: 6%;
+  width: 4.5em;
+  white-space: nowrap;
 }
 
 .col-time {
   width: 22%;
+  max-width: none;
 }
 
 .col-lecturer {
-  width: 9%;
+  width: 9em;
+  max-width: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.col-op {
-  width: 14%;
+.col-seats {
+  width: 9.5em;
+  min-width: 9em;
+  white-space: nowrap;
+  text-align: center;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.seat-status {
+  display: inline-block;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.seat-status.open {
+  color: #15803d;
+}
+
+.seat-status.full {
+  color: #b91c1c;
+}
+
+.col-op,
+.op-cell {
+  width: 17em;
+  min-width: 17em;
+  white-space: nowrap;
+  vertical-align: middle;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .cr-time-venue {
   line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
+  max-width: none;
 }
 
 .cr-time-venue-line {
@@ -636,19 +895,29 @@ function sectionLabel(item) {
   margin-top: 1px;
 }
 
-.op-cell {
+/* 覆盖 .radio-group 的 flex-wrap: wrap，保证三态单行 */
+.radio-group.line-op-radios {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 4px 10px;
   white-space: nowrap;
-  overflow: visible;
 }
 
-.op-cell .btn-sm + .btn-sm {
-  margin-left: 4px;
+.radio-group.line-op-radios .radio-item {
+  flex-shrink: 0;
+  font-size: 12px;
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .form-table {
   border: 1px solid #e5e7eb;
   border-radius: 4px;
   overflow: hidden;
+}
+
+.form-table--after-lines {
+  margin-top: 16px;
 }
 
 .form-row {
@@ -755,36 +1024,6 @@ function sectionLabel(item) {
   cursor: pointer;
 }
 
-.preset-list {
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 4px);
-  z-index: 2;
-  min-width: 280px;
-  max-width: 360px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-  padding: 4px 0;
-}
-
-.preset-item {
-  display: block;
-  width: 100%;
-  padding: 8px 12px;
-  border: none;
-  background: none;
-  text-align: left;
-  font-size: 12px;
-  color: #374151;
-  cursor: pointer;
-}
-
-.preset-item:hover {
-  background: #f3f4f6;
-}
-
 .char-count {
   font-size: 12px;
   color: #9ca3af;
@@ -851,5 +1090,41 @@ function sectionLabel(item) {
   background: #fff;
   color: #374151;
   border: 1px solid #d1d5db;
+}
+</style>
+
+<style>
+/* Teleport 到 body，不受 modal-body / form-table overflow 裁切 */
+.add-drop-approval-preset-list {
+  min-width: 280px;
+  max-width: 420px;
+  max-height: min(320px, calc(100vh - 24px));
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  padding: 6px 0;
+  box-sizing: border-box;
+}
+
+.add-drop-approval-preset-item {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #374151;
+  cursor: pointer;
+  box-sizing: border-box;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.add-drop-approval-preset-item:hover {
+  background: #f3f4f6;
 }
 </style>

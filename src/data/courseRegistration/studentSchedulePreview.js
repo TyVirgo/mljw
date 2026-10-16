@@ -7,6 +7,7 @@ import {
   buildVolunteerResultRows,
   demoVolunteerReleaseMode,
   isVolunteerResultReleased,
+  shouldShowVolunteerSheetPanel,
   sortedPendingVolunteers,
   volunteerOrderSnapshot,
 } from './studentVolunteerSheet.js'
@@ -59,10 +60,11 @@ export function isCourseVisibleAtRound(course, currentRound) {
   if (currentRound == null || currentRound === '') return true
   const src = String(course?.sourceType || '')
   if (src === 'required' || src === 'programme') return true
+  // 在线选课课表与选课情况主表同源：不含管理端代选
+  if (src === 'admin') return false
   if (currentRound === 'preselect') {
     return src === 'preselect'
   }
-  if (src === 'admin') return true
   const courseRound = String(course?.roundKey || '')
   if (!courseRound) return true
   return scheduleRoundOrder(courseRound) <= scheduleRoundOrder(currentRound)
@@ -70,6 +72,7 @@ export function isCourseVisibleAtRound(course, currentRound) {
 
 /**
  * 实线「已确认选修」：仅严格更早轮（同轮确认只走本轮表虚线，避免跨批同轮泄漏）
+ * 不含管理端代选（与选课情况「历轮已选」同源）
  * @param {object} course
  * @param {string} [currentRound]
  */
@@ -77,7 +80,7 @@ export function isEarlierRoundConfirmedForSchedule(course, currentRound) {
   if (currentRound == null || currentRound === '') return true
   const src = String(course?.sourceType || '')
   if (src === 'required' || src === 'programme') return true
-  if (src === 'admin') return true
+  if (src === 'admin') return false
   const courseRound = String(course?.roundKey || '')
   if (!courseRound) return true
   return scheduleRoundOrder(courseRound) < scheduleRoundOrder(currentRound)
@@ -179,17 +182,17 @@ export function listVolunteerHitCoursesForSchedule(batch = getActiveBatch(), opt
 }
 
 /**
- * R1 未公示：志愿预览（本轮选择，虚线）
+ * 志愿预览（本轮选择，虚线）；R1–R3 老生志愿同源
  * @param {object} [batch]
- * @param {string} [currentRound] 非第一轮时不展示志愿预览
+ * @param {string} [currentRound]
  */
 export function listVolunteerWishCoursesForSchedule(batch = getActiveBatch(), currentRound) {
-  if (currentRound && currentRound !== 'preselect') return []
   const batchId = batch?.id || ''
+  const roundKey = currentRound || 'preselect'
   // 在线预览只认全局 demo 公示；不认结果页 sheet.releaseMode
   if (demoVolunteerReleaseMode.value === 'released') return []
   const snap = volunteerOrderSnapshot.value
-  if (snap?.slots?.length) {
+  if (snap?.slots?.length && (!currentRound || currentRound === 'preselect')) {
     if (batchId && snap.batchId && snap.batchId !== batchId) return []
     return snap.slots
       .filter((s) => s.item)
@@ -200,25 +203,25 @@ export function listVolunteerWishCoursesForSchedule(batch = getActiveBatch(), cu
         sourceType: s.item.sourceType || 'preselect',
       }))
   }
-  return sortedPendingVolunteers(batchId)
+  return sortedPendingVolunteers(batchId, roundKey)
     .filter((item) => item.status !== 'failed' && item.status !== 'miss')
     .map((item) => ({
       ...item,
-      roundKey: item.roundKey || 'preselect',
+      roundKey: item.roundKey || roundKey,
     }))
 }
 
 /**
- * 与「本轮选课情况」同源的预览课（虚线）：R1=志愿；R2/R3=本轮表成功行
+ * 与「本轮选课情况」本轮志愿块同源的预览课（虚线）
  * @param {string} [currentRound]
  * @param {object} [batch]
  */
 export function listRoundStatusCoursesForSchedule(currentRound, batch = getActiveBatch()) {
   const round = String(currentRound || '')
-  if (!round || round === 'preselect') {
+  if (!round || shouldShowVolunteerSheetPanel(round)) {
     return listVolunteerWishCoursesForSchedule(batch, round || 'preselect')
   }
-  // myRegistrationList 已按当前批+当前轮裁剪；虚线集合 ≡ 本轮表
+  // 非志愿：虚线 ≡ 本轮表成功行
   return (myRegistrationList.value || [])
     .filter((item) => {
       const status = String(item.status || '')
@@ -302,6 +305,7 @@ export function buildPreviewSchedule({
         matchesBatchType(c, batch) && isEarlierRoundConfirmedForSchedule(c, currentRound),
     )
     confirmedMerged = [...(confirmed || [])].filter((c) => {
+      if (String(c?.sourceType || '') === 'admin') return false
       if (!matchesBatchType(c, batch)) return false
       // 实线仅更早轮；同轮确认由本轮表虚线承载
       if (!isEarlierRoundConfirmedForSchedule(c, currentRound)) return false

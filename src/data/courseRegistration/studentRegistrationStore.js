@@ -58,6 +58,7 @@ import { studentPendingAssignCourses } from './studentPendingAssignState.js'
 import {
   assertVolunteerListEditable,
   assignNextPreferenceOrder,
+  shouldShowVolunteerSheetPanel,
   syncVolunteerOrderAfterPendingChange,
 } from './studentVolunteerSheet.js'
 
@@ -92,6 +93,40 @@ export function normalizeCartRoundKey(roundKey) {
 
 export function setActiveCartRound(roundKey) {
   activeCartRoundKey.value = normalizeCartRoundKey(roundKey)
+}
+
+/**
+ * 进入 R2/R3：将同类型 R1 pending 复制写入确认半池「选课成功」
+ * 不删 pending，便于回 R1 本轮志愿回显；前轮只同步后轮
+ * @param {{ roundKey?: string, batch?: object }} [options]
+ * @returns {{ ok: boolean, promoted: number }}
+ */
+export function promoteR1PendingToConfirmed(options = {}) {
+  const roundKey = normalizeCartRoundKey(options.roundKey || activeCartRoundKey.value)
+  if (roundKey === 'preselect') return { ok: true, promoted: 0 }
+
+  const batch = options.batch || getActiveBatch()
+  const batchType = batch?.type === 'GE' ? 'GE' : batch?.type === 'ME' ? 'ME' : ''
+
+  const toPromote = (studentPendingAssignCourses.value || []).filter((item) => {
+    if (!item || item.intent === 'waitlist') return false
+    const itemRound = normalizeCartRoundKey(item.roundKey || 'preselect')
+    if (itemRound !== 'preselect') return false
+    if (batchType && item.type && normalizeRegistrationType(item.type) !== batchType) {
+      return false
+    }
+    return true
+  })
+  if (!toPromote.length) return { ok: true, promoted: 0 }
+
+  const courses = toPromote.map((item) => ({
+    ...item,
+    roundKey: 'preselect',
+    sourceType: item.sourceType || 'preselect',
+  }))
+  // applyConfirmedRegistration 按 courseId 去重；pending 原样保留
+  applyConfirmedRegistration(courses, { holdSeat: true })
+  return { ok: true, promoted: toPromote.length }
 }
 
 function getActiveRoundCart() {
@@ -136,22 +171,27 @@ export const studentCancelledRegistrations = ref([])
 export function isCourseOccupied(courseId, sectionId = null) {
   if (!courseId) return false
   const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
-  const r1 = roundKey === 'preselect'
+  const volunteerMode = shouldShowVolunteerSheetPanel(roundKey, getStudentAudience())
 
   const pending = pendingRegistration.value
   if (pending?.courseId === courseId) {
-    if (!r1 || !sectionId || pending.sectionId === sectionId) return true
+    if (!volunteerMode || !sectionId || pending.sectionId === sectionId) return true
   }
 
-  if (r1 && sectionId) {
+  if (volunteerMode && sectionId) {
     if (
       studentPendingAssignCourses.value.some(
-        (item) => item.courseId === courseId && item.sectionId === sectionId,
+        (item) =>
+          item.courseId === courseId &&
+          item.sectionId === sectionId &&
+          normalizeCartRoundKey(item.roundKey || 'preselect') === roundKey,
       )
     ) {
       return true
     }
     if (hasStudentVolunteeredSection(courseId, sectionId)) return true
+    // 历轮已确认同课仍占位，避免重复志愿
+    if (studentConfirmedCourses.value.some((item) => item.courseId === courseId)) return true
     return false
   }
 
@@ -173,7 +213,8 @@ export function getHardScheduleConflictGate(course, section) {
 }
 
 /**
- * 本轮选课表：当前批 + 当前轮确认课（排除 admin）
+ * 本轮选课表（非志愿）：当前批 + 当前轮确认课（排除 admin）
+ * 历轮跨档同步见 includeConfirmedInPriorRounds（按类型+roundKey，不锁 batchId）
  */
 function includeConfirmedInRoundTable(item, { batchId, batchType, roundKey }) {
   if (!item || item.intent === 'waitlist') return false
@@ -195,6 +236,27 @@ function includeConfirmedInCreditProgress(item, { batchType, roundKey }) {
   return true
 }
 
+/** 历轮已选：同类型、非 admin、轮次严格早于当前轮（可跨批） */
+function includeConfirmedInPriorRounds(item, { batchType, roundKey }) {
+  if (!item || item.intent === 'waitlist') return false
+  if (item.sourceType === 'admin') return false
+  if (batchType && item.type && normalizeRegistrationType(item.type) !== batchType) return false
+  return roundOrderIndexOf(item.roundKey) < roundOrderIndexOf(roundKey)
+}
+
+/**
+ * 历轮已选列表（本轮选课情况第二块；不含当前轮确认/待分配）
+ * @param {{ roundKey?: string, batch?: object }} [options]
+ */
+export function listPriorRoundConfirmedCourses(options = {}) {
+  const batch = options.batch || getActiveBatch()
+  const batchType = batch?.type === 'GE' ? 'GE' : batch?.type === 'ME' ? 'ME' : ''
+  const roundKey = normalizeCartRoundKey(options.roundKey || activeCartRoundKey.value)
+  return studentConfirmedCourses.value
+    .filter((item) => includeConfirmedInPriorRounds(item, { batchType, roundKey }))
+    .map((item) => ({ ...item, status: 'success' }))
+}
+
 export const myRegistrationList = computed(() => {
   const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
   const batch = getActiveBatch()
@@ -204,14 +266,17 @@ export const myRegistrationList = computed(() => {
   if (pendingRegistration.value) {
     list.push({ ...pendingRegistration.value, status: 'queued' })
   }
-  if (roundKey === 'preselect') {
+  // 老生 R1 志愿：本轮表 = 当前批待分配
+  if (shouldShowVolunteerSheetPanel(roundKey, getStudentAudience())) {
     for (const item of studentPendingAssignCourses.value) {
       if (batchId && item.batchId && item.batchId !== batchId) continue
+      const itemRound = normalizeCartRoundKey(item.roundKey || 'preselect')
+      if (itemRound !== roundKey) continue
       list.push({ ...item, status: 'pendingAssign' })
     }
     return list
   }
-  // R2/R3：本轮表只含当前批当前轮所选（不含 R1 待分配/更早轮确认）
+  // R2/R3（及新生）：本轮表 = 当前批当前轮确认（排队默认成功，失败半池仅兼容历史）
   for (const item of studentConfirmedCourses.value) {
     if (!includeConfirmedInRoundTable(item, { batchId, batchType, roundKey })) continue
     list.push({ ...item, status: 'success' })
@@ -320,7 +385,7 @@ function roundOrderIndexOf(roundKey) {
 
 /**
  * 本轮学分统计用课（可与本轮表门数分离）
- * R1(preselect)=该批待分配；R2/R3=≤当前轮已确认（同类型、非 admin，可跨批）
+ * R1 志愿=该批待分配；R2/R3=≤当前轮已确认（同类型、非 admin，含历轮）
  * @param {object} [batch]
  */
 export function listRoundStatusCreditCourses(batch = getActiveBatch(), options = {}) {
@@ -331,10 +396,10 @@ export function listRoundStatusCreditCourses(batch = getActiveBatch(), options =
     return studentPendingAssignCourses.value.filter((item) => {
       if (item.intent === 'waitlist') return false
       if (batchId && item.batchId && item.batchId !== batchId) return false
-      return true
+      return normalizeCartRoundKey(item.roundKey || 'preselect') === 'preselect'
     })
   }
-  // R2/R3 学分：≤当前轮已确认（同类型、非 admin），不含 R1 pending
+  // R2/R3：≤当前轮已确认（同类型、非 admin）
   return studentConfirmedCourses.value.filter((item) =>
     includeConfirmedInCreditProgress(item, { batchType, roundKey }),
   )
@@ -535,7 +600,7 @@ function buildCartCourseItem(course, section) {
   }
 }
 
-/** 单课确认选课：第二/三轮进队列；第一轮提交志愿并进队列，结束后为待分配 */
+/** 单课确认选课：志愿模式（老生 R1–R3）进待分配；否则先到先得确认 */
 export function submitSingleCourseRegistration(course, section) {
   if (!course || !section) return { ok: false }
   const gate = assertEligibleAndNotInCart(course, section)
@@ -544,7 +609,7 @@ export function submitSingleCourseRegistration(course, section) {
   const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
   const studentFields = getStudentProfileFields()
 
-  if (roundKey === 'preselect') {
+  if (shouldShowVolunteerSheetPanel(roundKey, getStudentAudience())) {
     const lockGate = assertVolunteerListEditable()
     if (!lockGate.ok) return lockGate
 
@@ -620,19 +685,8 @@ export function submitSingleCourseRegistration(course, section) {
     silent: true,
     showSuccess: true,
     onComplete: () => {
-      const failed = Math.random() < 0.15
+      // Demo：排队完成一律选课成功，不再随机写入失败
       pendingRegistration.value = null
-      if (failed) {
-        studentFailedRegistrations.value = [
-          {
-            ...item,
-            id: `fail-${item.courseId}-${Date.now()}`,
-            failedAt: nowSelectedAt(),
-          },
-          ...studentFailedRegistrations.value,
-        ]
-        return { ok: false, errorKey: 'courseRegistration.student.registerFailedQueue' }
-      }
       applyConfirmedRegistration([item])
       upsertMonitorRow(
         studentFields,
@@ -805,14 +859,27 @@ export function isRegistrationPhaseForUnselect(batch = getActiveBatch()) {
 }
 
 function adjustSectionEnrolled(courseId, sectionId, sectionCode, delta) {
-  const course = getCourseById(courseId)
+  const idx = selectableCourses.value.findIndex((item) => item.id === courseId)
+  const course = idx >= 0 ? selectableCourses.value[idx] : getCourseById(courseId)
   if (!course?.sections?.length) return
   const section =
     (sectionId && course.sections.find((item) => item.id === sectionId)) ||
     (sectionCode && course.sections.find((item) => item.code === sectionCode)) ||
     null
   if (!section) return
-  section.enrolled = Math.max(0, (Number(section.enrolled) || 0) + delta)
+  const nextEnrolled = Math.max(0, (Number(section.enrolled) || 0) + delta)
+  const nextSections = course.sections.map((sec) =>
+    sec === section || sec.id === section.id ? { ...sec, enrolled: nextEnrolled } : sec,
+  )
+  if (idx >= 0) {
+    // 替换课库行，保证列表「可选名额」列随历轮/本轮退选即时刷新
+    const nextCourse = { ...course, sections: nextSections }
+    selectableCourses.value = selectableCourses.value.map((item, i) =>
+      i === idx ? nextCourse : item,
+    )
+  } else {
+    section.enrolled = nextEnrolled
+  }
 }
 
 /**
@@ -987,12 +1054,25 @@ function applyConfirmedRegistration(courses, options = {}) {
   }
   studentConfirmedCourses.value = merged
   refreshStudentScheduleFromConfirmed()
+  scheduleDemoIncrementalReconcile()
 }
 
-/** 第一轮志愿队列结束：写入待分配，不占已选学分、不占教学分组 enrolled */
+/**
+ * 加选/退选后按学分帽剔除超限的 R2/R3 默认增量 demo 课（不回填；动态 import 避免与 seed 循环依赖）
+ */
+function scheduleDemoIncrementalReconcile() {
+  import('./studentDemoSeed.js')
+    .then((mod) => {
+      mod.reconcileIncrementalDemoConfirmedCourses?.({ allowAdd: false })
+    })
+    .catch(() => {})
+}
+
+/** 志愿队列结束：写入待分配，不占已选学分、不占教学分组 enrolled */
 function applyPendingAssignRegistration(courses) {
   const merged = [...studentPendingAssignCourses.value]
   const selectedAt = nowSelectedAt()
+  const roundKey = normalizeCartRoundKey(activeCartRoundKey.value)
   for (const course of courses) {
     const isDup = (item) =>
       item.courseId === course.courseId && item.sectionId === course.sectionId
@@ -1001,8 +1081,8 @@ function applyPendingAssignRegistration(courses) {
         ...course,
         id: course.id || `pending-${course.courseId}-${Date.now()}`,
         selectedAt: course.selectedAt || selectedAt,
-        sourceType: 'preselect',
-        roundKey: 'preselect',
+        sourceType: roundKey === 'preselect' ? 'preselect' : 'round',
+        roundKey,
       })
       // assignNextPreferenceOrder 基于当前 ref；循环内先写入再算下一门
       merged.push(next)
@@ -1024,6 +1104,7 @@ function removeConfirmedCourseRecord(removed, historyAction) {
   })
   adjustSectionEnrolled(removed.courseId, removed.sectionId, removed.sectionCode, -1)
   refreshStudentScheduleFromConfirmed()
+  scheduleDemoIncrementalReconcile()
   const studentFields = getStudentProfileFields()
   const batch = getActiveBatch()
   upsertMonitorRow(studentFields, batch, historyAction)
@@ -1059,16 +1140,16 @@ export function unselectConfirmedCourse(courseId, section = null) {
   }
 
   const pending = studentPendingAssignCourses.value.find(matchSection)
-  if (pending) {
-    const lockGate = assertVolunteerListEditable()
-    if (!lockGate.ok) return lockGate
-    const pendingSectionId = pending.sectionId || sectionId || null
+  const removed = studentConfirmedCourses.value.find(matchSection)
+
+  const clearMatchingPending = (row) => {
+    const pendingSectionId = row.sectionId || sectionId || null
     studentPendingAssignCourses.value = studentPendingAssignCourses.value.filter(
       (item) => !matchSection(item),
     )
     const studentId = getStudentProfileFields().studentId
     removeStudentPreselectVolunteer(courseId, studentId, pendingSectionId)
-    const batchId = pending.batchId || getActiveBatch()?.id || ''
+    const batchId = row.batchId || getActiveBatch()?.id || ''
     const keptOther = studentPendingAssignCourses.value.filter(
       (item) => String(item.batchId || '') !== String(batchId),
     )
@@ -1079,15 +1160,23 @@ export function unselectConfirmedCourse(courseId, section = null) {
       .map((item, index) => ({ ...item, preferenceOrder: index + 1 }))
     studentPendingAssignCourses.value = [...keptOther, ...remaining]
     syncVolunteerOrderAfterPendingChange(batchId)
+  }
+
+  // 确认课优先：R2/R3 退选不因 R1 残留 pending + 志愿锁误拦
+  if (removed) {
+    if (pending) clearMatchingPending(pending)
+    removeConfirmedCourseRecord(removed, `Unselected ${removed.courseCode} (released seat)`)
     return { ok: true }
   }
 
-  const removed = studentConfirmedCourses.value.find(matchSection)
-  if (!removed) {
-    return { ok: false, errorKey: 'courseRegistration.student.unselectNotFound' }
+  if (pending) {
+    const lockGate = assertVolunteerListEditable()
+    if (!lockGate.ok) return lockGate
+    clearMatchingPending(pending)
+    return { ok: true }
   }
-  removeConfirmedCourseRecord(removed, `Unselected ${removed.courseCode} (released seat)`)
-  return { ok: true }
+
+  return { ok: false, errorKey: 'courseRegistration.student.unselectNotFound' }
 }
 
 /** 开课后退课生效：按课号移除已确认结果（不校验选课阶段） */

@@ -37,8 +37,8 @@ import RegistrationMonitorView from './views/courseRegistration/RegistrationMoni
 import AddDropApprovalView from './views/courseRegistration/AddDropApprovalView.vue'
 import SupplementListView from './views/courseRegistration/SupplementListView.vue'
 import RegistrationResultView from './views/courseRegistration/RegistrationResultView.vue'
-import RegistrationLogView from './views/courseRegistration/RegistrationLogView.vue'
 import FeeRosterView from './views/courseRegistration/FeeRosterView.vue'
+import SectionStudentRosterView from './views/courseRegistration/SectionStudentRosterView.vue'
 import CourseRegistrationFlowGuideView from './views/courseRegistration/CourseRegistrationFlowGuideView.vue'
 import StudentRegisterView from './views/courseRegistration/student/StudentRegisterView.vue'
 import StudentAddDropView from './views/courseRegistration/student/StudentAddDropView.vue'
@@ -125,8 +125,8 @@ const isCrMonitor = computed(() => currentPageId.value === 'cr-monitor')
 const isCrApproval = computed(() => currentPageId.value === 'cr-approval')
 const isCrSupplement = computed(() => currentPageId.value === 'cr-supplement')
 const isCrResult = computed(() => currentPageId.value === 'cr-result')
-const isCrLog = computed(() => currentPageId.value === 'cr-log')
 const isCrFeeRoster = computed(() => currentPageId.value === 'cr-fee-roster')
+const isCrSectionRoster = computed(() => currentPageId.value === 'cr-section-roster')
 const isCrsRegister = computed(() => currentPageId.value === 'crs-register')
 const isCrsAddDrop = computed(() => currentPageId.value === 'crs-adddrop')
 const isCrsResult = computed(() => currentPageId.value === 'crs-result')
@@ -298,7 +298,7 @@ function openStudentPreviewPortal() {
             <AddDropApprovalView v-else-if="isCrApproval" />
             <SupplementListView v-else-if="isCrSupplement" />
             <RegistrationResultView v-else-if="isCrResult" />
-            <RegistrationLogView v-else-if="isCrLog" />
+            <SectionStudentRosterView v-else-if="isCrSectionRoster" />
             <FeeRosterView v-else-if="isCrFeeRoster" />
             <StudentRegisterView
               v-else-if="isCrsRegister"

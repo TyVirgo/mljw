@@ -12,6 +12,10 @@
 - 演示学生（Tan Wei Ming）学分：多数申请使用正常 `currentCredits`；仅保留少量超学分样本，避免待审批列表刷屏 29/20。
 - **时间线**：提交时间落在当前活动批次 `addDropWindow` 内（或与窗口文案一致）；审批队列日期格式统一。
 - 管理端初始队列中与上述口径冲突的条目一并校正（fee/bill、日期格式）。
+- **退课原因**：凡含退课的 demo（Drop / AddDrop / RetakeDrop）必须有非空 `dropReason`（可与 `reason` 同步）；详情不得显示「—」。
+- **毕业计费与费用同源**：`billableCredits` / 毕业超出（计费）> 0 时，必须有匹配的 `feeEstimate`（total / items）与 `billAmount`；禁止「毕业超出 2、预估费用 0 RMB」。学期超出仍可 >0 且费用为 0。enrich 在缺 `feeEstimate` 时按计费学分 × 单价（ME 默认 arts=500）合成兜底。
+- **重修类型**：凡 `Retake` / `RetakeDrop` demo 必须有合法 `retakeType`（仅 `failed` | `improve_grade`）；非法别名 `improve` 一律改为 `improve_grade`；详情不得显示「—」。
+- **学分条 ↔ 毕业计费**：详情学分条为「基线 − 退课 + 加课/重修」最终投影；若 `billableCredits`（毕业超出计费）> 0，条上对应 GE/ME 毕业已选必须 > 要求。真超额样本（如 adr-001）抬高毕业 ME 基线（如 22/24），退必修 + 加 ME 后呈 26/24，与计费 2 / 费用对齐。
 
 ## Non-goals
 
@@ -32,6 +36,6 @@
 
 ## Impact
 
-- Affected code: `src/data/courseRegistration/studentDemoSeed.js`、`src/data/courseRegistration/addDropApprovalQueue.js`、`src/views/courseRegistration/student/StudentAddDropView.vue`（课程摘要格式化）
+- Affected code: `src/data/courseRegistration/studentDemoSeed.js`、`src/data/courseRegistration/addDropApprovalQueue.js`、`src/data/courseRegistration/addDropScheduleDemo.js`（enrich 合成 feeEstimate / dropReason）、`src/views/courseRegistration/student/StudentAddDropView.vue`（课程摘要格式化）
 - Affected specs: `course-registration` delta
 - 无新菜单、无 API

@@ -102,13 +102,12 @@ export function estimateCourseFee({
   let billableCredits = 0
   let reason = 'none'
 
-  // 加课 / 重修统一：仅超毕业 GE/ME 总分才计费；子类超额不收费；超学期帽不收费
-  if (
-    action === 'Retake' ||
-    action === 'RetakeDrop' ||
-    action === 'Add' ||
-    action === 'AddDrop'
-  ) {
+  // 重修：所选学分一律计费（无「超出毕业」概念）
+  if (action === 'Retake' || action === 'RetakeDrop') {
+    billableCredits = Math.max(0, credits)
+    reason = billableCredits > 0 ? 'retake_full_credits' : 'none'
+  } else if (action === 'Add' || action === 'AddDrop') {
+    // 加课：仅超毕业 GE/ME 总分才计费；子类超额不收费；超学期帽不收费
     const type = String(course.type || '').toUpperCase()
     if (type === 'GE') {
       const rem = remainingForTypeCategory(planRemaining, 'GE', categoryKey)
@@ -201,7 +200,7 @@ export function consumePlanRemaining(planRemaining, course, billableCredits = 0)
 }
 
 /**
- * 重修计费：与加课同一套毕业类别剩余算法（已废除退费抵免冲抵）
+ * 重修计费：整门学分 × 科类单价（不读毕业剩余）
  * @param {object} opts
  * @param {object} opts.course
  * @param {object} [opts.planRemaining]
@@ -276,6 +275,7 @@ export function resolveAddDropExcessCredits(app) {
     0,
   )
   const candidates = [
+    Number(app.termCreditExcess),
     Number(app.excessCredits),
     Number(app.billableCredits),
     Number(app.feeEstimate?.billableCredits),
@@ -283,6 +283,29 @@ export function resolveAddDropExcessCredits(app) {
   ].filter((n) => Number.isFinite(n) && n >= 0)
   if (!candidates.length) return 0
   return Math.max(0, ...candidates)
+}
+
+/** 毕业超出（计费学分） */
+export function resolveAddDropGradExcessCredits(app) {
+  if (!app || app.type === 'Drop') return 0
+  const fromItems = (app.feeEstimate?.items || []).reduce(
+    (s, i) => s + (Number(i.billableCredits) || 0),
+    0,
+  )
+  const candidates = [
+    Number(app.billableCredits),
+    Number(app.feeEstimate?.billableCredits),
+    fromItems,
+  ].filter((n) => Number.isFinite(n) && n >= 0)
+  if (!candidates.length) return 0
+  return Math.max(0, ...candidates)
+}
+
+/** 学期超出（学分条 GE/ME 总分口径落库值） */
+export function resolveAddDropTermExcessCredits(app) {
+  if (!app || app.type === 'Drop') return 0
+  const n = Number(app.termCreditExcess)
+  return Number.isFinite(n) && n > 0 ? n : 0
 }
 
 /** 加退课金额展示：数值 + RMB；空值「—」 */

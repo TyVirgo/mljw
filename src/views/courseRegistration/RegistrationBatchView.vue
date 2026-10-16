@@ -16,15 +16,26 @@ import {
 import { countCoursesByBatch } from '../../data/courseRegistration/selectableCourses.js'
 import { countEligibleStudentsAcrossRounds } from '../../data/courseRegistration/batchStudentRoster.js'
 import { registrationAcademicSessionOptions } from '../../data/courseRegistration/registrationBatchFormUtils.js'
-import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
+import {
+  getRegistrationTypeLabel,
+  registrationBatchTypeOptions,
+} from '../../data/courseRegistration/registrationTypes.js'
+import '../../styles/list-page-search.css'
 import '../../styles/course-registration-list.css'
 
 const emit = defineEmits(['navigate'])
 
 const { t } = useAppI18n()
 
-const searchForm = ref({ academicSession: '', status: '', keyword: '' })
-const appliedSearch = ref({ academicSession: '', status: '', keyword: '' })
+const searchForm = ref({ academicSession: '', status: '', keyword: '', type: '', programme: '' })
+const appliedSearch = ref({
+  academicSession: '',
+  status: '',
+  keyword: '',
+  type: '',
+  programme: '',
+})
+const searchExpanded = ref(true)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const drawerVisible = ref(false)
@@ -56,6 +67,13 @@ const rows = computed(() => {
     const kw = appliedSearch.value.keyword.toLowerCase()
     list = list.filter((r) => r.name.toLowerCase().includes(kw))
   }
+  if (appliedSearch.value.type) {
+    list = list.filter((r) => String(r.type || '') === appliedSearch.value.type)
+  }
+  if (appliedSearch.value.programme) {
+    const kw = appliedSearch.value.programme.toLowerCase()
+    list = list.filter((r) => String(r.programme || '').toLowerCase().includes(kw))
+  }
   return list
 })
 
@@ -80,8 +98,14 @@ function handleSearch() {
 }
 
 function handleReset() {
-  searchForm.value = { academicSession: '', status: '', keyword: '' }
-  appliedSearch.value = { academicSession: '', status: '', keyword: '' }
+  searchForm.value = { academicSession: '', status: '', keyword: '', type: '', programme: '' }
+  appliedSearch.value = {
+    academicSession: '',
+    status: '',
+    keyword: '',
+    type: '',
+    programme: '',
+  }
   currentPage.value = 1
   selectedBatchIds.value = []
 }
@@ -187,14 +211,24 @@ function openStudentList(batch) {
           <div class="search-fields">
             <div class="search-item">
               <label>{{ t('courseRegistration.batch.academicSession') }}</label>
-              <select v-model="searchForm.academicSession" class="search-select" :class="{ 'is-empty': !searchForm.academicSession }">
+              <select
+                v-model="searchForm.academicSession"
+                class="search-select"
+                :class="{ 'is-empty': !searchForm.academicSession }"
+              >
                 <option value="">{{ t('common.all') }}</option>
-                <option v-for="opt in registrationAcademicSessionOptions" :key="opt" :value="opt">{{ opt }}</option>
+                <option v-for="opt in registrationAcademicSessionOptions" :key="opt" :value="opt">
+                  {{ opt }}
+                </option>
               </select>
             </div>
             <div class="search-item">
               <label>{{ t('common.status') }}</label>
-              <select v-model="searchForm.status" class="search-select" :class="{ 'is-empty': !searchForm.status }">
+              <select
+                v-model="searchForm.status"
+                class="search-select"
+                :class="{ 'is-empty': !searchForm.status }"
+              >
                 <option value="">{{ t('common.all') }}</option>
                 <option value="draft">{{ t('courseRegistration.batch.status.draft') }}</option>
                 <option value="active">{{ t('courseRegistration.batch.status.active') }}</option>
@@ -205,10 +239,55 @@ function openStudentList(batch) {
               <label>{{ t('courseRegistration.batch.name') }}</label>
               <input v-model="searchForm.keyword" type="text" class="search-input" />
             </div>
+            <div class="search-item">
+              <label>{{ t('courseRegistration.batch.type') }}</label>
+              <select
+                v-model="searchForm.type"
+                class="search-select"
+                :class="{ 'is-empty': !searchForm.type }"
+              >
+                <option value="">{{ t('common.all') }}</option>
+                <option
+                  v-for="opt in registrationBatchTypeOptions"
+                  :key="opt.value"
+                  :value="opt.value"
+                >
+                  {{ t(opt.labelKey) }}
+                </option>
+              </select>
+            </div>
+            <template v-if="searchExpanded">
+              <div class="search-item">
+                <label>{{ t('courseRegistration.batch.programme') }}</label>
+                <input
+                  v-model="searchForm.programme"
+                  type="text"
+                  class="search-input"
+                  :placeholder="t('common.pleaseInput')"
+                  @keyup.enter="handleSearch"
+                />
+              </div>
+            </template>
           </div>
           <div class="search-actions">
-            <button type="button" class="btn btn-primary" @click="handleSearch">{{ t('common.search') }}</button>
-            <button type="button" class="btn btn-default" @click="handleReset">{{ t('common.reset') }}</button>
+            <button type="button" class="btn btn-primary" @click="handleSearch">
+              {{ t('common.search') }}
+            </button>
+            <button type="button" class="btn btn-default" @click="handleReset">
+              {{ t('common.reset') }}
+            </button>
+            <button type="button" class="toggle-link" @click="searchExpanded = !searchExpanded">
+              {{ searchExpanded ? t('common.collapse') : t('common.more') }}
+              <svg
+                :class="{ up: searchExpanded }"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>

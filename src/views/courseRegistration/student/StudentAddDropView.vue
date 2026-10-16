@@ -35,6 +35,11 @@ import {
   getSupplementEntry,
   formatSupplementInviteCountdown,
   hasWhitelistPrerequisiteBypass,
+  hasWhitelistAllowFutureMandatory,
+  hasWhitelistAllowFutureElective,
+  getWhitelistFutureElectiveConfig,
+  getWhitelistCoreSectionSwitchSections,
+  hasWhitelistAllowDropBelowCreditMin,
 } from '../../../data/courseRegistration/supplementListQueue.js'
 import { isWithinAddDropApplicationWindow } from '../../../data/courseRegistration/addDropApplicationWindow.js'
 import {
@@ -45,26 +50,33 @@ import {
   applySectionToForm,
   ADD_DROP_PRIMARY_TYPES,
   primaryTypeFromAction,
-  displayPrimaryType,
   matchesPrimaryTypeFilter,
+  mergeCoreLockOriginLines,
 } from '../../../data/courseRegistration/addDropFormSections.js'
 import {
+  addDropTypeLabelKey,
+  addDropTypeTagClass,
+  addDropPrimaryOptionLabelKey,
+  resolveAppNeedDrop,
+} from '../../../data/courseRegistration/addDropTypeDisplay.js'
+import {
   computeNetCreditsAfterLines,
-  computeTermCreditExcess,
   hasWhitelistCreditMaxBypass,
-  projectAddDropCreditGroups,
-  sumTermCategoryCreditExcess,
+  getWhitelistCreditBypassExtra,
   buildAddDropTermCreditStrip,
+  sumGeMeTermStripExcess,
   wouldExceedAddDropGeTermCap,
   isMandatoryAddDropCourse,
 } from '../../../data/courseRegistration/addDropMultiItems.js'
 import { getEligibleAddCoursesForStudent } from '../../../data/courseRegistration/addDropEligibleCourses.js'
 import {
   retakeHistoryFromCourse,
-  listRetakeCourseIdsByType,
-  listTranscriptForRetakeCourse,
   formatGradeToZh,
 } from '../../../data/courseRegistration/studentTranscript.js'
+import {
+  listRetakePickerCourses,
+  mergeRetakePickerWithTimetableRequired,
+} from '../../../data/courseRegistration/retakeSubstitutePool.js'
 import {
   estimateCourseFee,
   sumFeeEstimates,
@@ -81,7 +93,6 @@ import {
   getStudentProfileFields,
   getStudentEnrolledCourses,
   studentSchedule,
-  studentConfirmedCourses,
   studentRequiredCourses,
   getSelectableCoursesForStudent,
   getTermElectiveCreditProgress,
@@ -102,7 +113,10 @@ import {
 } from '../../../data/courseRegistration/registrationBatchFormUtils.js'
 import { resolveTermCreditMax } from '../../../data/courseRegistration/registrationRules.js'
 import { isFreshmanStudent } from '../../../data/courseRegistration/studentAudience.js'
-import { buildPreviewSchedule } from '../../../data/courseRegistration/studentSchedulePreview.js'
+import {
+  listMyResultCourses,
+  buildMyResultSchedule,
+} from '../../../data/courseRegistration/studentMyResultCourses.js'
 import StudentSchedulePreviewPanel from '../../../components/courseRegistration/StudentSchedulePreviewPanel.vue'
 import ApplicationDetailDrawer from '../../../components/common/ApplicationDetailDrawer.vue'
 import '../../../styles/list-page-search.css'
@@ -143,7 +157,7 @@ const addDropAccess = computed(() =>
 )
 const supplementEntry = computed(() => getSupplementEntry(studentFields.value.studentId))
 const inviteCountdown = computed(() =>
-  formatSupplementInviteCountdown(supplementEntry.value),
+  formatSupplementInviteCountdown(supplementEntry.value, new Date(), t),
 )
 const inSupplementList = computed(() => Boolean(supplementEntry.value))
 const canApply = computed(() => addDropAccess.value.ok)
@@ -229,6 +243,45 @@ const creditMaxBypass = computed(() =>
   hasWhitelistCreditMaxBypass(studentFields.value.studentId),
 )
 
+const creditBypassExtra = computed(() =>
+  getWhitelistCreditBypassExtra(studentFields.value.studentId),
+)
+
+const allowFutureMandatory = computed(() =>
+  hasWhitelistAllowFutureMandatory(studentFields.value.studentId),
+)
+
+const allowFutureElective = computed(() =>
+  hasWhitelistAllowFutureElective(studentFields.value.studentId),
+)
+
+const futureElectiveConfig = computed(() =>
+  getWhitelistFutureElectiveConfig(studentFields.value.studentId),
+)
+
+/** 加课 / 重修各自的换组白名单（课+组） */
+const coreSectionSwitchSections = computed(() => {
+  const action = form.value.action
+  const kind = action === 'Retake' || action === 'RetakeDrop' ? 'retake' : 'add'
+  return getWhitelistCoreSectionSwitchSections(studentFields.value.studentId, kind)
+})
+
+const allowDropBelowCreditMin = computed(() =>
+  hasWhitelistAllowDropBelowCreditMin(studentFields.value.studentId),
+)
+
+/** 重修无拟退时：课表在读必修作为原分组 */
+const originSectionLinesForPicker = computed(() =>
+  (studentRequiredCourses.value || []).map((item) => ({
+    courseId: item.courseId,
+    courseCode: item.courseCode || item.code,
+    sectionId: item.sectionId,
+    sectionCode: item.sectionCode || item.section,
+    type: item.type || 'CORE',
+    sourceType: item.sourceType || 'required',
+  })),
+)
+
 const termCreditMax = computed(() => {
   const session =
     form.value.academicSession ||
@@ -244,18 +297,21 @@ const termCreditGate = computed(() => {
     dropLines: form.value.dropLines || [],
     addLines: form.value.addLines || [],
     bypassCreditMax: creditMaxBypass.value,
+    creditBypassExtra: creditBypassExtra.value,
   }
 })
 
-/** 主页「我的课表」：确认课 + 必修 */
-const schedulePreviewSlots = computed(() =>
-  buildPreviewSchedule({
-    required: studentRequiredCourses.value,
-    confirmed: studentConfirmedCourses.value,
-    pendingAdd: [],
-    pendingDropCodes: [],
-  }),
-)
+/** 主页「我的课表」：与我的选课同源（四类已选）；排除表单拟退 */
+const schedulePreviewSlots = computed(() => {
+  const dropSet = new Set((pendingDropCodes.value || []).map(String).filter(Boolean))
+  const courses = listMyResultCourses().filter((item) => {
+    if (!dropSet.size) return true
+    const code = String(item.courseCode || item.code || '')
+    const id = String(item.courseId || '')
+    return !dropSet.has(code) && !dropSet.has(id)
+  })
+  return buildMyResultSchedule(courses, { locale: isZh.value ? 'zh' : 'en' })
+})
 
 const scheduleToolbarLabel = computed(() => t('courseRegistration.student.scheduleToolbarButton'))
 const schedulePreviewHint = computed(() => t('courseRegistration.student.schedulePreviewAddDropHint'))
@@ -302,8 +358,20 @@ const calloutText = computed(() => {
 function goRegister() {
   emit('navigate', 'crs-register')
 }
-const searchForm = ref({ status: '', keyword: '', type: '' })
-const appliedSearch = ref({ status: '', keyword: '', type: '' })
+const EMPTY_SEARCH = {
+  type: '',
+  status: '',
+  academicSession: '',
+  billStatus: '',
+  applicationNo: '',
+  keyword: '',
+}
+
+const BILL_STATUS_OPTIONS = ['pending', 'paid', 'cancelled', 'none']
+
+const searchExpanded = ref(true)
+const searchForm = ref({ ...EMPTY_SEARCH })
+const appliedSearch = ref({ ...EMPTY_SEARCH })
 const currentPage = ref(1)
 const pageSize = ref(20)
 
@@ -315,12 +383,22 @@ const allApplications = computed(() =>
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),
 )
 
+function normalizeBillStatus(status) {
+  if (status == null || status === '' || status === 'none') return 'none'
+  return String(status)
+}
+
 const filteredApplications = computed(() => {
-  const { status, keyword, type } = appliedSearch.value
-  const kw = keyword.trim().toLowerCase()
+  const { status, keyword, type, academicSession, billStatus, applicationNo } = appliedSearch.value
+  const kw = String(keyword || '').trim().toLowerCase()
+  const appNoKw = String(applicationNo || '').trim().toLowerCase()
+  const sessionKw = String(academicSession || '').trim().toLowerCase()
   return allApplications.value.filter((app) => {
     if (!matchesPrimaryTypeFilter(app.type, type)) return false
     if (status && app.status !== status) return false
+    if (billStatus && normalizeBillStatus(app.billStatus) !== billStatus) return false
+    if (sessionKw && String(app.academicSession || '').toLowerCase() !== sessionKw) return false
+    if (appNoKw && !String(app.applicationNo || '').toLowerCase().includes(appNoKw)) return false
     if (!kw) return true
     const courseText = (app.items || [])
       .map((item) => `${item.courseCode || ''} ${item.courseName || ''}`)
@@ -342,9 +420,13 @@ function handleSearch() {
 }
 
 function handleReset() {
-  searchForm.value = { status: '', keyword: '', type: '' }
-  appliedSearch.value = { status: '', keyword: '', type: '' }
+  searchForm.value = { ...EMPTY_SEARCH }
+  appliedSearch.value = { ...EMPTY_SEARCH }
   currentPage.value = 1
+}
+
+function billStatusFilterLabel(status) {
+  return t(`courseRegistration.approval.bill.${status}`)
 }
 
 const applicationStatusOptions = [
@@ -406,15 +488,14 @@ const courseOptions = computed(() => {
   if (form.value.action === 'Retake' || form.value.action === 'RetakeDrop') {
     const type = form.value.retakeType
     if (!type || (type !== 'failed' && type !== 'improve_grade')) return []
-    const ids = listRetakeCourseIdsByType(type, studentFields.value.studentId)
-    return ids
-      .map((id) => getCourseById(id))
-      .filter(Boolean)
-      .map((c) => ({
-        ...c,
-        remainingCapacity: c.remainingCapacity,
-        retakeHistory: listTranscriptForRetakeCourse(c.id, studentFields.value.studentId, c),
-      }))
+    const pool = listRetakePickerCourses(type, studentFields.value.studentId)
+    // 必修：仅并入成绩单已匹配该重修类型的课表必修（禁止无履历硬塞）
+    return mergeRetakePickerWithTimetableRequired(
+      pool,
+      studentRequiredCourses.value,
+      studentFields.value.studentId,
+      type,
+    )
   }
   const sid = studentFields.value.studentId
   if (hasWhitelistPrerequisiteBypass(sid)) {
@@ -550,13 +631,6 @@ const termCreditBars = computed(() => {
   return [ge, me].filter(Boolean)
 })
 
-const formProjectedCreditGroups = computed(() =>
-  projectAddDropCreditGroups(pickerCreditGroups.value, {
-    dropCourses: form.value.dropLines || [],
-    addCourses: form.value.addLines || [],
-  }),
-)
-
 /** 学分条基线：毕业 GE/ME（本学期确认、不含 prior）+ 学期 GE/ME + 必修已选 */
 const termCreditStripBaseline = computed(() => {
   const groups = pickerCreditGroups.value
@@ -579,6 +653,9 @@ const termCreditStripBaseline = computed(() => {
     gradGeMax: Number(programme.geRequired) || 0,
     gradMeCurrent: meCurrent,
     gradMeMax: Number(programme.meRequired) || 0,
+    // tip 用：毕业必修已选/要求（不进七列展示）
+    gradMandatoryCurrent: Number(programme.mandatoryEarned) || 0,
+    gradMandatoryMax: Number(programme.mandatoryRequired) || 0,
     mandatorySelected,
   }
 })
@@ -591,17 +668,8 @@ const formTermCreditStrip = computed(() =>
   }),
 )
 
-/** 学期类别超额与学期总分帽超额取较大值（表单「超出学分」展示用） */
-const formTermCreditExcess = computed(() => {
-  const categoryExcess = sumTermCategoryCreditExcess(formProjectedCreditGroups.value)
-  const overall = computeTermCreditExcess(
-    creditSummary.value.enrolled,
-    form.value.dropLines || [],
-    form.value.addLines || [],
-    termCreditMax.value,
-  )
-  return Math.max(categoryExcess, overall)
-})
+/** 学期超出：仅学分条 GE/ME 学期总分（cur > max） */
+const formTermCreditExcess = computed(() => sumGeMeTermStripExcess(formTermCreditStrip.value))
 
 /** 本学期文商理类别剩余（超额计费；含 GE/ME 总量兜底） */
 const planRemaining = computed(() => buildAddDropPlanRemaining())
@@ -663,8 +731,16 @@ function resolveI18nLabel(key, fallback) {
 }
 
 function typeLabel(type) {
-  const primary = displayPrimaryType(type) || type
-  return resolveI18nLabel(`courseRegistration.approval.type.${primary}`, primary)
+  return resolveI18nLabel(addDropTypeLabelKey(type), type || '—')
+}
+
+function typeClass(type) {
+  return addDropTypeTagClass(type)
+}
+
+/** 筛选/表单主类型三选一文案 */
+function primaryOptionLabel(primary) {
+  return resolveI18nLabel(addDropPrimaryOptionLabelKey(primary), primary || '—')
 }
 
 function statusLabel(status) {
@@ -747,6 +823,7 @@ const COLUMN_HEADER_KEYS = {
   applicationNo: 'courseRegistration.approval.applicationNo',
   academicSession: 'courseRegistration.batch.academicSession',
   type: 'courseRegistration.approval.typeLabel',
+  needDrop: 'courseRegistration.approval.needDropColumn',
   addCourse: 'courseRegistration.approval.addCourseName',
   dropCourse: 'courseRegistration.approval.dropCourseName',
   retakeCourse: 'courseRegistration.approval.retakeCourseName',
@@ -776,17 +853,7 @@ function columnClass(col) {
 }
 
 function listExcessCredits(app) {
-  if (!app || app.type === 'Drop') return '—'
-  const n = resolveAddDropExcessCredits(app)
-  if (
-    n <= 0 &&
-    (app.excessCredits == null || app.excessCredits === '') &&
-    app.billableCredits == null &&
-    app.feeEstimate?.billableCredits == null
-  ) {
-    return '—'
-  }
-  return n
+  return resolveAddDropExcessCredits(app)
 }
 
 function cellText(col, app, index) {
@@ -794,6 +861,9 @@ function cellText(col, app, index) {
   if (col === 'applicationNo') return app.applicationNo
   if (col === 'academicSession') return app.academicSession || '—'
   if (col === 'type') return typeLabel(app.type)
+  if (col === 'needDrop') {
+    return resolveAppNeedDrop(app) === 'yes' ? t('common.yes') : t('common.no')
+  }
   if (col === 'addCourse') return courseColumns(app).add
   if (col === 'dropCourse') return courseColumns(app).drop
   if (col === 'retakeCourse') return courseColumns(app).retake
@@ -926,6 +996,8 @@ function openCoursePicker(target = 'primary') {
 
 function buildLineFromSelection(course, section) {
   const snap = buildCourseScheduleSnapshot(course, section)
+  const replaces = Array.isArray(course?.replacesOriginals) ? course.replacesOriginals : []
+  const primaryOriginal = replaces[0] || null
   return {
     courseId: course?.id || course?.code || '',
     courseCode: course?.code || '',
@@ -946,6 +1018,14 @@ function buildLineFromSelection(course, section) {
     feeStream: course?.feeStream || '',
     eligibilitySource: course?.eligibilitySource || '',
     time: section?.time || course?.time || '',
+    selectionGroupId: course?.selectionGroup?.id || '',
+    selectionGroupName: course?.selectionGroup?.name || course?.selectionGroup?.groupLabel || '',
+    isSubstituteRetake: Boolean(course?.isSubstituteRetake),
+    replacesCourseCode: primaryOriginal?.courseCode || course?.code || '',
+    replacesCourseName: primaryOriginal?.courseName || '',
+    replacesTranscriptId: primaryOriginal?.id || '',
+    groupMaxGrade: course?.groupMaxGrade || '',
+    groupMaxGradeZh: course?.groupMaxGradeZh || '',
   }
 }
 
@@ -1070,29 +1150,45 @@ function handleCoursePicked(payload) {
 
   if (!isDropPick && (form.value.action === 'Retake' || form.value.action === 'RetakeDrop')) {
     const keptType = form.value.retakeType || ''
-    // 每门选中课都解析各自历史成绩，挂到对应行上（支持一次选多门重修）
-    const linesWithGrade = (next[listKey] || []).map((line) => {
-      const resolved = resolveCourseById(line.courseId, false)
-      if (!resolved) return line
+    // 每门选中课：替代重修用原课履历；组内最高分写入展示
+    const linesWithGrade = (next[listKey] || []).map((line, idx) => {
+      const picked = selections[idx]?.course || resolveCourseById(line.courseId, false)
+      const originalCode = line.replacesCourseCode || picked?.replacesOriginals?.[0]?.courseCode
+      const historyCourse =
+        originalCode && originalCode !== line.courseCode
+          ? {
+              id: picked?.replacesOriginals?.[0]?.retakeCourseId || originalCode,
+              code: originalCode,
+              name: line.replacesCourseName || originalCode,
+            }
+          : picked || resolveCourseById(line.courseId, false)
+      if (!historyCourse) return line
       const history = retakeHistoryFromCourse(
-        resolved,
+        historyCourse,
         next.academicSession,
         studentFields.value.studentId,
       )
-      const gradeZh = formatGradeToZh(history.latestGrade || history.gradeEarned)
+      const maxGrade = line.groupMaxGrade || picked?.groupMaxGrade || history.latestGrade
+      const maxZh =
+        line.groupMaxGradeZh ||
+        picked?.groupMaxGradeZh ||
+        formatGradeToZh(maxGrade || history.gradeEarned)
       return {
         ...line,
-        latestGrade: history.latestGrade || history.gradeEarned || '',
-        latestGradeZh: gradeZh,
+        latestGrade: maxGrade || history.latestGrade || history.gradeEarned || '',
+        latestGradeZh: maxZh,
         latestGradeSession: history.latestGradeSession || history.academicSessionTaken || '',
         previousCourseGradesText: history.previousCourseGradesText || '',
       }
     })
-    // 保留首课历史用于表单顶部摘要（曾修成绩/学期默认值）
-    const firstResolved = resolveCourseById(incoming[0]?.courseId, false)
-    const firstHistory = firstResolved
+    const firstLine = linesWithGrade[0]
+    const firstHistory = firstLine
       ? retakeHistoryFromCourse(
-          firstResolved,
+          {
+            id: firstLine.replacesTranscriptId || firstLine.courseId,
+            code: firstLine.replacesCourseCode || firstLine.courseCode,
+            name: firstLine.replacesCourseName || firstLine.courseName,
+          },
           next.academicSession,
           studentFields.value.studentId,
         )
@@ -1101,6 +1197,7 @@ function handleCoursePicked(payload) {
       ...next,
       [listKey]: linesWithGrade,
       ...firstHistory,
+      gradeEarned: firstLine?.latestGrade || firstHistory.gradeEarned || '',
       retakeType: keptType,
       previousCourseGradesText: firstHistory.previousCourseGradesText || '',
     }
@@ -1112,12 +1209,38 @@ function handleCoursePicked(payload) {
   formError.value = ''
 }
 
-function onAttachmentSelected(event) {
-  const file = event.target.files?.[0]
-  form.value.attachmentName = file ? file.name : ''
+const MAX_DROP_ATTACHMENTS = 5
+const MAX_DROP_ATTACHMENT_BYTES = 5 * 1024 * 1024
+
+function syncAttachmentNameFromList() {
+  const list = Array.isArray(form.value.attachments) ? form.value.attachments : []
+  form.value.attachmentName = list[0]?.name || ''
 }
 
-function clearAttachment() {
+function onAttachmentsAdd(files) {
+  const incoming = Array.isArray(files) ? files : []
+  const current = Array.isArray(form.value.attachments) ? [...form.value.attachments] : []
+  for (const file of incoming) {
+    if (!file?.name) continue
+    if (file.size > MAX_DROP_ATTACHMENT_BYTES) continue
+    if (current.length >= MAX_DROP_ATTACHMENTS) break
+    if (current.some((f) => f.name === file.name && f.size === file.size)) continue
+    current.push({ name: file.name, size: Number(file.size) || 0 })
+  }
+  form.value.attachments = current
+  syncAttachmentNameFromList()
+}
+
+function removeAttachment(index) {
+  const list = Array.isArray(form.value.attachments) ? [...form.value.attachments] : []
+  if (index < 0 || index >= list.length) return
+  list.splice(index, 1)
+  form.value.attachments = list
+  syncAttachmentNameFromList()
+}
+
+function clearAttachments() {
+  form.value.attachments = []
   form.value.attachmentName = ''
 }
 
@@ -1131,6 +1254,12 @@ function buildItemFromLine(action, line) {
     sectionId: line.sectionId || '',
     section: line.sectionCode || '01',
     sectionCode: line.sectionCode || '01',
+    isSubstituteRetake: Boolean(line.isSubstituteRetake),
+    replacesCourseCode: line.replacesCourseCode || '',
+    replacesCourseName: line.replacesCourseName || '',
+    replacesTranscriptId: line.replacesTranscriptId || '',
+    selectionGroupId: line.selectionGroupId || '',
+    groupMaxGrade: line.groupMaxGrade || '',
     sectionName: line.sectionName || '',
     previousCourseGradesText: line.previousCourseGradesText || '',
     latestGrade: line.latestGrade || '',
@@ -1150,15 +1279,46 @@ function buildItemFromLine(action, line) {
   }
 }
 
+/**
+ * 加课资格种子 → 换组锁原组行（originalSectionCode）
+ * @returns {object[]}
+ */
+function buildEligibleCoreOriginLines() {
+  return getEligibleAddCoursesForStudent(studentFields.value.studentId)
+    .filter((course) => isMandatoryAddDropCourse(course))
+    .map((course) => {
+      const sectionCode = String(course.originalSectionCode || '').trim()
+      if (!sectionCode) return null
+      return {
+        courseId: course.id,
+        courseCode: course.code,
+        sectionCode,
+        type: course.type,
+        sourceType: course.sourceType || 'required',
+      }
+    })
+    .filter(Boolean)
+}
+
 function handleSubmit() {
   if (!canApply.value) {
     formError.value = t('courseRegistration.student.addDropWindowClosedShort')
     return
   }
 
-  const validation = validateAddDropSectionForm(form.value)
+  const validation = validateAddDropSectionForm({
+    ...form.value,
+    coreSectionSwitchSections: coreSectionSwitchSections.value,
+    allowDropBelowCreditMin: allowDropBelowCreditMin.value,
+    currentCredits: creditSummary.value.enrolled,
+    // 与弹窗一致：拟退 ∪ 资格种子
+    coreLockOriginLines: mergeCoreLockOriginLines(
+      form.value.dropLines || [],
+      buildEligibleCoreOriginLines(),
+    ),
+  })
   if (!validation.ok) {
-    formError.value = t(validation.errorKey)
+    formError.value = t(validation.errorKey, validation.errorParams || {})
     return
   }
 
@@ -1301,8 +1461,22 @@ function handleSubmit() {
           : null
         : null,
   }
+  const applicationCredits = {
+    add: (form.value.action === 'Add' || form.value.action === 'AddDrop'
+      ? addLines
+      : []
+    ).reduce((s, l) => s + (Number(l.credits) || 0), 0),
+    retake: (form.value.action === 'Retake' || form.value.action === 'RetakeDrop'
+      ? addLines
+      : []
+    ).reduce((s, l) => s + (Number(l.credits) || 0), 0),
+    drop: dropLines.reduce((s, l) => s + (Number(l.credits) || 0), 0),
+  }
   const sectionPayload = buildAddDropSectionPayload(form.value, snapshots, feeEstimate.value, {
     termCreditExcess: formTermCreditExcess.value,
+    termCreditStrip: formTermCreditStrip.value,
+    termCreditStripBaseline: termCreditStripBaseline.value,
+    applicationCredits,
   })
 
   const sharedOptions = {
@@ -1314,7 +1488,9 @@ function handleSubmit() {
     termCreditOver: termOver,
     schedule: [...studentSchedule.value],
     feeWaiver: null,
-    attachments: form.value.attachmentName ? [{ name: form.value.attachmentName }] : [],
+    attachments: (Array.isArray(form.value.attachments) ? form.value.attachments : [])
+      .filter((f) => f?.name)
+      .map((f) => ({ name: f.name, size: Number(f.size) || 0 })),
     ...sectionPayload,
   }
 
@@ -1361,7 +1537,7 @@ function handleSubmit() {
               <select v-model="searchForm.type" class="search-select">
                 <option value="">{{ t('common.all') }}</option>
                 <option v-for="opt in typeFilterOptions" :key="opt" :value="opt">
-                  {{ typeLabel(opt) }}
+                  {{ primaryOptionLabel(opt) }}
                 </option>
               </select>
             </div>
@@ -1375,14 +1551,41 @@ function handleSubmit() {
               </select>
             </div>
             <div class="search-item">
-              <label>{{ t('courseRegistration.student.addDropSearchKeyword') }}</label>
-              <input
-                v-model="searchForm.keyword"
-                type="text"
-                class="search-input"
-                @keyup.enter="handleSearch"
-              />
+              <label>{{ t('courseRegistration.batch.academicSession') }}</label>
+              <select v-model="searchForm.academicSession" class="search-select">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in academicSessionOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
             </div>
+            <template v-if="searchExpanded">
+              <div class="search-item">
+                <label>{{ t('courseRegistration.approval.billLabel') }}</label>
+                <select v-model="searchForm.billStatus" class="search-select">
+                  <option value="">{{ t('common.all') }}</option>
+                  <option v-for="opt in BILL_STATUS_OPTIONS" :key="opt" :value="opt">
+                    {{ billStatusFilterLabel(opt) }}
+                  </option>
+                </select>
+              </div>
+              <div class="search-item">
+                <label>{{ t('courseRegistration.approval.applicationNo') }}</label>
+                <input
+                  v-model="searchForm.applicationNo"
+                  type="text"
+                  class="search-input"
+                  @keyup.enter="handleSearch"
+                />
+              </div>
+              <div class="search-item">
+                <label>{{ t('courseRegistration.student.addDropSearchKeyword') }}</label>
+                <input
+                  v-model="searchForm.keyword"
+                  type="text"
+                  class="search-input"
+                  @keyup.enter="handleSearch"
+                />
+              </div>
+            </template>
           </div>
           <div class="search-actions">
             <button type="button" class="btn btn-primary" @click="handleSearch">
@@ -1390,6 +1593,18 @@ function handleSubmit() {
             </button>
             <button type="button" class="btn btn-default" @click="handleReset">
               {{ t('common.reset') }}
+            </button>
+            <button type="button" class="toggle-link" @click="searchExpanded = !searchExpanded">
+              {{ searchExpanded ? t('common.collapse') : t('common.more') }}
+              <svg
+                :class="{ up: searchExpanded }"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </button>
           </div>
         </div>
@@ -1462,6 +1677,9 @@ function handleSubmit() {
                       {{ statusLabel(app.status) }}
                     </span>
                   </template>
+                  <template v-else-if="col === 'type'">
+                    <span class="type-tag" :class="typeClass(app.type)">{{ typeLabel(app.type) }}</span>
+                  </template>
                   <template v-else-if="col === 'classTimeVenue'">
                     <div class="cr-time-venue">
                       <div
@@ -1520,20 +1738,12 @@ function handleSubmit() {
             :term-credit-strip="formTermCreditStrip"
             @update:form="onFormUpdate"
             @pick-course="openCoursePicker"
-            @attachment-change="onAttachmentSelected"
-            @clear-attachment="clearAttachment"
+            @attachments-add="onAttachmentsAdd"
+            @remove-attachment="removeAttachment"
+            @clear-attachments="clearAttachments"
           />
 
-          <CourseRegistrationCallout v-if="isAddDropAction || isRetakeDropAction" variant="rule">
-            <p>
-              {{
-                isRetakeDropAction
-                  ? t('courseRegistration.student.retakeDropLinkedHint')
-                  : t('courseRegistration.student.addDropLinkedHint')
-              }}
-            </p>
-          </CourseRegistrationCallout>
-          <CourseRegistrationCallout v-else-if="isDropAction" variant="rule">
+          <CourseRegistrationCallout v-if="isDropAction" variant="rule">
             <p>{{ t('courseRegistration.student.dropFormApprovalHint') }}</p>
           </CourseRegistrationCallout>
 
@@ -1592,6 +1802,11 @@ function handleSubmit() {
       :preselected-lines="
         pickingFor === 'drop' ? form.dropLines || [] : form.addLines || []
       "
+      :allow-future-mandatory="allowFutureMandatory"
+      :allow-future-elective="allowFutureElective"
+      :future-elective-config="futureElectiveConfig"
+      :core-section-switch-sections="coreSectionSwitchSections"
+      :origin-section-lines="originSectionLinesForPicker"
       @close="coursePickerVisible = false"
       @confirm="handleCoursePicked"
     />
@@ -1602,7 +1817,11 @@ function handleSubmit() {
       :subtitle="schedulePreviewHint"
       @close="scheduleDrawerVisible = false"
     >
-      <StudentSchedulePreviewPanel embedded :schedule="schedulePreviewSlots" />
+      <StudentSchedulePreviewPanel
+        embedded
+        legend-mode="myResult"
+        :schedule="schedulePreviewSlots"
+      />
       <template #footer>
         <button type="button" class="btn btn-primary" @click="scheduleDrawerVisible = false">
           {{ t('common.close') }}
@@ -1719,7 +1938,8 @@ function handleSubmit() {
 .type-drop { background: #fee2e2; color: #b91c1c; }
 .type-retake { background: #fef3c7; color: #b45309; }
 .type-replace { background: #e0e7ff; color: #4338ca; }
-.type-adddrop { background: #f3e8ff; color: #7c3aed; }
+.type-adddrop { background: #e0e7ff; color: #3730a3; }
+.type-retakedrop { background: #ffedd5; color: #c2410c; }
 
 .cr-adddrop-modal-overlay {
   position: fixed;
@@ -1735,7 +1955,7 @@ function handleSubmit() {
 .cr-adddrop-modal {
   background: #fff;
   border-radius: 10px;
-  width: min(720px, 100%);
+  width: min(960px, 96vw);
   max-height: min(92vh, 880px);
   display: flex;
   flex-direction: column;

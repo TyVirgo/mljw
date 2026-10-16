@@ -2,11 +2,15 @@
 import { ref, computed, watch } from 'vue'
 import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
 import ConfirmDialog from '../common/ConfirmDialog.vue'
+import ExportModal from '../common/ExportModal.vue'
 import TablePagination from '../common/TablePagination.vue'
 import AddStudentRegistrationModal from './AddStudentRegistrationModal.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { formatIntakeBatch } from '../../data/intakeSets.js'
-import { listAdminAddStudentCandidates } from '../../data/courseRegistration/registrationResult.js'
+import {
+  listAdminAddStudentCandidates,
+  formatCoursePreferenceLabel,
+} from '../../data/courseRegistration/registrationResult.js'
 import {
   getVolunteerSectionState,
   getDraftVolunteers,
@@ -21,6 +25,11 @@ import {
   usesSelectedRoster,
 } from '../../data/courseRegistration/preselectVolunteerConfirm.js'
 import { isGraduateStudent } from '../../data/courseRegistration/studentAudience.js'
+import { resultR1DetailExportFields } from '../../data/courseRegistration/courseRegistrationExportFields.js'
+import {
+  exportCourseRegistrationData,
+  formatResultR1DetailExportRow,
+} from '../../utils/exportCourseRegistrationExcel.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -44,6 +53,7 @@ const removeConfirmVisible = ref(false)
 const pendingRemoveStudentIds = ref([])
 /** 跨页累加勾选的学号 */
 const selectedStudentIds = ref([])
+const exportModalVisible = ref(false)
 // 原单行移出：pendingRemoveStudentId
 
 const sectionState = computed(() => getVolunteerSectionState(props.courseId, props.sectionId))
@@ -72,10 +82,12 @@ const listCap = computed(() => {
   return Number(row.capacity) || 0
 })
 const capacityLabel = computed(() => `${draftVolunteers.value.length}/${listCap.value}`)
-const emptyColspan = computed(() => {
-  const extra = readonly.value ? 0 : 2
-  return 8 + extra
-})
+/** 勾选列始终保留（只读亦可导出）；操作列仅可编辑时展示 */
+const emptyColspan = computed(() => 10 + (readonly.value ? 0 : 1))
+
+const exportFields = computed(() =>
+  resultR1DetailExportFields.map((f) => ({ key: f.key, label: t(f.labelKey) })),
+)
 
 const filteredVolunteers = computed(() => {
   const sid = appliedSearch.value.studentId.trim().toLowerCase()
@@ -96,7 +108,7 @@ const paginatedVolunteers = computed(() => {
 
 const hasSelection = computed(() => selectedStudentIds.value.length > 0)
 const allPageSelected = computed(() => {
-  if (!paginatedVolunteers.value.length || readonly.value) return false
+  if (!paginatedVolunteers.value.length) return false
   return paginatedVolunteers.value.every((row) => selectedStudentIds.value.includes(row.studentId))
 })
 
@@ -261,6 +273,64 @@ function toggleSelect(studentId) {
   else selectedStudentIds.value.splice(index, 1)
 }
 
+/**
+ * 将名单行转为导出行（含是否选上）
+ * @param {object[]} list
+ */
+function mapVolunteersToExportRows(list) {
+  const state = sectionState.value
+  if (!state) return []
+  const lottery = usesSelectedRoster(state)
+  const cap = Number(state.seniorCapacity ?? state.capacity) || 0
+  return list.map((v) => {
+    const idx = draftVolunteers.value.findIndex((x) => x.studentId === v.studentId)
+    const selected = lottery ? Boolean(v.selected) : idx >= 0 && idx < cap
+    return {
+      batchName: state.batchName || '',
+      courseCode: state.courseCode || '',
+      courseName: state.courseName || '',
+      sectionCode: state.sectionCode || '',
+      studentId: v.studentId,
+      studentName: v.studentName,
+      programme: v.programme,
+      intake: v.intake,
+      relativeSemester: v.relativeSemester,
+      submittedAt: v.submittedAt,
+      isGraduate: Boolean(v.isGraduate || isGraduateStudent(v.studentId)),
+      selected,
+    }
+  })
+}
+
+function resolveDrawerExportRows(exportScope) {
+  if (exportScope === 'selectedRows') {
+    const idSet = new Set(selectedStudentIds.value)
+    return mapVolunteersToExportRows(filteredVolunteers.value.filter((v) => idSet.has(v.studentId)))
+  }
+  if (exportScope === 'currentPage') return mapVolunteersToExportRows(paginatedVolunteers.value)
+  return mapVolunteersToExportRows(filteredVolunteers.value)
+}
+
+function handleExportConfirm({ selectedFields, exportScope }) {
+  const columns = resultR1DetailExportFields.filter((col) => selectedFields.includes(col.key))
+  const exportRows = resolveDrawerExportRows(exportScope)
+  if (!exportRows.length) {
+    window.alert(t('common.noData'))
+    return
+  }
+  const timestamp = new Date().toISOString().slice(0, 10)
+  const code = sectionState.value?.courseCode || 'course'
+  exportCourseRegistrationData({
+    rows: exportRows,
+    columns,
+    formatRow: formatResultR1DetailExportRow,
+    filename: `volunteer-roster-${code}-${timestamp}.xlsx`,
+    sheetName: 'Volunteer Detail',
+    i18n: { t },
+  })
+  exportModalVisible.value = false
+}
+
 function handleSave() {
   if (readonly.value) return
   saveError.value = ''
@@ -326,11 +396,17 @@ function handleClose() {
       </div>
 
       <div class="drawer-toolbar">
-        <div v-if="!readonly" class="toolbar-actions">
-          <button type="button" class="btn btn-primary" @click="requestAddStudents">
+        <div class="toolbar-actions">
+          <button
+            v-if="!readonly"
+            type="button"
+            class="btn btn-primary"
+            @click="requestAddStudents"
+          >
             {{ t('courseRegistration.result.addStudentRowAction') }}
           </button>
           <button
+            v-if="!readonly"
             type="button"
             class="btn btn-default"
             :disabled="!hasSelection"
@@ -338,8 +414,10 @@ function handleClose() {
           >
             {{ t('courseRegistration.result.volunteerBatchRemove') }}
           </button>
+          <button type="button" class="btn btn-default" @click="exportModalVisible = true">
+            {{ t('common.export') }}
+          </button>
         </div>
-        <span v-else class="toolbar-spacer" />
         <p class="meta">
           {{ t('courseRegistration.result.volunteerCapacityLabel') }}：{{ capacityLabel }}
           <span v-if="isDirty" class="dirty-tag">{{ t('courseRegistration.result.volunteerDirty') }}</span>
@@ -353,7 +431,7 @@ function handleClose() {
           <table class="data-table">
             <thead>
               <tr>
-                <th v-if="!readonly" class="col-check">
+                <th class="col-check">
                   <input
                     type="checkbox"
                     :checked="allPageSelected"
@@ -366,6 +444,7 @@ function handleClose() {
                 <th>{{ t('courseRegistration.monitor.programme') }}</th>
                 <th>{{ t('courseRegistration.monitor.intake') }}</th>
                 <th>{{ t('courseRegistration.result.volunteerRelativeSemester') }}</th>
+                <th>{{ t('courseRegistration.result.coursePreference') }}</th>
                 <th>{{ t('courseRegistration.result.volunteerSubmittedAt') }}</th>
                 <th>
                   <span
@@ -385,7 +464,7 @@ function handleClose() {
                 :key="row.id"
                 :class="volunteerRowTone(row.studentId)"
               >
-                <td v-if="!readonly" class="col-check">
+                <td class="col-check">
                   <input
                     type="checkbox"
                     :checked="selectedStudentIds.includes(row.studentId)"
@@ -398,6 +477,7 @@ function handleClose() {
                 <td>{{ row.programme }}</td>
                 <td>{{ formatIntakeBatch(row.intake) }}</td>
                 <td>{{ row.relativeSemester }}</td>
+                <td>{{ formatCoursePreferenceLabel(row, t) }}</td>
                 <td>{{ row.submittedAt }}</td>
                 <td>{{ graduateYesNo(row) }}</td>
                 <td v-if="!readonly" class="col-actions">
@@ -456,6 +536,14 @@ function handleClose() {
     confirm-variant="danger"
     @confirm="confirmRemove"
     @cancel="cancelRemoveConfirm"
+  />
+
+  <ExportModal
+    :visible="exportModalVisible"
+    :fields="exportFields"
+    :has-selected-rows="hasSelection"
+    @close="exportModalVisible = false"
+    @confirm="handleExportConfirm"
   />
 </template>
 

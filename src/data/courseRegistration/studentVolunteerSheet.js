@@ -149,13 +149,25 @@ export function isVolunteerResultReleased(batch = getActiveBatch()) {
   return false
 }
 
-/** 确认后且未公示：列表锁死（已改为按轮次窗口 + 公示判定） */
+/** 确认后且未公示：列表锁死（全局 demo 公示，或当前开放轮已非 R1） */
 export function isVolunteerListLocked(batch = getActiveBatch()) {
-  // 在线选课锁只认全局 demo 公示；不认结果页按批 sheet.releaseMode（否则 m1 公示 demo 会误锁 R1 待分配）
+  // 在线选课锁不认结果页按批 sheet.releaseMode（否则 m1 公示 demo 会误锁 R1 待分配）
   if (demoVolunteerReleaseMode.value === 'released') return true
   const audience = getStudentAudience()
   const openKey = getStudentCurrentOpenRoundKey(batch, audience)
   return openKey !== 'preselect'
+}
+
+/** 志愿仅 R1；仍兼容按 roundKey 过滤 pending */
+const VOLUNTEER_ROUND_KEYS = ['preselect', 'main', 'supplement']
+
+function normalizeVolunteerRoundKey(roundKey) {
+  const key = String(roundKey || 'preselect')
+  return VOLUNTEER_ROUND_KEYS.includes(key) ? key : 'preselect'
+}
+
+function pendingRoundKeyOf(row) {
+  return normalizeVolunteerRoundKey(row?.roundKey || 'preselect')
 }
 
 function syncVolunteerOrderSnapshotFromPending(batchId = getActiveBatch()?.id || '') {
@@ -201,11 +213,15 @@ function pendingMatchesBatch(row, batchId) {
 /**
  * 当前批次待分配志愿（按志愿次序）
  * @param {string} [batchId]
+ * @param {string} [roundKey] 传入则仅该轮；省略则该批全部轮次
  */
-export function sortedPendingVolunteers(batchId = getActiveBatch()?.id) {
-  const list = (studentPendingAssignCourses.value || []).filter((row) =>
-    pendingMatchesBatch(row, batchId),
-  )
+export function sortedPendingVolunteers(batchId = getActiveBatch()?.id, roundKey) {
+  const wantRound = roundKey != null && roundKey !== '' ? normalizeVolunteerRoundKey(roundKey) : null
+  const list = (studentPendingAssignCourses.value || []).filter((row) => {
+    if (!pendingMatchesBatch(row, batchId)) return false
+    if (!wantRound) return true
+    return pendingRoundKeyOf(row) === wantRound
+  })
   return [...list].sort(
     (a, b) => (Number(a.preferenceOrder) || 0) - (Number(b.preferenceOrder) || 0),
   )
@@ -231,11 +247,17 @@ export function renumberPreferenceOrders(list) {
  */
 export function assignNextPreferenceOrder(item) {
   const batchId = item?.batchId || getActiveBatch()?.id || ''
-  const max = sortedPendingVolunteers(batchId).reduce(
+  const roundKey = pendingRoundKeyOf(item)
+  const max = sortedPendingVolunteers(batchId, roundKey).reduce(
     (m, row) => Math.max(m, Number(row.preferenceOrder) || 0),
     0,
   )
-  return { ...item, batchId: item?.batchId || batchId, preferenceOrder: max + 1 }
+  return {
+    ...item,
+    batchId: item?.batchId || batchId,
+    roundKey,
+    preferenceOrder: max + 1,
+  }
 }
 
 /**
@@ -422,9 +444,9 @@ export function buildVolunteerResultRows(batch = getActiveBatch()) {
 
 /**
  * demo：ME 三门 + GE 一门待分配未确认
- * ME：COMP201（4选3 未满）+ SE201/AI110（3选2 刚好满）
+ * ME：COMP201（4选3）+ SE201/AI110（3选2）
  * GE：仅 hum-demo-1（商 2 分）= R1 待分配；公布后同课进 DEMO 确认半池（preselect）
- * ME：志愿三门；中签 COMP201/AI110 同步写入确认半池；R2/R3 增量见 DEMO_ROUND_CONFIRMED_COURSES
+ * ME：志愿三门均中签写入确认半池（含 SE201，R2/R3 历轮可同步）；R2/R3 增量见 DEMO_ROUND_CONFIRMED_COURSES
  */
 export function seedVolunteerSheetDemo() {
   const meSpecs = [
@@ -500,7 +522,7 @@ export function seedVolunteerResultSheetsDemo() {
     snapshot: releasedSnapshot,
     results: [
       { slot: 1, courseId: 'course-comp201', status: 'hit' },
-      { slot: 2, courseId: 'course-se201', status: 'miss' },
+      { slot: 2, courseId: 'course-se201', status: 'hit' },
       { slot: 3, courseId: 'course-ai110', status: 'hit' },
     ],
     releaseMode: 'released',
@@ -577,7 +599,7 @@ export function seedVolunteerReleasedDemo() {
   if (!result.ok) return
   const results = [
     { slot: 1, courseId: 'course-comp201', status: 'hit' },
-    { slot: 2, courseId: 'course-se201', status: 'miss' },
+    { slot: 2, courseId: 'course-se201', status: 'hit' },
     { slot: 3, courseId: 'course-ai110', status: 'hit' },
   ]
   volunteerReleaseResults.value = results
@@ -592,7 +614,7 @@ export function seedVolunteerReleasedDemo() {
   seedVolunteerResultSheetsDemo()
 }
 
-/** 是否 R1 志愿模式（老生 + 第一轮） */
+/** 是否志愿模式（仅老生 + 第一轮） */
 export function shouldShowVolunteerSheetPanel(roundKey, audience = getStudentAudience()) {
   return audience === AUDIENCE_SENIOR && String(roundKey) === 'preselect'
 }

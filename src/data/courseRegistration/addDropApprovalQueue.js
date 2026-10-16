@@ -12,7 +12,10 @@ import {
   holdAddDropSectionSeat,
   releaseAddDropSectionSeat,
 } from './studentRegistrationStore.js'
-import { appendFeeRosterFromApproval } from './feeRosterQueue.js'
+import {
+  appendFeeRosterFromApproval,
+  cancelFeeRosterRowsForApplication,
+} from './feeRosterQueue.js'
 import { getPaymentGraceDays } from './registrationRuleSettings.js'
 import {
   getSupplementEntry,
@@ -21,7 +24,11 @@ import {
 } from './supplementListQueue.js'
 import { isWithinAddDropApplicationWindow } from './addDropApplicationWindow.js'
 import { getActiveBatch } from './registrationBatches.js'
-import { addDaysToDateTime, nowDateTimeWithSeconds } from './registrationBatchFormUtils.js'
+import {
+  addDaysToDateTime,
+  addHoursToDateTime,
+  nowDateTimeWithSeconds,
+} from './registrationBatchFormUtils.js'
 import { isFreshmanStudent } from './studentAudience.js'
 import { enrichAddDropQueueSchedule, enrichAddDropApplicationSchedule } from './addDropScheduleDemo.js'
 import { ADD_DROP_TYPE_TABS, isShieldedAddDropType } from './addDropListColumns.js'
@@ -29,6 +36,8 @@ import { matchesPrimaryTypeFilter, ADD_DROP_PRIMARY_TYPES } from './addDropFormS
 import {
   addDropLineKey,
   summarizeLineDecisions,
+  sumApplicationActionCredits,
+  buildDemoTermCreditStripFromItems,
 } from './addDropMultiItems.js'
 
 const initialQueue = [
@@ -45,17 +54,65 @@ const initialQueue = [
     currentCredits: 22,
     creditMax: 20,
     billStatus: 'pending',
-    billAmount: 480,
+    billAmount: 1000,
+    excessCredits: 2,
+    billableCredits: 2,
+    dropReason: '课程冲突，调整专业选修课表',
+    reason: '课程冲突，调整专业选修课表',
+    /**
+     * 真超额：毕业 ME 基线 22/24；退 CORE 不减 ME；加 ME 4 → 26/24，计费 2。
+     * 学期 ME 仍 8→12/22，学期超出为 0。
+     */
+    termCreditStripBaseline: {
+      geCurrent: 3,
+      geMax: 6,
+      meCurrent: 8,
+      meMax: 22,
+      gradGeCurrent: 3,
+      gradGeMax: 18,
+      gradMeCurrent: 22,
+      gradMeMax: 24,
+      gradMandatoryCurrent: 54,
+      gradMandatoryMax: 72,
+      mandatorySelected: 13,
+    },
+    feeEstimate: {
+      total: 1000,
+      sstAmount: 0,
+      payableTotal: 1000,
+      billableCredits: 2,
+      items: [
+        {
+          courseCode: 'COMP3192',
+          billableCredits: 2,
+          amount: 1000,
+          feeStream: 'arts',
+          rate: 500,
+        },
+      ],
+    },
     items: [
-      { action: 'Drop', courseCode: 'COMP201', credits: 4, section: '01', time: 'Mon 10:00–12:00' },
+      {
+        action: 'Drop',
+        courseCode: 'COMP201',
+        courseName: 'Data Structures',
+        credits: 4,
+        type: 'CORE',
+        sourceType: 'required',
+        section: '01',
+        time: 'Mon 10:00–12:00',
+      },
       {
         action: 'Add',
         courseCode: 'COMP3192',
+        courseName: 'Algorithm Design',
         credits: 4,
+        type: 'ME',
+        schoolElectiveCategory: 'arts',
         section: '01',
         time: 'Wed 14:00–16:00',
         retakeGrade: 'F',
-        fee: 480,
+        fee: 1000,
       },
     ],
     schedule: [{ day: 'Mon', start: 10, end: 12, course: 'COMP201' }],
@@ -76,7 +133,16 @@ const initialQueue = [
     billStatus: 'pending',
     billAmount: 320,
     items: [
-      { action: 'Add', courseCode: 'COMP201', credits: 4, section: '02', time: 'Wed 14:00–16:00', fee: 320 },
+      {
+        action: 'Add',
+        courseCode: 'COMP201',
+        courseName: 'Data Structures',
+        credits: 4,
+        type: 'CORE',
+        section: '02',
+        time: 'Wed 14:00–16:00',
+        fee: 320,
+      },
     ],
     schedule: [{ day: 'Tue', start: 9, end: 12, course: 'MPU3183' }],
     approvalLog: [],
@@ -95,11 +161,15 @@ const initialQueue = [
     creditMax: 20,
     billStatus: 'pending',
     billAmount: 320,
+    retakeType: 'failed',
+    addNotes: 'Prefer Friday afternoon section if available.',
     items: [
       {
         action: 'Retake',
         courseCode: 'MATH201',
+        courseName: 'Linear Algebra',
         credits: 4,
+        type: 'CORE',
         section: '01',
         time: 'Fri 14:00–16:00',
         retakeGrade: 'M',
@@ -126,7 +196,19 @@ const initialQueue = [
     creditMax: 20,
     billStatus: 'none',
     billAmount: 0,
-    items: [{ action: 'Drop', courseCode: 'MPU3183', credits: 3, section: '01', time: 'Tue 09:00–12:00' }],
+    dropReason: '课程负荷调整',
+    reason: '课程负荷调整',
+    items: [
+      {
+        action: 'Drop',
+        courseCode: 'MPU3183',
+        courseName: 'Malaysian Studies',
+        credits: 3,
+        section: '01',
+        time: 'Tue 09:00–12:00',
+        lineDecision: 'approved',
+      },
+    ],
     schedule: [],
     approvalLog: [{ at: '2026-07-05 15:30', actor: 'AC COS', action: 'Approved' }],
   },
@@ -145,6 +227,7 @@ const initialQueue = [
     billStatus: 'pending',
     billAmount: 1166,
     paymentRemindCount: 1,
+    paymentDueAt: '2026-07-28 23:59:00',
     sstAmount: 66,
     feeEstimate: {
       total: 1100,
@@ -162,6 +245,8 @@ const initialQueue = [
         courseCode: 'STAT201',
         courseName: 'Probability & Statistics',
         credits: 3,
+        type: 'GE',
+        schoolElectiveCategory: 'science',
         section: '01',
         time: 'Mon 14:00–16:00',
         fee: 550,
@@ -172,6 +257,8 @@ const initialQueue = [
         courseCode: 'ENGL201',
         courseName: 'Academic Writing',
         credits: 3,
+        type: 'GE',
+        schoolElectiveCategory: 'arts',
         section: '01',
         time: 'Tue 10:00–12:00',
         fee: 550,
@@ -196,12 +283,15 @@ const initialQueue = [
     billStatus: 'pending',
     billAmount: 550,
     paymentRemindCount: 2,
+    paymentDueAt: '2026-07-25 23:59:00',
+    retakeType: 'failed',
     items: [
       {
         action: 'Retake',
         courseCode: 'COMP201',
         courseName: 'Data Structures',
         credits: 4,
+        type: 'CORE',
         section: '01',
         time: 'Wed 14:00–16:00',
         retakeGrade: 'F',
@@ -213,6 +303,7 @@ const initialQueue = [
         courseCode: 'MATH201',
         courseName: 'Linear Algebra',
         credits: 4,
+        type: 'CORE',
         section: '01',
         time: 'Fri 14:00–16:00',
         retakeGrade: 'F',
@@ -238,12 +329,16 @@ const initialQueue = [
     billStatus: 'paid',
     billAmount: 550,
     paymentRemindCount: 1,
+    paymentDueAt: '2026-07-18 23:59:00',
+    sstAmount: 33,
     items: [
       {
         action: 'Add',
         courseCode: 'AI110',
         courseName: 'Introduction to AI',
         credits: 3,
+        type: 'GE',
+        schoolElectiveCategory: 'ai_open',
         section: '01',
         time: 'Thu 09:00–11:00',
         fee: 550,
@@ -267,11 +362,13 @@ const initialQueue = [
     creditMax: 20,
     billStatus: 'none',
     billAmount: 0,
+    dropReason: '个人兴趣调整，更换专业选修',
+    reason: '个人兴趣调整，更换专业选修',
     items: [
       {
         action: 'Drop',
         courseCode: 'COMP101',
-        courseName: '程序设计导论',
+        courseName: 'Introduction to Programming',
         credits: 4,
         section: '01',
         weekRange: '1-18',
@@ -311,7 +408,17 @@ const initialQueue = [
     creditMax: 20,
     billStatus: 'none',
     billAmount: 0,
-    items: [{ action: 'Add', courseCode: 'MATH201', credits: 4, section: '01', time: 'Fri 14:00–16:00', fee: 320 }],
+    items: [
+      {
+        action: 'Add',
+        courseCode: 'MATH201',
+        courseName: 'Linear Algebra',
+        credits: 4,
+        section: '01',
+        time: 'Fri 14:00–16:00',
+        fee: 320,
+      },
+    ],
     schedule: [{ day: 'Tue', start: 9, end: 12, course: 'MPU3183' }],
     approvalLog: [{ at: '2026-07-05 09:00', actor: 'AC DSA', action: 'Rejected', comment: 'Credit max exceeded' }],
   },
@@ -329,11 +436,15 @@ const initialQueue = [
     creditMax: 20,
     billStatus: 'paid',
     billAmount: 480,
+    paymentDueAt: '2026-07-06 23:59:00',
+    retakeType: 'failed',
     items: [
       {
         action: 'Retake',
         courseCode: 'COMP101',
+        courseName: 'Introduction to Programming',
         credits: 4,
+        type: 'CORE',
         section: '01',
         time: 'Mon 08:00–10:00',
         retakeGrade: 'F',
@@ -357,12 +468,151 @@ const initialQueue = [
     creditMax: 20,
     billStatus: 'cancelled',
     billAmount: 320,
-    items: [{ action: 'Add', courseCode: 'COMP201', credits: 4, section: '01', time: 'Mon 10:00–12:00', fee: 320 }],
+    items: [
+      {
+        action: 'Add',
+        courseCode: 'COMP201',
+        courseName: 'Data Structures',
+        credits: 4,
+        section: '01',
+        time: 'Mon 10:00–12:00',
+        fee: 320,
+      },
+    ],
     schedule: [],
     approvalLog: [
       { at: '2026-07-02 15:00', actor: 'AC COS', action: 'Approved' },
       { at: '2026-07-04 15:00', actor: 'System', action: 'Cancelled', comment: 'Bill unpaid 48h' },
     ],
+  },
+  {
+    id: 'adr-hist-04',
+    applicationNo: 'ADR2509104',
+    studentId: 'SWE2409012',
+    studentName: 'Lim Jia Hui',
+    programme: 'SWE',
+    intake: '2409',
+    type: 'AddDrop',
+    status: 'Approved',
+    submittedAt: '2026-07-19 08:30:00',
+    currentCredits: 20,
+    creditMax: 20,
+    billStatus: 'pending',
+    billAmount: 1060,
+    paymentRemindCount: 0,
+    sstAmount: 60,
+    billableCredits: 2,
+    excessCredits: 2,
+    dropReason: '更换专业选修以匹配毕业进度',
+    reason: '更换专业选修以匹配毕业进度',
+    termCreditStripBaseline: {
+      geCurrent: 3,
+      geMax: 6,
+      meCurrent: 8,
+      meMax: 22,
+      gradGeCurrent: 3,
+      gradGeMax: 18,
+      gradMeCurrent: 22,
+      gradMeMax: 24,
+      gradMandatoryCurrent: 54,
+      gradMandatoryMax: 72,
+      mandatorySelected: 13,
+    },
+    feeEstimate: {
+      total: 1000,
+      sstAmount: 60,
+      payableTotal: 1060,
+      billableCredits: 2,
+      items: [
+        { courseCode: 'COMP3192', billableCredits: 2, amount: 1000, feeStream: 'arts', rate: 500 },
+      ],
+    },
+    items: [
+      {
+        action: 'Drop',
+        courseCode: 'COMP101',
+        courseName: 'Introduction to Programming',
+        credits: 4,
+        type: 'CORE',
+        sourceType: 'required',
+        section: '01',
+        time: 'Thu 14:00–16:00',
+        lineDecision: 'approved',
+      },
+      {
+        action: 'Add',
+        courseCode: 'COMP3192',
+        courseName: 'Algorithm Design',
+        credits: 4,
+        type: 'ME',
+        schoolElectiveCategory: 'arts',
+        section: '01',
+        time: 'Wed 14:00–16:00',
+        fee: 1000,
+        lineDecision: 'approved',
+      },
+    ],
+    schedule: [],
+    approvalLog: [{ at: '2026-07-19 14:00', actor: 'AC SWE', action: 'Approved' }],
+  },
+  {
+    id: 'adr-hist-05',
+    applicationNo: 'ADR2509105',
+    studentId: 'AIT2409020',
+    studentName: 'Ahmad Faizal',
+    programme: 'AIT',
+    intake: '2409',
+    type: 'RetakeDrop',
+    status: 'Approved',
+    submittedAt: '2026-07-20 10:15:00',
+    currentCredits: 16,
+    creditMax: 20,
+    billStatus: 'paid',
+    billAmount: 583,
+    paymentRemindCount: 1,
+    paymentDueAt: '2026-07-22 23:59:00',
+    sstAmount: 33,
+    retakeType: 'failed',
+    addNotes: '退统计导论后重修线性代数，课表已核对无冲突。',
+    dropReason: '重修线性代数，退选统计导论腾出名额',
+    reason: '重修线性代数，退选统计导论腾出名额',
+    feeEstimate: {
+      total: 550,
+      sstAmount: 33,
+      payableTotal: 583,
+      billableCredits: 1,
+      items: [
+        { courseCode: 'MATH201', billableCredits: 1, amount: 550, feeStream: 'science', rate: 550 },
+      ],
+    },
+    items: [
+      {
+        action: 'Drop',
+        // 课库无 STAT101：行内写明 type+校选，详情统一类别 → GE03
+        courseCode: 'STAT101',
+        courseName: 'Intro Statistics',
+        credits: 3,
+        type: 'GE',
+        schoolElectiveCategory: 'science',
+        section: '01',
+        time: 'Mon 09:00–11:00',
+        lineDecision: 'approved',
+      },
+      {
+        action: 'Retake',
+        courseCode: 'MATH201',
+        courseName: 'Linear Algebra',
+        credits: 4,
+        type: 'CORE',
+        section: '01',
+        time: 'Fri 14:00–16:00',
+        retakeGrade: 'F',
+        fee: 550,
+        lineDecision: 'approved',
+      },
+    ],
+    schedule: [],
+    approvalLog: [{ at: '2026-07-20 16:00', actor: 'AC AIT', action: 'Approved' }],
   },
 ]
 
@@ -392,22 +642,54 @@ export function classifyAddDropBucket(row, tab) {
   return null
 }
 
+function normalizeBillStatus(status) {
+  if (status == null || status === '' || status === 'none') return 'none'
+  return String(status)
+}
+
 export function filterAddDropQueue(rows, tab, filters = {}) {
   let list = rows.filter((row) => !isShieldedAddDropType(row.type) && classifyAddDropBucket(row, tab))
   if (filters.programme) {
-    list = list.filter((r) => r.programme.toLowerCase().includes(filters.programme.toLowerCase()))
+    const kw = String(filters.programme).toLowerCase()
+    list = list.filter((r) => {
+      const code = String(r.programme || r.programmeCode || '').toLowerCase()
+      const name = String(r.programmeName || '').toLowerCase()
+      return code.includes(kw) || name.includes(kw)
+    })
   }
   if (filters.type) {
     list = list.filter((r) => matchesPrimaryTypeFilter(r.type, filters.type))
   }
+  if (filters.status) {
+    list = list.filter((r) => r.status === filters.status)
+  }
+  if (filters.billStatus) {
+    list = list.filter((r) => normalizeBillStatus(r.billStatus) === filters.billStatus)
+  }
+  if (filters.academicSession) {
+    const session = String(filters.academicSession).trim().toLowerCase()
+    list = list.filter((r) => String(r.academicSession || '').toLowerCase() === session)
+  }
+  if (filters.studentId) {
+    const kw = String(filters.studentId).trim().toLowerCase()
+    list = list.filter((r) => String(r.studentId || '').toLowerCase().includes(kw))
+  }
+  if (filters.studentName) {
+    const kw = String(filters.studentName).trim().toLowerCase()
+    list = list.filter((r) => String(r.studentName || '').toLowerCase().includes(kw))
+  }
   if (filters.keyword) {
-    const kw = filters.keyword.toLowerCase()
-    list = list.filter(
-      (r) =>
-        r.applicationNo.toLowerCase().includes(kw) ||
-        r.studentId.toLowerCase().includes(kw) ||
-        r.studentName.toLowerCase().includes(kw),
-    )
+    const kw = String(filters.keyword).trim().toLowerCase()
+    list = list.filter((r) => {
+      const no = String(r.applicationNo || '').toLowerCase()
+      const sid = String(r.studentId || '').toLowerCase()
+      const name = String(r.studentName || '').toLowerCase()
+      return no.includes(kw) || sid.includes(kw) || name.includes(kw)
+    })
+  }
+  if (filters.applicationNo) {
+    const kw = String(filters.applicationNo).trim().toLowerCase()
+    list = list.filter((r) => String(r.applicationNo || '').toLowerCase().includes(kw))
   }
   return list
 }
@@ -508,13 +790,25 @@ export function approveAddDropApplication(id, comment = '', generateBill = true,
   const feeBase = { ...app, items: approvedItems }
   const fee = resolveAddDropBillAmount(feeBase)
   if (generateBill && fee > 0 && status !== 'Rejected') {
-    const graceDays = getPaymentGraceDays()
+    const hasRetake =
+      approvedItems.some((i) => i.action === 'Retake') ||
+      String(app.type || '') === 'Retake' ||
+      String(app.type || '') === 'RetakeDrop'
     patch.billStatus = 'pending'
     patch.billAmount = fee
-    patch.paymentGraceDays = graceDays
-    patch.paymentDueAt = addDaysToDateTime(graceDays)
-    // 审批通过默认发送一封缴费相关邮件
-    patch.paymentRemindCount = Math.max(1, Number(app.paymentRemindCount) || 0)
+    if (hasRetake) {
+      // 重修通过后付费默认 72 小时
+      patch.paymentGraceDays = null
+      patch.paymentGraceHours = 72
+      patch.paymentDueAt = addHoursToDateTime(72)
+    } else {
+      const graceDays = getPaymentGraceDays()
+      patch.paymentGraceDays = graceDays
+      patch.paymentGraceHours = null
+      patch.paymentDueAt = addDaysToDateTime(graceDays)
+    }
+    // 通过后催缴次数从 0 起；仅点击「发送邮件提醒」后累计
+    patch.paymentRemindCount = 0
   }
   addDropApprovalQueue.value[index] = { ...app, ...patch }
 
@@ -533,6 +827,16 @@ export function approveAddDropApplication(id, comment = '', generateBill = true,
     }
     if (generateBill && fee > 0 && status !== 'Rejected') {
       appendFeeRosterFromApproval({ ...app, ...patch, items: approvedItems })
+      // 动态 import，避免与 studentCoursePaymentStore 循环依赖
+      import('./studentCoursePaymentStore.js')
+        .then((mod) => {
+          if (typeof mod.mergeLiveUnpaidFromApproval === 'function') {
+            mod.mergeLiveUnpaidFromApproval()
+          }
+        })
+        .catch(() => {
+          /* demo：缴费同步失败不阻断审批 */
+        })
     }
   } catch {
     /* demo：侧写异常不影响审批通过 */
@@ -546,7 +850,7 @@ export function incrementPaymentRemindCount(id) {
   const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
   const app = addDropApprovalQueue.value[index]
-  const next = Math.max(1, (Number(app.paymentRemindCount) || 0) + 1)
+  const next = (Number(app.paymentRemindCount) || 0) + 1
   addDropApprovalQueue.value[index] = { ...app, paymentRemindCount: next }
   return { ok: true, paymentRemindCount: next }
 }
@@ -602,6 +906,40 @@ export function ensureApplicationItems(app) {
   const index = addDropApprovalQueue.value.findIndex((a) => a.id === app.id)
   if (index >= 0) addDropApprovalQueue.value[index] = next
   return next
+}
+
+/**
+ * 详情/审批：补齐学分要求快照与本次申请三学分（无则按 items 兜底）
+ * @param {object|null} app
+ */
+export function ensureApplicationDetailCredits(app) {
+  if (!app) return app
+  const base = ensureApplicationItems(app)
+  const items = base.items || []
+  const applicationCredits =
+    base.applicationCredits &&
+    typeof base.applicationCredits === 'object'
+      ? {
+          add: Number(base.applicationCredits.add) || 0,
+          retake: Number(base.applicationCredits.retake) || 0,
+          drop: Number(base.applicationCredits.drop) || 0,
+        }
+      : sumApplicationActionCredits(items)
+  // 有自定义基线时按 items 重算投影（真超额 demo）；否则保留快照或默认基线兜底
+  const termCreditStrip = items.length
+    ? base.termCreditStripBaseline
+      ? buildDemoTermCreditStripFromItems(items, base.termCreditStripBaseline)
+      : base.termCreditStrip || buildDemoTermCreditStripFromItems(items)
+    : base.termCreditStrip || null
+  if (
+    base.applicationCredits?.add === applicationCredits.add &&
+    base.applicationCredits?.retake === applicationCredits.retake &&
+    base.applicationCredits?.drop === applicationCredits.drop &&
+    base.termCreditStrip === termCreditStrip
+  ) {
+    return base
+  }
+  return { ...base, applicationCredits, termCreditStrip }
 }
 
 export function rejectAddDropApplication(id, comment = '') {
@@ -858,7 +1196,8 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
     applicationNo: `ADR${new Date().getFullYear()}${String(studentAdrSeq).slice(-4)}`,
     studentId: studentFields.studentId,
     studentName: studentFields.studentName,
-    programme: studentFields.programme,
+    programme: studentFields.programme || studentFields.programmeCode || '',
+    programmeName: studentFields.programmeName || studentFields.programme || '',
     intake: studentFields.intake,
     type: inferredType,
     status: autoApproveSelfDrop ? 'Approved' : options.status || 'Pending',
@@ -912,11 +1251,17 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
     eligibilitySource: options.eligibilitySource || '',
     feeEstimate: options.feeEstimate || null,
     billableCredits: options.billableCredits ?? options.feeEstimate?.billableCredits ?? 0,
+    termCreditExcess: Math.max(0, Number(options.termCreditExcess) || 0),
     excessCredits:
       options.excessCredits ??
-      options.billableCredits ??
-      options.feeEstimate?.billableCredits ??
-      0,
+      Math.max(
+        Number(options.termCreditExcess) || 0,
+        Number(options.billableCredits ?? options.feeEstimate?.billableCredits) || 0,
+      ),
+    termCreditStrip: options.termCreditStrip || null,
+    termCreditStripBaseline: options.termCreditStripBaseline || null,
+    applicationCredits:
+      options.applicationCredits || sumApplicationActionCredits(normalizedItems),
     seatHolds: seatResult.holds || [],
     paymentDueAt: '',
     paymentGraceDays: getPaymentGraceDays(),
@@ -985,4 +1330,49 @@ export function cancelStudentAddDropApplication(id, actor = 'Student') {
     ],
   }
   return { ok: true, application: addDropApprovalQueue.value[index] }
+}
+
+/** 已通过且待付款：审批人可中止申请并取消账单 */
+export function canAbortApprovedAddDropBill(app) {
+  if (!app) return false
+  if (app.status !== 'Approved' && app.status !== 'PartiallyApproved') return false
+  return normalizeBillStatus(app.billStatus) === 'pending'
+}
+
+/**
+ * 中止已通过待付款申请（学生中途取消重修等）
+ * @param {string} id
+ * @param {string} [actor]
+ */
+export function abortApprovedAddDropApplication(id, actor = 'AC Demo') {
+  const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
+  if (index === -1) return { ok: false }
+  const app = ensureApplicationItems(addDropApprovalQueue.value[index])
+  if (!canAbortApprovedAddDropBill(app)) {
+    return { ok: false, errorKey: 'courseRegistration.approval.abortNotAllowed' }
+  }
+  const at = nowDateTimeWithSeconds()
+  const next = {
+    ...app,
+    status: 'Cancelled',
+    billStatus: 'cancelled',
+    paymentDueAt: '',
+    approvalLog: [
+      ...(app.approvalLog || []),
+      {
+        at,
+        actor,
+        action: 'Aborted',
+        comment: 'Application and pending bill aborted by approver',
+        stage: 'Academic Coordinator',
+      },
+    ],
+  }
+  addDropApprovalQueue.value[index] = next
+  try {
+    cancelFeeRosterRowsForApplication(next)
+  } catch {
+    /* demo */
+  }
+  return { ok: true, application: next }
 }

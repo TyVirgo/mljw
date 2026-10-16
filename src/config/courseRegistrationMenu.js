@@ -37,7 +37,7 @@ export const courseRegistrationMenuItems = [
     audience: 'admin',
     children: [
       { id: 'cr-approval', labelKey: 'menu.crApproval', audience: 'admin' },
-      { id: 'cr-fee-roster', labelKey: 'menu.crFeeRoster', audience: 'admin' },
+      // cr-fee-roster：菜单隐藏；导出迁至审批历史；页面/数据层暂留
       { id: 'cr-monitor', labelKey: 'menu.crMonitor', audience: 'admin' },
       { id: 'cr-supplement', labelKey: 'menu.crSupplement', audience: 'admin' },
     ],
@@ -49,7 +49,8 @@ export const courseRegistrationMenuItems = [
     audience: 'admin',
     children: [
       { id: 'cr-result', labelKey: 'menu.crResult', audience: 'admin' },
-      { id: 'cr-log', labelKey: 'menu.crLog', audience: 'admin' },
+      { id: 'cr-section-roster', labelKey: 'menu.crSectionRoster', audience: 'admin' },
+      // cr-log 已并入选课结果·学生维，侧栏屏蔽
     ],
   },
   // 模块说明（正式页去掉）：侧栏暂不挂载；页面 cr-flow-guide 仍可直达
@@ -64,7 +65,7 @@ export const courseRegistrationDevelopedPages = new Set([
   'cr-approval',
   'cr-supplement',
   'cr-result',
-  'cr-log',
+  'cr-section-roster',
   'cr-fee-roster',
   'crs-register',
   'crs-adddrop',

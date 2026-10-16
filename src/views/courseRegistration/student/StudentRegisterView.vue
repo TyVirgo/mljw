@@ -18,6 +18,7 @@ import {
   isCourseOccupied,
   setActiveCartRound,
   normalizeCartRoundKey,
+  promoteR1PendingToConfirmed,
   shouldOpenRoundStatusDrawer,
   studentConfirmedCourses,
   registrationCart,
@@ -73,17 +74,15 @@ import {
   isVolunteerListLocked,
   sortedPendingVolunteers,
 } from '../../../data/courseRegistration/studentVolunteerSheet.js'
-import { getRegistrationTypeLabel } from '../../../data/courseRegistration/registrationTypes.js'
 import { displayWeekRange, displayClassTimeVenueLines } from '../../../data/courseRegistration/sectionScheduleFields.js'
 import {
-  schoolElectiveCategoryOptions,
-  getSchoolElectiveCategoryLabel,
-} from '../../../data/departments.js'
-import {
-  resolveSchoolElectiveCategory,
   formatSectionAvailableCapacityLabel,
   isSectionFullForAudience,
 } from '../../../data/courseRegistration/selectableCourses.js'
+import {
+  formatUnifiedCourseCategoryLabel,
+  unifiedCourseCategoryFilterOptions,
+} from '../../../data/courseRegistration/unifiedCourseCategory.js'
 import { getCourseDisplayName } from '../../../data/courseRegistration/resolveSelectedCourseDisplay.js'
 import { isCrossAudienceReleaseActive } from '../../../data/courseRegistration/registrationRuleSettings.js'
 import {
@@ -100,6 +99,7 @@ import {
 import {
   buildSectionRowsFromCourses,
   filterCoursesBySectionAvailability,
+  filterSectionRowsBySelectedPercent,
   groupSectionRowsByCourse,
   paginateSectionRowsByCourse,
   sortRowsByCourseThenSection,
@@ -116,7 +116,7 @@ function emptySearch() {
   return {
     code: '',
     name: '',
-    schoolElectiveCategory: '',
+    courseCategory: '',
     weekday: '',
     availability: '',
     credits: '',
@@ -132,6 +132,7 @@ const WEEKDAY_FILTER_OPTIONS = [
   { value: 'Fri', labelKey: 'courseRegistration.student.weekdayFri' },
 ]
 
+/** @deprecated 在线选课搜索已改为单行展示，不再使用展开次行；保留避免外部引用断裂 */
 const searchExpanded = ref(true)
 
 const creditSummary = computed(() => getStudentCreditSummary())
@@ -204,9 +205,9 @@ const isRoundRegistrationOpen = canOperateRegistration
 /** 仅在可操作时展示操作列 */
 const showActionsColumn = computed(() => canOperateRegistration.value)
 
-/** 空表 colspan：基础 12 列 + 校选类别 + ME 课程组/备注 + 条件操作列 */
+/** 空表 colspan：基础列（类型与校选已合并）+ ME 课程组/备注 + 条件操作列 */
 const emptyTableColspan = computed(() => {
-  let n = 12
+  let n = 11
   if (showSelectionGroupColumn.value) n += 2
   if (showActionsColumn.value) n += 1
   return n
@@ -263,6 +264,7 @@ function handleListBatchChange(event) {
   setStudentSelectedBatchId(batch.id)
   selectedRound.value = openKey || getStudentDefaultRoundKey(batch, audience)
   setActiveCartRound(selectedRound.value)
+  ensureR1PendingPromotedIfNeeded(selectedRound.value)
   message.value = ''
 }
 
@@ -304,10 +306,22 @@ const appliedSearch = computed(() =>
   searchByRound.value[normalizeCartRoundKey(selectedRound.value)].applied,
 )
 
+/**
+ * 列表态进入 R2/R3：将同类型 R1 待分配（含手加）晋升为选课成功
+ * @param {string} roundKey
+ */
+function ensureR1PendingPromotedIfNeeded(roundKey) {
+  if (entryStep.value !== 'list') return
+  const key = normalizeCartRoundKey(roundKey)
+  if (key === 'preselect') return
+  promoteR1PendingToConfirmed({ roundKey: key, batch: activeBatch.value })
+}
+
 watch(
   selectedRound,
   (key) => {
     setActiveCartRound(key)
+    ensureR1PendingPromotedIfNeeded(key)
   },
   { immediate: true },
 )
@@ -336,19 +350,26 @@ const selectionGroups = computed(() =>
   showSelectionGroupColumn.value ? getSelectionGroupsForBatch(activeBatch.value) : [],
 )
 
-/** 课级筛选后展平、排序（同课分组行相邻） */
+/** 课级筛选后展平、排序（同课分组行相邻）；R1 再按志愿百分比行级过滤 */
 const sectionRowsAll = computed(() => {
   const groups = selectionGroups.value
-  const availabilityFiltered = filterCoursesBySectionAvailability(
-    courses.value,
-    appliedSearch.value.availability,
-    {
+  const availability = appliedSearch.value.availability
+  const roundKey = normalizeCartRoundKey(selectedRound.value)
+  const isR1 = roundKey === 'preselect'
+  let list = courses.value
+  if (!isR1) {
+    list = filterCoursesBySectionAvailability(list, availability, {
       audience: studentAudience.value,
-      roundKey: normalizeCartRoundKey(selectedRound.value),
+      roundKey,
       releaseCross: isCrossAudienceReleaseActive(activeBatch.value),
-    },
-  )
-  const rows = buildSectionRowsFromCourses(availabilityFiltered, groups)
+    })
+  }
+  let rows = buildSectionRowsFromCourses(list, groups)
+  if (isR1) {
+    // 依赖志愿态，提交后百分比变化时重算筛行
+    void volunteerCourseStates.value
+    rows = filterSectionRowsBySelectedPercent(rows, availability, sectionVolunteerCount)
+  }
   if (groups.length) {
     return sortSectionRowsBySelectionGroup(rows, groups)
   }
@@ -375,8 +396,9 @@ function selectionGroupDisplayLines(group) {
   return getSelectionGroupDisplayLines(group, isZh.value)
 }
 
-function courseSchoolElectiveLabel(course) {
-  return getSchoolElectiveCategoryLabel(resolveSchoolElectiveCategory(course), isZh.value)
+/** 统一课程类别展示 */
+function courseCategoryLabel(course) {
+  return formatUnifiedCourseCategoryLabel(course, t)
 }
 
 function selectionGroupRowClass(group) {
@@ -827,6 +849,7 @@ function handleEnterType(type) {
   selectedRound.value = openKey || getStudentDefaultRoundKey(batch, audience)
   setActiveCartRound(selectedRound.value)
   entryStep.value = 'list'
+  ensureR1PendingPromotedIfNeeded(selectedRound.value)
 }
 
 /** 返回 GE/ME 目录 */
@@ -1055,6 +1078,24 @@ const r1GradSelectedRequiredLabelKey = computed(() =>
 const r1TermTotalBar = computed(() => termElectiveBars.value[0] || { current: 0, max: 0 })
 const r1GradTotalBar = computed(() => graduationElectiveBars.value[0] || { current: 0, max: 0 })
 
+/** GE/ME 毕业学分总分卡：未满橙 / 选满（含超出）绿 */
+const r1GradCreditCardClass = computed(() => {
+  const current = Number(r1GradTotalBar.value.current) || 0
+  const max = Number(r1GradTotalBar.value.max) || 0
+  if (max <= 0) return ''
+  return current >= max ? 'cr-r1-credit-card--grad-met' : 'cr-r1-credit-card--grad-short'
+})
+
+/**
+ * GE/ME 学期学分总分卡：选满（含刚好）浅绿；未满保持默认蓝底（不套橙）
+ */
+const r1TermCreditCardClass = computed(() => {
+  const current = Number(r1TermTotalBar.value.current) || 0
+  const max = Number(r1TermTotalBar.value.max) || 0
+  if (max <= 0) return ''
+  return current >= max ? 'cr-r1-credit-card--grad-met' : ''
+})
+
 const r1SubmitOver = computed(
   () => r1CreditStats.value.selected > r1CreditStats.value.submitMax,
 )
@@ -1071,9 +1112,9 @@ const showVolunteerSheet = computed(() =>
   shouldShowVolunteerSheetPanel(selectedRound.value, studentAudience.value),
 )
 
-/** 容量列表头：第一轮为课程已选百分比；R2/R3 为可选名额/总名额 */
+/** 容量列表头：志愿模式为课程已选百分比；否则可选名额/总名额 */
 const capacityColumnLabel = computed(() =>
-  isPreselectRound.value
+  showVolunteerSheet.value
     ? t('courseRegistration.courses.volunteerSelectedPercent')
     : t('courseRegistration.courses.availableVsTotal'),
 )
@@ -1092,7 +1133,7 @@ function sectionVolunteerCount(course, section) {
 
 function sectionCapacityLabel(course, section) {
   if (!section) return '—'
-  if (isPreselectRound.value) {
+  if (showVolunteerSheet.value) {
     const volunteers = sectionVolunteerCount(course, section)
     const cap = Number(section.capacity) || 0
     if (cap <= 0) return '—'
@@ -1105,13 +1146,13 @@ function sectionCapacityLabel(course, section) {
 }
 
 /**
- * 容量胶囊色：第一轮按志愿热度绿/黄/红；其它轮次仍绿/红
+ * 容量胶囊色：志愿模式按热度绿/黄/红；其它仍绿/红
  * @param {object} course 课程
  * @param {object|null} section 分组
  */
 function sectionCapacityClass(course, section) {
   if (!section) return ''
-  if (isPreselectRound.value) {
+  if (showVolunteerSheet.value) {
     const volunteers = sectionVolunteerCount(course, section)
     const cap = Number(section.capacity) || 0
     if (cap <= 0) return 'capacity-open'
@@ -1516,19 +1557,19 @@ function confirmRegisterSubmit() {
                 />
               </div>
               <div class="search-item">
-                <label>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</label>
+                <label>{{ t('courseRegistration.courses.category') }}</label>
                 <select
-                  :value="searchForm.schoolElectiveCategory"
+                  :value="searchForm.courseCategory"
                   class="search-select"
-                  @change="patchSearchForm({ schoolElectiveCategory: $event.target.value })"
+                  @change="patchSearchForm({ courseCategory: $event.target.value })"
                 >
                   <option value="">{{ t('common.all') }}</option>
                   <option
-                    v-for="opt in schoolElectiveCategoryOptions"
+                    v-for="opt in unifiedCourseCategoryFilterOptions"
                     :key="opt.value"
                     :value="opt.value"
                   >
-                    {{ getSchoolElectiveCategoryLabel(opt.value, isZh) }}
+                    {{ opt.labelKey ? t(opt.labelKey) : opt.label }}
                   </option>
                 </select>
               </div>
@@ -1549,34 +1590,6 @@ function confirmRegisterSubmit() {
                   </option>
                 </select>
               </div>
-            </div>
-            <div class="search-actions">
-              <button type="button" class="btn btn-primary btn-primary--vivid" @click="handleSearch">
-                {{ t('common.search') }}
-              </button>
-              <button type="button" class="btn btn-default" @click="handleReset">
-                {{ t('common.reset') }}
-              </button>
-              <button
-                type="button"
-                class="toggle-link"
-                @click="searchExpanded = !searchExpanded"
-              >
-                {{ searchExpanded ? t('common.collapse') : t('common.more') }}
-                <svg
-                  :class="{ up: searchExpanded }"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-            </div>
-          </div>
-          <div v-if="searchExpanded" class="search-row search-row-secondary">
-            <div class="search-fields">
               <div class="search-item">
                 <label>{{ capacityColumnLabel }}</label>
                 <select
@@ -1585,12 +1598,22 @@ function confirmRegisterSubmit() {
                   @change="patchSearchForm({ availability: $event.target.value })"
                 >
                   <option value="">{{ t('common.all') }}</option>
-                  <option value="open">
-                    {{ t('courseRegistration.waitlist.courseStatus.open') }}
-                  </option>
-                  <option value="full">
-                    {{ t('courseRegistration.waitlist.courseStatus.full') }}
-                  </option>
+                  <template v-if="isPreselectRound">
+                    <option value="lt100">
+                      {{ t('courseRegistration.courses.selectedPercentLt100') }}
+                    </option>
+                    <option value="gte100">
+                      {{ t('courseRegistration.courses.selectedPercentGte100') }}
+                    </option>
+                  </template>
+                  <template v-else>
+                    <option value="open">
+                      {{ t('courseRegistration.waitlist.courseStatus.open') }}
+                    </option>
+                    <option value="full">
+                      {{ t('courseRegistration.waitlist.courseStatus.full') }}
+                    </option>
+                  </template>
                 </select>
               </div>
               <div class="search-item">
@@ -1626,6 +1649,14 @@ function confirmRegisterSubmit() {
                   </option>
                 </select>
               </div>
+            </div>
+            <div class="search-actions">
+              <button type="button" class="btn btn-primary btn-primary--vivid" @click="handleSearch">
+                {{ t('common.search') }}
+              </button>
+              <button type="button" class="btn btn-default" @click="handleReset">
+                {{ t('common.reset') }}
+              </button>
             </div>
           </div>
         </div>
@@ -1668,7 +1699,7 @@ function confirmRegisterSubmit() {
             class="cr-r1-credit-panel"
             aria-label="round credit progress"
           >
-            <div class="cr-r1-credit-card">
+            <div class="cr-r1-credit-card" :class="r1TermCreditCardClass">
               <div class="cr-r1-credit-card-label">{{ t(r1TermSelectedRequiredLabelKey) }}</div>
               <div
                 class="cr-r1-credit-card-value"
@@ -1709,7 +1740,7 @@ function confirmRegisterSubmit() {
                 </span>
               </div>
             </div>
-            <div class="cr-r1-credit-card">
+            <div class="cr-r1-credit-card" :class="r1GradCreditCardClass">
               <div class="cr-r1-credit-card-label">{{ t(r1GradSelectedRequiredLabelKey) }}</div>
               <div class="cr-r1-credit-card-value">
                 {{ r1GradTotalBar.current }}/{{ r1GradTotalBar.max }}
@@ -1764,19 +1795,18 @@ function confirmRegisterSubmit() {
                   <th>{{ t('common.serialNo') }}</th>
                   <th>{{ t('courseRegistration.courses.code') }}</th>
                   <th>{{ t('courseRegistration.courses.name') }}</th>
-                  <th>{{ t('courseRegistration.courses.type') }}</th>
                   <th class="th-with-tip">
                     <span class="th-label-with-tip">
-                      {{ t('courseRegistration.courses.schoolElectiveCategory') }}
+                      {{ t('courseRegistration.courses.category') }}
                       <span
                         class="hint-popover-wrap"
-                        :title="t('courseRegistration.courses.schoolElectiveCategoryTip')"
+                        :title="t('courseRegistration.courses.unifiedCategory.tip')"
                       >
                         <span
                           class="hint-popover-trigger"
                           tabindex="0"
                           role="button"
-                          :aria-label="t('courseRegistration.courses.schoolElectiveCategoryTip')"
+                          :aria-label="t('courseRegistration.courses.unifiedCategory.tip')"
                         >
                           <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                             <path
@@ -1788,7 +1818,7 @@ function confirmRegisterSubmit() {
                           class="hint-popover-content hint-popover-content--sm"
                           role="tooltip"
                         >
-                          {{ t('courseRegistration.courses.schoolElectiveCategoryTip') }}
+                          {{ t('courseRegistration.courses.unifiedCategory.tip') }}
                         </span>
                       </span>
                     </span>
@@ -1931,14 +1961,7 @@ function confirmRegisterSubmit() {
                     class="nowrap"
                     :rowspan="spanCell(row, 'type').rowspan"
                   >
-                    {{ getRegistrationTypeLabel(row.course.type, t) }}
-                  </td>
-                  <td
-                    v-if="spanCell(row, 'schoolCat')?.show"
-                    class="nowrap"
-                    :rowspan="spanCell(row, 'schoolCat').rowspan"
-                  >
-                    {{ courseSchoolElectiveLabel(row.course) }}
+                    {{ courseCategoryLabel(row.course) }}
                   </td>
                   <td v-if="spanCell(row, 'credits')?.show" :rowspan="spanCell(row, 'credits').rowspan">
                     {{ row.course.credits }}

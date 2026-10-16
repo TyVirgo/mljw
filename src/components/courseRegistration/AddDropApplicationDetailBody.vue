@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
-import { downloadAttachmentMock } from '../../utils/attachmentPreview.js'
 import {
   getAddDropCourseColumnTexts,
   resolveAddDropCourseParts,
@@ -11,31 +10,38 @@ import {
   getVisibleAddDropSections,
   buildAddDropSectionBars,
   displayPrimaryType,
-  needDropFromAction,
 } from '../../data/courseRegistration/addDropFormSections.js'
+import {
+  addDropTypeLabelKey,
+  addDropTypeTagClass,
+  resolveAppNeedDrop,
+} from '../../data/courseRegistration/addDropTypeDisplay.js'
 import { getAddDropDeclarationExtraKey } from '../../data/courseRegistration/addDropListColumns.js'
 import { addDropStatusBadgeClass } from '../../data/courseRegistration/addDropStatusBadge.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 import { displayClassTimeVenueFromFields } from '../../data/courseRegistration/sectionScheduleFields.js'
 import {
   formatAmountRmb,
-  resolveAddDropExcessCredits,
+  resolveAddDropGradExcessCredits,
+  resolveAddDropTermExcessCredits,
 } from '../../data/courseRegistration/addDropFeeRates.js'
 import {
   displayPreviousCourseGrades,
   retakeHistoryFromCourse,
 } from '../../data/courseRegistration/studentTranscript.js'
+import { formatUnifiedCourseCategoryFromLine } from '../../data/courseRegistration/unifiedCourseCategory.js'
+import { getCourseById, getCourseByCode } from '../../data/courseRegistration/selectableCourses.js'
 import {
   addDropLineKey,
   buildDropCreditBreakdown,
 } from '../../data/courseRegistration/addDropMultiItems.js'
+import { ensureApplicationDetailCredits } from '../../data/courseRegistration/addDropApprovalQueue.js'
 import CourseRegistrationCallout from './CourseRegistrationCallout.vue'
+import AddDropTermCreditStrip from './AddDropTermCreditStrip.vue'
 import '../../styles/movement-status-badge.css'
 
 const props = defineProps({
   application: { type: Object, default: null },
-  /** 是否展示附件导出按钮 */
-  showAttachmentExport: { type: Boolean, default: true },
 })
 
 const { t, isZh } = useAppI18n()
@@ -80,22 +86,35 @@ function snapTimeVenue(kind) {
   )
 }
 
-const app = computed(() => props.application)
+const app = computed(() => ensureApplicationDetailCredits(props.application))
+const termCreditStrip = computed(() => app.value?.termCreditStrip || null)
+const showCreditOverview = computed(() => Boolean(termCreditStrip.value))
 const courseCols = computed(() => getAddDropCourseColumnTexts(app.value))
 const sections = computed(() => getVisibleAddDropSections(app.value?.type || 'Add'))
 const sectionBars = computed(() => buildAddDropSectionBars(app.value?.type || 'Add', t))
 const declarationExtraKey = computed(() => getAddDropDeclarationExtraKey(app.value?.type || 'Add'))
 
-const attachmentFile = computed(() => {
-  const file = app.value?.attachments?.[0]
-  if (!file?.name) return null
-  return { fileName: file.name, size: file.size || 0 }
+const attachmentFiles = computed(() => {
+  const list = Array.isArray(app.value?.attachments) ? app.value.attachments : []
+  return list
+    .filter((f) => f?.name)
+    .map((f) => ({ fileName: f.name, size: Number(f.size) || 0 }))
 })
+
+const attachmentFile = computed(() => attachmentFiles.value[0] || null)
+
+function formatAttachSize(bytes) {
+  const n = Number(bytes) || 0
+  if (n <= 0) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`
+}
 
 const showDropAttachmentBlock = computed(() => {
   if (!app.value || !sections.value.showIII) return false
   return (
-    Boolean(attachmentFile.value) ||
+    attachmentFiles.value.length > 0 ||
     app.value.dropChannel === 'special' ||
     app.value.type === 'Drop' ||
     app.value.type === 'AddDrop' ||
@@ -105,39 +124,42 @@ const showDropAttachmentBlock = computed(() => {
 
 const showStandaloneAttachments = computed(() => {
   if (!app.value || showDropAttachmentBlock.value) return false
+  return attachmentFiles.value.length > 0 || app.value.dropChannel === 'special'
+})
+
+const termExcessCreditsDisplay = computed(() => {
+  const a = app.value
+  if (!a || a.type === 'Drop') return ''
+  return String(resolveAddDropTermExcessCredits(a))
+})
+
+const gradExcessCreditsDisplay = computed(() => {
+  const a = app.value
+  if (!a || a.type === 'Drop') return ''
+  return String(resolveAddDropGradExcessCredits(a))
+})
+
+/** 与表单 hasFeeBoxContent 同源：有应付才展示费用预估节 */
+const hasFeeBoxContent = computed(() => {
+  const a = app.value
+  if (!a) return false
   return (
-    Boolean(attachmentFile.value) ||
-    app.value.dropChannel === 'special'
+    Number(a.feeEstimate?.total) > 0 ||
+    Number(a.sstAmount ?? a.feeEstimate?.sstAmount) > 0 ||
+    (a.feeEstimate?.items || []).length > 0
   )
 })
 
-const excessCreditsDisplay = computed(() => {
-  const a = app.value
-  if (!a || a.type === 'Drop') return ''
-  const n = resolveAddDropExcessCredits(a)
-  if (
-    n <= 0 &&
-    (a.excessCredits == null || a.excessCredits === '') &&
-    a.billableCredits == null &&
-    a.feeEstimate?.billableCredits == null &&
-    !(Number(a.billAmount ?? a.feeEstimate?.total) > 0)
-  ) {
-    return ''
-  }
-  return String(n)
-})
-
-/** 主类型 Add/Retake（含关联）时回显「是否需要退课」 */
+/** 主类型 Add/Drop/Retake（含关联）时回显「是否需要退课」；纯退课默认为是 */
 const needDropValue = computed(() => {
   const a = app.value
   if (!a) return ''
-  if (a.needDrop === 'yes' || a.needDrop === 'no') return a.needDrop
-  return needDropFromAction(a.type)
+  return resolveAppNeedDrop(a)
 })
 
 const showNeedDropField = computed(() => {
   const primary = displayPrimaryType(app.value?.type)
-  return primary === 'Add' || primary === 'Retake'
+  return primary === 'Add' || primary === 'Drop' || primary === 'Retake'
 })
 
 /** 退课学分汇总（与表单 buildDropCreditBreakdown 同源） */
@@ -180,8 +202,11 @@ function resolveI18nLabel(key, fallback) {
 }
 
 function typeLabel(type) {
-  const primary = displayPrimaryType(type) || type
-  return resolveI18nLabel(`courseRegistration.approval.type.${primary}`, primary)
+  return resolveI18nLabel(addDropTypeLabelKey(type), type || '—')
+}
+
+function typeClass(type) {
+  return addDropTypeTagClass(type)
 }
 
 function statusLabel(status) {
@@ -237,12 +262,20 @@ function contactPhoneText() {
   return v && v !== '—' ? v : '0123456789'
 }
 
+const feeEstimateItems = computed(() => app.value?.feeEstimate?.items || [])
+
+function feeStreamLabel(stream) {
+  if (!stream) return ''
+  return t(`courseRegistration.student.feeStream.${stream}`)
+}
+
 function feeBaseAmountText() {
   const base = app.value?.feeEstimate?.total
   if (base != null && base !== '') return formatAmountRmb(base)
-  const bill = Number(app.value?.billAmount)
-  const sst = Number(app.value?.sstAmount ?? app.value?.feeEstimate?.sstAmount) || 0
-  if (Number.isFinite(bill) && bill > 0) return formatAmountRmb(Math.max(0, bill - sst))
+  const items = app.value?.feeEstimate?.items || []
+  if (items.length) {
+    return formatAmountRmb(items.reduce((s, i) => s + (Number(i.amount) || 0), 0))
+  }
   return formatAmountRmb(0)
 }
 
@@ -252,17 +285,15 @@ function sstAmountText() {
 }
 
 function feeAmountText() {
-  return formatAmountRmb(
-    app.value?.billAmount ??
-      app.value?.feeEstimate?.payableTotal ??
-      app.value?.feeEstimate?.total ??
-      0,
-  )
-}
-
-function exportAttachment() {
-  if (!attachmentFile.value?.fileName) return
-  downloadAttachmentMock(attachmentFile.value.fileName, attachmentFile.value.fileName)
+  const est = app.value?.feeEstimate
+  if (est?.payableTotal != null && est.payableTotal !== '') {
+    return formatAmountRmb(est.payableTotal)
+  }
+  if (est?.total != null && est.total !== '') {
+    const sst = Number(app.value?.sstAmount ?? est.sstAmount) || 0
+    return formatAmountRmb(Number(est.total) + sst)
+  }
+  return formatAmountRmb(0)
 }
 
 const showWhitelistCreditOverHint = computed(
@@ -274,20 +305,42 @@ const dropItems = computed(() => allItems.value.filter((i) => i.action === 'Drop
 const addItems = computed(() => allItems.value.filter((i) => i.action === 'Add'))
 const retakeItems = computed(() => allItems.value.filter((i) => i.action === 'Retake'))
 
-/** 有行决策或已审结时在课程表展示同意/不同意 */
+/** 有行决策或已审结时在课程表展示通过/不通过/驳回 */
 const showLineDecisionColumn = computed(() => {
   const st = app.value?.status
-  if (['Approved', 'Rejected', 'PartiallyApproved'].includes(st)) return true
+  if (['Approved', 'Rejected', 'PartiallyApproved', 'Cancelled'].includes(st)) return true
   return (app.value?.items || []).some(
-    (i) => i.lineDecision === 'approved' || i.lineDecision === 'rejected',
+    (i) =>
+      i.lineDecision === 'approved' ||
+      i.lineDecision === 'rejected' ||
+      i.lineDecision === 'update_required',
   )
 })
 
-function lineDecisionLabel(item) {
+const isTerminalApprovalStatus = computed(() =>
+  ['Approved', 'Rejected', 'PartiallyApproved', 'Cancelled'].includes(app.value?.status),
+)
+
+/** 历史/终态缺决策时按申请状态默认，禁止「待定」 */
+function resolveLineDecision(item) {
   const d = item?.lineDecision
+  if (d === 'approved' || d === 'rejected' || d === 'update_required') return d
+  if (!isTerminalApprovalStatus.value) return null
+  const st = app.value?.status
+  if (st === 'Rejected') return 'rejected'
+  // Approved / PartiallyApproved / Cancelled（曾通过后中止）：缺省视为通过
+  return 'approved'
+}
+
+function lineDecisionLabel(item) {
+  const d = resolveLineDecision(item)
   if (d === 'approved') return t('courseRegistration.approval.lineApproved')
   if (d === 'rejected') return t('courseRegistration.approval.lineRejected')
-  if (showLineDecisionColumn.value) return t('courseRegistration.approval.linePending')
+  if (d === 'update_required') return t('courseRegistration.approval.lineUpdateRequired')
+  // 仅待审批过程中可显示待定；历史终态永不「待定」
+  if (!isTerminalApprovalStatus.value && showLineDecisionColumn.value) {
+    return t('courseRegistration.approval.linePending')
+  }
   return '—'
 }
 
@@ -308,6 +361,39 @@ const retakeRows = computed(() => {
   if (retakeItems.value.length) return retakeItems.value
   if (!allItems.value.length && sections.value.showIV) return [null]
   return []
+})
+
+/** 加课总学分（与表单 addCourseCredits 同源） */
+const addTotalCreditsDisplay = computed(() => {
+  const rows = addRows.value
+  if (!rows.length) return ''
+  let sum = 0
+  for (const item of rows) {
+    const raw =
+      item?.credits ??
+      snapFor('add')?.credits ??
+      app.value?.addCredits ??
+      app.value?.credits ??
+      itemByAction('Add')?.credits
+    sum += Number(raw) || 0
+  }
+  return String(sum)
+})
+
+/** 重修总学分 */
+const retakeTotalCreditsDisplay = computed(() => {
+  const rows = retakeRows.value
+  if (!rows.length) return ''
+  let sum = 0
+  for (const item of rows) {
+    const raw =
+      item?.credits ??
+      snapFor('retake')?.credits ??
+      app.value?.credits ??
+      itemByAction('Retake')?.credits
+    sum += Number(raw) || 0
+  }
+  return String(sum)
 })
 
 function itemTimeVenue(item) {
@@ -490,6 +576,37 @@ function retakeRowCredits(item) {
   )
 }
 
+/**
+ * 明细「课程类型」：统一类别（必修课 / GE01–04 / ME01–04）
+ * @param {object|null|undefined} item
+ * @param {string} [snapKind] drop|add|retake
+ */
+function resolveItemCourseType(item, snapKind = '') {
+  const snap = snapKind ? snapFor(snapKind) : null
+  const fallback =
+    snapKind === 'retake' && !(item?.type || snap?.type)
+      ? { type: app.value?.courseType || '' }
+      : snap
+  const label = formatUnifiedCourseCategoryFromLine(item, t, {
+    getCourseById,
+    getCourseByCode,
+    fallback,
+  })
+  return label === '—' ? '' : label
+}
+
+function dropRowType(item) {
+  return dash(resolveItemCourseType(item, 'drop'))
+}
+
+function addRowType(item) {
+  return dash(resolveItemCourseType(item, 'add'))
+}
+
+function retakeRowType(item) {
+  return dash(resolveItemCourseType(item, 'retake'))
+}
+
 function retakeRowPreviousGrades(item) {
   const raw = String(item?.previousCourseGradesText || '').trim()
   if (raw) return raw
@@ -532,7 +649,9 @@ function retakeRowPreviousGrades(item) {
         </div>
         <div class="field-item">
           <div class="field-label">{{ t('courseRegistration.approval.typeLabel') }}</div>
-          <div class="field-value">{{ typeLabel(app.type) }}</div>
+          <div class="field-value">
+            <span class="type-tag" :class="typeClass(app.type)">{{ typeLabel(app.type) }}</span>
+          </div>
         </div>
         <div v-if="showNeedDropField" class="field-item">
           <div class="field-label">{{ t('courseRegistration.student.needDropLabel') }}</div>
@@ -552,15 +671,7 @@ function retakeRowPreviousGrades(item) {
           <div class="field-label">{{ t('courseRegistration.approval.submittedAt') }}</div>
           <div class="field-value">{{ app.submittedAt || '—' }}</div>
         </div>
-        <div v-if="app.dropChannel" class="field-item">
-          <div class="field-label">{{ t('courseRegistration.student.dropChannelLabel') }}</div>
-          <div class="field-value">
-            {{ t(`courseRegistration.student.dropChannel.${app.dropChannel}`) }}
-            <template v-if="app.teachingWeek">
-              · {{ t('courseRegistration.student.teachingWeekOption', { week: app.teachingWeek }) }}
-            </template>
-          </div>
-        </div>
+        <!-- 退课通道字段已下线：dropChannel 仍可保留供特殊退附件等业务逻辑 -->
       </div>
     </section>
 
@@ -586,6 +697,15 @@ function retakeRowPreviousGrades(item) {
       </div>
     </section>
 
+    <section v-if="showCreditOverview" class="detail-section detail-credit-overview">
+      <div class="detail-credit-strip detail-credit-strip--compact">
+        <AddDropTermCreditStrip
+          :strip="termCreditStrip"
+          :application-type="app.type"
+        />
+      </div>
+    </section>
+
     <section v-if="sections.showIII && dropRows.length" class="detail-section">
       <div class="section-bar">{{ sectionBars.drop }}</div>
       <div class="lines-table-wrap">
@@ -596,6 +716,7 @@ function retakeRowPreviousGrades(item) {
               <th class="col-name">{{ t('courseRegistration.courses.name') }}</th>
               <th class="col-group">{{ t('courseRegistration.student.fieldGroupNo') }}</th>
               <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
+              <th class="col-type">{{ t('courseRegistration.courses.type') }}</th>
               <th class="col-week">{{ t('courseRegistration.student.fieldWeekRange') }}</th>
               <th class="col-time">{{ t('courseRegistration.student.fieldClassTimeVenue') }}</th>
               <th class="col-lecturer">{{ t('courseRegistration.student.fieldLecturers') }}</th>
@@ -610,6 +731,7 @@ function retakeRowPreviousGrades(item) {
               <td class="col-name" :title="dropRowName(item)">{{ dropRowName(item) }}</td>
               <td class="col-group" :title="dropRowSection(item)">{{ dropRowSection(item) }}</td>
               <td class="col-credits">{{ dropRowCredits(item) }}</td>
+              <td class="col-type" :title="dropRowType(item)">{{ dropRowType(item) }}</td>
               <td class="col-week" :title="dropRowWeek(item)">{{ dropRowWeek(item) }}</td>
               <td class="cr-time-venue col-time" :title="timeVenueTitle(dropRowTime(item))">
                 <template v-if="timeVenueLines(dropRowTime(item)).length">
@@ -653,24 +775,27 @@ function retakeRowPreviousGrades(item) {
           <div class="field-label">{{ t('courseRegistration.student.dropReason') }}</div>
           <div class="field-value">{{ dash(app.dropReason || app.reason) }}</div>
         </div>
-        <div v-if="showDropAttachmentBlock" class="field-item">
+        <div v-if="showDropAttachmentBlock" class="field-item field-item--full">
           <div class="field-label">{{ t('courseRegistration.student.dropAttachment') }}</div>
           <div class="field-value">
-            <AttachmentPreviewTrigger
-              v-if="attachmentFile"
-              :file-name="attachmentFile.fileName"
-              :file-meta="attachmentFile"
-              :download-label="attachmentFile.fileName"
-            />
+            <ul v-if="attachmentFiles.length" class="detail-attach-list">
+              <li
+                v-for="(file, idx) in attachmentFiles"
+                :key="`${file.fileName}-${idx}`"
+                class="detail-attach-item"
+              >
+                <AttachmentPreviewTrigger
+                  :file-name="file.fileName"
+                  :file-meta="file"
+                  :download-label="file.fileName"
+                  :show-download="true"
+                />
+                <span v-if="formatAttachSize(file.size)" class="detail-attach-size">
+                  {{ formatAttachSize(file.size) }}
+                </span>
+              </li>
+            </ul>
             <span v-else>{{ t('courseRegistration.approval.attachmentNone') }}</span>
-            <button
-              v-if="showAttachmentExport && attachmentFile"
-              type="button"
-              class="btn btn-outline attachment-export-btn"
-              @click="exportAttachment"
-            >
-              {{ t('movementExport.exportAttachment') }}
-            </button>
           </div>
         </div>
       </div>
@@ -686,6 +811,7 @@ function retakeRowPreviousGrades(item) {
               <th class="col-name">{{ t('courseRegistration.courses.name') }}</th>
               <th class="col-group">{{ t('courseRegistration.student.fieldGroupNo') }}</th>
               <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
+              <th class="col-type">{{ t('courseRegistration.courses.type') }}</th>
               <th class="col-week">{{ t('courseRegistration.student.fieldWeekRange') }}</th>
               <th class="col-time">{{ t('courseRegistration.student.fieldClassTimeVenue') }}</th>
               <th class="col-lecturer">{{ t('courseRegistration.student.fieldLecturers') }}</th>
@@ -700,6 +826,7 @@ function retakeRowPreviousGrades(item) {
               <td class="col-name" :title="addRowName(item)">{{ addRowName(item) }}</td>
               <td class="col-group" :title="addRowSection(item)">{{ addRowSection(item) }}</td>
               <td class="col-credits">{{ addRowCredits(item) }}</td>
+              <td class="col-type" :title="addRowType(item)">{{ addRowType(item) }}</td>
               <td class="col-week" :title="addRowWeek(item)">{{ addRowWeek(item) }}</td>
               <td class="cr-time-venue col-time" :title="timeVenueTitle(addRowTime(item))">
                 <template v-if="timeVenueLines(addRowTime(item)).length">
@@ -722,8 +849,16 @@ function retakeRowPreviousGrades(item) {
       </div>
       <div class="field-grid field-grid--after-table">
         <div class="field-item">
-          <div class="field-label">{{ t('courseRegistration.student.fieldExcessCredits') }}</div>
-          <div class="field-value">{{ dash(excessCreditsDisplay) }}</div>
+          <div class="field-label">{{ t('courseRegistration.student.fieldAddTotalCredits') }}</div>
+          <div class="field-value">{{ dash(addTotalCreditsDisplay) }}</div>
+        </div>
+        <div class="field-item">
+          <div class="field-label">{{ t('courseRegistration.student.fieldTermExcessCredits') }}</div>
+          <div class="field-value">{{ dash(termExcessCreditsDisplay) }}</div>
+        </div>
+        <div class="field-item">
+          <div class="field-label">{{ t('courseRegistration.student.fieldGradExcessCredits') }}</div>
+          <div class="field-value">{{ dash(gradExcessCreditsDisplay) }}</div>
         </div>
         <div v-if="app.addNotes" class="field-item field-item--full">
           <div class="field-label">{{ t('courseRegistration.student.addNotesLabel') }}</div>
@@ -743,6 +878,7 @@ function retakeRowPreviousGrades(item) {
               <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
               <th class="col-week">{{ t('courseRegistration.student.fieldWeekRange') }}</th>
               <th class="col-time">{{ t('courseRegistration.student.fieldClassTimeVenue') }}</th>
+              <th class="col-type">{{ t('courseRegistration.courses.type') }}</th>
               <th class="col-lecturer">{{ t('courseRegistration.student.fieldLecturers') }}</th>
               <th class="col-prev-grades">{{ t('courseRegistration.student.previousCourseGrades') }}</th>
               <th v-if="showLineDecisionColumn" class="col-decision">
@@ -769,6 +905,7 @@ function retakeRowPreviousGrades(item) {
                 </template>
                 <template v-else>{{ retakeRowTime(item) }}</template>
               </td>
+              <td class="col-type" :title="retakeRowType(item)">{{ retakeRowType(item) }}</td>
               <td class="col-lecturer" :title="retakeRowLecturer(item)">{{ retakeRowLecturer(item) }}</td>
               <td class="col-prev-grades">
                 <template v-if="retakeRowPreviousGrades(item)">
@@ -793,18 +930,32 @@ function retakeRowPreviousGrades(item) {
           <div class="field-value">{{ retakeTypeLabel(app.retakeType) }}</div>
         </div>
         <div class="field-item">
-          <div class="field-label">{{ t('courseRegistration.student.fieldExcessCredits') }}</div>
-          <div class="field-value">{{ dash(excessCreditsDisplay) }}</div>
+          <div class="field-label">{{ t('courseRegistration.student.fieldRetakeTotalCredits') }}</div>
+          <div class="field-value">{{ dash(retakeTotalCreditsDisplay) }}</div>
         </div>
       </div>
     </section>
 
-    <section
-      v-if="(app.billAmount != null && app.billAmount !== '') || app.feeEstimate"
-      class="detail-section"
-    >
+    <section v-if="hasFeeBoxContent" class="detail-section">
       <div class="section-bar">{{ t('courseRegistration.student.feeEstimateTitle') }}</div>
-      <div class="field-grid">
+      <div class="fee-box detail-fee-box">
+        <ul class="fee-list">
+          <li v-for="(line, idx) in feeEstimateItems" :key="idx">
+            {{ line.courseCode }} · {{ feeStreamLabel(line.feeStream) }} ·
+            {{ t('courseRegistration.student.feeBillableCredits', { n: line.billableCredits }) }}
+            × {{ formatAmountRmb(line.rate) }} = {{ formatAmountRmb(line.amount) }}
+          </li>
+          <li>
+            {{ t('courseRegistration.student.fieldSst') }}:
+            {{ sstAmountText() }}
+          </li>
+        </ul>
+        <p class="fee-total">
+          {{ t('courseRegistration.student.feeEstimateTotal') }}:
+          <strong>{{ feeAmountText() }}</strong>
+        </p>
+      </div>
+      <div class="field-grid field-grid--after-fee">
         <div class="field-item">
           <div class="field-label">{{ t('courseRegistration.student.feeEstimateShort') }}</div>
           <div class="field-value">{{ feeBaseAmountText() }}</div>
@@ -814,12 +965,24 @@ function retakeRowPreviousGrades(item) {
           <div class="field-value">{{ sstAmountText() }}</div>
         </div>
         <div class="field-item">
-          <div class="field-label">{{ t('courseRegistration.student.feeEstimateTotal') }}</div>
+          <div class="field-label">{{ t('courseRegistration.student.feeEstimateTotalFee') }}</div>
           <div class="field-value">{{ feeAmountText() }}</div>
         </div>
         <div v-if="app.paymentDueAt" class="field-item">
           <div class="field-label">{{ t('courseRegistration.student.paymentDueAt') }}</div>
           <div class="field-value">{{ app.paymentDueAt }}</div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      v-if="app.addNotes && sections.showIV && !sections.showII"
+      class="detail-section"
+    >
+      <div class="field-grid">
+        <div class="field-item field-item--full">
+          <div class="field-label">{{ t('courseRegistration.student.addNotesLabel') }}</div>
+          <div class="field-value">{{ dash(app.addNotes) }}</div>
         </div>
       </div>
     </section>
@@ -845,23 +1008,26 @@ function retakeRowPreviousGrades(item) {
             <span v-if="app.dropChannel === 'special'" class="required">*</span>
             :
           </label>
-          <button
-            v-if="showAttachmentExport && attachmentFile"
-            type="button"
-            class="btn btn-outline"
-            @click="exportAttachment"
-          >
-            {{ t('movementExport.exportAttachment') }}
-          </button>
         </div>
-        <div class="attachment-file-row">
-          <AttachmentPreviewTrigger
-            v-if="attachmentFile"
-            :file-name="attachmentFile.fileName"
-            :file-meta="attachmentFile"
-            :download-label="attachmentFile.fileName"
-          />
-          <span v-else>{{ t('courseRegistration.approval.attachmentNone') }}</span>
+        <ul v-if="attachmentFiles.length" class="detail-attach-list">
+          <li
+            v-for="(file, idx) in attachmentFiles"
+            :key="`standalone-${file.fileName}-${idx}`"
+            class="detail-attach-item"
+          >
+            <AttachmentPreviewTrigger
+              :file-name="file.fileName"
+              :file-meta="file"
+              :download-label="file.fileName"
+              :show-download="true"
+            />
+            <span v-if="formatAttachSize(file.size)" class="detail-attach-size">
+              {{ formatAttachSize(file.size) }}
+            </span>
+          </li>
+        </ul>
+        <div v-else class="attachment-file-row">
+          <span>{{ t('courseRegistration.approval.attachmentNone') }}</span>
         </div>
       </div>
     </section>
@@ -926,14 +1092,51 @@ function retakeRowPreviousGrades(item) {
   white-space: pre-line;
 }
 
+.type-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.type-add { background: #dbeafe; color: #1d4ed8; }
+.type-drop { background: #fee2e2; color: #b91c1c; }
+.type-retake { background: #fef3c7; color: #b45309; }
+.type-replace { background: #e0e7ff; color: #4338ca; }
+.type-adddrop { background: #e0e7ff; color: #3730a3; }
+.type-retakedrop { background: #ffedd5; color: #c2410c; }
+
+.detail-attach-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-attach-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.detail-attach-size {
+  font-size: 12px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
 .lines-table-wrap {
-  overflow-x: hidden;
+  overflow-x: auto;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
 }
 
 .lines-table {
   width: 100%;
+  min-width: 720px;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 12px;
@@ -956,6 +1159,12 @@ function retakeRowPreviousGrades(item) {
   color: #374151;
 }
 
+.lines-table th.col-type {
+  overflow: visible;
+  text-overflow: clip;
+  min-width: 5.5em;
+}
+
 .lines-table tbody tr:last-child td {
   border-bottom: none;
 }
@@ -974,6 +1183,11 @@ function retakeRowPreviousGrades(item) {
 
 .lines-table .col-credits {
   width: 6%;
+}
+
+.lines-table .col-type {
+  width: 9%;
+  min-width: 5.5em;
 }
 
 .lines-table .col-week {
@@ -1119,11 +1333,6 @@ function retakeRowPreviousGrades(item) {
   min-height: 28px;
 }
 
-.attachment-export-btn {
-  margin-left: 12px;
-  vertical-align: middle;
-}
-
 .btn {
   display: inline-flex;
   align-items: center;
@@ -1146,9 +1355,63 @@ function retakeRowPreviousGrades(item) {
   margin-bottom: 12px;
 }
 
+.detail-fee-box {
+  margin: 0;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.detail-fee-box .fee-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.detail-fee-box .fee-total {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.field-grid--after-fee {
+  margin-top: 12px;
+}
+
+.detail-credit-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-credit-strip {
+  width: 100%;
+}
+
+/* 详情：表头尽量单行、略缩小字号 */
+.detail-credit-strip--compact :deep(.cr-r1-credit-card-label) {
+  font-size: 11px;
+  white-space: nowrap;
+  line-height: 1.25;
+  padding: 4px 2px;
+}
+
+.detail-credit-strip--compact :deep(.cr-r1-credit-card-value) {
+  font-size: 16px;
+  padding: 8px 4px;
+}
+
 @media (max-width: 720px) {
   .field-grid {
     grid-template-columns: 1fr;
+  }
+
+  .detail-credit-strip--compact :deep(.cr-r1-credit-card-label) {
+    white-space: normal;
+    font-size: 10px;
   }
 }
 </style>

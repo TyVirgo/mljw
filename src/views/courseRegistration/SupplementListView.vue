@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import ExportModal from '../../components/common/ExportModal.vue'
 import TablePagination from '../../components/common/TablePagination.vue'
 import SupplementEntryDrawer from '../../components/courseRegistration/SupplementEntryDrawer.vue'
@@ -14,25 +14,54 @@ import {
   reopenSupplementInvite,
   getSupplementDoorStatus,
   formatSupplementInviteCountdown,
-  formatPermissionSummary,
   formatWhitelistAddedAt,
   normalizeWhitelistEntry,
   buildWhitelistNotifyDraft,
   buildWhitelistReopenDraft,
+  WHITELIST_PERMISSION_KEYS,
 } from '../../data/courseRegistration/supplementListQueue.js'
+import {
+  PAYMENT_REMIND_WITHIN_MS,
+  PAYMENT_URGENT_WITHIN_MS,
+} from '../../data/courseRegistration/adminAddDropPaymentInsight.js'
 import { supplementExportFields } from '../../data/courseRegistration/courseRegistrationExportFields.js'
 import {
   exportCourseRegistrationData,
   formatSupplementExportRow,
 } from '../../utils/exportCourseRegistrationExcel.js'
-import { formatIntakeBatch } from '../../data/intakeSets.js'
+import { formatIntakeBatch, intakeOptions } from '../../data/intakeSets.js'
 import '../../styles/list-page-search.css'
 import '../../styles/course-registration-list.css'
 
 const { t } = useAppI18n()
 
-const searchForm = ref({ programme: '', keyword: '' })
-const appliedSearch = ref({ programme: '', keyword: '' })
+const nowTick = ref(Date.now())
+let tickTimer = null
+
+onMounted(() => {
+  tickTimer = setInterval(() => {
+    nowTick.value = Date.now()
+  }, 30_000)
+})
+
+onBeforeUnmount(() => {
+  if (tickTimer) clearInterval(tickTimer)
+})
+
+function emptySearch() {
+  return {
+    programme: '',
+    intake: '',
+    studentId: '',
+    studentName: '',
+    permission: '',
+    doorStatus: '',
+  }
+}
+
+const searchExpanded = ref(true)
+const searchForm = ref(emptySearch())
+const appliedSearch = ref(emptySearch())
 const currentPage = ref(1)
 const pageSize = ref(20)
 const drawerVisible = ref(false)
@@ -57,11 +86,25 @@ const notifyDraftBuilder = computed(() =>
   notifyMode.value === 'reopen' ? buildWhitelistReopenDraft : buildWhitelistNotifyDraft,
 )
 
-const rows = computed(() =>
-  filterSupplementList(supplementListQueue.value, appliedSearch.value).map((r) =>
-    normalizeWhitelistEntry(r),
-  ),
-)
+const whitelistIntakeOptions = computed(() => {
+  const set = new Set(intakeOptions)
+  for (const row of supplementListQueue.value) {
+    const formatted = formatIntakeBatch(row.intake)
+    if (formatted) set.add(formatted)
+  }
+  return [...set].sort().reverse()
+})
+
+const permissionFilterKeys = WHITELIST_PERMISSION_KEYS
+
+const rows = computed(() => {
+  void nowTick.value
+  return filterSupplementList(
+    supplementListQueue.value,
+    appliedSearch.value,
+    new Date(nowTick.value),
+  ).map((r) => normalizeWhitelistEntry(r))
+})
 const totalCount = computed(() => rows.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / pageSize.value)))
 const paginatedRows = computed(() => {
@@ -75,9 +118,13 @@ function handleSearch() {
 }
 
 function handleReset() {
-  searchForm.value = { programme: '', keyword: '' }
-  appliedSearch.value = { programme: '', keyword: '' }
+  searchForm.value = emptySearch()
+  appliedSearch.value = emptySearch()
   currentPage.value = 1
+}
+
+function permissionFilterLabel(key) {
+  return t(`courseRegistration.whitelist.perm.${key}`)
 }
 
 function openCreate() {
@@ -112,14 +159,38 @@ function notifyCountText(row) {
   return t('courseRegistration.supplement.notifyCountTimes', { n: attempt })
 }
 
-/** 生效剩余时间 */
-function remainTimeText(row) {
+/**
+ * 生效剩余时间展示（格式/色阶对齐缴费剩余）
+ * @returns {{ text: string, className: string }}
+ */
+function remainTimeDisplay(row) {
+  void nowTick.value
   const attempt = Number(row.inviteAttempt) || 0
-  if (attempt <= 0) return t('courseRegistration.supplement.remainNotSent')
+  if (attempt <= 0) {
+    return { text: t('courseRegistration.supplement.remainNotSent'), className: '' }
+  }
   const door = getSupplementDoorStatus(row.studentId)
-  if (!door.ok) return t('courseRegistration.supplement.inviteExpiredShort')
-  const cd = formatSupplementInviteCountdown(row)
-  return cd?.label || '—'
+  if (!door.ok) {
+    return {
+      text: t('courseRegistration.supplement.inviteExpiredShort'),
+      className: 'pay-remain is-overdue',
+    }
+  }
+  const cd = formatSupplementInviteCountdown(row, nowTick.value, t)
+  if (!cd || cd.expired) {
+    return {
+      text: t('courseRegistration.supplement.inviteExpiredShort'),
+      className: 'pay-remain is-overdue',
+    }
+  }
+  const ms = cd.remainingMs
+  if (ms != null && ms < PAYMENT_URGENT_WITHIN_MS) {
+    return { text: cd.label, className: 'pay-remain is-urgent' }
+  }
+  if (ms != null && ms < PAYMENT_REMIND_WITHIN_MS) {
+    return { text: cd.label, className: 'pay-remain is-warn' }
+  }
+  return { text: cd.label, className: 'pay-remain' }
 }
 
 function openNotifyModal(row) {
@@ -137,12 +208,14 @@ function closeNotifyModal() {
   notifyRow.value = null
 }
 
-function handleNotifyConfirm() {
-  const row = notifyRow.value
+function handleNotifyConfirm(payload = {}) {
+  const row = notifyRow.value || payload.row
   const mode = notifyMode.value
   if (!row?.id || !mode) return
   const result =
-    mode === 'reopen' ? reopenSupplementInvite(row.id) : sendSupplementInvite(row.id)
+    mode === 'reopen'
+      ? reopenSupplementInvite(row.id, new Date(), { deadlineAt: payload.deadlineAt })
+      : sendSupplementInvite(row.id)
   if (!result.ok) {
     window.alert(t(result.errorKey || 'courseRegistration.supplement.inviteSendFirst'))
     return
@@ -193,7 +266,6 @@ function handleExportConfirm({ selectedFields }) {
     <div class="page-card">
       <CourseRegistrationCallout variant="warning">
         <p>{{ t('courseRegistration.whitelist.doorHint') }}</p>
-        <p>{{ t('courseRegistration.whitelist.inviteHint') }}</p>
       </CourseRegistrationCallout>
 
       <CourseRegistrationCallout v-if="emailMockBanner" variant="info">
@@ -208,13 +280,56 @@ function handleExportConfirm({ selectedFields }) {
               <input v-model="searchForm.programme" type="text" class="search-input" />
             </div>
             <div class="search-item">
-              <label>{{ t('courseRegistration.monitor.student') }}</label>
-              <input v-model="searchForm.keyword" type="text" class="search-input" />
+              <label>{{ t('courseRegistration.monitor.intake') }}</label>
+              <select v-model="searchForm.intake" class="search-select">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in whitelistIntakeOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
             </div>
+            <div class="search-item">
+              <label>{{ t('courseRegistration.monitor.studentId') }}</label>
+              <input v-model="searchForm.studentId" type="text" class="search-input" />
+            </div>
+            <div class="search-item">
+              <label>{{ t('courseRegistration.monitor.studentName') }}</label>
+              <input v-model="searchForm.studentName" type="text" class="search-input" />
+            </div>
+            <template v-if="searchExpanded">
+              <div class="search-item">
+                <label>{{ t('courseRegistration.whitelist.permissions') }}</label>
+                <select v-model="searchForm.permission" class="search-select">
+                  <option value="">{{ t('common.all') }}</option>
+                  <option v-for="key in permissionFilterKeys" :key="key" :value="key">
+                    {{ permissionFilterLabel(key) }}
+                  </option>
+                </select>
+              </div>
+              <div class="search-item">
+                <label>{{ t('courseRegistration.whitelist.filterDoorStatus') }}</label>
+                <select v-model="searchForm.doorStatus" class="search-select">
+                  <option value="">{{ t('common.all') }}</option>
+                  <option value="notSent">{{ t('courseRegistration.whitelist.doorStatusNotSent') }}</option>
+                  <option value="active">{{ t('courseRegistration.whitelist.doorStatusActive') }}</option>
+                  <option value="expired">{{ t('courseRegistration.whitelist.doorStatusExpired') }}</option>
+                </select>
+              </div>
+            </template>
           </div>
           <div class="search-actions">
             <button type="button" class="btn btn-primary" @click="handleSearch">{{ t('common.search') }}</button>
             <button type="button" class="btn btn-default" @click="handleReset">{{ t('common.reset') }}</button>
+            <button type="button" class="toggle-link" @click="searchExpanded = !searchExpanded">
+              {{ searchExpanded ? t('common.collapse') : t('common.more') }}
+              <svg
+                :class="{ up: searchExpanded }"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -238,7 +353,6 @@ function handleExportConfirm({ selectedFields }) {
                 <th>{{ t('courseRegistration.monitor.studentName') }}</th>
                 <th>{{ t('courseRegistration.monitor.programme') }}</th>
                 <th>{{ t('courseRegistration.monitor.intake') }}</th>
-                <th>{{ t('courseRegistration.whitelist.permissions') }}</th>
                 <th>{{ t('courseRegistration.supplement.notifyCount') }}</th>
                 <th>{{ t('courseRegistration.supplement.remainTime') }}</th>
                 <th>{{ t('courseRegistration.supplement.remark') }}</th>
@@ -253,11 +367,14 @@ function handleExportConfirm({ selectedFields }) {
                 <td>{{ row.studentName }}</td>
                 <td>{{ row.programme }}</td>
                 <td>{{ formatIntakeBatch(row.intake) }}</td>
-                <td class="perm-cell">{{ formatPermissionSummary(row, t) }}</td>
                 <td class="invite-cell">{{ notifyCountText(row) }}</td>
-                <td class="invite-cell">{{ remainTimeText(row) }}</td>
-                <td>{{ row.remark || '—' }}</td>
-                <td>{{ formatWhitelistAddedAt(row.addedAt) || '—' }}</td>
+                <td class="invite-cell">
+                  <span :class="remainTimeDisplay(row).className">{{
+                    remainTimeDisplay(row).text
+                  }}</span>
+                </td>
+                <td class="remark-cell">{{ row.remark || '—' }}</td>
+                <td class="invite-cell">{{ formatWhitelistAddedAt(row.addedAt) || '—' }}</td>
                 <td class="actions-cell">
                   <button type="button" class="link-btn" @click="openDetail(row)">
                     {{ t('common.edit') }}
@@ -274,6 +391,7 @@ function handleExportConfirm({ selectedFields }) {
                     v-if="canReopen(row)"
                     type="button"
                     class="link-btn"
+                    :title="t('courseRegistration.supplement.reopenInviteHint')"
                     @click="openReopenModal(row)"
                   >
                     {{ t('courseRegistration.supplement.reopenInvite') }}
@@ -284,7 +402,7 @@ function handleExportConfirm({ selectedFields }) {
                 </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="11" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="10" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -312,6 +430,7 @@ function handleExportConfirm({ selectedFields }) {
       :draft-builder="notifyDraftBuilder"
       :title-key="notifyTitleKey"
       :confirm-key="notifyConfirmKey"
+      :show-deadline-picker="notifyMode === 'reopen'"
       @close="closeNotifyModal"
       @confirm="handleNotifyConfirm"
     />
@@ -326,27 +445,61 @@ function handleExportConfirm({ selectedFields }) {
 </template>
 
 <style scoped>
-.perm-cell {
-  font-size: 12px;
-  max-width: 240px;
-  color: #374151;
-}
 .link-btn.danger {
   color: #dc2626;
 }
 .invite-cell {
   font-size: 12px;
-  max-width: 140px;
   white-space: nowrap;
 }
+.remark-cell {
+  font-size: 12px;
+  color: #374151;
+  max-width: 280px;
+  line-height: 1.4;
+}
+
+.pay-remain.is-warn {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.pay-remain.is-urgent,
+.pay-remain.is-overdue {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .actions-cell {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 8px;
+  white-space: nowrap;
 }
 .toolbar {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.cr-supplement-page .search-fields {
+  flex: 1;
+  gap: 12px 16px;
+}
+
+.cr-supplement-page .search-item {
+  flex: 1 1 140px;
+  min-width: 120px;
+  max-width: 220px;
+}
+
+.cr-supplement-page :deep(.data-table th) {
+  white-space: nowrap;
+  padding: 8px 10px;
+}
+
+.cr-supplement-page :deep(.data-table td) {
+  padding: 8px 10px;
+  vertical-align: top;
 }
 </style>

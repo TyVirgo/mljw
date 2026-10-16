@@ -44,6 +44,26 @@
    - 提交时间使用活动批次窗口内日期（当前默认窗约 `01-Jul-2026`～`31-Aug-2026`），格式统一为 `YYYY-MM-DD HH:mm`（与学生列表现有一致）。  
    - `addDropApprovalQueue` 初始数据中 `10-Sep-2025` 类英文日格式改为同一格式，或统一为批次常用 `DD-Mon-YYYY HH:mm`——**选定：`YYYY-MM-DD HH:mm`**，与学生端一致，改队列初始数据。
 
+6. **退课原因必填口径（demo）**  
+   - 含 Drop 的申请：`dropReason` 非空；若仅有 `reason`，enrich 时 `dropReason = dropReason || reason`。  
+   - 审批初始队列与 seed 手写补全（如「课程冲突」「个人兴趣调整」等可读文案）。
+
+7. **毕业计费 ↔ 费用**  
+   - `resolveAddDropGradExcessCredits > 0` ⇒ `feeEstimate.total > 0`（及 items / billableCredits）。  
+   - enrich `reconcileExcessFeeBill`：在已有 billAmount 逻辑上，若 billable>0 且无有效 `feeEstimate.total`，则按 `billable × 500`（ME 默认 arts）合成 `feeEstimate`，本地生 SST=0，国际生按 `SST_RATE`。  
+   - seed/队列显式样本尽量写全 `feeEstimate`，与 enrich 兜底双保险。
+
+8. **重修类型（demo）**  
+   - 合法值仅 `failed` | `improve_grade`（与 `RETAKE_TYPE_OPTIONS` 一致）。  
+   - seed/审批队列手写补全；`improve` → `improve_grade`。  
+   - enrich：对 Retake/RetakeDrop 规范化别名；仍缺省时按行成绩 F/M→`failed`，否则 `improve_grade`。
+
+9. **学分条与毕业计费对齐（真超额）**  
+   - 详情条 = `buildDemoTermCreditStripFromItems(items, termCreditStripBaseline)`；应用可带自定义 `termCreditStripBaseline`。  
+   - items 须带 `type`/`sourceType`（退 CORE、加 ME 等），否则投影不移动。  
+   - adr-001 叙事：基线 `gradMeCurrent=22`（学期 ME 仍 8/22）；退 COMP201（CORE）不减 ME；加 COMP3192（ME 4）→ 毕业 ME 26/24，`billableCredits=2`，费用 1000。  
+   - 约束：条上毕业未超 ⇒ 计费 0；条上毕业超 ⇒ 计费 = 超额学分。
+
 ## Risks / Trade-offs
 
 - 改提交日期后，与「2025 学年」叙事可能略脱节 → 学年学期字段仍用 `2026/04`，仅提交时刻落在演示窗内，可接受。  
@@ -57,7 +77,8 @@
 
 | 文件 | 变更 |
 |------|------|
-| `src/data/courseRegistration/studentDemoSeed.js` | 去 Replace；学分/账单/时间/fee 校正 |
-| `src/data/courseRegistration/addDropApprovalQueue.js` | 初始队列日期格式、Retake/Add fee-bill 对齐 |
+| `src/data/courseRegistration/studentDemoSeed.js` | 去 Replace；学分/账单/时间/fee 校正；dropReason；feeEstimate |
+| `src/data/courseRegistration/addDropApprovalQueue.js` | 初始队列日期格式、Retake/Add fee-bill 对齐；dropReason；feeEstimate |
+| `src/data/courseRegistration/addDropScheduleDemo.js` | enrich：dropReason 回落；billable>0 时合成 feeEstimate |
 | `src/views/courseRegistration/student/StudentAddDropView.vue` | `formatApplicationCourses` 中文化 |
 | i18n | 原则上不新增 key（复用已有 type.*） |

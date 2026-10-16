@@ -13,13 +13,11 @@ import {
   filterStudentCourseList,
   filterCoursesByRound,
 } from '../../data/courseRegistration/studentRegistrationContext.js'
-import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
 import { displayWeekRange, displayClassTimeVenueLines } from '../../data/courseRegistration/sectionScheduleFields.js'
 import {
-  schoolElectiveCategoryOptions,
-  getSchoolElectiveCategoryLabel,
-} from '../../data/departments.js'
-import { resolveSchoolElectiveCategory } from '../../data/courseRegistration/selectableCourses.js'
+  formatUnifiedCourseCategoryLabel,
+  unifiedCourseCategoryFilterOptions,
+} from '../../data/courseRegistration/unifiedCourseCategory.js'
 import { getCourseDisplayName } from '../../data/courseRegistration/resolveSelectedCourseDisplay.js'
 import { getBatchById } from '../../data/courseRegistration/registrationBatches.js'
 import {
@@ -50,7 +48,7 @@ function emptySearch() {
   return {
     code: '',
     name: '',
-    schoolElectiveCategory: '',
+    courseCategory: '',
     weekday: '',
     credits: '',
     prerequisites: '',
@@ -228,8 +226,9 @@ function selectionGroupDisplayLines(group) {
   return getSelectionGroupDisplayLines(group, isZh.value)
 }
 
-function courseSchoolElectiveLabel(course) {
-  return getSchoolElectiveCategoryLabel(resolveSchoolElectiveCategory(course), isZh.value)
+/** 统一课程类别 */
+function courseCategoryLabel(course) {
+  return formatUnifiedCourseCategoryLabel(course, t)
 }
 
 function selectionGroupRowClass(group) {
@@ -271,19 +270,19 @@ function selectionGroupRowClass(group) {
             />
           </div>
           <div class="search-item">
-            <label>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</label>
-            <select
-              :value="searchState.form.schoolElectiveCategory"
+            <label>{{ t('courseRegistration.courses.category') }}</label>
+              <select
+              :value="searchState.form.courseCategory"
               class="search-select"
-              @change="patchSearchForm({ schoolElectiveCategory: $event.target.value })"
+              @change="patchSearchForm({ courseCategory: $event.target.value })"
             >
               <option value="">{{ t('common.all') }}</option>
               <option
-                v-for="opt in schoolElectiveCategoryOptions"
+                v-for="opt in unifiedCourseCategoryFilterOptions"
                 :key="opt.value"
                 :value="opt.value"
               >
-                {{ getSchoolElectiveCategoryLabel(opt.value, isZh) }}
+                {{ opt.labelKey ? t(opt.labelKey) : opt.label }}
               </option>
             </select>
           </div>
@@ -378,19 +377,18 @@ function selectionGroupRowClass(group) {
                 <th>{{ t('common.serialNo') }}</th>
                 <th>{{ t('courseRegistration.courses.code') }}</th>
                 <th>{{ t('courseRegistration.courses.name') }}</th>
-                <th>{{ t('courseRegistration.courses.type') }}</th>
                 <th class="th-with-tip">
                   <span class="th-label-with-tip">
-                    {{ t('courseRegistration.courses.schoolElectiveCategory') }}
+                    {{ t('courseRegistration.courses.category') }}
                     <span
                       class="hint-popover-wrap"
-                      :title="t('courseRegistration.courses.schoolElectiveCategoryTip')"
+                      :title="t('courseRegistration.courses.unifiedCategory.tip')"
                     >
                       <span
                         class="hint-popover-trigger"
                         tabindex="0"
                         role="button"
-                        :aria-label="t('courseRegistration.courses.schoolElectiveCategoryTip')"
+                        :aria-label="t('courseRegistration.courses.unifiedCategory.tip')"
                       >
                         <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                           <path
@@ -399,7 +397,7 @@ function selectionGroupRowClass(group) {
                         </svg>
                       </span>
                       <span class="hint-popover-content hint-popover-content--sm" role="tooltip">
-                        {{ t('courseRegistration.courses.schoolElectiveCategoryTip') }}
+                        {{ t('courseRegistration.courses.unifiedCategory.tip') }}
                       </span>
                     </span>
                   </span>
@@ -531,14 +529,7 @@ function selectionGroupRowClass(group) {
                   class="nowrap"
                   :rowspan="spanCell(row, 'type').rowspan"
                 >
-                  {{ getRegistrationTypeLabel(row.course.type, t) }}
-                </td>
-                <td
-                  v-if="spanCell(row, 'schoolCat')?.show"
-                  class="nowrap"
-                  :rowspan="spanCell(row, 'schoolCat').rowspan"
-                >
-                  {{ courseSchoolElectiveLabel(row.course) }}
+                  {{ courseCategoryLabel(row.course) }}
                 </td>
                 <td v-if="spanCell(row, 'credits')?.show" :rowspan="spanCell(row, 'credits').rowspan">
                   {{ row.course.credits }}

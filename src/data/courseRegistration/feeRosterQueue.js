@@ -5,6 +5,7 @@ import { registrationAcademicSessionOptions } from './registrationBatchFormUtils
 import { listAdminAddStudentCandidates } from './registrationResult.js'
 import { registrationMonitorQueue } from './registrationMonitorQueue.js'
 import { formatIntakeBatch } from '../intakeSets.js'
+import { getStudentProfileFields } from './studentRegistrationStore.js'
 
 /** @typedef {'preselect' | 'main' | 'supplement' | 'admin'} FeeCourseSource */
 
@@ -955,7 +956,9 @@ export function aggregateFeeRosterStudents(detailRows = [], allRows = detailRows
     })
   }
   return [...map.values()].filter(
-    (s) => s.isPaid === 'Y' || s.forceInclude || s.enrolledCredits > s.creditMin,
+    (s) =>
+      String(s.studentName || '').trim() &&
+      (s.isPaid === 'Y' || s.forceInclude || s.enrolledCredits > s.creditMin),
   )
 }
 
@@ -1285,6 +1288,38 @@ export function formatFeeRosterCourseExportRow(row, t) {
 /** @deprecated */
 export const filterFeeRosterRows = filterFeeRosterDetailRows
 
+/** 审批中止：取消该申请写入的未缴费名单行 */
+export function cancelFeeRosterRowsForApplication(app) {
+  if (!app?.studentId) return { ok: false, count: 0 }
+  const codes = new Set(
+    (app.items || [])
+      .filter((i) => Number(i.fee) > 0 || ['Add', 'Retake'].includes(i.action))
+      .map((i) => String(i.courseCode || ''))
+      .filter(Boolean),
+  )
+  let count = 0
+  feeRosterRows.value = feeRosterRows.value.map((row) => {
+    if (row.studentId !== app.studentId) return row
+    if (String(row.paid || '').toUpperCase() === 'Y') return row
+    const code = String(row.courseCode || '')
+    const sessionMatch =
+      !app.academicSession || !row.academicSession || row.academicSession === app.academicSession
+    if (!sessionMatch) return row
+    if (codes.size && !codes.has(code) && row.courseSource !== 'admin') return row
+    if (row.courseSource === 'admin' || codes.has(code)) {
+      count += 1
+      return {
+        ...row,
+        paid: 'C',
+        outstandingFee: 'N',
+        paymentDueAt: '',
+      }
+    }
+    return row
+  })
+  return { ok: true, count }
+}
+
 /** 审批生成账单时写入缴费名单占位行（演示） */
 export function appendFeeRosterFromApproval(app) {
   if (!app) return { ok: false, count: 0 }
@@ -1312,11 +1347,13 @@ export function appendFeeRosterFromApproval(app) {
       creditMax: LONG_SEMESTER_CREDIT_MAX,
       outstandingFee: 'Y',
       courseCode: item.courseCode,
-      courseName: item.courseCode,
+      courseName: item.courseName || item.courseCode,
       courseCredits: item.credits || 0,
       courseType: 'ME',
-      sectionCode: item.section || '01',
+      sectionCode: item.section || item.sectionCode || '01',
       courseSource: 'admin',
+      applicationNo: app.applicationNo || '',
+      sourceAppId: app.id || '',
       paid: 'N',
       paidAt: '',
       paymentDueAt: app.paymentDueAt || '',
@@ -1328,12 +1365,145 @@ export function appendFeeRosterFromApproval(app) {
 }
 
 /**
- * 学生端课程缴费 → 缴费名单的挂钩点（演示期默认不灌数）。
- * 流转说明：选课结果/缴费明细 →（可选）本函数 → 未缴费明细 → 导入已缴费。
- * 正式对接时可恢复写入；当前避免把学生端演示明细污染教务缴费名单 demo。
+ * 缴费名单身份字段：优先行自身 → 同学生已有行 → 当前档案（同学号时）
+ * @param {string} studentId
+ * @param {{ studentName?: string, programme?: string, intake?: string, academicSession?: string }} partial
+ */
+function resolveFeeRosterIdentity(studentId, partial = {}) {
+  const sid = String(studentId || '')
+  const fromPartial = {
+    studentName: String(partial.studentName || '').trim(),
+    programme: String(partial.programme || '').trim(),
+    intake: String(partial.intake || '').trim(),
+    academicSession: String(partial.academicSession || '').trim(),
+  }
+  if (fromPartial.studentName && fromPartial.programme && fromPartial.intake) {
+    return fromPartial
+  }
+
+  const sibling = feeRosterRows.value.find(
+    (r) => String(r.studentId) === sid && String(r.studentName || '').trim(),
+  )
+  if (sibling) {
+    return {
+      studentName: fromPartial.studentName || String(sibling.studentName || '').trim(),
+      programme: fromPartial.programme || String(sibling.programme || '').trim(),
+      intake: fromPartial.intake || String(sibling.intake || '').trim(),
+      academicSession:
+        fromPartial.academicSession || String(sibling.academicSession || '').trim(),
+    }
+  }
+
+  try {
+    const profile = getStudentProfileFields()
+    if (String(profile.studentId || '') === sid) {
+      return {
+        studentName: fromPartial.studentName || String(profile.studentName || '').trim(),
+        programme: fromPartial.programme || String(profile.programme || '').trim(),
+        intake: fromPartial.intake || String(profile.intake || '').trim(),
+        academicSession: fromPartial.academicSession,
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return fromPartial
+}
+
+function withFeeIdentityFields(row, identity) {
+  if (!row || !identity) return row
+  return {
+    ...row,
+    studentName: String(row.studentName || '').trim() || identity.studentName || '',
+    programme: String(row.programme || '').trim() || identity.programme || '',
+    intake: String(row.intake || '').trim() || identity.intake || '',
+    academicSession:
+      String(row.academicSession || '').trim() || identity.academicSession || '',
+  }
+}
+
+/**
+ * 学生端课程缴费行同步到缴费名单：已付→已缴；未付审批源→补未缴行（不覆盖 demo 种子 id）
  * @param {object[]} lines
  */
 export function upsertFeeRosterFromPaymentLines(lines = []) {
-  void lines
-  return { ok: true, count: 0, skipped: true }
+  if (!Array.isArray(lines) || !lines.length) return { ok: true, count: 0 }
+  let updated = 0
+  let inserted = 0
+  const today = new Date().toISOString().slice(0, 10)
+
+  for (const line of lines) {
+    if (!line?.studentId || !line?.courseCode) continue
+    const isPaid = line.status === 'paid'
+    const code = String(line.courseCode)
+    const sid = String(line.studentId)
+    const section = String(line.sectionName || line.sectionCode || line.section || '').trim()
+    const identity = resolveFeeRosterIdentity(sid, line)
+
+    let matched = false
+    feeRosterRows.value = feeRosterRows.value.map((row) => {
+      if (String(row.studentId) !== sid) return row
+      // 同学生其它课行也回填空姓名等身份字段
+      let next = withFeeIdentityFields(row, identity)
+      if (String(next.courseCode) !== code) return next
+      if (
+        line.sourceRef &&
+        next.sourceAppId &&
+        String(next.sourceAppId) !== String(line.sourceRef)
+      ) {
+        return next
+      }
+      matched = true
+      if (isPaid && String(next.paid || '').toUpperCase() !== 'Y') {
+        updated += 1
+        return {
+          ...next,
+          paid: 'Y',
+          paidAt: line.paidAt || next.paidAt || today,
+          outstandingFee: 'N',
+          paymentDueAt: next.paymentDueAt || line.paymentDueAt || '',
+        }
+      }
+      if (!isPaid && String(next.paid || '').toUpperCase() === 'N') {
+        return {
+          ...next,
+          paymentDueAt: line.paymentDueAt || next.paymentDueAt || '',
+          courseName: next.courseName || line.courseName || code,
+          sectionCode: next.sectionCode || section || '01',
+        }
+      }
+      return next
+    })
+
+    if (!matched && !isPaid && ['addDrop', 'retakeDrop', 'retake'].includes(line.sourceType)) {
+      feeAdrSeq += 1
+      feeRosterRows.value.unshift({
+        id: `fee-pay-${feeAdrSeq}`,
+        studentId: sid,
+        studentName: identity.studentName || '',
+        programme: identity.programme || '',
+        intake: identity.intake || '',
+        academicSession: identity.academicSession || '',
+        creditMin: LONG_SEMESTER_CREDIT_MIN,
+        creditMax: LONG_SEMESTER_CREDIT_MAX,
+        outstandingFee: 'Y',
+        courseCode: code,
+        courseName: line.courseName || code,
+        courseCredits: line.credits || line.billableCredits || 0,
+        courseType: 'ME',
+        sectionCode: section || '01',
+        courseSource: 'admin',
+        applicationNo: line.applicationNo || '',
+        sourceAppId: line.sourceRef || '',
+        paid: 'N',
+        paidAt: '',
+        paymentDueAt: line.paymentDueAt || '',
+        paymentGraceDays: null,
+      })
+      inserted += 1
+    }
+  }
+
+  return { ok: true, count: updated + inserted, updated, inserted }
 }

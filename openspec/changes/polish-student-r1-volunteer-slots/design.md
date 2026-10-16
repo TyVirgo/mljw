@@ -63,9 +63,69 @@
     - `listVolunteerWishCoursesForSchedule` 不认结果页 sheet.releaseMode  
     - `WeekScheduleGrid`：同日起止多门叠显多块（虚线可叠）
 
+18. **R1–R3 分块累计；R2/R3 非志愿（2026-10，已纠偏）**
+    - **志愿开关**：`shouldShowVolunteerSheetPanel` = 老生 ∧ `preselect`（**仅 R1**）
+    - **锁死**：`isVolunteerListLocked` = 全局 released **或** 当前开放轮 ≠ preselect（R1 窗外不可改志愿）
+    - **本轮块**：R1=`sortedPendingVolunteers`（次序+拖拽+待分配）；R2/R3=`myRegistrationList` 当前轮确认成功（无次序）
+    - **历轮已选块**：R1–R3 均可出现；`roundOrderIndex < 当前轮`、同类型、非 admin；窗口内可退选
+    - **提交**：仅 R1 走待分配；R2/R3 先到先得 `applyConfirmedRegistration`
+    - **学分**：R1=本轮 pending；R2/R3=`includeConfirmedInCreditProgress`（≤当前轮确认）
+    - **Demo**：不设 `seedOpenRoundPendingVolunteers`；R2/R3 本轮课留在 confirmed
+    - **文案**：R1「本轮志愿」；R2/R3「本轮已选」
+
+19. **选课情况文案 / 列对齐 / 课表同源（2026-10）**
+    - 面板根标题固定「选课情况」；志愿计数挂在「本轮志愿」旁（`currentVolunteerSectionWithCount`）
+    - 两表共享固定列宽：`colgroup` / CSS；历轮表左侧双列空占位对齐拖拽+志愿次序；右侧保留百分比列空单元格以对齐「操作」
+    - `isEarlierRoundConfirmedForSchedule` / `isCourseVisibleAtRound`：在线选课预览路径 **排除** `sourceType===admin`；实线仅历轮非 admin 确认 + 必修；虚线仍 ≡ 本轮志愿
+    - 范围：仅 RegisterView 课表预览；结果页课表若仍需代选另议（本增量不改结果页）
+
+20. **毕业学分卡动态色 + 搜索间距 + 历轮退选（2026-10）**
+    - 毕业总分卡 class：`cr-r1-credit-card--grad-short` / `--grad-met`，按 `r1GradTotalBar` 在 GE/ME 均切换（取代常驻 `--grad-ge`）
+    - 学生页 `.search-fields`：~~首行 `space-between` + 加大 gap~~ → 见 §21 回退为 `gap: 8px 14px` 原貌
+    - 历轮退选：沿用 `unselectConfirmedCourse` → `removeConfirmedCourseRecord` → `adjustSectionEnrolled(-1)`；必要时触发课库行替换以保证名额列响应式刷新
+
+21. **回退搜索自适应 + 确认课优先退选 + 空态/文案（2026-10）**
+    - **搜索 CSS**：删除首行 `space-between` / `flex:1` / 输入 max-width 铺满规则；`.search-fields` 恢复 `gap: 8px 14px`
+    - **`unselectConfirmedCourse`**：先查 `studentConfirmedCourses`；命中则退确认（可顺带清同键 pending，**不**走 `assertVolunteerListEditable`）；仅无确认、有 pending 时才走志愿锁（R1 撤志愿）
+    - **空态**：`empty-cell-spacer` / `table-empty-overlay` 高度约 72–88px；主文案 i18n「暂无选课」；本轮空时显示浮层（不依赖「无历轮」）
+    - **i18n**：`selectedCountBeside` / `priorRoundSection` / `titleWithSelected` / `flatHint` →「门课程」口径
+
+22. **历轮空态 + 加粗 + 搜索一行 + SE201 中签 + 学分门控 demo（2026-10）**
+    - **历轮**：R2/R3 `showPriorSection` 常真；0 行时同本轮空态浮层，不卸载块
+    - **加粗**：`.cr-round-block-meta` 字重与分块标题对齐（600）；历轮标题可拆「历轮已选」+「（N 门课程）」旁注
+    - **搜索**：仅 RegisterView 取消次行折叠，容量/学分/先修并入首行；学生页 scoped 收紧 gap/控件宽
+    - **SE201**：`seedVolunteerResultSheetsDemo` 结果改为 hit；`DEMO_ROUND_CONFIRMED_COURSES` 增加 preselect 确认行；课表/历轮同源
+    - **动态增量**：见 §23（纠偏为仅首次可加）
+
+23. **demo 仅首次加 + 学期学分卡满绿（2026-10）**
+    - **首次 seed**：`reconcileIncrementalDemoConfirmedCourses({ allowAdd: true })` 按学分帽写入缺省增量课
+    - **运行期**（加选/退选后）：`allowAdd: false`，只剔除「保留后仍超帽」的增量 demo；SHALL NOT 因退课腾学分再加回
+    - **学期总分卡**：`r1TermCreditCardClass`：`current >= max` → `--grad-met`（浅绿）；未满不套橙（保持默认蓝）；`is-over` 仍管超出标红；GE/ME、R1–R3 共用
+
+24. **R1 pending → R2/R3 确认晋升（2026-10）**
+    - `promoteR1PendingToConfirmed`：将同类型（GE/ME）`roundKey=preselect` 的 pending **复制**写入 `studentConfirmedCourses`（选课成功）并占座；`courseId` 已确认则跳过写入
+    - **§24**：SHALL NOT 从 pending 移除（回 R1 本轮志愿可回显）；学期学分 `listLiveTermCreditCourses` 已按课去重，不双计
+    - 触发：在线选课 **列表态**（`entryStep=list`）且当前轮为 main/supplement 时（进列表、切批、轮次 watch）
+    - 历轮表与课表实线沿用既有 `listPriorRoundConfirmedCourses` / `buildPreviewSchedule`
+
+25. **学期单批 + 页内切轮（2026-10 · 大）** — **已废弃，见 26**
+    - 原：隐藏分档入口 + 页内 tabs；与「恢复原入口」冲突
+
+26. **永远成功 + 分档入口 + 跨轮同步（2026-10 · §23 · 方案 A）**
+    - 排队 `onComplete`：去掉 `Math.random` 失败分支，一律 `applyConfirmedRegistration`
+    - 回退 `demoUnifiedSemester` / `demoStudentEntryHidden` / `demoUnifiedCourseBatchIds`；去掉列表页内 round tabs
+    - 恢复 g2/g3、cst/cys 学生入口与种子 `batchId` 分档挂载
+    - 保留 `promoteR1PendingToConfirmed` + 历轮按类型/`roundKey`（不按批割裂）
+
+27. **排队默认展 + 统一课程类别（2026-10 · §25）**
+    - RoundStatusPanel：`queuedRows` 区块不跟 `isExpanded`
+    - `unifiedCourseCategory.js`：`required` / `GE01–04` / `ME01–04`；校选 arts→01、business→02、science→03、ai_open→04
+    - 选课菜单内原双列改为单列「课程类别」；筛选同码
+
 ## Risks
 
 - 确认入口易被忽略 → 抽屉副文案；空表提示引导在线选课
+- R2/R3 改志愿后与「先到先得占座」文案并存 → 容量列在志愿模式仍用已选百分比口径
 
 ## Open Questions
 

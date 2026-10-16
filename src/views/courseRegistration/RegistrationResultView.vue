@@ -10,13 +10,23 @@ import AdminAddCourseForStudentModal from '../../components/courseRegistration/A
 import VolunteerPublishLogModal from '../../components/courseRegistration/VolunteerPublishLogModal.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 import { formatIntakeBatch } from '../../data/intakeSets.js'
-import { listResultDemoBatches, registrationBatches } from '../../data/courseRegistration/registrationBatches.js'
+import {
+  listResultDemoBatches,
+  registrationBatches,
+  getBatchById,
+  formatRoundRange,
+  isRoundTimeConfigured,
+} from '../../data/courseRegistration/registrationBatches.js'
 import {
   adminStudentRegistrationResults,
   filterStudentResults,
   removeAdminStudentRegistrations,
   removeAdminCourseRegistrations,
+  STUDENT_OP_RESULT_KEYS,
+  formatStudentOpResultLabel,
+  formatStudentResultPreferenceLabel,
 } from '../../data/courseRegistration/registrationResult.js'
+import { getRoundTimeline } from '../../data/courseRegistration/studentRegistrationContext.js'
 import {
   RESULT_ROUND_KEYS,
   RESULT_ROUND_LABEL_KEYS,
@@ -26,6 +36,7 @@ import {
 import {
   volunteerCourseStates,
   listVolunteerCourseSummaries,
+  listVolunteerDetailRowsForSections,
   getVolunteerSectionState,
   usesSelectedRoster,
   isVolunteerBatchReadonly,
@@ -47,13 +58,20 @@ import {
 import {
   resultStudentExportFields,
   resultCourseExportFields,
+  resultR1DetailExportFields,
+  resultR1SummaryExportFields,
 } from '../../data/courseRegistration/courseRegistrationExportFields.js'
-import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
+import {
+  getRegistrationTypeLabel,
+  courseTypeOptions,
+} from '../../data/courseRegistration/registrationTypes.js'
 import { feeCourseSourceLabel } from '../../data/courseRegistration/feeRosterQueue.js'
 import {
   exportCourseRegistrationData,
   formatResultStudentExportRow,
   formatResultCourseExportRow,
+  formatResultR1DetailExportRow,
+  formatResultR1SummaryExportRow,
 } from '../../utils/exportCourseRegistrationExcel.js'
 import { getResultReleaseAt } from '../../data/courseRegistration/studentVolunteerSheet.js'
 import '../../styles/list-page-search.css'
@@ -65,17 +83,25 @@ const activeTab = ref('round')
 const selectedRound = ref('preselect')
 
 const emptyStudentSearch = () => ({
-  studentId: '',
-  studentName: '',
-  programme: '',
   batchId: '',
-  courseCode: '',
+  round: '',
+  studentKeyword: '',
+  courseKeyword: '',
+  operatorKeyword: '',
+  opResult: '',
+  timeStart: '',
+  timeEnd: '',
 })
 const emptyCourseSearch = () => ({
   batchId: '',
   courseCode: '',
   courseName: '',
+  courseType: '',
+  sectionCode: '',
+  credits: '',
 })
+const studentSearchExpanded = ref(true)
+const roundSearchExpanded = ref(true)
 
 /**
  * 页顶默认批次：优先列表中第一个尚未最终确认的 demo 批次
@@ -108,6 +134,29 @@ function syncBatchToFilters(batchId = selectedBatchId.value) {
   roundApplied.value = { ...roundApplied.value, batchId: id }
 }
 
+/** 学生维轮次下拉（与日志一致：已配置时间的轮次） */
+const studentRoundOptions = computed(() => {
+  const batch = getBatchById(selectedBatchId.value)
+  const session = batch?.academicSession || '—'
+  return getRoundTimeline(batch, studentSearchForm.value.round)
+    .filter((step) => isRoundTimeConfigured(step.range))
+    .map((step) => {
+      const range = formatRoundRange(step.range)
+      return {
+        key: step.key,
+        label: t('courseRegistration.student.roundOptionLabel', {
+          session,
+          round: t(step.labelKey),
+          range: range === '—' ? '' : range,
+        }),
+      }
+    })
+})
+
+function studentOpResultLabel(key) {
+  return t(`courseRegistration.log.result.${key}`)
+}
+
 /** 是否课程维度·第一轮（志愿融合表） */
 const isRound1CourseView = computed(
   () => activeTab.value === 'round' && selectedRound.value === 'preselect',
@@ -119,6 +168,8 @@ syncBatchToFilters()
 const currentPage = ref(1)
 const pageSize = ref(20)
 const exportModalVisible = ref(false)
+/** 第一轮导出类型：detail | summary */
+const r1ExportMode = ref('detail')
 /** 学生维度「新增」代选弹窗 */
 const addCourseModalVisible = ref(false)
 const selectedIds = ref([])
@@ -294,9 +345,20 @@ watch(
   { deep: true },
 )
 
-const exportFields = computed(() =>
-  activeTab.value === 'student' ? resultStudentExportFields : resultCourseExportFields,
-)
+const r1ExportModes = computed(() => [
+  { value: 'detail', label: t('courseRegistration.result.exportDetail') },
+  { value: 'summary', label: t('courseRegistration.result.exportSummary') },
+])
+
+const exportFields = computed(() => {
+  if (activeTab.value === 'student') return resultStudentExportFields
+  if (isRound1CourseView.value) {
+    return r1ExportMode.value === 'summary' ? resultR1SummaryExportFields : resultR1DetailExportFields
+  }
+  return resultCourseExportFields
+})
+
+const exportModalModes = computed(() => (isRound1CourseView.value ? r1ExportModes.value : []))
 
 const showBulkToolbar = computed(
   () => activeTab.value === 'student' || (activeTab.value === 'round' && !isRound1CourseView.value),
@@ -540,11 +602,57 @@ function handleDialogConfirm() {
   confirmBatchDelete()
 }
 
-function handleExportConfirm({ selectedFields }) {
+/**
+ * 按 ExportModal 范围切片主表行
+ * @param {string} exportScope
+ * @returns {object[]}
+ */
+function resolveExportSourceRows(exportScope) {
+  if (exportScope === 'selectedRows') {
+    const idSet = new Set(selectedIds.value)
+    return rows.value.filter((row) => idSet.has(row.id))
+  }
+  if (exportScope === 'currentPage') return paginatedRows.value
+  return rows.value
+}
+
+function openExportModal() {
+  if (isRound1CourseView.value) r1ExportMode.value = 'detail'
+  exportModalVisible.value = true
+}
+
+function handleExportConfirm({ selectedFields, exportScope }) {
   const timestamp = new Date().toISOString().slice(0, 10)
   const columns = exportFields.value.filter((col) => selectedFields.includes(col.key))
+  const sourceRows = resolveExportSourceRows(exportScope)
+
+  if (isRound1CourseView.value) {
+    const isSummary = r1ExportMode.value === 'summary'
+    const exportRows = isSummary
+      ? sourceRows
+      : listVolunteerDetailRowsForSections(sourceRows)
+    if (!exportRows.length) {
+      window.alert(t('common.noData'))
+      return
+    }
+    exportCourseRegistrationData({
+      rows: exportRows,
+      columns,
+      formatRow: isSummary ? formatResultR1SummaryExportRow : formatResultR1DetailExportRow,
+      filename: `registration-results-r1-${isSummary ? 'summary' : 'detail'}-${timestamp}.xlsx`,
+      sheetName: isSummary ? 'R1 Summary' : 'R1 Detail',
+      i18n: { t },
+    })
+    exportModalVisible.value = false
+    return
+  }
+
+  if (!sourceRows.length) {
+    window.alert(t('common.noData'))
+    return
+  }
   exportCourseRegistrationData({
-    rows: rows.value,
+    rows: sourceRows,
     columns,
     formatRow: activeTab.value === 'student' ? formatResultStudentExportRow : formatResultCourseExportRow,
     filename: `registration-results-${activeTab.value}-${timestamp}.xlsx`,
@@ -595,9 +703,9 @@ function handleExportConfirm({ selectedFields }) {
       </CourseRegistrationCallout>
 
       <div class="search-bar">
-        <div class="search-row">
+        <!-- 学生维：流式搜索 -->
+        <div v-if="activeTab === 'student'" class="search-row">
           <div class="search-fields">
-            <!-- 页级批次：三 Tab 共用，置于搜索区首位；切换即生效 -->
             <div class="search-item cr-result-batch-item">
               <label for="cr-result-batch-select">
                 {{ t('courseRegistration.student.batchSelectLabel') }}
@@ -613,11 +721,40 @@ function handleExportConfirm({ selectedFields }) {
                 </option>
               </select>
             </div>
-            <template v-if="activeTab === 'student'">
+            <div class="search-item">
+              <label>{{ t('courseRegistration.student.roundSelectLabel') }}</label>
+              <select v-model="studentSearchForm.round" class="search-select">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in studentRoundOptions" :key="opt.key" :value="opt.key">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ t('courseRegistration.log.studentKeyword') }}</label>
+              <input
+                v-model="studentSearchForm.studentKeyword"
+                type="text"
+                class="search-input"
+                :placeholder="t('common.pleaseInput')"
+                @keyup.enter="handleSearch"
+              />
+            </div>
+            <div class="search-item">
+              <label>{{ t('courseRegistration.log.courseKeyword') }}</label>
+              <input
+                v-model="studentSearchForm.courseKeyword"
+                type="text"
+                class="search-input"
+                :placeholder="t('common.pleaseInput')"
+                @keyup.enter="handleSearch"
+              />
+            </div>
+            <template v-if="studentSearchExpanded">
               <div class="search-item">
-                <label>{{ t('courseRegistration.monitor.studentId') }}</label>
+                <label>{{ t('courseRegistration.log.operatorKeyword') }}</label>
                 <input
-                  v-model="studentSearchForm.studentId"
+                  v-model="studentSearchForm.operatorKeyword"
                   type="text"
                   class="search-input"
                   :placeholder="t('common.pleaseInput')"
@@ -625,41 +762,100 @@ function handleExportConfirm({ selectedFields }) {
                 />
               </div>
               <div class="search-item">
-                <label>{{ t('courseRegistration.monitor.studentName') }}</label>
-                <input
-                  v-model="studentSearchForm.studentName"
-                  type="text"
-                  class="search-input"
-                  :placeholder="t('common.pleaseInput')"
-                  @keyup.enter="handleSearch"
-                />
+                <label>{{ t('courseRegistration.log.resultLabel') }}</label>
+                <select v-model="studentSearchForm.opResult" class="search-select">
+                  <option value="">{{ t('common.all') }}</option>
+                  <option v-for="key in STUDENT_OP_RESULT_KEYS" :key="key" :value="key">
+                    {{ studentOpResultLabel(key) }}
+                  </option>
+                </select>
               </div>
-              <div class="search-item">
-                <label>{{ t('courseRegistration.monitor.programme') }}</label>
-                <input
-                  v-model="studentSearchForm.programme"
-                  type="text"
-                  class="search-input"
-                  :placeholder="t('common.pleaseInput')"
-                  @keyup.enter="handleSearch"
-                />
-              </div>
-              <div class="search-item">
-                <label>{{ t('courseRegistration.courses.code') }}</label>
-                <input
-                  v-model="studentSearchForm.courseCode"
-                  type="text"
-                  class="search-input"
-                  :placeholder="t('common.pleaseInput')"
-                  @keyup.enter="handleSearch"
-                />
+              <div class="search-item search-item-range">
+                <label>{{ t('courseRegistration.log.operatedAtRange') }}</label>
+                <input v-model="studentSearchForm.timeStart" type="date" class="search-input" />
+                <span class="range-sep">{{ t('common.to') }}</span>
+                <input v-model="studentSearchForm.timeEnd" type="date" class="search-input" />
               </div>
             </template>
-            <template v-else>
+          </div>
+          <div class="search-actions">
+            <button type="button" class="btn btn-primary" @click="handleSearch">
+              {{ t('common.search') }}
+            </button>
+            <button type="button" class="btn btn-default" @click="handleReset">
+              {{ t('common.reset') }}
+            </button>
+            <button
+              type="button"
+              class="toggle-link"
+              @click="studentSearchExpanded = !studentSearchExpanded"
+            >
+              {{ studentSearchExpanded ? t('common.collapse') : t('common.more') }}
+              <svg
+                :class="{ up: studentSearchExpanded }"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 课程维：流式 + 收放 -->
+        <div v-else class="search-row">
+          <div class="search-fields">
+            <div class="search-item cr-result-batch-item">
+              <label for="cr-result-batch-select-round">
+                {{ t('courseRegistration.student.batchSelectLabel') }}
+              </label>
+              <select
+                id="cr-result-batch-select-round"
+                v-model="selectedBatchId"
+                class="search-select cr-result-batch-select"
+                :style="batchSelectWidth ? { width: batchSelectWidth } : undefined"
+              >
+                <option v-for="batch in batchOptions" :key="batch.id" :value="batch.id">
+                  {{ batch.name }}
+                </option>
+              </select>
+            </div>
+            <div class="search-item">
+              <label>{{ t('courseRegistration.courses.code') }}</label>
+              <input
+                v-model="roundSearchForm.courseCode"
+                type="text"
+                class="search-input"
+                :placeholder="t('common.pleaseInput')"
+                @keyup.enter="handleSearch"
+              />
+            </div>
+            <div class="search-item">
+              <label>{{ t('courseRegistration.courses.name') }}</label>
+              <input
+                v-model="roundSearchForm.courseName"
+                type="text"
+                class="search-input"
+                :placeholder="t('common.pleaseInput')"
+                @keyup.enter="handleSearch"
+              />
+            </div>
+            <div class="search-item">
+              <label>{{ t('courseRegistration.courses.type') }}</label>
+              <select v-model="roundSearchForm.courseType" class="search-select">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in courseTypeOptions" :key="opt.value" :value="opt.value">
+                  {{ t(opt.labelKey) }}
+                </option>
+              </select>
+            </div>
+            <template v-if="roundSearchExpanded">
               <div class="search-item">
-                <label>{{ t('courseRegistration.courses.code') }}</label>
+                <label>{{ t('courseRegistration.courses.sectionCode') }}</label>
                 <input
-                  v-model="roundSearchForm.courseCode"
+                  v-model="roundSearchForm.sectionCode"
                   type="text"
                   class="search-input"
                   :placeholder="t('common.pleaseInput')"
@@ -667,9 +863,9 @@ function handleExportConfirm({ selectedFields }) {
                 />
               </div>
               <div class="search-item">
-                <label>{{ t('courseRegistration.courses.name') }}</label>
+                <label>{{ t('courseRegistration.courses.credits') }}</label>
                 <input
-                  v-model="roundSearchForm.courseName"
+                  v-model="roundSearchForm.credits"
                   type="text"
                   class="search-input"
                   :placeholder="t('common.pleaseInput')"
@@ -679,8 +875,28 @@ function handleExportConfirm({ selectedFields }) {
             </template>
           </div>
           <div class="search-actions">
-            <button type="button" class="btn btn-primary" @click="handleSearch">{{ t('common.search') }}</button>
-            <button type="button" class="btn btn-default" @click="handleReset">{{ t('common.reset') }}</button>
+            <button type="button" class="btn btn-primary" @click="handleSearch">
+              {{ t('common.search') }}
+            </button>
+            <button type="button" class="btn btn-default" @click="handleReset">
+              {{ t('common.reset') }}
+            </button>
+            <button
+              type="button"
+              class="toggle-link"
+              @click="roundSearchExpanded = !roundSearchExpanded"
+            >
+              {{ roundSearchExpanded ? t('common.collapse') : t('common.more') }}
+              <svg
+                :class="{ up: roundSearchExpanded }"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -704,7 +920,7 @@ function handleExportConfirm({ selectedFields }) {
           >
             {{ t('common.delete') }}
           </button>
-          <button type="button" class="btn btn-default" @click="exportModalVisible = true">
+          <button type="button" class="btn btn-default" @click="openExportModal">
             {{ t('common.export') }}
           </button>
         </div>
@@ -723,6 +939,9 @@ function handleExportConfirm({ selectedFields }) {
           <button type="button" class="btn btn-default" @click="openPublishLog">
             {{ t('courseRegistration.result.publishLogBtn') }}
           </button>
+          <button type="button" class="btn btn-default" @click="openExportModal">
+            {{ t('common.export') }}
+          </button>
           <span
             class="volunteer-confirm-status toolbar-status"
             :class="volunteerBatchFinalized ? 'is-confirmed' : 'is-pending'"
@@ -734,13 +953,13 @@ function handleExportConfirm({ selectedFields }) {
 
       <div class="table-section">
         <div class="table-wrap">
-          <table v-if="activeTab === 'student'" class="data-table">
+          <table v-if="activeTab === 'student'" class="data-table student-dim-table">
             <thead>
               <tr>
                 <th class="col-check">
                   <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
                 </th>
-                <th>{{ t('common.serialNo') }}</th>
+                <th class="col-serial">{{ t('common.serialNo') }}</th>
                 <th>{{ t('courseRegistration.monitor.studentId') }}</th>
                 <th>{{ t('courseRegistration.monitor.studentName') }}</th>
                 <th>{{ t('courseRegistration.monitor.programme') }}</th>
@@ -748,10 +967,18 @@ function handleExportConfirm({ selectedFields }) {
                 <th>{{ t('courseRegistration.batch.name') }}</th>
                 <th>{{ t('courseRegistration.courses.code') }}</th>
                 <th>{{ t('courseRegistration.courses.name') }}</th>
-                <th>{{ t('courseRegistration.courses.credits') }}</th>
+                <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
                 <th>{{ t('courseRegistration.courses.type') }}</th>
                 <th>{{ t('courseRegistration.courses.sectionCode') }}</th>
-                <th>{{ t('courseRegistration.student.courseSource') }}</th>
+                <th class="col-sticky-right col-course-source">
+                  {{ t('courseRegistration.student.courseSource') }}
+                </th>
+                <th class="col-sticky-right col-preference">
+                  {{ t('courseRegistration.result.coursePreference') }}
+                </th>
+                <th class="col-sticky-right col-op-operator">{{ t('courseRegistration.log.operator') }}</th>
+                <th class="col-sticky-right col-op-time">{{ t('courseRegistration.log.operatedAt') }}</th>
+                <th class="col-sticky-right col-op-result">{{ t('courseRegistration.log.resultLabel') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -763,27 +990,44 @@ function handleExportConfirm({ selectedFields }) {
                     @change="toggleSelect(row.id)"
                   />
                 </td>
-                <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
+                <td class="col-serial">{{ (currentPage - 1) * pageSize + index + 1 }}</td>
                 <td>{{ row.studentId }}</td>
                 <td>{{ row.studentName }}</td>
                 <td>{{ row.programme }}</td>
                 <td>{{ formatIntakeBatch(row.intake) }}</td>
                 <td>{{ row.batchName || '—' }}</td>
-                <td class="nowrap">{{ row.courseCode }}</td>
+                <td>{{ row.courseCode }}</td>
                 <td>{{ row.courseName }}</td>
-                <td>{{ row.credits }}</td>
-                <td class="nowrap">{{ getRegistrationTypeLabel(row.courseType, t) }}</td>
-                <td class="nowrap">
+                <td class="col-credits">{{ row.credits }}</td>
+                <td>{{ getRegistrationTypeLabel(row.courseType, t) }}</td>
+                <td>
                   {{
                     row.sectionCode
                       ? t('courseRegistration.courses.sectionNameDisplay', { code: row.sectionCode })
                       : '—'
                   }}
                 </td>
-                <td class="nowrap">{{ feeCourseSourceLabel(row.courseSource, t) }}</td>
+                <td class="col-sticky-right col-course-source">
+                  {{ feeCourseSourceLabel(row.courseSource, t) }}
+                </td>
+                <td class="col-sticky-right col-preference">
+                  {{ formatStudentResultPreferenceLabel(row, t) }}
+                </td>
+                <td class="col-sticky-right col-op-operator">
+                  <div class="op-operator-cell">
+                    <span class="op-operator-id">{{ row.operatorId || '—' }}</span>
+                    <span v-if="row.operatorName" class="op-operator-name">{{ row.operatorName }}</span>
+                  </div>
+                </td>
+                <td class="col-sticky-right col-op-time">{{ row.operatedAt || '—' }}</td>
+                <td class="col-sticky-right col-op-result">
+                  <span class="result-op-tag" :class="row.opResult">
+                    {{ formatStudentOpResultLabel(row, t) }}
+                  </span>
+                </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="13" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="17" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -792,6 +1036,9 @@ function handleExportConfirm({ selectedFields }) {
           <table v-else-if="isRound1CourseView" class="data-table round-dim-table round1-merge-table">
             <thead>
               <tr>
+                <th class="col-check">
+                  <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
+                </th>
                 <th>{{ t('common.serialNo') }}</th>
                 <th>{{ t('courseRegistration.batch.name') }}</th>
                 <th>{{ t('courseRegistration.courses.code') }}</th>
@@ -836,6 +1083,13 @@ function handleExportConfirm({ selectedFields }) {
                 v-for="row in paginatedRows"
                 :key="row.id || `${row.courseId}-${row.sectionId}`"
               >
+                <td class="col-check">
+                  <input
+                    type="checkbox"
+                    :checked="selectedIds.includes(row.id)"
+                    @change="toggleSelect(row.id)"
+                  />
+                </td>
                 <td
                   v-if="spanCell(row, 'serial')?.show"
                   :rowspan="spanCell(row, 'serial').rowspan"
@@ -929,7 +1183,7 @@ function handleExportConfirm({ selectedFields }) {
                 </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="13" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="14" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -958,18 +1212,18 @@ function handleExportConfirm({ selectedFields }) {
                 <th>
                   <span
                     class="th-with-tip"
-                    :title="t('courseRegistration.result.freshmanCapacityWithRatioTip')"
+                    :title="t('courseRegistration.result.freshmanCapacityEnrolledTip')"
                   >
-                    {{ t('courseRegistration.result.freshmanCapacityWithRatio') }}
+                    {{ t('courseRegistration.result.freshmanCapacityEnrolled') }}
                     <span class="tip-icon" aria-hidden="true">?</span>
                   </span>
                 </th>
                 <th>
                   <span
                     class="th-with-tip"
-                    :title="t('courseRegistration.result.seniorCapacityWithRatioTip')"
+                    :title="t('courseRegistration.result.seniorCapacityEnrolledTip')"
                   >
-                    {{ t('courseRegistration.result.seniorCapacityWithRatio') }}
+                    {{ t('courseRegistration.result.seniorCapacityEnrolled') }}
                     <span class="tip-icon" aria-hidden="true">?</span>
                   </span>
                 </th>
@@ -1056,6 +1310,9 @@ function handleExportConfirm({ selectedFields }) {
     <ExportModal
       :visible="exportModalVisible"
       :fields="exportFields.map((f) => ({ key: f.key, label: t(f.labelKey) }))"
+      :has-selected-rows="hasSelection"
+      :modes="exportModalModes"
+      v-model:mode="r1ExportMode"
       @close="exportModalVisible = false"
       @confirm="handleExportConfirm"
     />
@@ -1313,5 +1570,152 @@ function handleExportConfirm({ selectedFields }) {
 .capacity-full {
   color: #b91c1c;
   background: #fee2e2;
+}
+
+.result-op-tag {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.result-op-tag.pendingAssign {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.result-op-tag.registerSuccess {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.result-op-tag.registerFailure {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.result-op-tag.cancelQueue {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* 学生维搜索：4 列字段 + 操作，两行排完 */
+/* 学生维：表头/单元格单行，短列居中，横向滚动；右侧三列冻结 */
+.student-dim-table {
+  min-width: 1280px;
+}
+
+.student-dim-table th,
+.student-dim-table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.student-dim-table .col-serial,
+.student-dim-table .col-credits {
+  text-align: center;
+}
+
+.student-dim-table .col-sticky-right {
+  position: sticky;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.student-dim-table thead .col-sticky-right {
+  background: #f9fafb;
+  z-index: 4;
+}
+
+.student-dim-table tbody .col-sticky-right {
+  z-index: 2;
+}
+
+.student-dim-table .col-op-result {
+  right: 0;
+  width: 112px;
+  min-width: 112px;
+  max-width: 112px;
+  z-index: 3;
+}
+
+.student-dim-table .col-op-time {
+  right: 112px;
+  width: 148px;
+  min-width: 148px;
+  max-width: 148px;
+  z-index: 2;
+}
+
+.student-dim-table .col-op-operator {
+  right: 260px;
+  width: 128px;
+  min-width: 128px;
+  max-width: 128px;
+  z-index: 2;
+  white-space: normal;
+}
+
+/* 选课志愿：课程来源与操作人之间 */
+.student-dim-table .col-preference {
+  right: 388px;
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+/* 课程来源：贴在志愿列左侧，横向滚动时一并冻结 */
+.student-dim-table .col-course-source {
+  right: 484px;
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+  z-index: 2;
+  box-shadow: -4px 0 6px -4px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+}
+
+.student-dim-table thead .col-op-result {
+  z-index: 6;
+}
+
+.student-dim-table thead .col-op-time {
+  z-index: 5;
+}
+
+.student-dim-table thead .col-op-operator {
+  z-index: 5;
+  white-space: nowrap;
+}
+
+.student-dim-table thead .col-preference {
+  z-index: 5;
+}
+
+.student-dim-table thead .col-course-source {
+  z-index: 5;
+}
+
+.op-operator-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  line-height: 1.35;
+}
+
+.op-operator-id {
+  font-weight: 500;
+  color: #111827;
+}
+
+.op-operator-name {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: normal;
+  word-break: break-word;
 }
 </style>

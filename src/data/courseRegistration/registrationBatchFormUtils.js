@@ -191,6 +191,13 @@ export function addDaysToDateTime(days, from = new Date()) {
   return formatLocalDateTimeWithSeconds(d)
 }
 
+/** 相对某时刻增加小时（重修缴费 72h 等） */
+export function addHoursToDateTime(hours, from = new Date()) {
+  const d = from instanceof Date ? new Date(from.getTime()) : new Date()
+  d.setTime(d.getTime() + (Number(hours) || 0) * 60 * 60 * 1000)
+  return formatLocalDateTimeWithSeconds(d)
+}
+
 export function formatLocalDateTimeWithSeconds(d) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${normalizeTimeParts(
     d.getHours(),

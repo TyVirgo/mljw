@@ -243,3 +243,136 @@
 10. **弹框冻结 + 搜索分栏收放（2026-10）**  
     - 申请弹框：`adddrop-sections__pin`（说明+学分条）+ `__scroll`（表单节）；modal-body `overflow:hidden` 分区滚。  
     - 选课器：对齐列表页 `list-page-search.css`——首行 `search-fields`（代码/名称/学分）+ 右上 `search-actions`（查询/重置/收起）；次行展开校选课类型、课程类型。
+
+11. **学分条七列 + 毕业标签换行（2026-10）**  
+    - `buildAddDropTermCreditStrip` 增加 `totalSelected = elective + mandatory`。  
+    - `AddDropTermCreditStrip`：`repeat(7, 1fr)`；prop `stackGradSelectedRequired` 仅申请弹框为 true，GE/ME 毕业 label 分两行。
+
+12. **加退「我的课表」对齐我的选课（2026-10）**  
+    - 主页课表抽屉改用 `listMyResultCourses` + `buildMyResultSchedule`，`legendMode="myResult"`；废弃 `buildPreviewSchedule(required+confirmed)` 的 register 三色图例。  
+    - 槽位过滤：排除 `pendingDropCodes`（课号/courseId），与退课池「已选全部可退」语义一致；拟加不注入「本轮」虚线（加退无志愿轮次）。  
+    - hint 文案改为含四类已选课、拟退不出现在预览。
+
+13. **详情学分/费用对齐申请弹框（2026-10）**  
+    - `AddDropApplicationDetailBody` 加课/重修表后：总学分 + 超出学分 + 预估费用 + SST（与 `AddDropApplicationFormSections` 同学分区）。  
+    - `hasFeeBoxContent`：仅 `feeEstimate.total>0` / SST>0 / items.length>0 时渲染费用预估节。  
+    - 预估费用短字段与合计读 `feeEstimate`；合计不再回退孤立 `billAmount`（避免「预估 0、合计 2000」）。
+
+14. **学期超出 / 毕业超出拆分（2026-10）**  
+    - `sumGeMeTermStripExcess(strip)`：仅 `strip.ge` / `strip.me` 的 `max(0, current−max)`。  
+    - 表单 `formTermCreditExcess` 改用该函数（废止 `sumTermCategoryCreditExcess` + `computeTermCreditExcess` 展示口径）；提交硬拦学期总帽逻辑可保留。  
+    - 表单/详情字段：学期超出学分 | 毕业超出学分（计费）= `feeEstimate.billableCredits`。  
+    - payload：`termCreditExcess` + `billableCredits`；`excessCredits = max(term, billable)` 供列表列。
+
+15. **重修必修 + 课程组替代（2026-10）**  
+    - `listRetakePickerCourses`：成绩单原课 → 同课 +（非 CORE）组内替代开课；挂 `selectionGroup` / `replacesOriginals` / `groupMaxGrade`。  
+    - GE：虚拟 `selectionGroup`（全部本学期 GE）；ME：批次 `selectionGroups`；CORE：仅同课。  
+    - 选课器重修模式：展开全部分组；展示课程组列（对齐 Register）；曾修列展示原课履历 + 组内最高分。  
+    - 行字段 `replacesCourseCode` / `isSubstituteRetake` 写入 addLines。
+
+16. **重修 Tab + 整门计费（2026-10）**  
+    - 选课器：`retakeTypeTab` = core | ge | me；过滤 `listRetakePickerCourses`；学分条展示见 §21（含 Retake）。  
+    - `estimateCourseFee`：Retake/RetakeDrop → `billableCredits = credits`（含 CORE）；Add/AddDrop 仍按毕业剩余。  
+    - 表单/详情重修节去掉学期超出、毕业超出字段。
+
+17. **重修选课器 GE 无底色 + 曾修按考过 + 名额列（2026-10）**  
+    - `selectionGroupRowClass`：虚拟 GE 组（`ge-virtual-all`）不挂 tone；ME 仍交替底色；仅重修选课器。  
+    - `listRetakePickerCourses`：替代课 `retakeHistory` 仅挂本课号成绩单；无本课成绩则空。选课器 `retakeHistoryLines` 仅输出本课履历，无则「-」。  
+    - 重修模式：曾修列 + 「可选名额/总名额」并排；学期超学分硬拦（`isRowCreditBlocked` 仍拦截）。弹框 `min-width` 提到约 1280px。
+
+18. **必修对齐课表 + 横滑 + 加课 Tab（2026-10）**  
+    - Demo：`course-phys101` type=CORE；补 `course-math101` 开课 + 成绩单挂科；`listRetakePickerCourses` upsert 用成绩单 type/`sourceType` 覆盖课库。  
+    - Tab 过滤：CORE 含 `type=CORE` 或 `sourceType=required`。  
+    - 加课选课器复用同类 Tab；`ELIGIBLE_ADD_SEED` 含 CORE（如 math101 prior_drop）。  
+    - `.table-wrap { overflow-x: auto }`；表 `min-width` + `table-layout: auto`。
+
+19. **重修 polish：绑课表必修 / GE 去组列 / 对齐与悬停（2026-10）**  
+    - `mergeRetakePickerWithTimetableRequired(pool, studentRequiredCourses)`：按课表必修并入 CORE；开课优先课库，附本课 `retakeHistory`。  
+    - `showSelectionGroupColumn`：GE Tab 为 false。  
+    - 名额列：无课级 rowspan；`text-align/vertical-align: middle`。  
+    - 去掉 `tr:hover` / `tr.selected` / sticky 悬停的 `#eff6ff`；保留 tone-0/1。  
+    - 课级 `td` 补 `border-left/right`。
+
+20. **名额对齐 / 曾修按教学班 / 必修无课程组（2026-10）**  
+    - 名额列与同行对齐；右侧冻结见 §22。  
+    - 成绩单补 `sectionCode`；选课器曾修列按 `section.code` 过滤，取消课级 rowspan。  
+    - `showSelectionGroupColumn`：仅 `courseTypeTab === 'me'`。
+
+21. **重修搜索单行 + 学分条 + 表宽（2026-10）**  
+    - 重修/加课 Tab 模式：四条件 + 查询/重置单行；隐藏「更多」。  
+    - `showCreditProgress` 含 Retake；投影仍用 `pickerProjectionCourses`。  
+    - 加课表格 `width: 100%; table-layout: fixed`；重修见 §22。
+
+22. **学分条置顶 / 右冻结 / 跨 Tab 勾选（2026-10）**  
+    - 模板顺序：搜索 → 学分条 → Tab → 已选文案 → 表。  
+    - `selectedRows` 从 `flattenedRows` + `pickedRowKeys` 解析（不限当前 Tab）。  
+    - 重修表 `data-table--retake-hscroll`：`max-content` + 横向滚动；曾修/名额 `position: sticky; right`。
+
+23. **重修同课单分组 + 必修无名额（2026-10）**  
+    - `isRowDisabledBySibling` 对 Retake 启用（按课号互斥分组）；同 `selectionGroup` 不同课可多选。  
+    - `showSeatOrRetakeColumn`：重修且 `courseTypeTab === 'core'` 时 false。  
+    - 修订 §25「重修关闭同课单分组锁」。
+
+24. **详情学分要求条 + 本次申请三学分（2026-10）**  
+    - submit：`termCreditStrip` = 表单当时 `formTermCreditStrip`；`applicationCredits` 仍可持久化但不展示。  
+    - DetailBody：学生信息后挂七列条；「本次申请学分」三格见 §25 撤销。  
+    - 修订「审批详情不展示学分摘要」：仅禁旧 x/y 条，允许七列条。
+
+25. **类型文案 + 详情条表头 + 去掉三格（2026-10）**  
+    - i18n：`approval.type.Add/Retake(/AddDrop/RetakeDrop)` → 加课（退课）/ 重修（退课）；Drop 仍为退课。  
+    - DetailBody：去掉 applicationCredits UI；strip 不传 `stackGradSelectedRequired`，表头 `nowrap` + 略小字号。
+
+26. **审核行内决策 + 默认出账（2026-10）**  
+    - `AddDropApprovalModal`：行内 `approved|rejected|update_required` + `lineCommentsMap`；批量按钮同步三态。  
+    - 提交：`resolveActionFromLineDecisions`；`generateBill` 仅在 Approved/部分通过且 `showGenerateBill` 时恒 true。  
+    - `showLineOps` 时隐藏底部 form-table；`targetCount>1` 无行表时保留整单区（无账单勾选）。
+
+27. **详情去审批钮 + 审批弹窗布局（2026-10）**  
+    - `AddDropApprovalDetailDrawer`：footer 仅关闭；去掉内嵌审批入口（列表行「审批」打开 `AddDropApprovalModal`）。  
+    - 弹窗标题改 `courseRegistration.approval.modalTitle`（中文「审批」），避免 `tr('Approval')`→「审核」。  
+    - 去掉 `itemsSummary` section-bar；保留批量三钮。  
+    - 列：`table-layout: auto`；类型列 nowrap 完整文案；`col-op` / 意见框约减半宽。  
+    - `enrichAddDropScheduleItem` + queue seed 补 `courseName`（课库 demo 对照）。
+
+28. **行内意见宽恢复 + 行高减半（2026-10）**  
+    - 撤销 §27 意见框 160px 硬锁；`line-op-stack` / 意见框恢复约 `min-width: 200px`。  
+    - `.line-comments-input` 覆盖 `.comments-input` 的 120px：`min-height` 约 40–52px、减小 padding/footer；`rows="1"`。  
+    - 整单 form-table Comments 仍用通用 `min-height: 120px`。
+
+29. **审批文案对齐通过/不通过/驳回（2026-10）**  
+    - `appStatus.Approved`：已批准→已通过（en: Passed）。  
+    - `lineApproved/Rejected`：已同意/已不同意→已通过/不通过；新增 `lineUpdateRequired`：驳回。  
+    - `AddDropApplicationDetailBody.lineDecisionLabel` 映射三态；`showLineDecisionColumn` 含 `update_required`。  
+    - 范围仅 `courseRegistration.approval`，不改白名单 entryStatus 等。
+
+30. **申请弹框学分条单行 + 加宽（2026-10）**  
+    - FormSections：去掉 `stack-grad-selected-required`。  
+    - `AddDropTermCreditStrip`：label `white-space: nowrap`，字号略缩。  
+    - `StudentAddDropView` `.cr-adddrop-modal`：`720px` → 约 `min(960px, 96vw)`。
+
+31. **审批公共 Comments（2026-10）**  
+    - 修订 §26：有行表时行内仅三态 radio；去掉 `lineCommentsMap`。  
+    - `showLineOps` 时在表下展示共用 Comments（`comments` + 常用意见），不展示底部整单 Action。  
+    - `resolvePayloadFromLines` 用 `comments`；不通过/全驳回校验公共意见。  
+    - 批量无行表仍为整单 Action + Comments。
+
+32. **审批名额列 + 操作单行 + 提示文案（2026-10）**  
+    - `AddDropApprovalModal`：操作列前加「可选名额/总名额」；enrich 补 `remainingCapacity`/`capacity`。  
+    - `.radio-group.line-op-radios` 提高特异性强制 `nowrap` 单行。  
+    - `StudentAddDropView`：去掉 AddDrop/RetakeDrop 联合 callout。  
+    - i18n `pickerAddEligibilityTip` 更新必修/选修分述文案。
+
+33. **名额列表头加宽 + 审批着色（2026-10）**  
+    - `AddDropCoursePickerModal`：`.sticky-status` `7.5em` → 约 `10em`；曾修列 `right` 同步。  
+    - `AddDropApprovalModal`：名额用 `seat-status open|full`（绿/红）。
+
+34. **审批列表专业列（2026-10）**  
+    - `getAddDropApprovalListColumns`：在 `submittedAt` 前插入 `programme`。  
+    - `AddDropApprovalView`：表头/单元格读 `row.programme`（i18n 复用 monitor.programme）。
+
+35. **列表搜索扩展（2026-10）**  
+    - `filterAddDropQueue`：支持 `status` / `billStatus` / `academicSession` / `studentId` / `studentName` / `keyword`(单号)。  
+    - 审批页 searchForm 扩展；待审批状态 Pending|In Review，历史 Approved|PartiallyApproved|Rejected|Cancelled。  
+    - 学生 `StudentAddDropView`：加 `academicSession` / `billStatus` / `applicationNo`。  
+    - 两端搜索：首行常用条件 + 查询/重置/`toggle-link`；次行 `search-row-secondary`（`searchExpanded` 默认 true）。  
+    - i18n：`approval.bill.none` → 无账单。

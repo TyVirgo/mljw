@@ -3,8 +3,7 @@ import { computed } from 'vue'
 import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
 import CourseCodeSourcePopover from './CourseCodeSourcePopover.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
-import { getSchoolElectiveCategoryLabel } from '../../data/departments.js'
+import { formatUnifiedCourseCategoryLabel } from '../../data/courseRegistration/unifiedCourseCategory.js'
 import '../../styles/course-registration-list.css'
 
 const props = defineProps({
@@ -14,7 +13,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-const { t, isZh } = useAppI18n()
+const { t } = useAppI18n()
 
 /** 默认按课程代码字典序（课号首字母 → 整码） */
 const sortedCourses = computed(() =>
@@ -40,8 +39,7 @@ const sortedCourses = computed(() =>
                 <th class="col-serial">{{ t('common.serialNo') }}</th>
                 <th>{{ t('courseRegistration.courses.code') }}</th>
                 <th>{{ t('courseRegistration.courses.name') }}</th>
-                <th>{{ t('courseRegistration.courses.schoolElectiveCategory') }}</th>
-                <th>{{ t('courseRegistration.courses.type') }}</th>
+                <th>{{ t('courseRegistration.courses.category') }}</th>
                 <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
               </tr>
             </thead>
@@ -52,14 +50,11 @@ const sortedCourses = computed(() =>
                   <CourseCodeSourcePopover :code="course.code" :course="course" />
                 </td>
                 <td>{{ course.name }}</td>
-                <td class="nowrap">
-                  {{ getSchoolElectiveCategoryLabel(course.schoolElectiveCategory, isZh) }}
-                </td>
-                <td class="nowrap">{{ getRegistrationTypeLabel(course.type, t) }}</td>
+                <td class="nowrap">{{ formatUnifiedCourseCategoryLabel(course, t) }}</td>
                 <td class="col-credits">{{ course.credits }}</td>
               </tr>
               <tr v-if="!sortedCourses.length">
-                <td colspan="6" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="5" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>

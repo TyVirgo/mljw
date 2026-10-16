@@ -12,10 +12,21 @@ export const monitorExportFields = [
   { key: 'studentName', labelKey: 'courseRegistration.monitor.studentName' },
   { key: 'programme', labelKey: 'courseRegistration.monitor.programme' },
   { key: 'intake', labelKey: 'courseRegistration.monitor.intake' },
-  { key: 'graduationGe', labelKey: 'courseRegistration.monitor.colGraduationGe' },
-  { key: 'graduationMe', labelKey: 'courseRegistration.monitor.colGraduationMe' },
-  { key: 'termGe', labelKey: 'courseRegistration.monitor.colTermGe' },
-  { key: 'termMe', labelKey: 'courseRegistration.monitor.colTermMe' },
+  { key: 'termTotalCredits', labelKey: 'courseRegistration.monitor.colTermTotalCredits' },
+  { key: 'graduationGe', labelKey: 'courseRegistration.monitor.exportGraduationGe' },
+  { key: 'graduationGeCompletion', labelKey: 'courseRegistration.monitor.exportGraduationGeCompletion' },
+  { key: 'termGe', labelKey: 'courseRegistration.monitor.exportTermGe' },
+  { key: 'termGeCompletion', labelKey: 'courseRegistration.monitor.exportTermGeCompletion' },
+  { key: 'graduationMe', labelKey: 'courseRegistration.monitor.exportGraduationMe' },
+  { key: 'graduationMeCompletion', labelKey: 'courseRegistration.monitor.exportGraduationMeCompletion' },
+  { key: 'termMe', labelKey: 'courseRegistration.monitor.exportTermMe' },
+  { key: 'termMeCompletion', labelKey: 'courseRegistration.monitor.exportTermMeCompletion' },
+  { key: 'graduationMandatory', labelKey: 'courseRegistration.monitor.colMandatoryGrad' },
+  {
+    key: 'graduationMandatoryCompletion',
+    labelKey: 'courseRegistration.monitor.colMandatoryCompletion',
+  },
+  { key: 'remindCount', labelKey: 'courseRegistration.monitor.colRemindCount' },
 ]
 
 export const approvalExportFields = [
@@ -30,6 +41,35 @@ export const approvalExportFields = [
   { key: 'billStatus', labelKey: 'courseRegistration.approval.billLabel' },
   { key: 'submittedAt', labelKey: 'courseRegistration.approval.submittedAt' },
   { key: 'status', labelKey: 'common.status' },
+]
+
+/**
+ * 审批历史「导出缴费」：一行一课；同申请身份/SST/总费用列导出时纵向合并
+ * 不含欠学费
+ */
+export const approvalPaymentExportFields = [
+  { key: 'studentId', labelKey: 'courseRegistration.monitor.studentId' },
+  { key: 'studentName', labelKey: 'courseRegistration.monitor.studentName' },
+  { key: 'applicationNo', labelKey: 'courseRegistration.approval.applicationNo' },
+  { key: 'billStatus', labelKey: 'courseRegistration.approval.billLabel' },
+  { key: 'paymentStatus', labelKey: 'courseRegistration.approval.exportPaymentStatus' },
+  { key: 'sstFee', labelKey: 'courseRegistration.approval.exportSstFee' },
+  { key: 'totalFee', labelKey: 'courseRegistration.approval.exportTotalFee' },
+  { key: 'courseCode', labelKey: 'courseRegistration.courses.code' },
+  { key: 'courseName', labelKey: 'courseRegistration.courses.name' },
+  { key: 'credits', labelKey: 'courseRegistration.courses.credits' },
+  { key: 'courseFee', labelKey: 'courseRegistration.approval.exportCourseFee' },
+]
+
+/** 同申请多课行时纵向合并的列（整单身份与费用） */
+export const approvalPaymentExportMergeFieldKeys = [
+  'studentId',
+  'studentName',
+  'applicationNo',
+  'billStatus',
+  'paymentStatus',
+  'sstFee',
+  'totalFee',
 ]
 
 export const supplementExportFields = [
@@ -67,6 +107,10 @@ export const resultStudentExportFields = [
   { key: 'courseType', labelKey: 'courseRegistration.courses.type' },
   { key: 'sectionCode', labelKey: 'courseRegistration.courses.sectionCode' },
   { key: 'courseSource', labelKey: 'courseRegistration.student.courseSource' },
+  { key: 'preferenceRank', labelKey: 'courseRegistration.result.coursePreference' },
+  { key: 'operator', labelKey: 'courseRegistration.log.operator' },
+  { key: 'operatedAt', labelKey: 'courseRegistration.log.operatedAt' },
+  { key: 'opResult', labelKey: 'courseRegistration.log.resultLabel' },
 ]
 
 export const resultCourseExportFields = [
@@ -77,6 +121,38 @@ export const resultCourseExportFields = [
   { key: 'effectiveCapacity', labelKey: 'courseRegistration.courses.effectiveCapacity' },
   { key: 'enrolledFreshman', labelKey: 'courseRegistration.courses.enrolledFreshman' },
   { key: 'enrolledSenior', labelKey: 'courseRegistration.courses.enrolledSenior' },
+]
+
+/** 第一轮主表 / 志愿名单：学生明细 */
+export const resultR1DetailExportFields = [
+  { key: 'batchName', labelKey: 'courseRegistration.batch.name' },
+  { key: 'courseCode', labelKey: 'courseRegistration.courses.code' },
+  { key: 'courseName', labelKey: 'courseRegistration.courses.name' },
+  { key: 'sectionCode', labelKey: 'courseRegistration.result.volunteerSectionGroup' },
+  { key: 'studentId', labelKey: 'courseRegistration.monitor.studentId' },
+  { key: 'studentName', labelKey: 'courseRegistration.monitor.studentName' },
+  { key: 'programme', labelKey: 'courseRegistration.monitor.programme' },
+  { key: 'intake', labelKey: 'courseRegistration.monitor.intake' },
+  { key: 'relativeSemester', labelKey: 'courseRegistration.result.volunteerRelativeSemester' },
+  { key: 'preferenceRank', labelKey: 'courseRegistration.result.coursePreference' },
+  { key: 'submittedAt', labelKey: 'courseRegistration.result.volunteerSubmittedAt' },
+  { key: 'isGraduate', labelKey: 'courseRegistration.result.volunteerIsGraduate' },
+  { key: 'selected', labelKey: 'courseRegistration.result.exportSelected' },
+]
+
+/** 第一轮主表：课程×分组汇总 */
+export const resultR1SummaryExportFields = [
+  { key: 'batchName', labelKey: 'courseRegistration.batch.name' },
+  { key: 'courseCode', labelKey: 'courseRegistration.courses.code' },
+  { key: 'courseName', labelKey: 'courseRegistration.courses.name' },
+  { key: 'courseType', labelKey: 'courseRegistration.courses.type' },
+  { key: 'credits', labelKey: 'courseRegistration.courses.credits' },
+  { key: 'sectionCode', labelKey: 'courseRegistration.result.volunteerSectionGroup' },
+  { key: 'capacityLabel', labelKey: 'courseRegistration.result.volunteerCapacityLabel' },
+  { key: 'selectedPercentLabel', labelKey: 'courseRegistration.courses.volunteerSelectedPercent' },
+  { key: 'effectiveCapacityLabel', labelKey: 'courseRegistration.result.effectiveCapacityWithRatio' },
+  { key: 'seniorCapacityLabel', labelKey: 'courseRegistration.result.seniorCapacityEnrolled' },
+  { key: 'specialAddedCount', labelKey: 'courseRegistration.result.specialAddedCount' },
 ]
 
 export const registrationLogExportFields = [
@@ -124,3 +200,25 @@ export const feeRosterCourseExportFields = [
 
 /** @deprecated 使用 feeRosterStudentExportFields */
 export const feeRosterExportFields = feeRosterStudentExportFields
+
+/** 课程班学生名单导出（图示2；courseCode / courseCodeAgain 表头同为「课程代码」） */
+export const sectionStudentRosterExportFields = [
+  { key: 'rosterId', labelKey: 'courseRegistration.sectionRoster.rosterId' },
+  { key: 'sectionId', labelKey: 'courseRegistration.sectionRoster.sectionId' },
+  { key: 'academicSession', labelKey: 'courseRegistration.sectionRoster.term' },
+  { key: 'courseCode', labelKey: 'courseRegistration.courses.code' },
+  { key: 'sectionName', labelKey: 'courseRegistration.sectionRoster.sectionName' },
+  { key: 'courseId', labelKey: 'courseRegistration.sectionRoster.courseId' },
+  { key: 'courseCodeAgain', labelKey: 'courseRegistration.courses.code' },
+  { key: 'courseName', labelKey: 'courseRegistration.courses.name' },
+  { key: 'credits', labelKey: 'courseRegistration.monitor.credits' },
+  { key: 'studentId', labelKey: 'courseRegistration.monitor.studentId' },
+  { key: 'studentName', labelKey: 'courseRegistration.monitor.studentName' },
+  { key: 'grade', labelKey: 'courseRegistration.sectionRoster.grade' },
+  { key: 'movementStatus', labelKey: 'courseRegistration.sectionRoster.movementStatus' },
+  { key: 'programme', labelKey: 'courseRegistration.monitor.programme' },
+  { key: 'studyMode', labelKey: 'courseRegistration.sectionRoster.studyMode' },
+  { key: 'lecturers', labelKey: 'courseRegistration.courses.lecturer' },
+  { key: 'classTimeVenue', labelKey: 'courseRegistration.courses.classTime' },
+  { key: 'owner', labelKey: 'courseRegistration.sectionRoster.owner' },
+]

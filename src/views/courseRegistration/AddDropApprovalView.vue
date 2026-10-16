@@ -17,11 +17,18 @@ import {
   addDropApplicationHasBillableFee,
   incrementPaymentRemindCount,
   ensureApplicationItems,
+  canAbortApprovedAddDropBill,
+  abortApprovedAddDropApplication,
 } from '../../data/courseRegistration/addDropApprovalQueue.js'
-import { approvalExportFields } from '../../data/courseRegistration/courseRegistrationExportFields.js'
+import {
+  approvalExportFields,
+  approvalPaymentExportFields,
+  approvalPaymentExportMergeFieldKeys,
+} from '../../data/courseRegistration/courseRegistrationExportFields.js'
 import {
   exportCourseRegistrationData,
   formatApprovalExportRow,
+  formatApprovalPaymentExportRow,
 } from '../../utils/exportCourseRegistrationExcel.js'
 import { getAddDropCourseColumnTexts } from '../../utils/addDropCourseDisplay.js'
 import {
@@ -29,6 +36,12 @@ import {
   displayClassTimeVenueFromFields,
 } from '../../data/courseRegistration/sectionScheduleFields.js'
 import { getAddDropApprovalListColumns, isShieldedAddDropType } from '../../data/courseRegistration/addDropListColumns.js'
+import {
+  addDropTypeLabelKey,
+  addDropTypeTagClass,
+  addDropPrimaryOptionLabelKey,
+  resolveAppNeedDrop,
+} from '../../data/courseRegistration/addDropTypeDisplay.js'
 import { addDropStatusBadgeClass } from '../../data/courseRegistration/addDropStatusBadge.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 import {
@@ -43,27 +56,49 @@ import {
   canRemindPayment,
   canRegeneratePaymentOrder,
   buildPaymentRemindDraft,
+  collectApprovalPaymentExportLines,
 } from '../../data/courseRegistration/adminAddDropPaymentInsight.js'
+import {
+  ensureDateTimeWithSeconds,
+  registrationAcademicSessionOptions,
+} from '../../data/courseRegistration/registrationBatchFormUtils.js'
 import '../../styles/list-page-search.css'
 import '../../styles/course-registration-list.css'
 import '../../styles/movement-status-badge.css'
 
-const { t, tr, isZh } = useAppI18n()
+const { t, isZh } = useAppI18n()
 
 const APPROVAL_TABS = [
   { id: 'pending', labelKey: 'courseRegistration.approval.tabs.pending' },
   { id: 'history', labelKey: 'courseRegistration.approval.tabs.history' },
 ]
 
+const EMPTY_SEARCH = {
+  programme: '',
+  type: '',
+  status: '',
+  billStatus: '',
+  academicSession: '',
+  studentId: '',
+  studentName: '',
+  keyword: '',
+}
+
+const BILL_STATUS_OPTIONS = ['pending', 'paid', 'cancelled', 'none']
+const PENDING_STATUS_OPTIONS = ['Pending', 'In Review']
+const HISTORY_STATUS_OPTIONS = ['Approved', 'PartiallyApproved', 'Rejected', 'Cancelled']
+
 const activeTab = ref('pending')
-const searchForm = ref({ programme: '', type: '', keyword: '' })
-const appliedSearch = ref({ programme: '', type: '', keyword: '' })
-const selectedIds = ref([])
+const searchExpanded = ref(true)
+const searchForm = ref({ ...EMPTY_SEARCH })
+const appliedSearch = ref({ ...EMPTY_SEARCH })
 const currentPage = ref(1)
 const pageSize = ref(20)
 const detailApp = ref(null)
 const detailMode = ref('readonly')
 const exportModalVisible = ref(false)
+/** 缴费课行导出弹窗 */
+const paymentExportModalVisible = ref(false)
 const approvalModalVisible = ref(false)
 const pendingApprovalIds = ref([])
 const billDetailApp = ref(null)
@@ -103,79 +138,76 @@ const paginatedRows = computed(() => {
   return rows.value.slice(start, start + pageSize.value)
 })
 
-const showApproveToolbar = computed(() => activeTab.value === 'pending')
+const isPendingTab = computed(() => activeTab.value === 'pending')
 const isHistoryTab = computed(() => activeTab.value === 'history')
 
-const allPageSelected = computed(() => {
-  if (!paginatedRows.value.length) return false
-  return paginatedRows.value.every((row) => selectedIds.value.includes(row.id))
-})
-
-const selectedRows = computed(() =>
-  selectedIds.value
-    .map((id) => addDropApprovalQueue.value.find((row) => row.id === id))
-    .filter(
-      (row) =>
-        row &&
-        (row.status === 'Pending' || row.status === 'In Review') &&
-        !isShieldedAddDropType(row.type),
-    ),
+const statusFilterOptions = computed(() =>
+  isHistoryTab.value ? HISTORY_STATUS_OPTIONS : PENDING_STATUS_OPTIONS,
 )
 
-const canApproveSelection = computed(
-  () => showApproveToolbar.value && selectedRows.value.length > 0,
-)
+const academicSessionOptions = registrationAcademicSessionOptions
 
 const listColumns = computed(() =>
   getAddDropApprovalListColumns(appliedSearch.value.type || '', {
-    showCheck: showApproveToolbar.value,
+    showCheck: false,
     showPaymentRemaining: isHistoryTab.value,
   }),
 )
 const tableColspan = computed(() => listColumns.value.length)
 
-const batchShowGenerateBill = computed(() =>
-  pendingApprovalIds.value.some((id) => {
-    const row = addDropApprovalQueue.value.find((r) => r.id === id)
-    return addDropApplicationHasBillableFee(row)
-  }),
-)
+const approvalShowGenerateBill = computed(() => {
+  const id = pendingApprovalIds.value[0]
+  if (!id) return false
+  const row = addDropApprovalQueue.value.find((r) => r.id === id)
+  return addDropApplicationHasBillableFee(row)
+})
 
 watch(activeTab, (tab) => {
   currentPage.value = 1
-  selectedIds.value = []
   if (tab === 'history') ensureHistoryPaymentDueDemo()
+  // Tab 切换时清空不适用的状态筛选
+  if (searchForm.value.status && !statusFilterOptions.value.includes(searchForm.value.status)) {
+    searchForm.value = { ...searchForm.value, status: '' }
+    appliedSearch.value = { ...appliedSearch.value, status: '' }
+  }
 })
 
 function handleSearch() {
   appliedSearch.value = { ...searchForm.value }
   currentPage.value = 1
-  selectedIds.value = []
 }
 
 function handleReset() {
-  searchForm.value = { programme: '', type: '', keyword: '' }
-  appliedSearch.value = { programme: '', type: '', keyword: '' }
+  searchForm.value = { ...EMPTY_SEARCH }
+  appliedSearch.value = { ...EMPTY_SEARCH }
   currentPage.value = 1
-  selectedIds.value = []
+}
+
+function statusFilterLabel(status) {
+  return t(`courseRegistration.approval.appStatus.${status}`)
+}
+
+function billStatusFilterLabel(status) {
+  return t(`courseRegistration.approval.bill.${status}`)
+}
+
+function canApproveRow(row) {
+  if (!row) return false
+  if (isShieldedAddDropType(row.type)) return false
+  return row.status === 'Pending' || row.status === 'In Review'
 }
 
 function typeLabel(type) {
-  const primary =
-    type === 'AddDrop' ? 'Add' : type === 'RetakeDrop' ? 'Retake' : type
-  return t(`courseRegistration.approval.type.${primary}`)
+  return t(addDropTypeLabelKey(type))
 }
 
 function typeClass(type) {
-  const primary =
-    type === 'AddDrop' ? 'Add' : type === 'RetakeDrop' ? 'Retake' : type
-  const map = {
-    Add: 'type-add',
-    Drop: 'type-drop',
-    Retake: 'type-retake',
-    Replace: 'type-replace',
-  }
-  return map[primary] || ''
+  return addDropTypeTagClass(type)
+}
+
+/** 筛选主类型三选一文案 */
+function primaryOptionLabel(primary) {
+  return t(addDropPrimaryOptionLabelKey(primary))
 }
 
 function billLabel(status) {
@@ -186,7 +218,11 @@ function billLabel(status) {
 function paymentRemainingText(row) {
   void nowTick.value
   const info = getPaymentRemainingInfo(row, nowTick.value)
-  if (info.kind === 'none' || info.kind === 'settled') return '—'
+  // 已缴账单：剩余时间列展示「已缴费」
+  if (info.kind === 'settled' || row?.billStatus === 'paid') {
+    return t('courseRegistration.approval.paymentRemainingPaid')
+  }
+  if (info.kind === 'none') return '—'
   if (info.kind === 'overdue') return t('courseRegistration.approval.paymentOverdue')
   if (info.kind === 'unknown') return t(info.labelKey)
   if (info.kind === 'remaining') return formatRemainingDuration(info.remainingMs, t)
@@ -253,17 +289,7 @@ function listFee(row) {
 }
 
 function listExcessCredits(row) {
-  if (!row || row.type === 'Drop') return '—'
-  const n = resolveAddDropExcessCredits(row)
-  if (
-    n <= 0 &&
-    (row.excessCredits == null || row.excessCredits === '') &&
-    row.billableCredits == null &&
-    row.feeEstimate?.billableCredits == null
-  ) {
-    return '—'
-  }
-  return n
+  return resolveAddDropExcessCredits(row)
 }
 
 function listRetakeType(row) {
@@ -286,8 +312,10 @@ const COLUMN_HEADER_KEYS = {
   applicationNo: 'courseRegistration.approval.applicationNo',
   status: 'courseRegistration.approval.status',
   type: 'courseRegistration.approval.typeLabel',
+  needDrop: 'courseRegistration.approval.needDropColumn',
   studentId: 'courseRegistration.monitor.studentId',
   studentName: 'courseRegistration.monitor.studentName',
+  programme: 'courseRegistration.monitor.programme',
   academicSession: 'courseRegistration.batch.academicSession',
   addCourse: 'courseRegistration.approval.addCourseName',
   dropCourse: 'courseRegistration.approval.dropCourseName',
@@ -321,6 +349,12 @@ function columnClass(col) {
   if (col === 'applicationNo') return 'sticky-left sticky-no nowrap'
   if (col === 'status') return 'col-status nowrap'
   if (col === 'classTimeVenue') return 'col-time-venue'
+  if (col === 'needDrop') return 'col-compact col-need-drop'
+  if (col === 'excessCredits') return 'col-compact col-excess'
+  if (col === 'fee') return 'col-compact col-fee'
+  if (col === 'bill') return 'col-compact col-bill'
+  if (col === 'paymentRemindCount') return 'col-compact col-remind-count'
+  if (col === 'paymentRemaining') return 'col-remaining'
   if (col === 'actions') {
     return isHistoryTab.value
       ? 'sticky-right sticky-actions sticky-actions--history nowrap'
@@ -335,7 +369,11 @@ function cellText(col, row, index) {
   if (col === 'applicationNo') return row.applicationNo
   if (col === 'studentId') return row.studentId
   if (col === 'studentName') return row.studentName
+  if (col === 'programme') return row.programmeName || row.programme || row.programmeCode || '—'
   if (col === 'academicSession') return row.academicSession || '—'
+  if (col === 'needDrop') {
+    return resolveAppNeedDrop(row) === 'yes' ? t('common.yes') : t('common.no')
+  }
   if (col === 'addCourse') return courseColumns(row).add
   if (col === 'dropCourse') return courseColumns(row).drop
   if (col === 'retakeCourse') return courseColumns(row).retake
@@ -356,7 +394,7 @@ function cellText(col, row, index) {
     return t('courseRegistration.approval.paymentRemindCountTimes', { n })
   }
   if (col === 'paymentRemaining') return paymentRemainingText(row)
-  if (col === 'submittedAt') return row.submittedAt
+  if (col === 'submittedAt') return ensureDateTimeWithSeconds(row.submittedAt) || row.submittedAt || ''
   return ''
 }
 
@@ -401,60 +439,53 @@ function handleOrderRegenConfirm() {
   }, 3200)
 }
 
-function toggleSelectAll(event) {
-  const pageIds = paginatedRows.value.map((row) => row.id)
-  if (event.target.checked) {
-    selectedIds.value = [...new Set([...selectedIds.value, ...pageIds])]
-  } else {
-    selectedIds.value = selectedIds.value.filter((id) => !pageIds.includes(id))
+function handleAbortApplication(row) {
+  if (!row?.id || !canAbortApprovedAddDropBill(row)) return
+  const ok = window.confirm(
+    t('courseRegistration.approval.abortConfirm', { name: row.studentName || row.applicationNo }),
+  )
+  if (!ok) return
+  const result = abortApprovedAddDropApplication(row.id)
+  if (!result.ok) {
+    window.alert(t(result.errorKey || 'courseRegistration.approval.abortNotAllowed'))
+    return
   }
-}
-
-function toggleSelect(id) {
-  if (selectedIds.value.includes(id)) {
-    selectedIds.value = selectedIds.value.filter((x) => x !== id)
-  } else {
-    selectedIds.value = [...selectedIds.value, id]
-  }
+  nowTick.value = Date.now()
+  pageToast.value = t('courseRegistration.approval.abortSuccess', {
+    name: row.studentName || '',
+  })
+  window.setTimeout(() => {
+    if (pageToast.value) pageToast.value = ''
+  }, 3200)
 }
 
 const singleApprovalApp = computed(() => {
-  if (pendingApprovalIds.value.length !== 1) return null
   const id = pendingApprovalIds.value[0]
+  if (!id) return null
   const row = addDropApprovalQueue.value.find((r) => r.id === id)
   return ensureApplicationItems(row)
 })
 
-function openBatchApproval() {
-  if (!canApproveSelection.value) {
-    window.alert(tr('Please select one or more applications that can be approved.'))
-    return
-  }
-  pendingApprovalIds.value = selectedRows.value.map((r) => {
-    ensureApplicationItems(r)
-    return r.id
-  })
+function openRowApproval(row) {
+  if (!canApproveRow(row)) return
+  ensureApplicationItems(row)
+  pendingApprovalIds.value = [row.id]
   approvalModalVisible.value = true
 }
 
-function handleBatchApprovalConfirm({ action, comment, generateBill, lineDecisions }) {
-  let failed = 0
-  const singleId =
-    pendingApprovalIds.value.length === 1 ? pendingApprovalIds.value[0] : null
-  for (const id of pendingApprovalIds.value) {
-    const row = addDropApprovalQueue.value.find((r) => r.id === id)
-    if (!row || (row.status !== 'Pending' && row.status !== 'In Review')) continue
-    const result = decideAddDropApplication(id, action, comment, {
-      generateBill,
-      lineDecisions: id === singleId ? lineDecisions : undefined,
-    })
-    if (!result.ok) failed += 1
-  }
+function handleApprovalConfirm({ action, comment, generateBill, lineDecisions }) {
+  const id = pendingApprovalIds.value[0]
   pendingApprovalIds.value = []
   approvalModalVisible.value = false
-  selectedIds.value = []
-  if (failed > 0) {
-    window.alert(t('courseRegistration.approval.batchPartialFail', { count: failed }))
+  if (!id) return
+  const row = addDropApprovalQueue.value.find((r) => r.id === id)
+  if (!row || (row.status !== 'Pending' && row.status !== 'In Review')) return
+  const result = decideAddDropApplication(id, action, comment, {
+    generateBill,
+    lineDecisions,
+  })
+  if (!result.ok) {
+    window.alert(t(result.errorKey || 'courseRegistration.approval.invalidAction'))
   }
   if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
 }
@@ -471,6 +502,48 @@ function handleExportConfirm({ selectedFields }) {
     i18n: { t },
   })
   exportModalVisible.value = false
+}
+
+/**
+ * 打开缴费导出：无课行则提示
+ */
+function openPaymentExportModal() {
+  const lines = collectApprovalPaymentExportLines(rows.value)
+  if (!lines.length) {
+    window.alert(t('common.noData'))
+    return
+  }
+  paymentExportModalVisible.value = true
+}
+
+/**
+ * 确认导出缴费课行明细
+ * @param {{ selectedFields: string[] }} payload
+ */
+function handlePaymentExportConfirm({ selectedFields }) {
+  const lines = collectApprovalPaymentExportLines(rows.value)
+  if (!lines.length) {
+    window.alert(t('common.noData'))
+    paymentExportModalVisible.value = false
+    return
+  }
+  const timestamp = new Date().toISOString().slice(0, 10)
+  const columns = approvalPaymentExportFields.filter((col) => selectedFields.includes(col.key))
+  // 仅合并当前勾选中的整单列
+  const mergeFieldKeys = approvalPaymentExportMergeFieldKeys.filter((key) =>
+    selectedFields.includes(key),
+  )
+  exportCourseRegistrationData({
+    rows: lines,
+    columns,
+    formatRow: formatApprovalPaymentExportRow,
+    filename: `add-drop-payment-${timestamp}.xlsx`,
+    sheetName: t('courseRegistration.approval.exportPaymentSheet'),
+    i18n: { t },
+    mergeByKey: 'mergeKey',
+    mergeFieldKeys,
+  })
+  paymentExportModalVisible.value = false
 }
 </script>
 
@@ -507,42 +580,92 @@ function handleExportConfirm({ selectedFields }) {
               <label>{{ t('courseRegistration.approval.typeLabel') }}</label>
               <select v-model="searchForm.type" class="search-select">
                 <option value="">{{ t('common.all') }}</option>
-                <option v-for="opt in addDropTypeOptions" :key="opt" :value="opt">{{ typeLabel(opt) }}</option>
+                <option v-for="opt in addDropTypeOptions" :key="opt" :value="opt">{{
+                  primaryOptionLabel(opt)
+                }}</option>
               </select>
             </div>
             <div class="search-item">
-              <label>{{ t('courseRegistration.approval.applicationNo') }}</label>
-              <input v-model="searchForm.keyword" type="text" class="search-input" />
+              <label>{{ t('common.status') }}</label>
+              <select v-model="searchForm.status" class="search-select">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in statusFilterOptions" :key="opt" :value="opt">
+                  {{ statusFilterLabel(opt) }}
+                </option>
+              </select>
             </div>
+            <div class="search-item">
+              <label>{{ t('courseRegistration.approval.billLabel') }}</label>
+              <select v-model="searchForm.billStatus" class="search-select">
+                <option value="">{{ t('common.all') }}</option>
+                <option v-for="opt in BILL_STATUS_OPTIONS" :key="opt" :value="opt">
+                  {{ billStatusFilterLabel(opt) }}
+                </option>
+              </select>
+            </div>
+            <template v-if="searchExpanded">
+              <div class="search-item">
+                <label>{{ t('courseRegistration.batch.academicSession') }}</label>
+                <select v-model="searchForm.academicSession" class="search-select">
+                  <option value="">{{ t('common.all') }}</option>
+                  <option v-for="opt in academicSessionOptions" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
+              </div>
+              <div class="search-item">
+                <label>{{ t('courseRegistration.monitor.studentId') }}</label>
+                <input v-model="searchForm.studentId" type="text" class="search-input" />
+              </div>
+              <div class="search-item">
+                <label>{{ t('courseRegistration.monitor.studentName') }}</label>
+                <input v-model="searchForm.studentName" type="text" class="search-input" />
+              </div>
+              <div class="search-item">
+                <label>{{ t('courseRegistration.approval.applicationNo') }}</label>
+                <input
+                  v-model="searchForm.keyword"
+                  type="text"
+                  class="search-input"
+                  @keyup.enter="handleSearch"
+                />
+              </div>
+            </template>
           </div>
           <div class="search-actions">
             <button type="button" class="btn btn-primary" @click="handleSearch">{{ t('common.search') }}</button>
             <button type="button" class="btn btn-default" @click="handleReset">{{ t('common.reset') }}</button>
+            <button type="button" class="toggle-link" @click="searchExpanded = !searchExpanded">
+              {{ searchExpanded ? t('common.collapse') : t('common.more') }}
+              <svg
+                :class="{ up: searchExpanded }"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
 
       <div class="toolbar">
-        <button
-          v-if="showApproveToolbar"
-          type="button"
-          class="btn btn-primary"
-          :disabled="!canApproveSelection"
-          @click="openBatchApproval"
-        >
-          {{ t('courseRegistration.approval.approve') }}
-        </button>
         <button type="button" class="btn btn-outline" @click="exportModalVisible = true">
           {{ t('common.export') }}
+        </button>
+        <button
+          v-if="isHistoryTab"
+          type="button"
+          class="btn btn-outline"
+          @click="openPaymentExportModal"
+        >
+          {{ t('courseRegistration.approval.exportPayment') }}
         </button>
       </div>
 
       <div class="table-section">
         <div class="table-wrap table-wrap--scroll">
-          <table
-            class="data-table data-table--sticky"
-            :class="{ 'data-table--with-check': showApproveToolbar }"
-          >
+          <table class="data-table data-table--sticky">
             <thead>
               <tr>
                 <th
@@ -551,13 +674,7 @@ function handleExportConfirm({ selectedFields }) {
                   class="nowrap"
                   :class="columnClass(col)"
                 >
-                  <input
-                    v-if="col === 'check'"
-                    type="checkbox"
-                    :checked="allPageSelected"
-                    @change="toggleSelectAll"
-                  />
-                  <template v-else>{{ columnHeader(col) }}</template>
+                  {{ columnHeader(col) }}
                 </th>
               </tr>
             </thead>
@@ -568,14 +685,7 @@ function handleExportConfirm({ selectedFields }) {
                   :key="col"
                   :class="columnClass(col)"
                 >
-                  <template v-if="col === 'check'">
-                    <input
-                      type="checkbox"
-                      :checked="selectedIds.includes(row.id)"
-                      @change="toggleSelect(row.id)"
-                    />
-                  </template>
-                  <template v-else-if="col === 'status'">
+                  <template v-if="col === 'status'">
                     <span class="status-badge" :class="addDropStatusBadgeClass(row.status)">
                       {{ t(`courseRegistration.approval.appStatus.${row.status}`) }}
                     </span>
@@ -599,6 +709,14 @@ function handleExportConfirm({ selectedFields }) {
                   </template>
                   <template v-else-if="col === 'actions'">
                     <div class="action-links">
+                      <button
+                        v-if="isPendingTab && canApproveRow(row)"
+                        type="button"
+                        class="link-btn"
+                        @click="openRowApproval(row)"
+                      >
+                        {{ t('courseRegistration.approval.approve') }}
+                      </button>
                       <button type="button" class="link-btn" @click="openDetail(row)">
                         {{ t('common.details') }}
                       </button>
@@ -625,6 +743,14 @@ function handleExportConfirm({ selectedFields }) {
                         @click="openOrderRegen(row)"
                       >
                         {{ t('courseRegistration.approval.regenOrder') }}
+                      </button>
+                      <button
+                        v-if="isHistoryTab && canAbortApprovedAddDropBill(row)"
+                        type="button"
+                        class="btn btn-sm btn-danger-outline"
+                        @click="handleAbortApplication(row)"
+                      >
+                        {{ t('courseRegistration.approval.abortApplication') }}
                       </button>
                     </div>
                   </template>
@@ -682,11 +808,11 @@ function handleExportConfirm({ selectedFields }) {
     <AddDropApprovalModal
       :visible="approvalModalVisible"
       approval-stage="Academic Coordinator"
-      :target-count="pendingApprovalIds.length"
-      :show-generate-bill="batchShowGenerateBill"
+      :target-count="1"
+      :show-generate-bill="approvalShowGenerateBill"
       :application="singleApprovalApp"
       @close="approvalModalVisible = false"
-      @confirm="handleBatchApprovalConfirm"
+      @confirm="handleApprovalConfirm"
     />
 
     <ExportModal
@@ -694,6 +820,12 @@ function handleExportConfirm({ selectedFields }) {
       :fields="approvalExportFields.map((f) => ({ key: f.key, label: t(f.labelKey) }))"
       @close="exportModalVisible = false"
       @confirm="handleExportConfirm"
+    />
+    <ExportModal
+      :visible="paymentExportModalVisible"
+      :fields="approvalPaymentExportFields.map((f) => ({ key: f.key, label: t(f.labelKey) }))"
+      @close="paymentExportModalVisible = false"
+      @confirm="handlePaymentExportConfirm"
     />
   </div>
 </template>
@@ -738,13 +870,61 @@ function handleExportConfirm({ selectedFields }) {
 }
 
 .col-status {
-  min-width: 108px;
+  min-width: 88px;
+}
+
+.col-compact {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.col-need-drop {
+  min-width: 4.5em;
+  text-align: center;
+}
+
+.col-excess {
+  min-width: 4.5em;
+  text-align: center;
+}
+
+.col-fee {
+  min-width: 5.5em;
+}
+
+.col-bill {
+  min-width: 3.5em;
+}
+
+.col-remind-count {
+  min-width: 5.5em;
+  text-align: center;
+}
+
+.col-remaining {
+  min-width: 6.5em;
+  max-width: 118px;
+  white-space: normal;
+  line-height: 1.3;
+  font-size: 12px;
+}
+
+/* 数据格不换行；表头单独允许最多约两行 */
+.data-table--sticky tbody td.col-need-drop,
+.data-table--sticky tbody td.col-excess,
+.data-table--sticky tbody td.col-fee,
+.data-table--sticky tbody td.col-bill,
+.data-table--sticky tbody td.col-remind-count,
+.data-table--sticky tbody td.col-compact {
+  white-space: nowrap;
 }
 
 .type-add { background: #dbeafe; color: #1d4ed8; }
 .type-drop { background: #fee2e2; color: #b91c1c; }
 .type-retake { background: #fef3c7; color: #b45309; }
 .type-replace { background: #e0e7ff; color: #4338ca; }
+.type-adddrop { background: #e0e7ff; color: #3730a3; }
+.type-retakedrop { background: #ffedd5; color: #c2410c; }
 .type-mixed { background: #f3e8ff; color: #7c3aed; }
 
 .nowrap {
@@ -757,19 +937,36 @@ function handleExportConfirm({ selectedFields }) {
 }
 
 .data-table--sticky {
-  min-width: 1400px;
+  width: 100%;
+  min-width: 0;
   border-collapse: separate;
   border-spacing: 0;
+  table-layout: auto;
 }
 
-.data-table--sticky th,
-.data-table--sticky td {
+.cr-approval-page .data-table--sticky th,
+.cr-approval-page .data-table--sticky td {
   background: #fff;
+  padding: 8px 8px;
 }
 
-.data-table--sticky thead th {
+.cr-approval-page .data-table--sticky thead th {
   background: #f9fafb;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  line-height: 1.35;
+  vertical-align: bottom;
+}
+
+.cr-approval-page .data-table--sticky thead th.col-need-drop,
+.cr-approval-page .data-table--sticky thead th.col-excess,
+.cr-approval-page .data-table--sticky thead th.col-remind-count,
+.cr-approval-page .data-table--sticky thead th.col-fee,
+.cr-approval-page .data-table--sticky thead th.col-bill,
+.cr-approval-page .data-table--sticky thead th.col-remaining {
+  white-space: normal;
+  word-break: keep-all;
 }
 
 .sticky-left,
@@ -785,12 +982,16 @@ function handleExportConfirm({ selectedFields }) {
 
 .sticky-idx {
   left: 0;
-  min-width: 48px;
+  min-width: 40px;
+  padding-left: 6px;
+  padding-right: 6px;
 }
 
 .sticky-no {
-  left: 48px;
-  min-width: 128px;
+  left: 40px;
+  min-width: 112px;
+  padding-left: 6px;
+  padding-right: 6px;
 }
 
 .data-table--with-check .sticky-idx {
@@ -798,12 +999,12 @@ function handleExportConfirm({ selectedFields }) {
 }
 
 .data-table--with-check .sticky-no {
-  left: 88px;
+  left: 80px;
 }
 
 .sticky-type {
-  left: 198px;
-  min-width: 88px;
+  left: 168px;
+  min-width: 72px;
   box-shadow: 4px 0 8px -6px rgba(15, 23, 42, 0.25);
 }
 
@@ -832,7 +1033,7 @@ function handleExportConfirm({ selectedFields }) {
 .action-links {
   display: inline-flex;
   flex-wrap: nowrap;
-  gap: 6px 8px;
+  gap: 4px 6px;
   align-items: center;
   white-space: nowrap;
   width: max-content;
@@ -843,8 +1044,8 @@ function handleExportConfirm({ selectedFields }) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 26px;
-  padding: 0 8px;
+  height: 24px;
+  padding: 0 6px;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
@@ -863,6 +1064,14 @@ function handleExportConfirm({ selectedFields }) {
   background: #fff;
   border: 1px solid #2563eb;
   color: #2563eb;
+}
+.action-links .btn-danger-outline {
+  background: #fff;
+  border: 1px solid #dc2626;
+  color: #dc2626;
+}
+.action-links .btn-danger-outline:hover {
+  background: #fef2f2;
 }
 
 .pay-remain.is-warn {

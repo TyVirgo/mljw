@@ -13,6 +13,7 @@ import {
   applyPrimaryTypePatch,
   primaryTypeFromAction,
 } from '../../data/courseRegistration/addDropFormSections.js'
+import { addDropPrimaryOptionLabelKey } from '../../data/courseRegistration/addDropTypeDisplay.js'
 import { retakeHistoryFromCourse, formatGradeToZh } from '../../data/courseRegistration/studentTranscript.js'
 import { getPreviousAcademicSession } from '../../data/intakeSets.js'
 import {
@@ -33,8 +34,23 @@ import {
 import {
   displayClassTimeVenueFromFields,
 } from '../../data/courseRegistration/sectionScheduleFields.js'
-import { getRegistrationTypeLabel } from '../../data/courseRegistration/registrationTypes.js'
+import { formatUnifiedCourseCategoryFromLine } from '../../data/courseRegistration/unifiedCourseCategory.js'
+import {
+  getCourseById,
+  getCourseByCode,
+} from '../../data/courseRegistration/selectableCourses.js'
+import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
 import AddDropTermCreditStrip from './AddDropTermCreditStrip.vue'
+
+const MAX_DROP_ATTACHMENTS = 5
+
+function formatAttachSize(bytes) {
+  const n = Number(bytes) || 0
+  if (n <= 0) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`
+}
 
 const props = defineProps({
   form: { type: Object, required: true },
@@ -62,12 +78,26 @@ const props = defineProps({
 const emit = defineEmits([
   'update:form',
   'pick-course',
-  'attachment-change',
-  'clear-attachment',
+  'attachments-add',
+  'remove-attachment',
+  'clear-attachments',
 ])
 
 const { t, isZh } = useAppI18n()
 const timeLocale = computed(() => (isZh.value ? 'zh' : 'en'))
+
+const formAttachments = computed(() => {
+  const list = Array.isArray(props.form.attachments) ? props.form.attachments : []
+  if (list.length) return list
+  if (props.form.attachmentName) return [{ name: props.form.attachmentName, size: 0 }]
+  return []
+})
+
+function onAttachInputChange(event) {
+  const files = Array.from(event.target.files || [])
+  emit('attachments-add', files)
+  event.target.value = ''
+}
 
 function timeVenueDisplay(fields) {
   return displayClassTimeVenueFromFields(
@@ -148,11 +178,18 @@ const dropCreditBreakdown = computed(() => {
 
 const hasDropLines = computed(() => (props.form.dropLines || []).length > 0)
 
+/**
+ * 明细「课程类型」：统一类别（必修课 / GE01–04 / ME01–04）
+ * @param {object|null|undefined} line
+ */
 function lineTypeLabel(line) {
-  return getRegistrationTypeLabel(line?.type, t)
+  return formatUnifiedCourseCategoryFromLine(line, t, {
+    getCourseById,
+    getCourseByCode,
+  })
 }
 
-/** 加课/重修节展示的预估费用（未选课为 —；选课后含 0；不含 SST） */
+/** 加课/重修节展示的预估费用（未选课为 —；选课后含 0；= 课程费 + SST） */
 const sectionFeeAmount = computed(() => {
   const action = props.form.action
   if (action === 'Drop') return ''
@@ -161,7 +198,14 @@ const sectionFeeAmount = computed(() => {
     const course = isAddDropLinked.value ? props.addCourse : props.primaryCourse
     if (!course) return ''
   }
-  if (props.feeEstimate?.total != null) return formatAmountRmb(props.feeEstimate.total)
+  const est = props.feeEstimate
+  if (est?.payableTotal != null && est.payableTotal !== '') {
+    return formatAmountRmb(est.payableTotal)
+  }
+  if (est?.total != null && est.total !== '') {
+    const sst = Number(est.sstAmount) || 0
+    return formatAmountRmb(Number(est.total) + sst)
+  }
   return formatAmountRmb(0)
 })
 
@@ -178,23 +222,33 @@ const sectionSstAmount = computed(() => {
   return formatAmountRmb(Number.isFinite(sst) ? Math.max(0, sst) : 0)
 })
 
-/** 超出学分：学期类别/帽超额与计费学分取较大值；费用仍只看 billable */
-const sectionExcessCredits = computed(() => {
+function hasAddOrRetakeLines() {
+  const lines = props.form.addLines || []
+  if (lines.length) return true
+  const course = isAddDropLinked.value ? props.addCourse : props.primaryCourse
+  return Boolean(course)
+}
+
+/** 学期超出：仅学分条 GE/ME 学期总分（由父级传入） */
+const sectionTermExcessCredits = computed(() => {
   const action = props.form.action
   if (action === 'Drop') return ''
-  const lines = props.form.addLines || []
-  if (!lines.length) {
-    const course = isAddDropLinked.value ? props.addCourse : props.primaryCourse
-    if (!course && !(Number(props.termCreditExcess) > 0)) return ''
-  }
+  if (!hasAddOrRetakeLines() && !(Number(props.termCreditExcess) > 0)) return ''
+  return String(Math.max(0, Number(props.termCreditExcess) || 0))
+})
+
+/** 毕业超出（计费）：feeEstimate.billableCredits */
+const sectionGradExcessCredits = computed(() => {
+  const action = props.form.action
+  if (action === 'Drop') return ''
+  if (!hasAddOrRetakeLines()) return ''
   const fromItems = (props.feeEstimate?.items || []).reduce(
     (s, i) => s + (Number(i.billableCredits) || 0),
     0,
   )
   const billable = Number(props.feeEstimate?.billableCredits)
   const billableN = Number.isFinite(billable) ? Math.max(0, billable) : Math.max(0, fromItems)
-  const termN = Math.max(0, Number(props.termCreditExcess) || 0)
-  return String(Math.max(billableN, termN))
+  return String(billableN)
 })
 
 const feeRateTipText = computed(() =>
@@ -362,13 +416,17 @@ const isRetakeFailedType = computed(() => props.form.retakeType === 'failed')
 
 function lineLatestGradeZh(line) {
   if (line?.latestGradeZh) return line.latestGradeZh
+  if (line?.latestGradeScore != null && line.latestGradeScore !== '') {
+    return formatGradeToZh({ grade: line.latestGrade, score: line.latestGradeScore }) || '—'
+  }
   if (line?.latestGrade) return formatGradeToZh(line.latestGrade) || '—'
   const hist = retakeHistoryFromCourse(
     { id: line?.courseId, code: line?.courseCode, name: line?.courseName },
     props.form.academicSession,
   )
+  if (hist.latestGradeZh) return hist.latestGradeZh
   const g = hist.latestGrade || hist.gradeEarned
-  return g ? formatGradeToZh(g) || g : '—'
+  return g ? formatGradeToZh({ grade: g, score: hist.latestGradeScore }) || g : '—'
 }
 
 /** 行内曾修课程成绩（多学期分行） */
@@ -447,7 +505,10 @@ function feeStreamLabel(stream) {
       </CourseRegistrationCallout>
 
       <div v-if="termCreditStrip" class="adddrop-form-credit-strip">
-        <AddDropTermCreditStrip :strip="termCreditStrip" />
+        <AddDropTermCreditStrip
+          :strip="termCreditStrip"
+          :application-type="form.action"
+        />
       </div>
     </div>
 
@@ -479,7 +540,7 @@ function feeStreamLabel(stream) {
           readonly
           :value="
             primaryType
-              ? t(`courseRegistration.approval.type.${primaryType}`)
+              ? t(addDropPrimaryOptionLabelKey(primaryType))
               : t('common.pleaseSelect')
           "
         />
@@ -491,7 +552,7 @@ function feeStreamLabel(stream) {
         >
           <option value="">{{ t('common.pleaseSelect') }}</option>
           <option v-for="opt in primaryOptions" :key="opt" :value="opt">
-            {{ t(`courseRegistration.approval.type.${opt}`) }}
+            {{ t(addDropPrimaryOptionLabelKey(opt)) }}
           </option>
         </select>
       </div>
@@ -507,7 +568,6 @@ function feeStreamLabel(stream) {
             :value="form.retakeType"
             @change="onField('retakeType', $event)"
           >
-            <option value="">{{ t('common.pleaseSelect') }}</option>
             <option v-for="opt in RETAKE_TYPE_OPTIONS" :key="opt.value" :value="opt.value">
               {{ t(opt.labelKey) }}
             </option>
@@ -723,28 +783,56 @@ function feeStreamLabel(stream) {
             <span class="optional">（{{ t('courseRegistration.student.dropAttachmentOptional') }}）</span>
           </label>
           <div class="attach-row">
-            <label class="btn btn-default attach-btn">
+            <label
+              class="btn attach-btn attach-btn--soft"
+              :class="{ 'is-disabled': formAttachments.length >= MAX_DROP_ATTACHMENTS }"
+            >
               {{ t('courseRegistration.student.chooseFile') }}
               <input
                 type="file"
                 class="attach-input"
+                multiple
+                :disabled="formAttachments.length >= MAX_DROP_ATTACHMENTS"
                 accept=".pdf,.jpg,.jpeg,.png,.docx,application/pdf,image/*"
-                @change="emit('attachment-change', $event)"
+                @change="onAttachInputChange"
               />
             </label>
-            <span class="attach-name">
-              {{ form.attachmentName || t('courseRegistration.student.noFileChosen') }}
+            <span v-if="!formAttachments.length" class="attach-name">
+              {{ t('courseRegistration.student.noFileChosen') }}
             </span>
             <button
-              v-if="form.attachmentName"
+              v-if="formAttachments.length"
               type="button"
               class="link-btn"
-              @click="emit('clear-attachment')"
+              @click="emit('clear-attachments')"
             >
               {{ t('courseRegistration.student.clearFile') }}
             </button>
           </div>
-          <p class="field-hint">{{ t('courseRegistration.student.dropAttachmentHint') }}</p>
+          <ul v-if="formAttachments.length" class="attach-list">
+            <li v-for="(file, idx) in formAttachments" :key="`${file.name}-${idx}`" class="attach-list-item">
+              <AttachmentPreviewTrigger
+                :file-name="file.name"
+                :file-meta="{ fileName: file.name, size: file.size || 0 }"
+                :download-label="file.name"
+              />
+              <span v-if="formatAttachSize(file.size)" class="attach-size">
+                {{ formatAttachSize(file.size) }}
+              </span>
+              <button
+                type="button"
+                class="link-btn attach-remove"
+                :aria-label="t('common.delete')"
+                @click="emit('remove-attachment', idx)"
+              >
+                {{ t('common.delete') }}
+              </button>
+            </li>
+          </ul>
+          <p class="field-hint">
+            {{ t('courseRegistration.student.dropAttachmentHint') }}
+            {{ t('courseRegistration.student.dropAttachmentMaxCount', { n: MAX_DROP_ATTACHMENTS }) }}
+          </p>
         </div>
       </div>
     </template>
@@ -774,6 +862,7 @@ function feeStreamLabel(stream) {
                   <th class="col-code">{{ t('courseRegistration.courses.code') }}</th>
                   <th class="col-name">{{ t('courseRegistration.courses.name') }}</th>
                   <th class="col-group">{{ t('courseRegistration.student.fieldGroupNo') }}</th>
+                  <th class="col-type">{{ t('courseRegistration.courses.type') }}</th>
                   <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
                   <th class="col-time">{{ t('courseRegistration.student.fieldClassTimeVenue') }}</th>
                   <th class="col-op">{{ t('common.actions') }}</th>
@@ -789,6 +878,7 @@ function feeStreamLabel(stream) {
                   >
                     {{ formatCourseSectionName(line.sectionCode || line.sectionName, t) }}
                   </td>
+                  <td class="col-type" :title="lineTypeLabel(line)">{{ lineTypeLabel(line) }}</td>
                   <td class="col-credits">{{ line.credits }}</td>
                   <td class="cr-time-venue col-time" :title="lineTimeVenueTitle(line)">
                     <template v-if="lineTimeVenueLines(line).length">
@@ -810,7 +900,7 @@ function feeStreamLabel(stream) {
                   </td>
                 </tr>
                 <tr v-if="!(form.addLines || []).length">
-                  <td colspan="6" class="empty-cell">{{ t('courseRegistration.student.selectCourse') }}</td>
+                  <td colspan="7" class="empty-cell">{{ t('courseRegistration.student.selectCourse') }}</td>
                 </tr>
               </tbody>
             </table>
@@ -827,29 +917,21 @@ function feeStreamLabel(stream) {
             />
           </div>
           <div class="form-field">
-            <label>{{ t('courseRegistration.student.fieldExcessCredits') }}</label>
+            <label>{{ t('courseRegistration.student.fieldTermExcessCredits') }}</label>
             <input
               type="text"
               class="form-control"
               readonly
-              :value="dash(sectionExcessCredits)"
+              :value="dash(sectionTermExcessCredits)"
             />
           </div>
           <div class="form-field">
-            <label class="label-with-tip">
-              <span>{{ t('courseRegistration.student.feeEstimateShort') }}</span>
-              <span
-                class="tip-icon"
-                :title="feeRateTipText"
-                :aria-label="feeRateTipText"
-                tabindex="0"
-              >?</span>
-            </label>
+            <label>{{ t('courseRegistration.student.fieldGradExcessCredits') }}</label>
             <input
               type="text"
               class="form-control"
               readonly
-              :value="dash(sectionFeeAmount)"
+              :value="dash(sectionGradExcessCredits)"
             />
           </div>
           <div class="form-field">
@@ -869,6 +951,23 @@ function feeStreamLabel(stream) {
               :value="dash(sectionSstAmount)"
             />
           </div>
+          <div class="form-field">
+            <label class="label-with-tip">
+              <span>{{ t('courseRegistration.student.feeEstimateShort') }}</span>
+              <span
+                class="tip-icon"
+                :title="feeRateTipText"
+                :aria-label="feeRateTipText"
+                tabindex="0"
+              >?</span>
+            </label>
+            <input
+              type="text"
+              class="form-control"
+              readonly
+              :value="dash(sectionFeeAmount)"
+            />
+          </div>
         </div>
         <div v-if="showInlineAddFeeBox" class="form-field span-2 fee-box-wrap">
           <div class="fee-box">
@@ -879,9 +978,9 @@ function feeStreamLabel(stream) {
                 {{ t('courseRegistration.student.feeBillableCredits', { n: line.billableCredits }) }}
                 × {{ formatAmountRmb(line.rate) }} = {{ formatAmountRmb(line.amount) }}
               </li>
-              <li v-if="Number(feeEstimate.sstAmount) > 0">
+              <li>
                 {{ t('courseRegistration.student.fieldSst') }}:
-                {{ formatAmountRmb(feeEstimate.sstAmount) }}
+                {{ formatAmountRmb(Number(feeEstimate.sstAmount) || 0) }}
               </li>
             </ul>
             <p class="fee-total">
@@ -940,6 +1039,7 @@ function feeStreamLabel(stream) {
                   <th class="col-group">{{ t('courseRegistration.student.fieldGroupNo') }}</th>
                   <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
                   <th class="col-time">{{ t('courseRegistration.student.fieldClassTimeVenue') }}</th>
+                  <th class="col-type">{{ t('courseRegistration.courses.type') }}</th>
                   <th class="col-prev-grades">{{ t('courseRegistration.student.previousCourseGrades') }}</th>
                   <th class="col-op">{{ t('common.actions') }}</th>
                 </tr>
@@ -969,6 +1069,7 @@ function feeStreamLabel(stream) {
                     </template>
                     <template v-else>—</template>
                   </td>
+                  <td class="col-type" :title="lineTypeLabel(line)">{{ lineTypeLabel(line) }}</td>
                   <td class="col-prev-grades">
                     <template v-if="linePreviousCourseGrades(line)">
                       <div
@@ -988,7 +1089,7 @@ function feeStreamLabel(stream) {
                   </td>
                 </tr>
                 <tr v-if="!(form.addLines || []).length">
-                  <td :colspan="canPickRetakeCourse ? 8 : 7" class="empty-cell">
+                  <td :colspan="canPickRetakeCourse ? 9 : 8" class="empty-cell">
                     {{ t('courseRegistration.student.retakeCoursePlaceholder') }}
                   </td>
                 </tr>
@@ -1008,12 +1109,20 @@ function feeStreamLabel(stream) {
             />
           </div>
           <div class="form-field">
-            <label>{{ t('courseRegistration.student.fieldExcessCredits') }}</label>
+            <label class="label-with-tip">
+              <span>{{ t('courseRegistration.student.fieldSst') }}</span>
+              <span
+                class="tip-icon"
+                :title="sstTipText"
+                :aria-label="sstTipText"
+                tabindex="0"
+              >?</span>
+            </label>
             <input
               type="text"
               class="form-control"
               readonly
-              :value="dash(sectionExcessCredits)"
+              :value="dash(sectionSstAmount)"
             />
           </div>
           <div class="form-field">
@@ -1033,23 +1142,6 @@ function feeStreamLabel(stream) {
               :value="dash(sectionFeeAmount)"
             />
           </div>
-          <div class="form-field">
-            <label class="label-with-tip">
-              <span>{{ t('courseRegistration.student.fieldSst') }}</span>
-              <span
-                class="tip-icon"
-                :title="sstTipText"
-                :aria-label="sstTipText"
-                tabindex="0"
-              >?</span>
-            </label>
-            <input
-              type="text"
-              class="form-control"
-              readonly
-              :value="dash(sectionSstAmount)"
-            />
-          </div>
         </div>
       </div>
     </template>
@@ -1062,15 +1154,29 @@ function feeStreamLabel(stream) {
           {{ t('courseRegistration.student.feeBillableCredits', { n: line.billableCredits }) }}
           × {{ formatAmountRmb(line.rate) }} = {{ formatAmountRmb(line.amount) }}
         </li>
-        <li v-if="Number(feeEstimate.sstAmount) > 0">
+        <li>
           {{ t('courseRegistration.student.fieldSst') }}:
-          {{ formatAmountRmb(feeEstimate.sstAmount) }}
+          {{ formatAmountRmb(Number(feeEstimate.sstAmount) || 0) }}
         </li>
       </ul>
       <p class="fee-total">
         {{ t('courseRegistration.student.feeEstimateTotal') }}:
         <strong>{{ formatAmountRmb(feeEstimate.payableTotal ?? feeEstimate.total) }}</strong>
       </p>
+    </div>
+
+    <div
+      v-if="form.action === 'Retake' || isRetakeDropLinked"
+      class="form-field span-2 retake-notes-field"
+    >
+      <label>{{ t('courseRegistration.student.addNotesLabel') }}</label>
+      <textarea
+        class="form-control"
+        rows="2"
+        :value="form.addNotes"
+        :placeholder="t('courseRegistration.student.addNotesPlaceholder')"
+        @input="onField('addNotes', $event)"
+      />
     </div>
 
     <div class="section-bar">{{ sectionBars.declaration }}</div>
@@ -1335,6 +1441,8 @@ textarea.form-control {
 
 .lines-table .col-type {
   width: 10%;
+  min-width: 5.5em;
+  white-space: nowrap;
 }
 
 .lines-table .col-grade {
@@ -1443,11 +1551,54 @@ textarea.form-control {
   align-items: center;
 }
 
+.attach-btn--soft {
+  border: 1px solid #93c5fd;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.attach-btn--soft:hover {
+  background: #bfdbfe;
+  border-color: #60a5fa;
+}
+
+.attach-btn--soft.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .attach-input {
   position: absolute;
   inset: 0;
   opacity: 0;
   cursor: pointer;
+}
+
+.attach-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attach-list-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.attach-size {
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.attach-remove {
+  color: #b91c1c;
 }
 
 .attach-name {
@@ -1525,6 +1676,10 @@ textarea.form-control {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
+}
+
+.retake-notes-field {
+  margin: 16px 0 0;
 }
 
 .fee-title {

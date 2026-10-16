@@ -11,7 +11,7 @@ export function courseRowKey(course) {
 }
 
 /**
- * 有余量/已满：任一分组符合条件则保留该课全部分组行
+ * 有余量/已满：任一分组符合条件则保留该课全部分组行（R2/R3）
  * @param {object[]} courses
  * @param {'open'|'full'|''} availability
  * @param {{ audience?: 'senior'|'freshman', roundKey?: string, releaseCross?: boolean, useAudienceSeats?: boolean }} [opts]
@@ -46,6 +46,26 @@ export function filterCoursesBySectionAvailability(courses, availability, opts =
       })
     }
     return true
+  })
+}
+
+/**
+ * R1：按分组行志愿已选百分比过滤（与列表列同源：志愿数/容量）
+ * @param {{ course: object, section: object|null }[]} rows
+ * @param {'lt100'|'gte100'|''} availability
+ * @param {(course: object, section: object) => number} getVolunteerCount
+ */
+export function filterSectionRowsBySelectedPercent(rows, availability, getVolunteerCount) {
+  if (!availability || availability === '') return rows
+  if (availability !== 'lt100' && availability !== 'gte100') return rows
+  return (rows || []).filter(({ course, section }) => {
+    if (!section) return false
+    const cap = Number(section.capacity) || 0
+    if (cap <= 0) return false
+    const volunteers = Number(getVolunteerCount?.(course, section)) || 0
+    const ratio = volunteers / cap
+    if (availability === 'lt100') return ratio < 1
+    return ratio >= 1
   })
 }
 
@@ -250,6 +270,7 @@ export function attachCourseLevelRowSpans(rows, firstCourseIndex = 0, opts = {})
     'selectionGroup',
     'prerequisites',
     'retakeHistory',
+    'originalSession',
     // 管理端结果·第一轮融合表课级列
     'batch',
     'effectiveCap',

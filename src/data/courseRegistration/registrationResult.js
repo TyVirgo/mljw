@@ -9,9 +9,22 @@ import { deriveClassTime } from './sectionScheduleFields.js'
 import { formatIntakeBatch } from '../intakeSets.js'
 import { resolveSchoolElectiveCategory } from './selectableCourses.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
+import { getLocale } from '../../i18n/index.js'
+
+/** 中文志愿序数（1–10） */
+const ZH_PREFERENCE_ORDINALS = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
 
 /** Demo：管理端代选操作人 */
 export const DEMO_ADMIN_OPERATOR_NAME = 'AC Lee'
+export const DEMO_ADMIN_OPERATOR_ID = 'admin01'
+
+/** 学生维操作结果（无排队中） */
+export const STUDENT_OP_RESULT_KEYS = [
+  'pendingAssign',
+  'registerSuccess',
+  'registerFailure',
+  'cancelQueue',
+]
 
 const DEMO_RESULT_SOURCES = ['preselect', 'main', 'supplement', 'admin']
 
@@ -21,6 +34,108 @@ function resolveBatchName(batchId) {
 
 function demoCourseSource(rowIndex) {
   return DEMO_RESULT_SOURCES[rowIndex % DEMO_RESULT_SOURCES.length]
+}
+
+function pad2(n) {
+  return String(n).padStart(2, '0')
+}
+
+/**
+ * demo：为结果行补操作人/时间/结果（不含 queuing）
+ * @param {number} rowIndex
+ * @param {string} courseSource
+ * @param {{ studentId?: string, studentName?: string }} [profile]
+ */
+/** demo：第一轮志愿序 1/2/3 轮转 */
+export function demoPreferenceRank(rowIndex, courseSource) {
+  if (courseSource !== 'preselect') return null
+  return (rowIndex % 3) + 1
+}
+
+export function demoStudentOpLogFields(rowIndex, courseSource, profile = {}) {
+  let round = 'main'
+  let opResult = 'registerSuccess'
+  if (courseSource === 'preselect') {
+    round = 'preselect'
+    opResult = rowIndex % 17 === 0 ? 'registerFailure' : 'pendingAssign'
+  } else if (courseSource === 'supplement') {
+    round = 'supplement'
+    if (rowIndex % 11 === 0) opResult = 'cancelQueue'
+    else if (rowIndex % 7 === 0) opResult = 'registerFailure'
+    else opResult = 'registerSuccess'
+  } else if (courseSource === 'admin') {
+    round = 'main'
+    opResult = 'registerSuccess'
+  } else {
+    round = 'main'
+    if (rowIndex % 13 === 0) opResult = 'cancelQueue'
+    else if (rowIndex % 8 === 0) opResult = 'registerFailure'
+    else opResult = 'registerSuccess'
+  }
+
+  const isAdmin = courseSource === 'admin' || rowIndex % 15 === 0
+  const day = 28 + (rowIndex % 4)
+  const hour = 8 + (rowIndex % 10)
+  const minute = (rowIndex * 7) % 60
+  const sec = (rowIndex * 13) % 60
+  return {
+    round,
+    opResult,
+    operatorId: isAdmin ? DEMO_ADMIN_OPERATOR_ID : profile.studentId || '',
+    operatorName: isAdmin ? DEMO_ADMIN_OPERATOR_NAME : profile.studentName || '',
+    operatedAt: `2026-08-${pad2(day)} ${pad2(hour)}:${pad2(minute)}:${pad2(sec)}`,
+  }
+}
+
+/**
+ * @param {object} row
+ * @param {(key: string) => string} t
+ */
+export function formatStudentOpResultLabel(row, t) {
+  const key = row?.opResult
+  if (!key || !STUDENT_OP_RESULT_KEYS.includes(key)) return '—'
+  return t(`courseRegistration.log.result.${key}`)
+}
+
+/**
+ * 选课志愿展示：第一志愿 / 第二志愿 / 第三志愿…
+ * 中文 ≥3 使用汉字序数（第三志愿），不用阿拉伯数字。
+ * @param {number|object|null|undefined} rankOrRow
+ * @param {(key: string, params?: object) => string} t
+ */
+export function formatCoursePreferenceLabel(rankOrRow, t) {
+  const rank =
+    typeof rankOrRow === 'object' && rankOrRow != null
+      ? Number(rankOrRow.preferenceRank ?? rankOrRow.preferenceOrder ?? rankOrRow.choiceRank)
+      : Number(rankOrRow)
+  if (!Number.isFinite(rank) || rank < 1) return '—'
+  const n = Math.floor(rank)
+  if (n === 1) return t('courseRegistration.result.preferenceFirst')
+  if (n === 2) return t('courseRegistration.result.preferenceSecond')
+  const token =
+    getLocale() === 'zh' && n >= 1 && n <= 10 ? ZH_PREFERENCE_ORDINALS[n] : String(n)
+  return t('courseRegistration.result.preferenceNth', { n: token })
+}
+
+/**
+ * 学生维选课志愿：仅第一轮（preselect）有值
+ * @param {object} row
+ * @param {(key: string, params?: object) => string} t
+ */
+export function formatStudentResultPreferenceLabel(row, t) {
+  if (!row || row.courseSource !== 'preselect') return '—'
+  return formatCoursePreferenceLabel(row, t)
+}
+
+/**
+ * @param {object} row
+ */
+export function formatStudentOperatorDisplay(row) {
+  if (!row) return '—'
+  if (row.operatorId && row.operatorName) {
+    return `${row.operatorId}(${row.operatorName})`
+  }
+  return row.operatorName || row.operatorId || '—'
 }
 
 function findSelectableCourseByCode(code) {
@@ -41,6 +156,7 @@ export function buildStudentRegistrationResults(monitorRows = registrationMonito
       if (!courseCode) return
       const course = findSelectableCourseByCode(courseCode)
       const section = course?.sections?.[0]
+      const courseSource = demoCourseSource(rowIndex)
       rows.push({
         id: `result-stu-${row.id}-${courseCode}-${index}`,
         studentId: row.studentId,
@@ -49,7 +165,8 @@ export function buildStudentRegistrationResults(monitorRows = registrationMonito
         intake: row.intake,
         batchId: course?.batchId || '',
         batchName: resolveBatchName(course?.batchId),
-        courseSource: demoCourseSource(rowIndex),
+        courseSource,
+        preferenceRank: demoPreferenceRank(rowIndex, courseSource),
         isRetake: rowIndex % 5 === 2,
         courseCode,
         courseName: course?.name || courseCode,
@@ -57,6 +174,7 @@ export function buildStudentRegistrationResults(monitorRows = registrationMonito
         courseType: course?.type || '',
         sectionCode: section?.code || '',
         status: row.status === 'normal' ? 'confirmed' : 'warning',
+        ...demoStudentOpLogFields(rowIndex, courseSource, row),
       })
       rowIndex += 1
     })
@@ -85,6 +203,7 @@ function buildBatchCoverageStudentResults(startIndex = 0) {
       const profile = candidates[(rowIndex + i) % candidates.length]
       const sectionList = course.sections?.length ? course.sections : [null]
       const section = sectionList[i % sectionList.length]
+      const courseSource = demoCourseSource(rowIndex + i)
       out.push({
         id: `result-stu-batch-${batch.id}-${course.code}-${profile.studentId}-${i}`,
         studentId: profile.studentId,
@@ -93,7 +212,8 @@ function buildBatchCoverageStudentResults(startIndex = 0) {
         intake: profile.intake || (profile.grade === '2025' ? '2504' : '2409'),
         batchId: batch.id,
         batchName: batch.name || resolveBatchName(batch.id),
-        courseSource: demoCourseSource(rowIndex + i),
+        courseSource,
+        preferenceRank: demoPreferenceRank(rowIndex + i, courseSource),
         isRetake: (rowIndex + i) % 5 === 2,
         courseCode: course.code,
         courseName: course.name,
@@ -101,6 +221,7 @@ function buildBatchCoverageStudentResults(startIndex = 0) {
         courseType: course.type || '',
         sectionCode: section?.code || '',
         status: 'confirmed',
+        ...demoStudentOpLogFields(rowIndex + i, courseSource, profile),
       })
     }
     rowIndex += ROWS_PER_BATCH
@@ -142,18 +263,76 @@ export function resetAdminCourseRegistrationResults() {
   adminCourseRegistrationResults.value = buildCourseRegistrationResults()
 }
 
+function includesStudentResultKeyword(haystack, needle) {
+  if (!needle) return true
+  return String(haystack || '')
+    .toLowerCase()
+    .includes(String(needle).toLowerCase())
+}
+
+function studentResultInTimeRange(operatedAt, start, end) {
+  if (!start && !end) return true
+  const ts = operatedAt || ''
+  if (start && ts < start) return false
+  if (end && ts > `${end} 23:59:59`) return false
+  return true
+}
+
 export function filterStudentResults(rows, filters = {}) {
   let list = [...rows]
   const studentId = String(filters.studentId || '').trim().toLowerCase()
   const studentName = String(filters.studentName || '').trim().toLowerCase()
   const programme = String(filters.programme || '').trim().toLowerCase()
   const courseCode = String(filters.courseCode || '').trim().toLowerCase()
+  const studentKeyword = String(filters.studentKeyword || '').trim().toLowerCase()
+  const courseKeyword = String(filters.courseKeyword || '').trim().toLowerCase()
+  const operatorKeyword = String(filters.operatorKeyword || '').trim().toLowerCase()
+  let timeStart = filters.timeStart || ''
+  let timeEnd = filters.timeEnd || ''
+  if (timeStart && timeEnd && timeStart > timeEnd) {
+    const tmp = timeStart
+    timeStart = timeEnd
+    timeEnd = tmp
+  }
+
   if (programme) {
     list = list.filter((r) => String(r.programme || '').toLowerCase().includes(programme))
   }
   if (filters.batchId) {
     list = list.filter((r) => r.batchId === filters.batchId)
   }
+  if (filters.round) {
+    list = list.filter((r) => r.round === filters.round)
+  }
+  if (filters.opResult) {
+    list = list.filter((r) => r.opResult === filters.opResult)
+  }
+  if (studentKeyword) {
+    list = list.filter(
+      (r) =>
+        includesStudentResultKeyword(r.studentId, studentKeyword) ||
+        includesStudentResultKeyword(r.studentName, studentKeyword),
+    )
+  }
+  if (courseKeyword) {
+    list = list.filter(
+      (r) =>
+        includesStudentResultKeyword(r.courseCode, courseKeyword) ||
+        includesStudentResultKeyword(r.courseName, courseKeyword),
+    )
+  }
+  if (operatorKeyword) {
+    list = list.filter(
+      (r) =>
+        includesStudentResultKeyword(r.operatorId, operatorKeyword) ||
+        includesStudentResultKeyword(r.operatorName, operatorKeyword) ||
+        includesStudentResultKeyword(formatStudentOperatorDisplay(r), operatorKeyword),
+    )
+  }
+  if (timeStart || timeEnd) {
+    list = list.filter((r) => studentResultInTimeRange(r.operatedAt, timeStart, timeEnd))
+  }
+  // 兼容旧筛：独立学号/姓名/课程代码
   if (studentId) {
     list = list.filter((r) => String(r.studentId || '').toLowerCase().includes(studentId))
   }
@@ -744,6 +923,8 @@ export function addAdminStudentRegistrations({ targetValue, studentIds, allowOve
       return { ok: false, errorKey: 'courseRegistration.result.addCourseDuplicate' }
     }
 
+    const now = new Date()
+    const operatedAt = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`
     adminStudentRegistrationResults.value.unshift({
       id: `result-stu-manual-${studentId}-${target.courseCode}-${Date.now()}`,
       studentId: profile.studentId,
@@ -760,6 +941,11 @@ export function addAdminStudentRegistrations({ targetValue, studentIds, allowOve
       courseType: course?.type || '',
       sectionCode: section?.code || target.sectionCode || '',
       status: 'confirmed',
+      round: 'main',
+      opResult: 'registerSuccess',
+      operatorId: DEMO_ADMIN_OPERATOR_ID,
+      operatorName: DEMO_ADMIN_OPERATOR_NAME,
+      operatedAt,
     })
     added += 1
 

@@ -1,9 +1,15 @@
 import { ref } from 'vue'
+import { formatIntakeBatch } from '../intakeSets.js'
+import {
+  ensureDateTimeWithSeconds,
+  formatLocalDateTimeWithSeconds,
+} from './registrationBatchFormUtils.js'
 import {
   listAdminAddStudentCandidates,
   filterAdminAddStudentCandidates,
   getAdminAddStudentFilterOptions,
 } from './registrationResult.js'
+import { normalizeWhitelistSectionRefs } from './whitelistSectionRefs.js'
 
 /** @deprecated 保留兼容；真相源为 permissions */
 export const supplementListTypes = ['supplement']
@@ -12,27 +18,12 @@ export const SUPPLEMENT_INVITE_HOURS = 48
 /** @deprecated 不再限制发送/再次开放次数；保留常量避免外部引用报错 */
 export const SUPPLEMENT_MAX_INVITE_ATTEMPTS = Number.POSITIVE_INFINITY
 
-const EN_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-/** 白名单日期展示/写入：10-Sep-2025 */
+/** 白名单添加时间展示/写入：YYYY-MM-DD HH:mm:ss（与审批提交时间一致） */
 export function formatWhitelistAddedAt(value = new Date()) {
   if (value == null || value === '') return ''
-  const raw = String(value).trim()
-  if (/^\d{2}-[A-Za-z]{3}-\d{4}$/.test(raw)) return raw
-  let d
-  if (value instanceof Date) {
-    d = value
-  } else {
-    const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
-    if (iso) d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]))
-    else {
-      const t = Date.parse(raw)
-      d = Number.isNaN(t) ? null : new Date(t)
-    }
-  }
-  if (!d || Number.isNaN(d.getTime())) return raw
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${day}-${EN_MON[d.getMonth()]}-${d.getFullYear()}`
+  if (value instanceof Date) return formatLocalDateTimeWithSeconds(value)
+  const ensured = ensureDateTimeWithSeconds(value)
+  return ensured || String(value).trim()
 }
 
 /** 白名单权限 key */
@@ -44,6 +35,19 @@ export const WHITELIST_PERMISSION_KEYS = [
   'bypassPrerequisite',
   'bypassCreditMax',
   'bypassCreditMin',
+  'allowFutureMandatory',
+  'allowFutureElective',
+  'allowDropBelowCreditMin',
+  'allowCoreSectionSwitchAdd',
+  'allowCoreSectionSwitchRetake',
+]
+
+/** ME 课程组类别（与学期进度文案键一致） */
+export const FUTURE_ELECTIVE_ME_CATEGORY_KEYS = [
+  'group4of3',
+  'group3of2',
+  'group2of1',
+  'ordinary',
 ]
 
 export const INVITE_GATED_PERMISSION_KEYS = ['supplement', 'canAdd', 'canDrop', 'canRetake']
@@ -147,18 +151,90 @@ function buildPermissionsFromLegacyFlags(item) {
     )
   }
   if (item.bypassCreditMax) {
-    perms.push(createPermission('bypassCreditMax', { validHours: null, validUntil: null }))
+    const extra = Number(item.creditBypassExtra ?? item.extraCredits)
+    perms.push(
+      createPermission('bypassCreditMax', {
+        validHours: null,
+        validUntil: null,
+        extraCredits: Number.isFinite(extra) && extra > 0 ? Math.min(3, Math.floor(extra)) : 3,
+      }),
+    )
   }
   if (item.bypassCreditMin) {
     perms.push(createPermission('bypassCreditMin', { validHours: null, validUntil: null }))
   }
+  if (item.allowFutureMandatory) {
+    perms.push(
+      createPermission('allowFutureMandatory', {
+        validHours: null,
+        validUntil: null,
+        sections: normalizeWhitelistSectionRefs(
+          item.futureMandatorySections || item.sections || [],
+        ),
+      }),
+    )
+  }
+  if (item.allowCoreSectionSwitchAdd) {
+    perms.push(
+      createPermission('allowCoreSectionSwitchAdd', {
+        validHours: null,
+        validUntil: null,
+        sections: normalizeWhitelistSectionRefs(item.coreSectionSwitchAddSections || []),
+      }),
+    )
+  }
+  if (item.allowCoreSectionSwitchRetake) {
+    perms.push(
+      createPermission('allowCoreSectionSwitchRetake', {
+        validHours: null,
+        validUntil: null,
+        sections: normalizeWhitelistSectionRefs(item.coreSectionSwitchRetakeSections || []),
+      }),
+    )
+  }
+  if (item.allowFutureElective) {
+    perms.push(
+      createPermission('allowFutureElective', {
+        validHours: null,
+        validUntil: null,
+        geCredits: normalizePositiveCredits(item.futureElectiveGeCredits),
+        meCredits: normalizePositiveCredits(item.futureElectiveMeCredits),
+        meCategoryKeys: normalizeMeCategoryKeys(item.futureElectiveMeCategoryKeys),
+      }),
+    )
+  }
+  if (item.allowDropBelowCreditMin) {
+    perms.push(createPermission('allowDropBelowCreditMin', { validHours: null, validUntil: null }))
+  }
   return perms
+}
+
+function normalizePositiveCredits(raw, fallback = 1) {
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 1) return fallback
+  return Math.min(30, Math.floor(n))
+}
+
+function normalizeMeCategoryKeys(raw) {
+  const list = Array.isArray(raw) ? raw : []
+  const allowed = new Set(FUTURE_ELECTIVE_ME_CATEGORY_KEYS)
+  const out = []
+  for (const k of list) {
+    const key = String(k || '').trim()
+    if (!allowed.has(key) || out.includes(key)) continue
+    out.push(key)
+  }
+  return out
 }
 
 function syncLegacyFlags(entry) {
   const perms = entry.permissions || []
   const has = (key) => perms.some((p) => p.key === key && p.enabled !== false)
   const supplement = perms.find((p) => p.key === 'supplement')
+  const maxPerm = perms.find((p) => p.key === 'bypassCreditMax' && p.enabled !== false)
+  const extraRaw = Number(maxPerm?.extraCredits)
+  const creditBypassExtra =
+    Number.isFinite(extraRaw) && extraRaw > 0 ? Math.min(3, Math.floor(extraRaw)) : has('bypassCreditMax') ? 3 : 0
   return {
     ...entry,
     listType: 'supplement',
@@ -169,6 +245,30 @@ function syncLegacyFlags(entry) {
     bypassPrerequisite: has('bypassPrerequisite'),
     bypassCreditMax: has('bypassCreditMax'),
     bypassCreditMin: has('bypassCreditMin'),
+    creditBypassExtra,
+    allowFutureMandatory: has('allowFutureMandatory'),
+    futureMandatorySections: normalizeWhitelistSectionRefs(
+      perms.find((p) => p.key === 'allowFutureMandatory')?.sections,
+    ),
+    allowCoreSectionSwitchAdd: has('allowCoreSectionSwitchAdd'),
+    coreSectionSwitchAddSections: normalizeWhitelistSectionRefs(
+      perms.find((p) => p.key === 'allowCoreSectionSwitchAdd')?.sections,
+    ),
+    allowCoreSectionSwitchRetake: has('allowCoreSectionSwitchRetake'),
+    coreSectionSwitchRetakeSections: normalizeWhitelistSectionRefs(
+      perms.find((p) => p.key === 'allowCoreSectionSwitchRetake')?.sections,
+    ),
+    allowFutureElective: has('allowFutureElective'),
+    allowDropBelowCreditMin: has('allowDropBelowCreditMin'),
+    futureElectiveGeCredits: Number(
+      perms.find((p) => p.key === 'allowFutureElective')?.geCredits,
+    ) || 0,
+    futureElectiveMeCredits: Number(
+      perms.find((p) => p.key === 'allowFutureElective')?.meCredits,
+    ) || 0,
+    futureElectiveMeCategoryKeys: normalizeMeCategoryKeys(
+      perms.find((p) => p.key === 'allowFutureElective')?.meCategoryKeys,
+    ),
     inviteAttempt: Number(supplement?.inviteAttempt) || Number(entry.inviteAttempt) || 0,
     inviteSentAt: supplement?.inviteSentAt || entry.inviteSentAt || null,
     deadlineAt: supplement?.deadlineAt || entry.deadlineAt || null,
@@ -246,6 +346,69 @@ export function hasWhitelistPrerequisiteBypass(studentId, courseCode = '', now =
   return codes.map((c) => String(c).toUpperCase()).includes(String(courseCode).toUpperCase())
 }
 
+/** 允许添加未来学期必修课申请：仅加课申请选课池 */
+export function hasWhitelistAllowFutureMandatory(studentId, now = new Date()) {
+  const entry = getSupplementEntry(studentId)
+  if (!entry) return false
+  return entryHasActivePermission(entry, 'allowFutureMandatory', now)
+}
+
+/** @returns {import('./whitelistSectionRefs.js').WhitelistSectionRef[]} */
+export function getWhitelistFutureMandatorySections(studentId, now = new Date()) {
+  const entry = getSupplementEntry(studentId)
+  if (!entry) return []
+  const perm = getPermission(entry, 'allowFutureMandatory')
+  if (!isPermissionActive(perm, now)) return []
+  return normalizeWhitelistSectionRefs(perm.sections)
+}
+
+/**
+ * @param {'add'|'retake'} kind
+ * @returns {import('./whitelistSectionRefs.js').WhitelistSectionRef[]}
+ */
+export function getWhitelistCoreSectionSwitchSections(studentId, kind = 'add', now = new Date()) {
+  const entry = getSupplementEntry(studentId)
+  if (!entry) return []
+  const key =
+    kind === 'retake' ? 'allowCoreSectionSwitchRetake' : 'allowCoreSectionSwitchAdd'
+  const perm = getPermission(entry, key)
+  if (!isPermissionActive(perm, now)) return []
+  return normalizeWhitelistSectionRefs(perm.sections)
+}
+
+export function hasWhitelistCoreSectionSwitch(studentId, kind = 'add', now = new Date()) {
+  return getWhitelistCoreSectionSwitchSections(studentId, kind, now).length > 0
+}
+
+/** 允许添加未来学期选修课申请 */
+export function hasWhitelistAllowFutureElective(studentId, now = new Date()) {
+  const entry = getSupplementEntry(studentId)
+  if (!entry) return false
+  return entryHasActivePermission(entry, 'allowFutureElective', now)
+}
+
+/** 仅退课：允许退课后学期学分低于学期最低 */
+export function hasWhitelistAllowDropBelowCreditMin(studentId, now = new Date()) {
+  const entry = getSupplementEntry(studentId)
+  if (!entry) return false
+  return entryHasActivePermission(entry, 'allowDropBelowCreditMin', now)
+}
+
+/**
+ * @returns {{ geCredits: number, meCredits: number, meCategoryKeys: string[] } | null}
+ */
+export function getWhitelistFutureElectiveConfig(studentId, now = new Date()) {
+  const entry = getSupplementEntry(studentId)
+  if (!entry) return null
+  const perm = getPermission(entry, 'allowFutureElective')
+  if (!isPermissionActive(perm, now)) return null
+  return {
+    geCredits: normalizePositiveCredits(perm.geCredits),
+    meCredits: normalizePositiveCredits(perm.meCredits),
+    meCategoryKeys: normalizeMeCategoryKeys(perm.meCategoryKeys),
+  }
+}
+
 /**
  * 给邀请门权限打上发送次数与截止（相对当前时刻，保证初始页可见有效/逾期）
  * @param {object[]} perms
@@ -280,7 +443,7 @@ function buildDemoWhitelistSeed() {
       studentName: 'Tan Mei Ling',
       programme: 'COS',
       intake: '2025/04',
-      addedAt: '10-Sep-2025',
+      addedAt: '2025-09-10 10:00:00',
       addedBy: 'AC COS',
       source: 'registration-monitor',
       remark: '未发通知 · 仅可加课',
@@ -295,7 +458,7 @@ function buildDemoWhitelistSeed() {
       studentName: 'Lee Wei Ming',
       programme: 'DSA',
       intake: '2025/04',
-      addedAt: '09-Sep-2025',
+      addedAt: '2025-09-09 10:00:00',
       addedBy: 'AC DSA',
       source: 'manual',
       remark: '有效期内 · 加退重修全开（可再发通知）',
@@ -315,10 +478,11 @@ function buildDemoWhitelistSeed() {
       studentName: 'Tan Wei Ming',
       programme: 'SWE',
       intake: '2023/09',
-      addedAt: '12-Sep-2025',
+      addedAt: '2025-09-12 10:00:00',
       addedBy: 'AC Demo',
       source: 'manual',
-      remark: '有效白名单 · 演示学生窗外可申请',
+      remark:
+        '有效白名单 · 演示学生窗外可申请；可加课换组含 MATH101-02；可低于最低学分退课',
       permissions: stampInviteOnGated(
         [
           createPermission('supplement'),
@@ -326,6 +490,20 @@ function buildDemoWhitelistSeed() {
           createPermission('canDrop'),
           createPermission('canRetake'),
           createPermission('bypassCreditMin', { validHours: null, validUntil: '2026/02' }),
+          createPermission('allowCoreSectionSwitchAdd', {
+            validHours: null,
+            validUntil: null,
+            sections: [{ courseCode: 'MATH101', sectionCode: '02' }],
+          }),
+          createPermission('allowFutureMandatory', {
+            validHours: null,
+            validUntil: null,
+            sections: [{ courseCode: 'PHYS101', sectionCode: '01' }],
+          }),
+          createPermission('allowDropBelowCreditMin', {
+            validHours: null,
+            validUntil: null,
+          }),
         ],
         { attempt: 1, remainMs: activeRemain },
       ),
@@ -336,7 +514,7 @@ function buildDemoWhitelistSeed() {
       studentName: 'Raj Kumar',
       programme: 'DSA',
       intake: '2024/09',
-      addedAt: '08-Sep-2025',
+      addedAt: '2025-09-08 10:00:00',
       addedBy: 'AC DSA',
       source: 'manual',
       remark: '有效期内 · 课程豁免先修课',
@@ -359,7 +537,7 @@ function buildDemoWhitelistSeed() {
       studentName: 'Siti Nurhaliza',
       programme: 'AIT',
       intake: '2024/09',
-      addedAt: '05-Sep-2025',
+      addedAt: '2025-09-05 10:00:00',
       addedBy: 'AC AIT',
       source: 'manual',
       remark: '已逾期 · 突破本学期学分要求',
@@ -378,7 +556,7 @@ function buildDemoWhitelistSeed() {
       studentName: 'Wong Mei Ling',
       programme: 'BUS',
       intake: '2024/09',
-      addedAt: '04-Sep-2025',
+      addedAt: '2025-09-04 10:00:00',
       addedBy: 'AC Demo',
       source: 'manual',
       remark: '未发通知 · 院系特批',
@@ -394,7 +572,7 @@ function buildDemoWhitelistSeed() {
       studentName: 'Ahmad bin Ali',
       programme: 'COS',
       intake: '2024/09',
-      addedAt: '03-Sep-2025',
+      addedAt: '2025-09-03 10:00:00',
       addedBy: 'AC Demo',
       source: 'manual',
       remark: '已逾期 · 演示再次开放（非演示学号）',
@@ -414,7 +592,7 @@ function buildDemoWhitelistSeed() {
       studentName: 'Lim Wei Jie',
       programme: 'SWE',
       intake: '2024/09',
-      addedAt: '02-Sep-2025',
+      addedAt: '2025-09-02 10:00:00',
       addedBy: 'AC Demo',
       source: 'registration-monitor',
       remark: '有效期内 · 监控转入',
@@ -429,7 +607,7 @@ function buildDemoWhitelistSeed() {
       studentName: 'Lim Jia Hui',
       programme: 'SWE',
       intake: '2024/09',
-      addedAt: '01-Sep-2025',
+      addedAt: '2025-09-01 10:00:00',
       addedBy: 'AC Demo',
       source: 'manual',
       remark: '未发通知 · 仅可重修',
@@ -441,7 +619,7 @@ function buildDemoWhitelistSeed() {
       studentName: 'Chong Kai Xin',
       programme: 'ACC',
       intake: '2024/09',
-      addedAt: '31-Aug-2025',
+      addedAt: '2025-08-31 10:00:00',
       addedBy: 'AC Demo',
       source: 'manual',
       remark: '已逾期 · 学分例外+先修豁免',
@@ -482,16 +660,16 @@ function buildDemoWhitelistSeed() {
   ]
 
   const dayLabels = [
-    '30-Aug-2025',
-    '29-Aug-2025',
-    '28-Aug-2025',
-    '27-Aug-2025',
-    '26-Aug-2025',
-    '25-Aug-2025',
-    '24-Aug-2025',
-    '23-Aug-2025',
-    '22-Aug-2025',
-    '21-Aug-2025',
+    '2025-08-30 10:00:00',
+    '2025-08-29 10:00:00',
+    '2025-08-28 10:00:00',
+    '2025-08-27 10:00:00',
+    '2025-08-26 10:00:00',
+    '2025-08-25 10:00:00',
+    '2025-08-24 10:00:00',
+    '2025-08-23 10:00:00',
+    '2025-08-22 10:00:00',
+    '2025-08-21 10:00:00',
   ]
 
   more.forEach((row, index) => {
@@ -610,10 +788,62 @@ export function addStudentToSupplementList(student, options = {}) {
       ...(parentOn && options.canRetake ? [createPermission('canRetake')] : []),
       ...(options.bypassPrerequisite ? [createPermission('bypassPrerequisite')] : []),
       ...(options.bypassCreditMax
-        ? [createPermission('bypassCreditMax', { validHours: null, validUntil: null })]
+        ? [
+            createPermission('bypassCreditMax', {
+              validHours: null,
+              validUntil: null,
+              extraCredits: (() => {
+                const n = Number(options.creditBypassExtra)
+                return Number.isFinite(n) && n > 0 ? Math.min(3, Math.max(1, Math.floor(n))) : 3
+              })(),
+            }),
+          ]
         : []),
       ...(options.bypassCreditMin
         ? [createPermission('bypassCreditMin', { validHours: null, validUntil: null })]
+        : []),
+      ...(options.allowFutureMandatory
+        ? [
+            createPermission('allowFutureMandatory', {
+              validHours: null,
+              validUntil: null,
+              sections: normalizeWhitelistSectionRefs(options.futureMandatorySections || []),
+            }),
+          ]
+        : []),
+      ...(options.allowCoreSectionSwitchAdd
+        ? [
+            createPermission('allowCoreSectionSwitchAdd', {
+              validHours: null,
+              validUntil: null,
+              sections: normalizeWhitelistSectionRefs(options.coreSectionSwitchAddSections || []),
+            }),
+          ]
+        : []),
+      ...(options.allowCoreSectionSwitchRetake
+        ? [
+            createPermission('allowCoreSectionSwitchRetake', {
+              validHours: null,
+              validUntil: null,
+              sections: normalizeWhitelistSectionRefs(
+                options.coreSectionSwitchRetakeSections || [],
+              ),
+            }),
+          ]
+        : []),
+      ...(options.allowFutureElective
+        ? [
+            createPermission('allowFutureElective', {
+              validHours: null,
+              validUntil: null,
+              geCredits: normalizePositiveCredits(options.futureElectiveGeCredits),
+              meCredits: normalizePositiveCredits(options.futureElectiveMeCredits),
+              meCategoryKeys: normalizeMeCategoryKeys(options.futureElectiveMeCategoryKeys),
+            }),
+          ]
+        : []),
+      ...(options.allowDropBelowCreditMin
+        ? [createPermission('allowDropBelowCreditMin', { validHours: null, validUntil: null })]
         : []),
     ]
   }
@@ -641,19 +871,58 @@ export function removeSupplementEntry(id) {
   return { ok: true }
 }
 
-export function filterSupplementList(rows, filters = {}) {
+/**
+ * 列表筛选用：未发送 / 有效 / 已逾期
+ * @param {object} row
+ * @param {Date} [now]
+ * @returns {'notSent'|'active'|'expired'}
+ */
+export function getWhitelistDoorFilterStatus(row, now = new Date()) {
+  const entry = normalizeWhitelistEntry(row || {})
+  const attempt = Number(getPermission(entry, 'supplement')?.inviteAttempt) || 0
+  if (attempt <= 0) return 'notSent'
+  const door = getSupplementDoorStatus(entry.studentId, now)
+  return door.ok ? 'active' : 'expired'
+}
+
+export function filterSupplementList(rows, filters = {}, now = new Date()) {
   let list = rows.map((r) => normalizeWhitelistEntry(r))
   if (filters.programme) {
-    list = list.filter((r) => r.programme.toLowerCase().includes(filters.programme.toLowerCase()))
+    const p = String(filters.programme).trim().toLowerCase()
+    list = list.filter((r) => String(r.programme || '').toLowerCase().includes(p))
+  }
+  if (filters.intake) {
+    const want = formatIntakeBatch(filters.intake)
+    list = list.filter((r) => formatIntakeBatch(r.intake) === want)
+  }
+  if (filters.studentId) {
+    const kw = String(filters.studentId).trim().toLowerCase()
+    list = list.filter((r) => String(r.studentId || '').toLowerCase().includes(kw))
+  }
+  if (filters.studentName) {
+    const kw = String(filters.studentName).trim().toLowerCase()
+    list = list.filter((r) => String(r.studentName || '').toLowerCase().includes(kw))
   }
   if (filters.keyword) {
-    const kw = filters.keyword.toLowerCase()
+    const kw = String(filters.keyword).trim().toLowerCase()
     list = list.filter(
-      (r) => r.studentId.toLowerCase().includes(kw) || r.studentName.toLowerCase().includes(kw),
+      (r) =>
+        String(r.studentId || '')
+          .toLowerCase()
+          .includes(kw) ||
+        String(r.studentName || '')
+          .toLowerCase()
+          .includes(kw),
     )
   }
   if (filters.permission) {
-    list = list.filter((r) => (r.permissions || []).some((p) => p.key === filters.permission && p.enabled !== false))
+    list = list.filter((r) =>
+      (r.permissions || []).some((p) => p.key === filters.permission && p.enabled !== false),
+    )
+  }
+  if (filters.doorStatus) {
+    const want = String(filters.doorStatus)
+    list = list.filter((r) => getWhitelistDoorFilterStatus(r, now) === want)
   }
   return list
 }
@@ -674,10 +943,22 @@ export function updateSupplementEntry(id, patch) {
     patch.bypassPrerequisite !== undefined ||
     patch.bypassCreditMax !== undefined ||
     patch.bypassCreditMin !== undefined ||
+    patch.allowFutureMandatory !== undefined ||
+    patch.futureMandatorySections !== undefined ||
+    patch.allowCoreSectionSwitchAdd !== undefined ||
+    patch.coreSectionSwitchAddSections !== undefined ||
+    patch.allowCoreSectionSwitchRetake !== undefined ||
+    patch.coreSectionSwitchRetakeSections !== undefined ||
+    patch.allowFutureElective !== undefined ||
+    patch.allowDropBelowCreditMin !== undefined ||
+    patch.futureElectiveGeCredits !== undefined ||
+    patch.futureElectiveMeCredits !== undefined ||
+    patch.futureElectiveMeCategoryKeys !== undefined ||
     patch.prereqValidUntil !== undefined ||
     patch.prereqCourseCodes !== undefined ||
     patch.permissionHours !== undefined ||
-    patch.permissionUntil !== undefined
+    patch.permissionUntil !== undefined ||
+    patch.creditBypassExtra !== undefined
   ) {
     next.permissions = rebuildPermissionsFromForm(current, patch)
   }
@@ -692,15 +973,47 @@ function rebuildPermissionsFromForm(current, patch) {
   const untilMap = patch.permissionUntil || {}
   const parentOn =
     patch.supplement !== undefined ? Boolean(patch.supplement) : Boolean(current.supplement)
+  const canAdd = parentOn && (patch.canAdd ?? current.canAdd)
+  const canRetake = parentOn && (patch.canRetake ?? current.canRetake)
   const flags = {
     supplement: parentOn,
-    canAdd: parentOn && (patch.canAdd ?? current.canAdd),
+    canAdd,
     canDrop: parentOn && (patch.canDrop ?? current.canDrop),
-    canRetake: parentOn && (patch.canRetake ?? current.canRetake),
+    canRetake,
     bypassPrerequisite: patch.bypassPrerequisite ?? current.bypassPrerequisite,
     bypassCreditMax: patch.bypassCreditMax ?? current.bypassCreditMax,
     bypassCreditMin: patch.bypassCreditMin ?? current.bypassCreditMin,
+    allowFutureMandatory: patch.allowFutureMandatory ?? current.allowFutureMandatory,
+    allowCoreSectionSwitchAdd:
+      canAdd && (patch.allowCoreSectionSwitchAdd ?? current.allowCoreSectionSwitchAdd),
+    allowCoreSectionSwitchRetake:
+      canRetake &&
+      (patch.allowCoreSectionSwitchRetake ?? current.allowCoreSectionSwitchRetake),
+    allowFutureElective: patch.allowFutureElective ?? current.allowFutureElective,
+    allowDropBelowCreditMin:
+      patch.allowDropBelowCreditMin ?? current.allowDropBelowCreditMin,
   }
+  const extraRaw = Number(patch.creditBypassExtra ?? current.creditBypassExtra)
+  const creditBypassExtra =
+    Number.isFinite(extraRaw) && extraRaw > 0 ? Math.min(3, Math.max(1, Math.floor(extraRaw))) : 3
+  const geCredits = normalizePositiveCredits(
+    patch.futureElectiveGeCredits ?? current.futureElectiveGeCredits,
+  )
+  const meCredits = normalizePositiveCredits(
+    patch.futureElectiveMeCredits ?? current.futureElectiveMeCredits,
+  )
+  const meCategoryKeys = normalizeMeCategoryKeys(
+    patch.futureElectiveMeCategoryKeys ?? current.futureElectiveMeCategoryKeys,
+  )
+  const futureMandatorySections = normalizeWhitelistSectionRefs(
+    patch.futureMandatorySections ?? current.futureMandatorySections,
+  )
+  const coreSectionSwitchAddSections = normalizeWhitelistSectionRefs(
+    patch.coreSectionSwitchAddSections ?? current.coreSectionSwitchAddSections,
+  )
+  const coreSectionSwitchRetakeSections = normalizeWhitelistSectionRefs(
+    patch.coreSectionSwitchRetakeSections ?? current.coreSectionSwitchRetakeSections,
+  )
   const prevByKey = Object.fromEntries((current.permissions || []).map((p) => [p.key, p]))
   const list = []
   for (const key of WHITELIST_PERMISSION_KEYS) {
@@ -719,20 +1032,46 @@ function rebuildPermissionsFromForm(current, patch) {
           key === 'bypassPrerequisite'
             ? patch.prereqCourseCodes ?? prev.courseCodes ?? []
             : prev.courseCodes || [],
+        ...(key === 'bypassCreditMax' ? { extraCredits: creditBypassExtra, validHours: null } : {}),
+        ...(key === 'allowFutureMandatory'
+          ? { sections: futureMandatorySections, validHours: null }
+          : {}),
+        ...(key === 'allowCoreSectionSwitchAdd'
+          ? { sections: coreSectionSwitchAddSections, validHours: null }
+          : {}),
+        ...(key === 'allowCoreSectionSwitchRetake'
+          ? { sections: coreSectionSwitchRetakeSections, validHours: null }
+          : {}),
+        ...(key === 'allowFutureElective'
+          ? {
+              geCredits,
+              meCredits,
+              meCategoryKeys,
+              validHours: null,
+            }
+          : {}),
       }),
     )
   }
   return list
 }
 
-function applyInviteToPermission(perm, attempt, now = new Date()) {
+/**
+ * @param {object} perm
+ * @param {number} attempt
+ * @param {Date} [now]
+ * @param {Date|null} [deadlineOverride] 指定绝对截止（再次开放选时）
+ */
+function applyInviteToPermission(perm, attempt, now = new Date(), deadlineOverride = null) {
   const hours =
     perm.validHours != null && perm.validHours !== ''
       ? Number(perm.validHours)
       : SUPPLEMENT_INVITE_HOURS
   const sentAt = formatInviteStamp(now)
   let deadlineAt = null
-  if (perm.validUntil) {
+  if (deadlineOverride instanceof Date && !Number.isNaN(deadlineOverride.getTime())) {
+    deadlineAt = formatInviteStamp(deadlineOverride)
+  } else if (perm.validUntil) {
     deadlineAt = perm.validUntil
   } else {
     const deadline = new Date(now.getTime() + (Number.isFinite(hours) ? hours : 24) * 60 * 60 * 1000)
@@ -746,12 +1085,12 @@ function applyInviteToPermission(perm, attempt, now = new Date()) {
   }
 }
 
-function applyInviteWindow(entry, attempt, now = new Date()) {
+function applyInviteWindow(entry, attempt, now = new Date(), deadlineOverride = null) {
   const normalized = normalizeWhitelistEntry(entry)
   const permissions = (normalized.permissions || []).map((perm) => {
     if (!INVITE_GATED_PERMISSION_KEYS.includes(perm.key)) return perm
     if (perm.enabled === false) return perm
-    return applyInviteToPermission(perm, attempt, now)
+    return applyInviteToPermission(perm, attempt, now, deadlineOverride)
   })
   const next = normalizeWhitelistEntry({
     ...normalized,
@@ -780,8 +1119,13 @@ export function sendSupplementInvite(id, now = new Date()) {
   return { ok: true, item: next, emailMock: true }
 }
 
-/** 逾期后再次开放（与发送通知分开，不限次数） */
-export function reopenSupplementInvite(id, now = new Date()) {
+/**
+ * 逾期后再次开放（与发送通知分开，不限次数）
+ * @param {string} id
+ * @param {Date} [now]
+ * @param {{ deadlineAt?: string|Date }} [options] deadlineAt 为「YYYY-MM-DD HH:mm:ss」或 Date
+ */
+export function reopenSupplementInvite(id, now = new Date(), options = {}) {
   const index = supplementListQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
   const entry = normalizeWhitelistEntry(supplementListQueue.value[index])
@@ -793,7 +1137,21 @@ export function reopenSupplementInvite(id, now = new Date()) {
   if (door.ok) {
     return { ok: false, errorKey: 'courseRegistration.supplement.inviteStillActive' }
   }
-  const next = applyInviteWindow(entry, attempt + 1, now)
+  let deadlineOverride = null
+  if (options?.deadlineAt != null && options.deadlineAt !== '') {
+    deadlineOverride =
+      options.deadlineAt instanceof Date
+        ? options.deadlineAt
+        : parseInviteStamp(options.deadlineAt)
+    if (!deadlineOverride || Number.isNaN(deadlineOverride.getTime())) {
+      return { ok: false, errorKey: 'courseRegistration.whitelist.reopenDueRequired' }
+    }
+    const nowMs = now instanceof Date ? now.getTime() : Date.now()
+    if (deadlineOverride.getTime() <= nowMs) {
+      return { ok: false, errorKey: 'courseRegistration.whitelist.reopenDueMustFuture' }
+    }
+  }
+  const next = applyInviteWindow(entry, attempt + 1, now, deadlineOverride)
   supplementListQueue.value[index] = next
   return { ok: true, item: next, emailMock: true }
 }
@@ -816,27 +1174,59 @@ export function markSupplementInviteExpired(id, now = new Date()) {
   return { ok: true, item: next }
 }
 
-export function formatSupplementInviteCountdown(entry, now = new Date()) {
+/**
+ * 邀请倒计时（展示对齐缴费剩余：天/小时/分钟）
+ * @param {object} entry
+ * @param {Date|number} [now]
+ * @param {(key: string, params?: object) => string} [t] 传入则 label 用 i18n 天时分
+ */
+export function formatSupplementInviteCountdown(entry, now = new Date(), t = null) {
   const normalized = entry ? normalizeWhitelistEntry(entry) : null
   const deadlineRaw =
     getPermission(normalized, 'supplement')?.deadlineAt || normalized?.deadlineAt
   if (!deadlineRaw) return null
   const deadline = parseInviteStamp(deadlineRaw)
   if (!deadline) return null
-  const ms = deadline.getTime() - now.getTime()
-  if (ms <= 0) return { expired: true, label: '0h' }
-  const hours = Math.floor(ms / (60 * 60 * 1000))
-  const mins = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000))
-  return { expired: false, hours, mins, deadlineAt: deadlineRaw, label: `${hours}h ${mins}m` }
+  const nowMs = now instanceof Date ? now.getTime() : Number(now) || Date.now()
+  const ms = deadline.getTime() - nowMs
+  if (ms <= 0) {
+    return { expired: true, remainingMs: ms, deadlineAt: deadlineRaw, label: '0h' }
+  }
+  const totalMin = Math.floor(ms / 60000)
+  const days = Math.floor(totalMin / (60 * 24))
+  const hours = Math.floor((totalMin % (60 * 24)) / 60)
+  const mins = totalMin % 60
+  const label = t
+    ? t('courseRegistration.approval.paymentRemainingDhm', { d: days, h: hours, m: mins })
+    : `${days}d ${hours}h ${mins}m`
+  return {
+    expired: false,
+    remainingMs: ms,
+    days,
+    hours,
+    mins,
+    deadlineAt: deadlineRaw,
+    label,
+  }
 }
 
-/** 列表展示：权限摘要（不再展示已下架的最高学分） */
+/** 列表展示：权限摘要（超学期学分额度用 bypassCreditMin 文案 + 可超分） */
 export function formatPermissionSummary(entry, t) {
   const normalized = normalizeWhitelistEntry(entry)
   const labels = []
   for (const perm of normalized.permissions || []) {
     if (perm.enabled === false) continue
-    if (perm.key === 'bypassCreditMax') continue
+    if (perm.key === 'bypassCreditMax') {
+      const extra =
+        Number(perm.extraCredits) > 0
+          ? Math.min(3, Math.floor(Number(perm.extraCredits)))
+          : normalized.creditBypassExtra || 3
+      const baseKey = 'courseRegistration.whitelist.perm.bypassCreditMin'
+      const base = t ? t(baseKey) : baseKey
+      const unit = t ? t('courseRegistration.whitelist.creditBypassExtraUnit') : 'cr'
+      labels.push(`${base}(+${extra}${unit})`)
+      continue
+    }
     const key = `courseRegistration.whitelist.perm.${perm.key}`
     const label = t ? t(key) : perm.key
     labels.push(typeof label === 'string' && label !== key ? label : perm.key)
@@ -881,9 +1271,11 @@ export function formatWhitelistSourceLabel(source, t) {
  * @param {object} row
  * @param {(key: string, params?: object) => string} t
  */
-export function buildWhitelistNotifyDraft(row, t) {
+export function buildWhitelistNotifyDraft(row, t, options = {}) {
   const name = row?.studentName || ''
   const id = row?.studentId || ''
+  const hours = Number(options?.hours)
+  const hoursText = Number.isFinite(hours) && hours > 0 ? hours : SUPPLEMENT_INVITE_HOURS
   return {
     subject: t('courseRegistration.whitelist.notifyDraft.subject', { name }),
     body: [
@@ -891,7 +1283,7 @@ export function buildWhitelistNotifyDraft(row, t) {
       '',
       t('courseRegistration.whitelist.notifyDraft.lineOpen'),
       t('courseRegistration.whitelist.notifyDraft.lineHours', {
-        hours: SUPPLEMENT_INVITE_HOURS,
+        hours: hoursText,
       }),
       t('courseRegistration.whitelist.notifyDraft.lineAction'),
       '',
@@ -904,10 +1296,13 @@ export function buildWhitelistNotifyDraft(row, t) {
  * 白名单「再次开放并发送通知」邮件草稿
  * @param {object} row
  * @param {(key: string, params?: object) => string} t
+ * @param {{ hours?: number }} [options]
  */
-export function buildWhitelistReopenDraft(row, t) {
+export function buildWhitelistReopenDraft(row, t, options = {}) {
   const name = row?.studentName || ''
   const id = row?.studentId || ''
+  const hours = Number(options?.hours)
+  const hoursText = Number.isFinite(hours) && hours > 0 ? hours : SUPPLEMENT_INVITE_HOURS
   return {
     subject: t('courseRegistration.whitelist.reopenDraft.subject', { name }),
     body: [
@@ -915,7 +1310,7 @@ export function buildWhitelistReopenDraft(row, t) {
       '',
       t('courseRegistration.whitelist.reopenDraft.lineReopen'),
       t('courseRegistration.whitelist.reopenDraft.lineHours', {
-        hours: SUPPLEMENT_INVITE_HOURS,
+        hours: hoursText,
       }),
       t('courseRegistration.whitelist.reopenDraft.lineAction'),
       '',
