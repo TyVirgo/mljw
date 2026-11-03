@@ -8,8 +8,9 @@ import PreselectVolunteerRosterDrawer from '../../components/courseRegistration/
 import RoundSpecialAddedRosterDrawer from '../../components/courseRegistration/RoundSpecialAddedRosterDrawer.vue'
 import AdminAddCourseForStudentModal from '../../components/courseRegistration/AdminAddCourseForStudentModal.vue'
 import VolunteerPublishLogModal from '../../components/courseRegistration/VolunteerPublishLogModal.vue'
+import MeSeniorQuotaReadonlyModal from '../../components/courseRegistration/MeSeniorQuotaReadonlyModal.vue'
+import ResultStudentDetailDrawer from '../../components/courseRegistration/ResultStudentDetailDrawer.vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
-import { formatIntakeBatch } from '../../data/intakeSets.js'
 import {
   listResultDemoBatches,
   registrationBatches,
@@ -23,9 +24,12 @@ import {
   removeAdminStudentRegistrations,
   removeAdminCourseRegistrations,
   STUDENT_OP_RESULT_KEYS,
+  STUDENT_COURSE_SOURCE_KEYS,
   formatStudentOpResultLabel,
-  formatStudentResultPreferenceLabel,
+  formatStudentOperatorDisplay,
 } from '../../data/courseRegistration/registrationResult.js'
+import { resolveEffectiveCrossReleaseAt } from '../../data/courseRegistration/sessionRegistrationSchedules.js'
+import { batchDateToPicker } from '../../data/courseRegistration/registrationBatchFormUtils.js'
 import { getRoundTimeline } from '../../data/courseRegistration/studentRegistrationContext.js'
 import {
   RESULT_ROUND_KEYS,
@@ -33,6 +37,12 @@ import {
   listRoundCourseSummaries,
   roundCourseRosters,
 } from '../../data/courseRegistration/registrationResultByRound.js'
+import {
+  getSelectionGroupDisplayLines,
+  formatSelectionGroupRemark,
+  getSelectionGroupsForBatch,
+  sortSectionRowsBySelectionGroup,
+} from '../../data/courseRegistration/courseSelectionGroups.js'
 import {
   volunteerCourseStates,
   listVolunteerCourseSummaries,
@@ -46,6 +56,7 @@ import {
 import {
   sortRowsByCourseThenSection,
   paginateSectionRowsByCourse,
+  attachSelectionGroupColumnSpans,
 } from '../../data/courseRegistration/sectionTableRowSpans.js'
 import {
   formatResultReleaseDisplay,
@@ -77,7 +88,7 @@ import { getResultReleaseAt } from '../../data/courseRegistration/studentVolunte
 import '../../styles/list-page-search.css'
 import '../../styles/course-registration-list.css'
 
-const { t } = useAppI18n()
+const { t, isZh } = useAppI18n()
 
 const activeTab = ref('round')
 const selectedRound = ref('preselect')
@@ -89,6 +100,8 @@ const emptyStudentSearch = () => ({
   courseKeyword: '',
   operatorKeyword: '',
   opResult: '',
+  /** 课程来源：空=全部；preselect|main|supplement|admin */
+  courseSource: '',
   timeStart: '',
   timeEnd: '',
 })
@@ -97,8 +110,27 @@ const emptyCourseSearch = () => ({
   courseCode: '',
   courseName: '',
   courseType: '',
+  /** @deprecated R2/R3 已去掉课程分组搜索；保留键避免旧引用 */
   sectionCode: '',
   credits: '',
+  /** ME 课程组关键字 */
+  selectionGroupKeyword: '',
+  /** 有效最大容量·可选分子区间（R2/R3） */
+  effectiveAvailableMin: '',
+  effectiveAvailableMax: '',
+  freshmanAvailableMin: '',
+  freshmanAvailableMax: '',
+  seniorAvailableMin: '',
+  seniorAvailableMax: '',
+  specialAddedMin: '',
+  specialAddedMax: '',
+  /** @deprecated 已改用 *Available*；保留避免旧引用 */
+  effectiveEnrolledMin: '',
+  effectiveEnrolledMax: '',
+  freshmanEnrolledMin: '',
+  freshmanEnrolledMax: '',
+  seniorEnrolledMin: '',
+  seniorEnrolledMax: '',
 })
 const studentSearchExpanded = ref(true)
 const roundSearchExpanded = ref(true)
@@ -185,17 +217,139 @@ const specialRosterVisible = ref(false)
 const specialRosterCourseId = ref('')
 const specialRosterCourseCode = ref('')
 const specialRosterCourseName = ref('')
+/** ME 老生年级占比只读弹窗 */
+const meQuotaVisible = ref(false)
+const meQuotaCourseId = ref('')
+const meQuotaBatchId = ref('')
+const meQuotaCourseCode = ref('')
+const meQuotaCourseName = ref('')
+/** 入口列三数，弹窗合计须贴合 */
+const meQuotaEntrySeniorCap = ref(null)
+const meQuotaEntryEnrolledSenior = ref(null)
+const meQuotaEntryAvailableSenior = ref(null)
+/** 学生维行详情抽屉 */
+const studentDetailVisible = ref(false)
+const studentDetailRow = ref(null)
 /** 结果页 demo 批次公布文案固定，不随真实时间刷新 */
 const batchOptions = computed(() => listResultDemoBatches())
 
+/**
+ * 打开学生维详情
+ * @param {object} row
+ */
+function openStudentDetail(row) {
+  studentDetailRow.value = row || null
+  studentDetailVisible.value = true
+}
+
 const studentRows = computed(() => adminStudentRegistrationResults.value)
 
-/** R2/R3：一行一课 */
-const roundCourseRows = computed(() => {
+/** 当前结果批次是否为 ME（课程组列 + 老生容量可点） */
+const isMeResultBatch = computed(() => getBatchById(selectedBatchId.value)?.type === 'ME')
+
+/**
+ * R2/R3：一门课一行；ME 按课程组排序并挂 course stub（供分页/span）
+ * @returns {object[]}
+ */
+const roundCourseRowsAll = computed(() => {
   void roundCourseRosters.value
   if (activeTab.value !== 'round' || selectedRound.value === 'preselect') return []
-  return listRoundCourseSummaries(selectedRound.value, roundApplied.value)
+  const list = listRoundCourseSummaries(selectedRound.value, roundApplied.value).map((row) => ({
+    ...row,
+    course: {
+      id: row.courseId,
+      code: row.courseCode,
+      name: row.courseName,
+      credits: row.credits,
+    },
+    section: null,
+  }))
+  if (!isMeResultBatch.value) return list
+  const groups = getSelectionGroupsForBatch(getBatchById(selectedBatchId.value))
+  if (groups.length) return sortSectionRowsBySelectionGroup(list, groups)
+  return list
 })
+
+/** ME R2/R3：组感知分页 + 课程组列 rowspan */
+const round23MePaged = computed(() => {
+  if (
+    activeTab.value !== 'round' ||
+    selectedRound.value === 'preselect' ||
+    !isMeResultBatch.value
+  ) {
+    return { rows: [], totalCourses: 0, firstCourseIndex: 0 }
+  }
+  const paged = paginateSectionRowsByCourse(
+    roundCourseRowsAll.value,
+    currentPage.value,
+    pageSize.value,
+    { groupAware: true },
+  )
+  return {
+    ...paged,
+    rows: attachSelectionGroupColumnSpans(paged.rows),
+  }
+})
+
+/**
+ * 课程组展示文案（对齐在线选课）
+ * @param {object|null|undefined} group
+ */
+function selectionGroupLines(group) {
+  return getSelectionGroupDisplayLines(group, isZh.value)
+}
+
+/**
+ * 课程组须选说明（如 4 门选 3）
+ * @param {object|null|undefined} group
+ */
+function selectionGroupRemarkText(group) {
+  if (!group) return ''
+  return formatSelectionGroupRemark(group, t)
+}
+
+/**
+ * 打开 ME 老生年级占比只读弹窗
+ * @param {object} row
+ */
+function openMeSeniorQuota(row) {
+  if (!isMeResultBatch.value || !row?.courseId) return
+  meQuotaCourseId.value = row.courseId || ''
+  meQuotaBatchId.value = row.batchId || selectedBatchId.value || ''
+  meQuotaCourseCode.value = row.courseCode || ''
+  meQuotaCourseName.value = row.courseName || ''
+  // R2/R3 行带 availableSenior（R2 label 为可选/总量）；R1 为已选/总量
+  let seniorCap = Number(row.seniorCap)
+  let enrolledSenior = Number(row.enrolledSenior)
+  let availableSenior = Number(row.availableSenior)
+  if (!Number.isFinite(seniorCap)) {
+    const label = String(row.seniorCapacityLabel || '')
+    const m = label.match(/^(\d+)\s*\/\s*(\d+)$/)
+    if (m) {
+      seniorCap = Number(m[2])
+      // R1：分子=已选；R2：分子=可选 — 优先用行内已选/可选字段
+      if (!Number.isFinite(availableSenior) && !Number.isFinite(enrolledSenior)) {
+        if (selectedRound.value === 'preselect') {
+          enrolledSenior = Number(m[1])
+          availableSenior = Math.max(0, seniorCap - enrolledSenior)
+        } else {
+          availableSenior = Number(m[1])
+          enrolledSenior = Math.max(0, seniorCap - availableSenior)
+        }
+      }
+    }
+  }
+  if (!Number.isFinite(availableSenior) && Number.isFinite(seniorCap) && Number.isFinite(enrolledSenior)) {
+    availableSenior = Math.max(0, seniorCap - enrolledSenior)
+  }
+  if (!Number.isFinite(enrolledSenior) && Number.isFinite(seniorCap) && Number.isFinite(availableSenior)) {
+    enrolledSenior = Math.max(0, seniorCap - availableSenior)
+  }
+  meQuotaEntrySeniorCap.value = Number.isFinite(seniorCap) ? seniorCap : null
+  meQuotaEntryEnrolledSenior.value = Number.isFinite(enrolledSenior) ? enrolledSenior : null
+  meQuotaEntryAvailableSenior.value = Number.isFinite(availableSenior) ? availableSenior : null
+  meQuotaVisible.value = true
+}
 
 /**
  * 分组「选上」人数：GE/ME 看 selected；否则容量内人数
@@ -258,6 +412,9 @@ function buildRound1MergedSectionRows() {
       // 口径 A：有效最大 = 老生；无新生列
       effectiveCapacityLabel: seniorLabel,
       seniorCapacityLabel: seniorLabel,
+      seniorCap: agg.seniorCap,
+      enrolledSenior: agg.selected,
+      availableSenior: Math.max(0, agg.seniorCap - agg.selected),
       freshmanCapacityLabel: '',
       specialAddedCount: specialByCourse.get(v.courseId) || 0,
     }
@@ -287,11 +444,14 @@ const rows = computed(() => {
     return filterStudentResults(studentRows.value, studentApplied.value)
   }
   if (isRound1CourseView.value) return round1SectionRowsAll.value
-  return roundCourseRows.value
+  return roundCourseRowsAll.value
 })
 
 const totalCount = computed(() => {
   if (isRound1CourseView.value) return round1Paged.value.totalCourses
+  if (activeTab.value === 'round' && !isRound1CourseView.value && isMeResultBatch.value) {
+    return round23MePaged.value.totalCourses
+  }
   return rows.value.length
 })
 
@@ -299,9 +459,15 @@ const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / pageS
 
 const paginatedRows = computed(() => {
   if (isRound1CourseView.value) return round1Paged.value.rows
+  if (activeTab.value === 'round' && selectedRound.value !== 'preselect' && isMeResultBatch.value) {
+    return round23MePaged.value.rows
+  }
   const start = (currentPage.value - 1) * pageSize.value
   return rows.value.slice(start, start + pageSize.value)
 })
+
+/** R2/R3 空表列数：基础列 +（ME 课程组） */
+const round23Colspan = computed(() => (isMeResultBatch.value ? 10 : 9))
 
 function spanCell(row, field) {
   return row?._span?.[field] || null
@@ -364,6 +530,27 @@ const showBulkToolbar = computed(
   () => activeTab.value === 'student' || (activeTab.value === 'round' && !isRound1CourseView.value),
 )
 const showVolunteerToolbar = computed(() => isRound1CourseView.value)
+
+/** 课程维第二轮：新老生容量展示可选/总量 */
+const isRound2CourseView = computed(
+  () => activeTab.value === 'round' && selectedRound.value === 'main',
+)
+
+/** 课程维第三轮：工具栏展示互释时间 */
+const showR3CrossReleaseHint = computed(
+  () => activeTab.value === 'round' && selectedRound.value === 'supplement',
+)
+
+/**
+ * 当前批次解析的 R3 互释时刻，展示为 DD/MM/YYYY HH:mm:ss（空则 —）
+ * @returns {string}
+ */
+const r3CrossReleaseAtDisplay = computed(() => {
+  const batch = getBatchById(selectedBatchId.value)
+  const at = resolveEffectiveCrossReleaseAt(batch)
+  if (!at) return '—'
+  return batchDateToPicker(at) || at
+})
 
 /** 依赖批次列表，便于定稿后刷新状态 */
 const volunteerBatchTick = computed(() =>
@@ -770,6 +957,15 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                   </option>
                 </select>
               </div>
+              <div class="search-item">
+                <label>{{ t('courseRegistration.student.courseSource') }}</label>
+                <select v-model="studentSearchForm.courseSource" class="search-select">
+                  <option value="">{{ t('common.all') }}</option>
+                  <option v-for="key in STUDENT_COURSE_SOURCE_KEYS" :key="key" :value="key">
+                    {{ feeCourseSourceLabel(key, t) }}
+                  </option>
+                </select>
+              </div>
               <div class="search-item search-item-range">
                 <label>{{ t('courseRegistration.log.operatedAtRange') }}</label>
                 <input v-model="studentSearchForm.timeStart" type="date" class="search-input" />
@@ -852,10 +1048,10 @@ function handleExportConfirm({ selectedFields, exportScope }) {
               </select>
             </div>
             <template v-if="roundSearchExpanded">
-              <div class="search-item">
-                <label>{{ t('courseRegistration.courses.sectionCode') }}</label>
+              <div v-if="isMeResultBatch && !isRound1CourseView" class="search-item">
+                <label>{{ t('courseRegistration.courses.selectionGroup') }}</label>
                 <input
-                  v-model="roundSearchForm.sectionCode"
+                  v-model="roundSearchForm.selectionGroupKeyword"
                   type="text"
                   class="search-input"
                   :placeholder="t('common.pleaseInput')"
@@ -869,6 +1065,86 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                   type="text"
                   class="search-input"
                   :placeholder="t('common.pleaseInput')"
+                  @keyup.enter="handleSearch"
+                />
+              </div>
+              <div v-if="!isRound1CourseView" class="search-item search-item-range">
+                <label>{{ t('courseRegistration.result.effectiveAvailableRange') }}</label>
+                <input
+                  v-model="roundSearchForm.effectiveAvailableMin"
+                  type="number"
+                  min="0"
+                  class="search-input search-input-num"
+                  :placeholder="t('courseRegistration.result.rangeMinPlaceholder')"
+                  @keyup.enter="handleSearch"
+                />
+                <span class="range-sep">{{ t('common.to') }}</span>
+                <input
+                  v-model="roundSearchForm.effectiveAvailableMax"
+                  type="number"
+                  min="0"
+                  class="search-input search-input-num"
+                  :placeholder="t('courseRegistration.result.rangeMaxPlaceholder')"
+                  @keyup.enter="handleSearch"
+                />
+              </div>
+              <div v-if="!isRound1CourseView" class="search-item search-item-range">
+                <label>{{ t('courseRegistration.result.freshmanAvailableRange') }}</label>
+                <input
+                  v-model="roundSearchForm.freshmanAvailableMin"
+                  type="number"
+                  min="0"
+                  class="search-input search-input-num"
+                  :placeholder="t('courseRegistration.result.rangeMinPlaceholder')"
+                  @keyup.enter="handleSearch"
+                />
+                <span class="range-sep">{{ t('common.to') }}</span>
+                <input
+                  v-model="roundSearchForm.freshmanAvailableMax"
+                  type="number"
+                  min="0"
+                  class="search-input search-input-num"
+                  :placeholder="t('courseRegistration.result.rangeMaxPlaceholder')"
+                  @keyup.enter="handleSearch"
+                />
+              </div>
+              <div v-if="!isRound1CourseView" class="search-item search-item-range">
+                <label>{{ t('courseRegistration.result.seniorAvailableRange') }}</label>
+                <input
+                  v-model="roundSearchForm.seniorAvailableMin"
+                  type="number"
+                  min="0"
+                  class="search-input search-input-num"
+                  :placeholder="t('courseRegistration.result.rangeMinPlaceholder')"
+                  @keyup.enter="handleSearch"
+                />
+                <span class="range-sep">{{ t('common.to') }}</span>
+                <input
+                  v-model="roundSearchForm.seniorAvailableMax"
+                  type="number"
+                  min="0"
+                  class="search-input search-input-num"
+                  :placeholder="t('courseRegistration.result.rangeMaxPlaceholder')"
+                  @keyup.enter="handleSearch"
+                />
+              </div>
+              <div v-if="!isRound1CourseView" class="search-item search-item-range">
+                <label>{{ t('courseRegistration.result.specialAddedRange') }}</label>
+                <input
+                  v-model="roundSearchForm.specialAddedMin"
+                  type="number"
+                  min="0"
+                  class="search-input search-input-num"
+                  :placeholder="t('courseRegistration.result.rangeMinPlaceholder')"
+                  @keyup.enter="handleSearch"
+                />
+                <span class="range-sep">{{ t('common.to') }}</span>
+                <input
+                  v-model="roundSearchForm.specialAddedMax"
+                  type="number"
+                  min="0"
+                  class="search-input search-input-num"
+                  :placeholder="t('courseRegistration.result.rangeMaxPlaceholder')"
                   @keyup.enter="handleSearch"
                 />
               </div>
@@ -923,6 +1199,14 @@ function handleExportConfirm({ selectedFields, exportScope }) {
           <button type="button" class="btn btn-default" @click="openExportModal">
             {{ t('common.export') }}
           </button>
+          <!-- 第三轮：只读展示学期配置互释时间 -->
+          <span
+            v-if="showR3CrossReleaseHint"
+            class="toolbar-status r3-cross-release-status"
+            :title="t('courseRegistration.schedule.crossReleaseAt')"
+          >
+            {{ t('courseRegistration.schedule.crossReleaseAt') }}：{{ r3CrossReleaseAtDisplay }}
+          </span>
         </div>
       </div>
 
@@ -960,25 +1244,22 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                   <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
                 </th>
                 <th class="col-serial">{{ t('common.serialNo') }}</th>
-                <th>{{ t('courseRegistration.monitor.studentId') }}</th>
-                <th>{{ t('courseRegistration.monitor.studentName') }}</th>
-                <th>{{ t('courseRegistration.monitor.programme') }}</th>
-                <th>{{ t('courseRegistration.monitor.intake') }}</th>
-                <th>{{ t('courseRegistration.batch.name') }}</th>
+                <th class="col-sticky-left col-student-id">
+                  {{ t('courseRegistration.monitor.studentId') }}
+                </th>
+                <th class="col-sticky-left col-student-name">
+                  {{ t('courseRegistration.monitor.studentName') }}
+                </th>
                 <th>{{ t('courseRegistration.courses.code') }}</th>
-                <th>{{ t('courseRegistration.courses.name') }}</th>
-                <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
-                <th>{{ t('courseRegistration.courses.type') }}</th>
-                <th>{{ t('courseRegistration.courses.sectionCode') }}</th>
-                <th class="col-sticky-right col-course-source">
-                  {{ t('courseRegistration.student.courseSource') }}
+                <th class="col-course-name">{{ t('courseRegistration.courses.name') }}</th>
+                <th>{{ t('courseRegistration.student.courseSource') }}</th>
+                <th class="col-operator">{{ t('courseRegistration.log.operator') }}</th>
+                <th class="col-operated-at">{{ t('courseRegistration.log.operatedAt') }}</th>
+                <th class="col-reason">{{ t('courseRegistration.result.adminAddReason') }}</th>
+                <th class="col-sticky-right col-op-result">
+                  {{ t('courseRegistration.result.selectionResult') }}
                 </th>
-                <th class="col-sticky-right col-preference">
-                  {{ t('courseRegistration.result.coursePreference') }}
-                </th>
-                <th class="col-sticky-right col-op-operator">{{ t('courseRegistration.log.operator') }}</th>
-                <th class="col-sticky-right col-op-time">{{ t('courseRegistration.log.operatedAt') }}</th>
-                <th class="col-sticky-right col-op-result">{{ t('courseRegistration.log.resultLabel') }}</th>
+                <th class="col-sticky-right col-detail">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -991,43 +1272,37 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                   />
                 </td>
                 <td class="col-serial">{{ (currentPage - 1) * pageSize + index + 1 }}</td>
-                <td>{{ row.studentId }}</td>
-                <td>{{ row.studentName }}</td>
-                <td>{{ row.programme }}</td>
-                <td>{{ formatIntakeBatch(row.intake) }}</td>
-                <td>{{ row.batchName || '—' }}</td>
-                <td>{{ row.courseCode }}</td>
-                <td>{{ row.courseName }}</td>
-                <td class="col-credits">{{ row.credits }}</td>
-                <td>{{ getRegistrationTypeLabel(row.courseType, t) }}</td>
-                <td>
-                  {{
-                    row.sectionCode
-                      ? t('courseRegistration.courses.sectionNameDisplay', { code: row.sectionCode })
-                      : '—'
-                  }}
+                <td class="col-sticky-left col-student-id">{{ row.studentId }}</td>
+                <td class="col-sticky-left col-student-name">{{ row.studentName }}</td>
+                <td class="nowrap">{{ row.courseCode }}</td>
+                <td class="col-course-name" :title="row.courseName">{{ row.courseName }}</td>
+                <td class="nowrap">{{ feeCourseSourceLabel(row.courseSource, t) }}</td>
+                <td
+                  class="col-operator"
+                  :title="formatStudentOperatorDisplay(row)"
+                >
+                  {{ formatStudentOperatorDisplay(row) }}
                 </td>
-                <td class="col-sticky-right col-course-source">
-                  {{ feeCourseSourceLabel(row.courseSource, t) }}
+                <td class="col-operated-at nowrap">{{ row.operatedAt || '—' }}</td>
+                <td
+                  class="col-reason"
+                  :title="row.adminAddReason || ''"
+                >
+                  {{ row.adminAddReason || '—' }}
                 </td>
-                <td class="col-sticky-right col-preference">
-                  {{ formatStudentResultPreferenceLabel(row, t) }}
-                </td>
-                <td class="col-sticky-right col-op-operator">
-                  <div class="op-operator-cell">
-                    <span class="op-operator-id">{{ row.operatorId || '—' }}</span>
-                    <span v-if="row.operatorName" class="op-operator-name">{{ row.operatorName }}</span>
-                  </div>
-                </td>
-                <td class="col-sticky-right col-op-time">{{ row.operatedAt || '—' }}</td>
                 <td class="col-sticky-right col-op-result">
                   <span class="result-op-tag" :class="row.opResult">
                     {{ formatStudentOpResultLabel(row, t) }}
                   </span>
                 </td>
+                <td class="col-sticky-right col-detail">
+                  <button type="button" class="link-btn" @click="openStudentDetail(row)">
+                    {{ t('common.details') }}
+                  </button>
+                </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="17" class="empty-cell">{{ t('common.noData') }}</td>
+                <td colspan="12" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -1156,7 +1431,15 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                   v-if="spanCell(row, 'seniorCap')?.show"
                   :rowspan="spanCell(row, 'seniorCap').rowspan"
                 >
-                  {{ row.seniorCapacityLabel }}
+                  <button
+                    v-if="isMeResultBatch"
+                    type="button"
+                    class="link-btn"
+                    @click="openMeSeniorQuota(row)"
+                  >
+                    {{ row.seniorCapacityLabel }}
+                  </button>
+                  <template v-else>{{ row.seniorCapacityLabel }}</template>
                 </td>
                 <td
                   v-if="spanCell(row, 'specialAdded')?.show"
@@ -1188,7 +1471,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
             </tbody>
           </table>
 
-          <!-- 课程维度·第二/三轮：一行一课 -->
+          <!-- 课程维度·第二/三轮：一门课一行；ME 课程组为一级列并 rowspan -->
           <table v-else class="data-table round-dim-table">
             <thead>
               <tr>
@@ -1196,6 +1479,15 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                   <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll" />
                 </th>
                 <th>{{ t('common.serialNo') }}</th>
+                <th v-if="isMeResultBatch">
+                  <span
+                    class="th-with-tip"
+                    :title="t('courseRegistration.courses.selectionGroupTip')"
+                  >
+                    {{ t('courseRegistration.courses.selectionGroup') }}
+                    <span class="tip-icon" aria-hidden="true">?</span>
+                  </span>
+                </th>
                 <th>{{ t('courseRegistration.batch.name') }}</th>
                 <th>{{ t('courseRegistration.courses.code') }}</th>
                 <th>{{ t('courseRegistration.courses.name') }}</th>
@@ -1203,27 +1495,43 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                 <th>
                   <span
                     class="th-with-tip"
-                    :title="t('courseRegistration.result.effectiveCapacityWithRatioTip')"
+                    :title="t('courseRegistration.result.effectiveCapacityAvailableWithRatioTip')"
                   >
-                    {{ t('courseRegistration.result.effectiveCapacityWithRatio') }}
+                    {{ t('courseRegistration.result.effectiveCapacityAvailableWithRatio') }}
                     <span class="tip-icon" aria-hidden="true">?</span>
                   </span>
                 </th>
                 <th>
                   <span
                     class="th-with-tip"
-                    :title="t('courseRegistration.result.freshmanCapacityEnrolledTip')"
+                    :title="
+                      isRound2CourseView
+                        ? t('courseRegistration.result.freshmanCapacityAvailableWithRatioTip')
+                        : t('courseRegistration.result.freshmanCapacityAvailableTip')
+                    "
                   >
-                    {{ t('courseRegistration.result.freshmanCapacityEnrolled') }}
+                    {{
+                      isRound2CourseView
+                        ? t('courseRegistration.result.freshmanCapacityAvailableWithRatio')
+                        : t('courseRegistration.result.freshmanCapacityAvailable')
+                    }}
                     <span class="tip-icon" aria-hidden="true">?</span>
                   </span>
                 </th>
                 <th>
                   <span
                     class="th-with-tip"
-                    :title="t('courseRegistration.result.seniorCapacityEnrolledTip')"
+                    :title="
+                      isRound2CourseView
+                        ? t('courseRegistration.result.seniorCapacityAvailableWithRatioTip')
+                        : t('courseRegistration.result.seniorCapacityAvailableTip')
+                    "
                   >
-                    {{ t('courseRegistration.result.seniorCapacityEnrolled') }}
+                    {{
+                      isRound2CourseView
+                        ? t('courseRegistration.result.seniorCapacityAvailableWithRatio')
+                        : t('courseRegistration.result.seniorCapacityAvailable')
+                    }}
                     <span class="tip-icon" aria-hidden="true">?</span>
                   </span>
                 </th>
@@ -1239,7 +1547,10 @@ function handleExportConfirm({ selectedFields, exportScope }) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(row, index) in paginatedRows" :key="`${selectedRound}-${row.id}`">
+              <tr
+                v-for="(row, index) in paginatedRows"
+                :key="`${selectedRound}-${row.id}`"
+              >
                 <td class="col-check">
                   <input
                     type="checkbox"
@@ -1247,14 +1558,53 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                     @change="toggleSelect(row.id)"
                   />
                 </td>
-                <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
+                <td>
+                  {{
+                    isMeResultBatch
+                      ? round23MePaged.firstCourseIndex + index + 1
+                      : (currentPage - 1) * pageSize + index + 1
+                  }}
+                </td>
+                <td
+                  v-if="isMeResultBatch && spanCell(row, 'selectionGroup')?.show"
+                  class="td-selection-group"
+                  :rowspan="spanCell(row, 'selectionGroup').rowspan"
+                >
+                  <template v-if="spanCell(row, 'selectionGroup').dash || !row.selectionGroup">
+                    —
+                  </template>
+                  <template v-else>
+                    <div class="selection-group-title">
+                      {{ selectionGroupLines(row.selectionGroup).title }}
+                    </div>
+                    <div
+                      v-if="selectionGroupLines(row.selectionGroup).intakeLine"
+                      class="selection-group-intake"
+                    >
+                      {{ selectionGroupLines(row.selectionGroup).intakeLine }}
+                    </div>
+                    <div class="selection-group-remark">
+                      {{ selectionGroupRemarkText(row.selectionGroup) }}
+                    </div>
+                  </template>
+                </td>
                 <td>{{ row.batchName || '—' }}</td>
-                <td>{{ row.courseCode }}</td>
+                <td class="nowrap">{{ row.courseCode }}</td>
                 <td>{{ row.courseName }}</td>
                 <td>{{ row.credits }}</td>
                 <td>{{ row.effectiveCapacityLabel }}</td>
                 <td>{{ row.freshmanCapacityLabel }}</td>
-                <td>{{ row.seniorCapacityLabel }}</td>
+                <td>
+                  <button
+                    v-if="isMeResultBatch"
+                    type="button"
+                    class="link-btn"
+                    @click="openMeSeniorQuota(row)"
+                  >
+                    {{ row.seniorCapacityLabel }}
+                  </button>
+                  <template v-else>{{ row.seniorCapacityLabel }}</template>
+                </td>
                 <td>
                   <button
                     v-if="row.specialAddedCount > 0"
@@ -1268,7 +1618,7 @@ function handleExportConfirm({ selectedFields, exportScope }) {
                 </td>
               </tr>
               <tr v-if="!paginatedRows.length">
-                <td colspan="10" class="empty-cell">{{ t('common.noData') }}</td>
+                <td :colspan="round23Colspan" class="empty-cell">{{ t('common.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -1297,6 +1647,25 @@ function handleExportConfirm({ selectedFields, exportScope }) {
       :course-code="specialRosterCourseCode"
       :course-name="specialRosterCourseName"
       @close="specialRosterVisible = false"
+    />
+
+    <MeSeniorQuotaReadonlyModal
+      :visible="meQuotaVisible"
+      :course-id="meQuotaCourseId"
+      :batch-id="meQuotaBatchId"
+      :course-code="meQuotaCourseCode"
+      :course-name="meQuotaCourseName"
+      :round-key="selectedRound"
+      :entry-senior-cap="meQuotaEntrySeniorCap"
+      :entry-enrolled-senior="meQuotaEntryEnrolledSenior"
+      :entry-available-senior="meQuotaEntryAvailableSenior"
+      @close="meQuotaVisible = false"
+    />
+
+    <ResultStudentDetailDrawer
+      :visible="studentDetailVisible"
+      :row="studentDetailRow"
+      @close="studentDetailVisible = false; studentDetailRow = null"
     />
 
     <AdminAddCourseForStudentModal
@@ -1473,6 +1842,20 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   margin-left: 0;
 }
 
+/* 对齐「本学期累计学分」强调：加粗 + 浅底色胶囊 */
+.r3-cross-release-status {
+  margin-left: 12px;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #eff6ff;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+}
+
 .link-btn.is-disabled,
 .link-btn:disabled {
   color: #9ca3af;
@@ -1529,6 +1912,69 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
+}
+
+.selection-group-title {
+  font-weight: 500;
+  color: #111827;
+}
+
+.selection-group-intake {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.selection-group-remark {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+/* 搜索区对齐 list-page-search：标签与控件同一行（图示 2） */
+:deep(.search-bar .search-item) {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+:deep(.search-bar .search-item > label) {
+  width: auto;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.search-item-range {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.search-item-range > label {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.range-sep {
+  font-size: 13px;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.search-input-num {
+  width: 72px;
+  min-width: 64px;
+}
+
+.td-selection-group {
+  vertical-align: middle;
+  min-width: 140px;
+  max-width: 200px;
+  background: #f8fafc;
 }
 
 .link-btn {
@@ -1600,122 +2046,82 @@ function handleExportConfirm({ selectedFields, exportScope }) {
   color: #6b7280;
 }
 
-/* 学生维搜索：4 列字段 + 操作，两行排完 */
-/* 学生维：表头/单元格单行，短列居中，横向滚动；右侧三列冻结 */
+/* 学生维主表：列宽自适应；左冻学号姓名，右冻选课结果+详情 */
 .student-dim-table {
-  min-width: 1280px;
+  width: 100%;
+  min-width: 0;
+  table-layout: auto;
 }
 
 .student-dim-table th,
 .student-dim-table td {
   white-space: nowrap;
   vertical-align: middle;
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
-.student-dim-table .col-serial,
-.student-dim-table .col-credits {
+.student-dim-table .col-serial {
   text-align: center;
+  width: 48px;
 }
 
+.student-dim-table .col-course-name,
+.student-dim-table .col-operator,
+.student-dim-table .col-reason {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.student-dim-table .col-operated-at {
+  font-variant-numeric: tabular-nums;
+}
+
+.student-dim-table .col-sticky-left,
 .student-dim-table .col-sticky-right {
   position: sticky;
   background: #fff;
   box-sizing: border-box;
 }
 
+.student-dim-table thead .col-sticky-left,
 .student-dim-table thead .col-sticky-right {
   background: #f9fafb;
   z-index: 4;
 }
 
+.student-dim-table tbody .col-sticky-left,
 .student-dim-table tbody .col-sticky-right {
   z-index: 2;
 }
 
-.student-dim-table .col-op-result {
+.student-dim-table .col-student-id {
+  left: 0;
+  width: 110px;
+}
+
+.student-dim-table .col-student-name {
+  left: 110px;
+  width: 96px;
+  box-shadow: 4px 0 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+.student-dim-table .col-detail {
   right: 0;
-  width: 112px;
-  min-width: 112px;
-  max-width: 112px;
+  width: 72px;
   z-index: 3;
 }
 
-.student-dim-table .col-op-time {
-  right: 112px;
-  width: 148px;
-  min-width: 148px;
-  max-width: 148px;
-  z-index: 2;
-}
-
-.student-dim-table .col-op-operator {
-  right: 260px;
-  width: 128px;
-  min-width: 128px;
-  max-width: 128px;
-  z-index: 2;
-  white-space: normal;
-}
-
-/* 选课志愿：课程来源与操作人之间 */
-.student-dim-table .col-preference {
-  right: 388px;
-  width: 96px;
-  min-width: 96px;
-  max-width: 96px;
-  z-index: 2;
-  white-space: nowrap;
-}
-
-/* 课程来源：贴在志愿列左侧，横向滚动时一并冻结 */
-.student-dim-table .col-course-source {
-  right: 484px;
-  width: 120px;
-  min-width: 120px;
-  max-width: 120px;
-  z-index: 2;
+.student-dim-table .col-op-result {
+  right: 72px;
+  width: 104px;
+  z-index: 3;
   box-shadow: -4px 0 6px -4px rgba(0, 0, 0, 0.12);
-  white-space: nowrap;
 }
 
-.student-dim-table thead .col-op-result {
-  z-index: 6;
-}
-
-.student-dim-table thead .col-op-time {
+.student-dim-table thead .col-op-result,
+.student-dim-table thead .col-detail {
   z-index: 5;
-}
-
-.student-dim-table thead .col-op-operator {
-  z-index: 5;
-  white-space: nowrap;
-}
-
-.student-dim-table thead .col-preference {
-  z-index: 5;
-}
-
-.student-dim-table thead .col-course-source {
-  z-index: 5;
-}
-
-.op-operator-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  line-height: 1.35;
-}
-
-.op-operator-id {
-  font-weight: 500;
-  color: #111827;
-}
-
-.op-operator-name {
-  font-size: 12px;
-  color: #6b7280;
-  white-space: normal;
-  word-break: break-word;
 }
 </style>

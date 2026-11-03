@@ -31,6 +31,7 @@ import {
   isShieldedAddDropType,
 } from '../../../data/courseRegistration/addDropListColumns.js'
 import { filterByCurrentStudent } from '../../../data/mockCurrentStudent.js'
+import { formatSchedulePersonLine } from '../../../utils/formatSchedulePersonLine.js'
 import {
   getSupplementEntry,
   formatSupplementInviteCountdown,
@@ -39,7 +40,9 @@ import {
   hasWhitelistAllowFutureElective,
   getWhitelistFutureElectiveConfig,
   getWhitelistCoreSectionSwitchSections,
+  isWhitelistCoreSectionSwitchAllowAll,
   hasWhitelistAllowDropBelowCreditMin,
+  getWhitelistDropBelowCreditMinFloor,
 } from '../../../data/courseRegistration/supplementListQueue.js'
 import { isWithinAddDropApplicationWindow } from '../../../data/courseRegistration/addDropApplicationWindow.js'
 import {
@@ -54,7 +57,7 @@ import {
   mergeCoreLockOriginLines,
 } from '../../../data/courseRegistration/addDropFormSections.js'
 import {
-  addDropTypeLabelKey,
+  formatAddDropApplicationTypeLabel,
   addDropTypeTagClass,
   addDropPrimaryOptionLabelKey,
   resolveAppNeedDrop,
@@ -67,8 +70,15 @@ import {
   sumGeMeTermStripExcess,
   wouldExceedAddDropGeTermCap,
   isMandatoryAddDropCourse,
+  isAddDropApplicationPending,
+  isStudentSubmittedAddDropApplication,
+  collectPendingLedgerCourseLines,
+  applyPendingLedgerToTermCreditBaseline,
 } from '../../../data/courseRegistration/addDropMultiItems.js'
-import { getEligibleAddCoursesForStudent } from '../../../data/courseRegistration/addDropEligibleCourses.js'
+import {
+  getEligibleAddCoursesForStudent,
+  mergeEligibleAddWithPendingDropCores,
+} from '../../../data/courseRegistration/addDropEligibleCourses.js'
 import {
   retakeHistoryFromCourse,
   formatGradeToZh,
@@ -76,6 +86,7 @@ import {
 import {
   listRetakePickerCourses,
   mergeRetakePickerWithTimetableRequired,
+  filterRetakePickerCoursesByOriginal,
 } from '../../../data/courseRegistration/retakeSubstitutePool.js'
 import {
   estimateCourseFee,
@@ -138,11 +149,34 @@ const scheduleDrawerVisible = ref(false)
 const coursePickerVisible = ref(false)
 const detailApp = ref(null)
 const cancelTarget = ref(null)
-const form = ref(createEmptyAddDropSectionForm({ primaryType: '', needDrop: '' }))
+const form = ref(
+  createEmptyAddDropSectionForm({
+    needDrop: 'no',
+    needAdd: 'no',
+    needRetake: 'no',
+  }),
+)
 const message = ref('')
 const formError = ref('')
 const submitting = ref(false)
 const pickingFor = ref('primary')
+/** 重修二层：当前选中的挂科/原课行，用于过滤弹框候选 */
+const retakeFocusOriginal = ref(null)
+
+/**
+ * 重修弹框锁定类别 Tab（与原课程外层 Tab 一致：core|ge|me）
+ * @returns {string}
+ */
+const retakeLockedCourseTypeTab = computed(() => {
+  const original = retakeFocusOriginal.value
+  if (!original) return ''
+  const type = String(original.type || '').toUpperCase()
+  const source = String(original.sourceType || '').toLowerCase()
+  if (type === 'GE') return 'ge'
+  if (type === 'ME') return 'me'
+  if (type === 'CORE' || type === 'MANDATORY' || source === 'required') return 'core'
+  return 'core'
+})
 
 const academicSessionOptions = registrationAcademicSessionOptions
 const defaultAcademicSession = computed(() =>
@@ -164,6 +198,10 @@ const canApply = computed(() => addDropAccess.value.ok)
 const allowedActions = computed(() => addDropAccess.value.allowedActions || [])
 const freshmanBlocked = computed(() => Boolean(addDropAccess.value.freshmanBlocked))
 const applicationWindowLabel = computed(() => formatRoundRange(activeBatch.value?.addDropWindow))
+/**
+ * @deprecated 退课底部审批队列提示条已去掉，不再用于模板；保留以免其它逻辑误引用时报找不到
+ * （原配合 dropFormApprovalHint callout）
+ */
 const isDropAction = computed(() => form.value.action === 'Drop')
 const isAddDropAction = computed(() => form.value.action === 'AddDrop')
 const isRetakeDropAction = computed(() => form.value.action === 'RetakeDrop')
@@ -193,33 +231,62 @@ const availablePrimaryOptions = computed(() => {
 const listColumns = computed(() => getAddDropListColumns(''))
 const tableColspan = computed(() => listColumns.value.length)
 
+/** 已通过/部分通过且仍有待缴应付 → 不可二次申请（仅真实新提交，不含 demo 种子） */
+function hasUnpaidAddDropBill(app) {
+  if (!app || !isStudentSubmittedAddDropApplication(app)) return false
+  if (app.status !== 'Approved' && app.status !== 'PartiallyApproved') return false
+  if (String(app.billStatus || '') !== 'pending') return false
+  const amount = Number(app.billAmount ?? app.feeEstimate?.total) || 0
+  return amount > 0
+}
+
+const unpaidBillBlocked = computed(() =>
+  allApplications.value.some((app) => hasUnpaidAddDropBill(app)),
+)
+
+/** 窗内禁用操作：真实未审或真实待缴 */
+const formOpsDisabled = computed(
+  () => primaryTypePendingBlocked.value || unpaidBillBlocked.value,
+)
+
+/** 窗内提示文案（开窗可见原因） */
+const secondApplicationBlockTip = computed(() => {
+  if (primaryTypePendingBlocked.value) {
+    return t('courseRegistration.student.secondApplicationBlocked')
+  }
+  if (unpaidBillBlocked.value) {
+    return t('courseRegistration.student.secondApplicationUnpaidBlocked')
+  }
+  return ''
+})
+
+/** 窗口期内可点开发起；门控在窗内提示并禁操作，不拦在门外 */
 const canStartApplication = computed(() => {
   if (!canApply.value) return false
   return availablePrimaryOptions.value.length > 0
 })
 
-/** 当前主类型是否允许「同时退课」 */
+/** 是否允许勾选退课（权限含 Drop / 联合单） */
 const canLinkDropForForm = computed(() => {
-  const primary = form.value.primaryType || primaryTypeFromAction(form.value.action)
   const allowed = availableActionOptions.value
-  if (primary === 'Add') {
-    return allowed.includes('AddDrop') || (allowed.includes('Add') && allowed.includes('Drop'))
-  }
-  if (primary === 'Retake') {
-    return (
-      allowed.includes('RetakeDrop') ||
-      (allowed.includes('Retake') && allowed.includes('Drop'))
-    )
-  }
-  return false
+  return (
+    allowed.includes('Drop') ||
+    allowed.includes('AddDrop') ||
+    allowed.includes('RetakeDrop') ||
+    allowed.includes('AddDropRetake')
+  )
 })
 
-/** 表单拟退课程：冲突基线排除用（课号 + courseId 均收录，避免键不一致） */
+/** 表单拟退 + 未审底账拟退：冲突基线排除用（课号 + courseId 均收录） */
 const pendingDropCodes = computed(() => {
   const keys = []
   const pushKey = (v) => {
     const s = String(v || '').trim()
     if (s && !keys.includes(s)) keys.push(s)
+  }
+  for (const line of pendingLedgerLines.value.dropCourses || []) {
+    pushKey(line.courseId)
+    pushKey(line.courseCode)
   }
   for (const line of form.value.dropLines || []) {
     pushKey(line.courseId)
@@ -259,15 +326,26 @@ const futureElectiveConfig = computed(() =>
   getWhitelistFutureElectiveConfig(studentFields.value.studentId),
 )
 
-/** 加课 / 重修各自的换组白名单（课+组） */
+/** 加课 / 重修各自的换组白名单（课+组）；空+allowAll 表示该生范围内全部 */
 const coreSectionSwitchSections = computed(() => {
   const action = form.value.action
   const kind = action === 'Retake' || action === 'RetakeDrop' ? 'retake' : 'add'
   return getWhitelistCoreSectionSwitchSections(studentFields.value.studentId, kind)
 })
 
+const coreSectionSwitchAllowAll = computed(() => {
+  const action = form.value.action
+  const kind = action === 'Retake' || action === 'RetakeDrop' ? 'retake' : 'add'
+  return isWhitelistCoreSectionSwitchAllowAll(studentFields.value.studentId, kind)
+})
+
 const allowDropBelowCreditMin = computed(() =>
   hasWhitelistAllowDropBelowCreditMin(studentFields.value.studentId),
+)
+
+/** 白名单退课学分地板；无权限为 null */
+const dropBelowCreditMinFloor = computed(() =>
+  getWhitelistDropBelowCreditMinFloor(studentFields.value.studentId),
 )
 
 /** 重修无拟退时：课表在读必修作为原分组 */
@@ -291,11 +369,19 @@ const termCreditMax = computed(() => {
 })
 
 const termCreditGate = computed(() => {
+  const addOnlyLines = form.value.addLines || []
+  const retakeLines = form.value.retakeLines || []
   return {
-    currentCredits: creditSummary.value.enrolled,
+    // 二次申请：与学分条一致，用未审投影后净学分（非裸 enrolled）
+    currentCredits: pendingAdjustedTermCredits.value,
     creditMax: termCreditMax.value,
     dropLines: form.value.dropLines || [],
-    addLines: form.value.addLines || [],
+    /** 仅加课行（弹框三方联动用） */
+    addOnlyLines,
+    /** 仅重修行 */
+    retakeLines,
+    /** @deprecated 兼容旧读方：加课∪重修 */
+    addLines: [...addOnlyLines, ...retakeLines],
     bypassCreditMax: creditMaxBypass.value,
     creditBypassExtra: creditBypassExtra.value,
   }
@@ -315,6 +401,16 @@ const schedulePreviewSlots = computed(() => {
 
 const scheduleToolbarLabel = computed(() => t('courseRegistration.student.scheduleToolbarButton'))
 const schedulePreviewHint = computed(() => t('courseRegistration.student.schedulePreviewAddDropHint'))
+
+/** 课表表头：学号 + 姓名 */
+const schedulePersonLine = computed(() => {
+  const student = getCurrentStudent()
+  const basic = student?.basicInfo || {}
+  return formatSchedulePersonLine(
+    basic.studentId,
+    basic.fullName || basic.chineseName || '',
+  )
+})
 
 function openScheduleDrawer() {
   scheduleDrawerVisible.value = true
@@ -362,12 +458,9 @@ const EMPTY_SEARCH = {
   type: '',
   status: '',
   academicSession: '',
-  billStatus: '',
   applicationNo: '',
   keyword: '',
 }
-
-const BILL_STATUS_OPTIONS = ['pending', 'paid', 'cancelled', 'none']
 
 const searchExpanded = ref(true)
 const searchForm = ref({ ...EMPTY_SEARCH })
@@ -383,20 +476,49 @@ const allApplications = computed(() =>
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),
 )
 
-function normalizeBillStatus(status) {
-  if (status == null || status === '' || status === 'none') return 'none'
-  return String(status)
-}
+/**
+ * 当前生「真实新提交」的未审申请（加/退/重修三类一并进底账）
+ * 不含主表/种子 demo 待审行，避免误判第二次申请
+ */
+const pendingLedgerApps = computed(() =>
+  allApplications.value.filter(
+    (app) =>
+      isAddDropApplicationPending(app) && isStudentSubmittedAddDropApplication(app),
+  ),
+)
+
+const pendingLedgerLines = computed(() =>
+  collectPendingLedgerCourseLines(pendingLedgerApps.value),
+)
+
+/**
+ * 学期净学分：课表确认态 ⊕ 真实新提交未审加/退（与学分条底账同源；供选课超帽/提交）
+ * 注意：已含 pending，gate/提交的 dropLines·addLines 仅用当前表单，避免双扣
+ */
+const pendingAdjustedTermCredits = computed(() =>
+  computeNetCreditsAfterLines(
+    creditSummary.value.enrolled,
+    pendingLedgerLines.value.dropCourses || [],
+    pendingLedgerLines.value.addCourses || [],
+  ),
+)
+
+/** 是否用真实新提交未审估算底账（蓝条直出估算说明） */
+const showPendingEstimateTip = computed(() => pendingLedgerApps.value.length > 0)
+
+/** 已有真实未审单则整单禁再交（非同主类型互斥） */
+const primaryTypePendingBlocked = computed(
+  () => pendingLedgerApps.value.length > 0,
+)
 
 const filteredApplications = computed(() => {
-  const { status, keyword, type, academicSession, billStatus, applicationNo } = appliedSearch.value
+  const { status, keyword, type, academicSession, applicationNo } = appliedSearch.value
   const kw = String(keyword || '').trim().toLowerCase()
   const appNoKw = String(applicationNo || '').trim().toLowerCase()
   const sessionKw = String(academicSession || '').trim().toLowerCase()
   return allApplications.value.filter((app) => {
-    if (!matchesPrimaryTypeFilter(app.type, type)) return false
+    if (!matchesPrimaryTypeFilter(app.type, type, app)) return false
     if (status && app.status !== status) return false
-    if (billStatus && normalizeBillStatus(app.billStatus) !== billStatus) return false
     if (sessionKw && String(app.academicSession || '').toLowerCase() !== sessionKw) return false
     if (appNoKw && !String(app.applicationNo || '').toLowerCase().includes(appNoKw)) return false
     if (!kw) return true
@@ -423,10 +545,6 @@ function handleReset() {
   searchForm.value = { ...EMPTY_SEARCH }
   appliedSearch.value = { ...EMPTY_SEARCH }
   currentPage.value = 1
-}
-
-function billStatusFilterLabel(status) {
-  return t(`courseRegistration.approval.bill.${status}`)
 }
 
 const applicationStatusOptions = [
@@ -465,6 +583,9 @@ function mapEnrolledToPickerCourse(item) {
     schoolElectiveCategory: item.schoolElectiveCategory || '',
     meetings: item.meetings,
     batchId: item.batchId || '',
+    // 拟退并入加课池时作「原上课学期」
+    academicSession: item.academicSession || '',
+    originalAcademicSession: item.originalAcademicSession || item.academicSession || '',
   }
 }
 
@@ -476,26 +597,76 @@ function mapRequiredToPickerCourse(item) {
   }
 }
 
+/** 未审底账已拟退的课号集合（退课池不再列出） */
+const pendingLedgerDropCodeSet = computed(() => {
+  const set = new Set()
+  for (const line of pendingLedgerLines.value.dropCourses || []) {
+    const id = String(line.courseId || '').trim()
+    const code = String(line.courseCode || '').trim()
+    if (id) set.add(id)
+    if (code) set.add(code)
+  }
+  return set
+})
+
+function isAlreadyPendingLedgerDrop(item) {
+  const id = String(item?.courseId || item?.id || '').trim()
+  const code = String(item?.courseCode || item?.code || '').trim()
+  return (
+    (id && pendingLedgerDropCodeSet.value.has(id)) ||
+    (code && pendingLedgerDropCodeSet.value.has(code))
+  )
+}
+
+/** 重修弹框候选：可选按挂科原课过滤 */
+function buildRetakeCourseOptions() {
+  const type = form.value.retakeType
+  if (!type || (type !== 'failed' && type !== 'improve_grade')) return []
+  const pool = listRetakePickerCourses(type, studentFields.value.studentId)
+  const merged = mergeRetakePickerWithTimetableRequired(
+    pool,
+    studentRequiredCourses.value,
+    studentFields.value.studentId,
+    type,
+  )
+  if (!retakeFocusOriginal.value) return merged
+  return filterRetakePickerCoursesByOriginal(merged, retakeFocusOriginal.value)
+}
+
 const courseOptions = computed(() => {
-  if (form.value.action === 'Drop' || pickingFor.value === 'drop') {
-    const required = (studentRequiredCourses.value || []).map(mapRequiredToPickerCourse)
-    const electives = enrolled.value.filter(isDroppableElective).map(mapEnrolledToPickerCourse)
+  if (form.value.needDrop === 'yes' && pickingFor.value === 'drop') {
+    // 未审已拟退的课不再出现在退课池
+    const required = (studentRequiredCourses.value || [])
+      .filter((item) => !isAlreadyPendingLedgerDrop(item))
+      .map(mapRequiredToPickerCourse)
+    const electives = enrolled.value
+      .filter(isDroppableElective)
+      .filter((item) => !isAlreadyPendingLedgerDrop(item))
+      .map(mapEnrolledToPickerCourse)
     return [...required, ...electives]
   }
-  if (form.value.action === 'Add' || pickingFor.value === 'add') {
-    return getEligibleAddCoursesForStudent(studentFields.value.studentId)
+  if (pickingFor.value === 'retake' || (form.value.needRetake === 'yes' && pickingFor.value !== 'add' && pickingFor.value !== 'drop' && form.value.needAdd !== 'yes')) {
+    return buildRetakeCourseOptions()
+  }
+  if (
+    pickingFor.value === 'add' ||
+    form.value.needAdd === 'yes' ||
+    form.value.action === 'Add' ||
+    form.value.action === 'AddDrop' ||
+    form.value.action === 'AddRetake' ||
+    form.value.action === 'AddDropRetake'
+  ) {
+    return mergeEligibleAddWithPendingDropCores(
+      getEligibleAddCoursesForStudent(studentFields.value.studentId),
+      [...(pendingLedgerLines.value.dropCourses || []), ...(form.value.dropLines || [])],
+      {
+        fallbackAcademicSession:
+          form.value.academicSession || defaultAcademicSession.value || '',
+      },
+    )
   }
   if (form.value.action === 'Retake' || form.value.action === 'RetakeDrop') {
-    const type = form.value.retakeType
-    if (!type || (type !== 'failed' && type !== 'improve_grade')) return []
-    const pool = listRetakePickerCourses(type, studentFields.value.studentId)
-    // 必修：仅并入成绩单已匹配该重修类型的课表必修（禁止无履历硬塞）
-    return mergeRetakePickerWithTimetableRequired(
-      pool,
-      studentRequiredCourses.value,
-      studentFields.value.studentId,
-      type,
-    )
+    return buildRetakeCourseOptions()
   }
   const sid = studentFields.value.studentId
   if (hasWhitelistPrerequisiteBypass(sid)) {
@@ -511,8 +682,8 @@ const scheduleBaseline = computed(() =>
   buildScheduleBaselineFromEnrolled(enrolled.value, pendingDropCodes.value),
 )
 
-/** 加退选课弹窗：仅确认课（与退课表宇宙一致） */
-const ADD_DROP_PICKER_CREDIT_OPTS = { scope: 'confirmed' }
+/** 加退选课弹窗：确认课含 admin 代选（与退课表/合计学分对齐） */
+const ADD_DROP_PICKER_CREDIT_OPTS = { scope: 'confirmed', includeAdmin: true }
 
 /**
  * GE 学分胶囊色调（达标语义，与入口卡/顶栏同口径）：
@@ -631,8 +802,8 @@ const termCreditBars = computed(() => {
   return [ge, me].filter(Boolean)
 })
 
-/** 学分条基线：毕业 GE/ME（本学期确认、不含 prior）+ 学期 GE/ME + 必修已选 */
-const termCreditStripBaseline = computed(() => {
+/** 课表确认态基线（未叠未审；由 applyPendingLedger 统一投影） */
+const liveTermCreditStripBaseline = computed(() => {
   const groups = pickerCreditGroups.value
   const ge = groups.find((g) => g.key === 'ge')?.total
   const me = groups.find((g) => g.key === 'me')?.total
@@ -648,23 +819,38 @@ const termCreditStripBaseline = computed(() => {
     geMax: Number(ge?.max) || 0,
     meCurrent,
     meMax: Number(me?.max) || 0,
-    // 毕业已选与学期已选同源，拟退光本学期后归零；分母仍用培养方案要求
+    // 毕业已选与学期已选同源（含 admin 代选），拟退光本学期后归零；分母仍用培养方案要求
     gradGeCurrent: geCurrent,
     gradGeMax: Number(programme.geRequired) || 0,
     gradMeCurrent: meCurrent,
     gradMeMax: Number(programme.meRequired) || 0,
-    // tip 用：毕业必修已选/要求（不进七列展示）
-    gradMandatoryCurrent: Number(programme.mandatoryEarned) || 0,
+    // 毕业必修已选与学期必修同源（不用 prior 累计）
+    gradMandatoryCurrent: mandatorySelected,
     gradMandatoryMax: Number(programme.mandatoryRequired) || 0,
     mandatorySelected,
   }
 })
 
+/**
+ * 学分条基线：课表确认态 ⊕ 三类未审申请加/退投影
+ * （二次申请叠在未审结果上，而非回到首次申请前）
+ */
+const termCreditStripBaseline = computed(() =>
+  applyPendingLedgerToTermCreditBaseline(
+    liveTermCreditStripBaseline.value,
+    pendingLedgerApps.value,
+  ),
+)
+
 const formTermCreditStrip = computed(() =>
   buildAddDropTermCreditStrip({
     ...termCreditStripBaseline.value,
     dropCourses: form.value.dropLines || [],
-    addCourses: form.value.addLines || [],
+    // 加课 + 重修同单投影
+    addCourses: [
+      ...(form.value.addLines || []),
+      ...(form.value.retakeLines || []),
+    ],
   }),
 )
 
@@ -677,30 +863,25 @@ const planRemaining = computed(() => buildAddDropPlanRemaining())
 const feeEstimate = computed(() => {
   const lines = []
   const addLines = form.value.addLines || []
+  const retakeLines = form.value.retakeLines || []
   const dropLines = form.value.dropLines || []
   const action = form.value.action
   const category = studentFields.value.studentCategory || 'Local'
-  if (action === 'Drop' || !addLines.length) {
+  const billLines = [
+    ...addLines.map((line) => ({ line, feeAction: 'Add' })),
+    ...retakeLines.map((line) => ({ line, feeAction: 'Retake' })),
+  ]
+  if (!billLines.length || (form.value.needAdd !== 'yes' && form.value.needRetake !== 'yes')) {
     return attachSstToFeeEstimate(sumFeeEstimates(lines), category)
   }
 
-  const feeAction =
-    action === 'Retake' || action === 'RetakeDrop'
-      ? 'Retake'
-      : action === 'AddDrop'
-        ? 'Add'
-        : action === 'Add'
-          ? 'Add'
-          : ''
-  if (!feeAction) return attachSstToFeeEstimate(sumFeeEstimates(lines), category)
-
   // 含退课时先释放拟退课占用的毕业类别，再逐课扣减剩余（无退费抵免）
   let remaining =
-    action === 'AddDrop' || action === 'RetakeDrop'
+    form.value.needDrop === 'yes'
       ? boostPlanRemainingFromDrops(planRemaining.value, dropLines)
       : planRemaining.value
 
-  for (const line of addLines) {
+  for (const { line, feeAction } of billLines) {
     const course = {
       id: line.courseId,
       code: line.courseCode,
@@ -730,12 +911,18 @@ function resolveI18nLabel(key, fallback) {
   return typeof label === 'string' && label !== key ? label : fallback
 }
 
-function typeLabel(type) {
-  return resolveI18nLabel(addDropTypeLabelKey(type), type || '—')
+function typeLabel(appOrType) {
+  if (appOrType && typeof appOrType === 'object') {
+    return formatAddDropApplicationTypeLabel(appOrType, t)
+  }
+  return formatAddDropApplicationTypeLabel({ type: appOrType }, t)
 }
 
-function typeClass(type) {
-  return addDropTypeTagClass(type)
+function typeClass(appOrType) {
+  if (appOrType && typeof appOrType === 'object') {
+    return addDropTypeTagClass(appOrType.type, appOrType)
+  }
+  return addDropTypeTagClass(appOrType)
 }
 
 /** 筛选/表单主类型三选一文案 */
@@ -837,8 +1024,14 @@ const COLUMN_HEADER_KEYS = {
   fee: 'courseRegistration.student.feeEstimateShort',
   retakeType: 'courseRegistration.student.retakeTypeLabel',
   status: 'courseRegistration.approval.status',
+  bill: 'courseRegistration.approval.billLabel',
   submittedAt: 'courseRegistration.approval.submittedAt',
   actions: 'common.actions',
+}
+
+function billLabel(status) {
+  if (!status || status === 'none') return '—'
+  return t(`courseRegistration.approval.bill.${status}`)
 }
 
 function columnHeader(col) {
@@ -860,7 +1053,7 @@ function cellText(col, app, index) {
   if (col === 'serial') return (currentPage.value - 1) * pageSize.value + index + 1
   if (col === 'applicationNo') return app.applicationNo
   if (col === 'academicSession') return app.academicSession || '—'
-  if (col === 'type') return typeLabel(app.type)
+  if (col === 'type') return typeLabel(app)
   if (col === 'needDrop') {
     return resolveAppNeedDrop(app) === 'yes' ? t('common.yes') : t('common.no')
   }
@@ -875,6 +1068,7 @@ function cellText(col, app, index) {
   if (col === 'fee') return listFee(app)
   if (col === 'retakeType') return listRetakeType(app)
   if (col === 'status') return statusLabel(app.status)
+  if (col === 'bill') return billLabel(app.billStatus)
   if (col === 'submittedAt') return app.submittedAt
   return ''
 }
@@ -909,8 +1103,9 @@ function confirmCancel() {
 function emptyFormState() {
   return createEmptyAddDropSectionForm({
     academicSession: defaultAcademicSession.value,
-    primaryType: '',
-    needDrop: '',
+    needDrop: 'no',
+    needAdd: 'no',
+    needRetake: 'no',
     action: '',
     contactPhone: defaultContactPhone.value,
   })
@@ -931,6 +1126,7 @@ function openForm() {
     message.value = t('courseRegistration.student.addDropActionNotAllowed')
     return
   }
+  // 未审/待缴：仍打开窗口，窗内提示原因并禁用操作
   form.value = emptyFormState()
   formError.value = ''
   message.value = ''
@@ -978,17 +1174,44 @@ const formPrimaryCourse = computed(() => resolveCourse())
 const formDropCourse = computed(() => resolveCourseById(form.value.dropCourseId, true))
 const formAddCourse = computed(() => resolveCourseById(form.value.addCourseId, false))
 
-function openCoursePicker(target = 'primary') {
-  const action = form.value.action
+/**
+ * 打开选课弹框
+ * @param {string|{ target?: string, original?: object }} targetOrPayload
+ * @param {object|null} [originalArg] 重修原课（挂科行）
+ */
+function openCoursePicker(targetOrPayload = 'primary', originalArg = null) {
+  // 整单二次禁交：禁止再选课
+  if (primaryTypePendingBlocked.value) {
+    formError.value = t('courseRegistration.student.secondApplicationBlocked')
+    return
+  }
+  let target = 'primary'
+  let original = originalArg
+  if (targetOrPayload && typeof targetOrPayload === 'object') {
+    target = targetOrPayload.target || 'retake'
+    original = targetOrPayload.original || null
+  } else {
+    target = targetOrPayload || 'primary'
+  }
   const isRetakePick =
-    (action === 'Retake' || action === 'RetakeDrop') &&
-    target !== 'drop'
+    target === 'retake' ||
+    (target === 'primary' &&
+      form.value.needRetake === 'yes' &&
+      form.value.needAdd !== 'yes')
   if (isRetakePick) {
     const type = form.value.retakeType
     if (!type || (type !== 'failed' && type !== 'improve_grade')) {
       formError.value = t('courseRegistration.student.retakeTypeRequired')
       return
     }
+    // 二层选课须指定原课
+    if (!original) {
+      formError.value = t('courseRegistration.student.retakePickFromOriginalHint')
+      return
+    }
+    retakeFocusOriginal.value = original
+  } else {
+    retakeFocusOriginal.value = null
   }
   pickingFor.value = target
   coursePickerVisible.value = true
@@ -1011,8 +1234,8 @@ function buildLineFromSelection(course, section) {
     venue: snap.venue || '',
     lecturers: snap.lecturers || '',
     meetings: snap.meetings || null,
-    type: course?.type || '',
-    sourceType: course?.sourceType || '',
+    type: course?.type || primaryOriginal?.type || '',
+    sourceType: course?.sourceType || primaryOriginal?.sourceType || '',
     schoolElectiveCategory:
       course?.schoolElectiveCategory || resolveSchoolElectiveCategory(course) || '',
     feeStream: course?.feeStream || '',
@@ -1021,11 +1244,25 @@ function buildLineFromSelection(course, section) {
     selectionGroupId: course?.selectionGroup?.id || '',
     selectionGroupName: course?.selectionGroup?.name || course?.selectionGroup?.groupLabel || '',
     isSubstituteRetake: Boolean(course?.isSubstituteRetake),
+    // 同课重修无 replacesOriginals 时，原课即本课代码/名称
     replacesCourseCode: primaryOriginal?.courseCode || course?.code || '',
-    replacesCourseName: primaryOriginal?.courseName || '',
+    replacesCourseName: primaryOriginal?.courseName || course?.name || '',
     replacesTranscriptId: primaryOriginal?.id || '',
     groupMaxGrade: course?.groupMaxGrade || '',
     groupMaxGradeZh: course?.groupMaxGradeZh || '',
+    // 原上课学期：课表/资格行 → 当前申请学期
+    academicSession:
+      course?.academicSession ||
+      course?.originalAcademicSession ||
+      form.value.academicSession ||
+      defaultAcademicSession.value ||
+      '',
+    originalAcademicSession:
+      course?.originalAcademicSession ||
+      course?.academicSession ||
+      form.value.academicSession ||
+      defaultAcademicSession.value ||
+      '',
   }
 }
 
@@ -1096,6 +1333,44 @@ function syncLegacyFieldsFromLines(next, listKey) {
   return next
 }
 
+function onCoursePickerClose() {
+  coursePickerVisible.value = false
+  retakeFocusOriginal.value = null
+}
+
+/**
+ * 重修行是否对应某原课（用于跨 Tab/原课合并时替换同原课旧行）
+ * @param {object} line
+ * @param {object|null|undefined} original 成绩单原课行
+ */
+function retakeLineMatchesOriginal(line, original) {
+  if (!line || !original) return false
+  const oCode = String(original.courseCode || '').trim().toUpperCase()
+  const oId = String(original.retakeCourseId || original.id || '').trim()
+  const rCode = String(line.replacesCourseCode || '').trim().toUpperCase()
+  const rTid = String(line.replacesTranscriptId || '').trim()
+  if (oCode && rCode && rCode === oCode) return true
+  if (oId && rTid && rTid === oId) return true
+  const lineCode = String(line.courseCode || '').trim().toUpperCase()
+  const lineCid = String(line.courseId || '').trim()
+  // 无替代字段时：同课号或同重修目标课 id
+  if (!rCode && oCode && lineCode === oCode) return true
+  if (oId && lineCid && lineCid === oId) return true
+  return false
+}
+
+/**
+ * 按当前原课合并重修清单：保留其它原课已选，替换本原课对应行
+ * @param {object[]} existing
+ * @param {object[]} incoming
+ * @param {object|null|undefined} original
+ */
+function mergeRetakeLinesForOriginal(existing = [], incoming = [], original) {
+  if (!original) return [...(incoming || [])]
+  const kept = (existing || []).filter((line) => !retakeLineMatchesOriginal(line, original))
+  return [...kept, ...(incoming || [])]
+}
+
 function handleCoursePicked(payload) {
   const isDropPick =
     pickingFor.value === 'drop' ||
@@ -1140,29 +1415,59 @@ function handleCoursePicked(payload) {
     return buildLineFromSelection(resolved || { id: courseId, code: courseId }, sec)
   })
 
-  const listKey = isDropPick ? 'dropLines' : 'addLines'
+  const isRetakePick = pickingFor.value === 'retake'
+  const listKey = isDropPick ? 'dropLines' : isRetakePick ? 'retakeLines' : 'addLines'
+
+  // 重修：按原课合并；本原课至多保留一门开课（与弹窗单课互斥一致）
+  const retakeIncoming =
+    isRetakePick && incoming.length > 1 ? incoming.slice(0, 1) : incoming
+  const mergedRetakeLines = isRetakePick
+    ? mergeRetakeLinesForOriginal(
+        form.value.retakeLines || [],
+        retakeIncoming,
+        retakeFocusOriginal.value,
+      )
+    : incoming
 
   let next = {
     ...form.value,
-    [listKey]: incoming,
+    [listKey]: isRetakePick ? mergedRetakeLines : incoming,
   }
-  next = syncLegacyFieldsFromLines(next, listKey)
+  if (listKey !== 'retakeLines') {
+    next = syncLegacyFieldsFromLines(next, listKey)
+  }
 
-  if (!isDropPick && (form.value.action === 'Retake' || form.value.action === 'RetakeDrop')) {
+  if (isRetakePick || (!isDropPick && (form.value.needRetake === 'yes' && form.value.needAdd !== 'yes'))) {
     const keptType = form.value.retakeType || ''
-    // 每门选中课：替代重修用原课履历；组内最高分写入展示
-    const linesWithGrade = (next[listKey] || []).map((line, idx) => {
+    const focusOriginal = retakeFocusOriginal.value
+    // 仅给本次重修行补履历；kept 行保留已有字段（重修至多一门）
+    const gradeSourceLines = isRetakePick ? retakeIncoming : incoming
+    const incomingWithGrade = gradeSourceLines.map((line, idx) => {
       const picked = selections[idx]?.course || resolveCourseById(line.courseId, false)
-      const originalCode = line.replacesCourseCode || picked?.replacesOriginals?.[0]?.courseCode
+      const originalCode =
+        line.replacesCourseCode ||
+        picked?.replacesOriginals?.[0]?.courseCode ||
+        focusOriginal?.courseCode ||
+        ''
       const historyCourse =
         originalCode && originalCode !== line.courseCode
           ? {
-              id: picked?.replacesOriginals?.[0]?.retakeCourseId || originalCode,
+              id:
+                picked?.replacesOriginals?.[0]?.retakeCourseId ||
+                focusOriginal?.retakeCourseId ||
+                originalCode,
               code: originalCode,
-              name: line.replacesCourseName || originalCode,
+              name: line.replacesCourseName || focusOriginal?.courseName || originalCode,
             }
           : picked || resolveCourseById(line.courseId, false)
-      if (!historyCourse) return line
+      if (!historyCourse) {
+        return {
+          ...line,
+          replacesCourseCode: line.replacesCourseCode || focusOriginal?.courseCode || '',
+          replacesCourseName: line.replacesCourseName || focusOriginal?.courseName || '',
+          replacesTranscriptId: line.replacesTranscriptId || focusOriginal?.id || '',
+        }
+      }
       const history = retakeHistoryFromCourse(
         historyCourse,
         next.academicSession,
@@ -1175,12 +1480,25 @@ function handleCoursePicked(payload) {
         formatGradeToZh(maxGrade || history.gradeEarned)
       return {
         ...line,
+        type: line.type || focusOriginal?.type || picked?.type || '',
+        sourceType: line.sourceType || focusOriginal?.sourceType || picked?.sourceType || '',
+        replacesCourseCode: line.replacesCourseCode || focusOriginal?.courseCode || originalCode || '',
+        replacesCourseName:
+          line.replacesCourseName || focusOriginal?.courseName || historyCourse.name || '',
+        replacesTranscriptId: line.replacesTranscriptId || focusOriginal?.id || '',
         latestGrade: maxGrade || history.latestGrade || history.gradeEarned || '',
         latestGradeZh: maxZh,
         latestGradeSession: history.latestGradeSession || history.academicSessionTaken || '',
         previousCourseGradesText: history.previousCourseGradesText || '',
       }
     })
+    const linesWithGrade = isRetakePick
+      ? mergeRetakeLinesForOriginal(
+          form.value.retakeLines || [],
+          incomingWithGrade,
+          focusOriginal,
+        )
+      : incomingWithGrade
     const firstLine = linesWithGrade[0]
     const firstHistory = firstLine
       ? retakeHistoryFromCourse(
@@ -1206,6 +1524,7 @@ function handleCoursePicked(payload) {
 
   form.value = next
   coursePickerVisible.value = false
+  retakeFocusOriginal.value = null
   formError.value = ''
 }
 
@@ -1284,7 +1603,14 @@ function buildItemFromLine(action, line) {
  * @returns {object[]}
  */
 function buildEligibleCoreOriginLines() {
-  return getEligibleAddCoursesForStudent(studentFields.value.studentId)
+  return mergeEligibleAddWithPendingDropCores(
+    getEligibleAddCoursesForStudent(studentFields.value.studentId),
+    [...(pendingLedgerLines.value.dropCourses || []), ...(form.value.dropLines || [])],
+    {
+      fallbackAcademicSession:
+        form.value.academicSession || defaultAcademicSession.value || '',
+    },
+  )
     .filter((course) => isMandatoryAddDropCourse(course))
     .map((course) => {
       const sectionCode = String(course.originalSectionCode || '').trim()
@@ -1305,12 +1631,24 @@ function handleSubmit() {
     formError.value = t('courseRegistration.student.addDropWindowClosedShort')
     return
   }
+  if (primaryTypePendingBlocked.value) {
+    formError.value = t('courseRegistration.student.secondApplicationBlocked')
+    return
+  }
+  if (unpaidBillBlocked.value) {
+    formError.value = t('courseRegistration.student.secondApplicationUnpaidBlocked')
+    return
+  }
 
   const validation = validateAddDropSectionForm({
     ...form.value,
     coreSectionSwitchSections: coreSectionSwitchSections.value,
+    coreSectionSwitchAllowAll: coreSectionSwitchAllowAll.value,
     allowDropBelowCreditMin: allowDropBelowCreditMin.value,
-    currentCredits: creditSummary.value.enrolled,
+    dropBelowCreditMinFloor:
+      dropBelowCreditMinFloor.value != null ? dropBelowCreditMinFloor.value : 0,
+    // 与选课器/学分条一致：含真实未审投影后的学期净学分
+    currentCredits: pendingAdjustedTermCredits.value,
     // 与弹窗一致：拟退 ∪ 资格种子
     coreLockOriginLines: mergeCoreLockOriginLines(
       form.value.dropLines || [],
@@ -1324,25 +1662,20 @@ function handleSubmit() {
 
   const addLines = form.value.addLines || []
   const dropLines = form.value.dropLines || []
+  const retakeLines = form.value.retakeLines || []
+  const creditAddLines = [...addLines, ...retakeLines]
   const action = form.value.action
   let items = []
 
-  if (action === 'Drop') {
-    items = dropLines.map((line) => buildItemFromLine('Drop', line))
-  } else if (action === 'Add') {
-    items = addLines.map((line) => buildItemFromLine('Add', line))
-  } else if (action === 'Retake') {
-    items = addLines.map((line) => buildItemFromLine('Retake', line))
-  } else if (action === 'AddDrop') {
-    items = [
-      ...dropLines.map((line) => buildItemFromLine('Drop', line)),
-      ...addLines.map((line) => buildItemFromLine('Add', line)),
-    ]
-  } else if (action === 'RetakeDrop') {
-    items = [
-      ...dropLines.map((line) => buildItemFromLine('Drop', line)),
-      ...addLines.map((line) => buildItemFromLine('Retake', line)),
-    ]
+  // 按三是否组装同一申请单 items（可组合）
+  if (form.value.needDrop === 'yes') {
+    items.push(...dropLines.map((line) => buildItemFromLine('Drop', line)))
+  }
+  if (form.value.needAdd === 'yes') {
+    items.push(...addLines.map((line) => buildItemFromLine('Add', line)))
+  }
+  if (form.value.needRetake === 'yes') {
+    items.push(...retakeLines.map((line) => buildItemFromLine('Retake', line)))
   }
 
   if (!items.length) {
@@ -1350,9 +1683,9 @@ function handleSubmit() {
     return
   }
 
-  const currentCredits = creditSummary.value.enrolled
+  const currentCredits = pendingAdjustedTermCredits.value
   const creditMax = termCreditMax.value
-  const net = computeNetCreditsAfterLines(currentCredits, dropLines, addLines)
+  const net = computeNetCreditsAfterLines(currentCredits, dropLines, creditAddLines)
   const termOver = creditMax > 0 && net > creditMax
   if (termOver && !creditMaxBypass.value) {
     formError.value = t('courseRegistration.student.pickerStatusOverCredit')
@@ -1363,7 +1696,7 @@ function handleSubmit() {
   if (
     wouldExceedAddDropGeTermCap(termCreditStripBaseline.value, {
       dropCourses: dropLines,
-      addCourses: addLines,
+      addCourses: creditAddLines,
     })
   ) {
     const strip = formTermCreditStrip.value
@@ -1462,14 +1795,14 @@ function handleSubmit() {
         : null,
   }
   const applicationCredits = {
-    add: (form.value.action === 'Add' || form.value.action === 'AddDrop'
-      ? addLines
-      : []
-    ).reduce((s, l) => s + (Number(l.credits) || 0), 0),
-    retake: (form.value.action === 'Retake' || form.value.action === 'RetakeDrop'
-      ? addLines
-      : []
-    ).reduce((s, l) => s + (Number(l.credits) || 0), 0),
+    add:
+      form.value.needAdd === 'yes'
+        ? addLines.reduce((s, l) => s + (Number(l.credits) || 0), 0)
+        : 0,
+    retake:
+      form.value.needRetake === 'yes'
+        ? retakeLines.reduce((s, l) => s + (Number(l.credits) || 0), 0)
+        : 0,
     drop: dropLines.reduce((s, l) => s + (Number(l.credits) || 0), 0),
   }
   const sectionPayload = buildAddDropSectionPayload(form.value, snapshots, feeEstimate.value, {
@@ -1558,15 +1891,6 @@ function handleSubmit() {
               </select>
             </div>
             <template v-if="searchExpanded">
-              <div class="search-item">
-                <label>{{ t('courseRegistration.approval.billLabel') }}</label>
-                <select v-model="searchForm.billStatus" class="search-select">
-                  <option value="">{{ t('common.all') }}</option>
-                  <option v-for="opt in BILL_STATUS_OPTIONS" :key="opt" :value="opt">
-                    {{ billStatusFilterLabel(opt) }}
-                  </option>
-                </select>
-              </div>
               <div class="search-item">
                 <label>{{ t('courseRegistration.approval.applicationNo') }}</label>
                 <input
@@ -1678,7 +2002,7 @@ function handleSubmit() {
                     </span>
                   </template>
                   <template v-else-if="col === 'type'">
-                    <span class="type-tag" :class="typeClass(app.type)">{{ typeLabel(app.type) }}</span>
+                    <span class="type-tag" :class="typeClass(app)">{{ typeLabel(app) }}</span>
                   </template>
                   <template v-else-if="col === 'classTimeVenue'">
                     <div class="cr-time-venue">
@@ -1736,6 +2060,11 @@ function handleSubmit() {
             :fee-estimate="feeEstimate"
             :term-credit-excess="formTermCreditExcess"
             :term-credit-strip="formTermCreditStrip"
+            :term-credit-strip-baseline="termCreditStripBaseline"
+            :show-pending-estimate-tip="showPendingEstimateTip"
+            :primary-type-pending-blocked="formOpsDisabled"
+            :second-application-block-tip="secondApplicationBlockTip"
+            :form-ops-disabled="formOpsDisabled"
             @update:form="onFormUpdate"
             @pick-course="openCoursePicker"
             @attachments-add="onAttachmentsAdd"
@@ -1743,9 +2072,7 @@ function handleSubmit() {
             @clear-attachments="clearAttachments"
           />
 
-          <CourseRegistrationCallout v-if="isDropAction" variant="rule">
-            <p>{{ t('courseRegistration.student.dropFormApprovalHint') }}</p>
-          </CourseRegistrationCallout>
+          <!-- 退课底部「进入审批队列」提示已去掉（polish-adddrop-second-app-type-switch-and-drop-hint） -->
 
           <p v-if="formError" class="cr-student-message cr-student-message--error">{{ formError }}</p>
         </div>
@@ -1757,7 +2084,7 @@ function handleSubmit() {
           <button
             type="button"
             class="btn btn-primary"
-            :disabled="submitting || !canApply"
+            :disabled="submitting || !canApply || formOpsDisabled"
             @click="handleSubmit"
           >
             {{ t('courseRegistration.student.submitApplication') }}
@@ -1771,11 +2098,15 @@ function handleSubmit() {
       :action="
         pickingFor === 'drop'
           ? 'Drop'
-          : pickingFor === 'add'
-            ? 'Add'
-            : form.action === 'RetakeDrop'
-              ? 'Retake'
-              : form.action
+          : pickingFor === 'retake'
+            ? 'Retake'
+            : pickingFor === 'add'
+              ? 'Add'
+              : form.needRetake === 'yes' && form.needAdd !== 'yes'
+                ? 'Retake'
+                : form.needAdd === 'yes'
+                  ? 'Add'
+                  : form.action
       "
       :multiple="true"
       :term-credit-gate="termCreditGate"
@@ -1800,20 +2131,39 @@ function handleSubmit() {
       :term-credit-strip-baseline="termCreditStripBaseline"
       :plan-remaining="planRemaining"
       :preselected-lines="
-        pickingFor === 'drop' ? form.dropLines || [] : form.addLines || []
+        pickingFor === 'drop'
+          ? form.dropLines || []
+          : pickingFor === 'retake'
+            ? form.retakeLines || []
+            : form.addLines || []
       "
       :allow-future-mandatory="allowFutureMandatory"
       :allow-future-elective="allowFutureElective"
       :future-elective-config="futureElectiveConfig"
+      :academic-session="form.academicSession || defaultAcademicSession"
       :core-section-switch-sections="coreSectionSwitchSections"
+      :core-section-switch-allow-all="coreSectionSwitchAllowAll"
       :origin-section-lines="originSectionLinesForPicker"
-      @close="coursePickerVisible = false"
+      :locked-course-type-tab="
+        pickingFor === 'retake' ||
+        (pickingFor === 'primary' && form.needRetake === 'yes' && form.needAdd !== 'yes')
+          ? retakeLockedCourseTypeTab
+          : ''
+      "
+      :retake-type="
+        pickingFor === 'retake' ||
+        (pickingFor === 'primary' && form.needRetake === 'yes' && form.needAdd !== 'yes')
+          ? form.retakeType || ''
+          : ''
+      "
+      @close="onCoursePickerClose"
       @confirm="handleCoursePicked"
     />
 
     <ApplicationDetailDrawer
       :visible="scheduleDrawerVisible"
       :title="t('courseRegistration.student.schedulePreviewTitle')"
+      :person-line="schedulePersonLine"
       :subtitle="schedulePreviewHint"
       @close="scheduleDrawerVisible = false"
     >
@@ -1974,6 +2324,7 @@ function handleSubmit() {
 .cr-adddrop-modal-body {
   flex: 1;
   min-height: 0;
+  /* 由内部 .adddrop-sections__scroll 承担滚动，避免整页被 overflow:hidden 卡死 */
   overflow: hidden;
   display: flex;
   flex-direction: column;

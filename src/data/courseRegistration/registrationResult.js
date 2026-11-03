@@ -26,7 +26,10 @@ export const STUDENT_OP_RESULT_KEYS = [
   'cancelQueue',
 ]
 
-const DEMO_RESULT_SOURCES = ['preselect', 'main', 'supplement', 'admin']
+/** 学生维课程来源（与 demo / feeCourseSourceLabel 一致） */
+export const STUDENT_COURSE_SOURCE_KEYS = ['preselect', 'main', 'supplement', 'admin']
+
+const DEMO_RESULT_SOURCES = STUDENT_COURSE_SOURCE_KEYS
 
 function resolveBatchName(batchId) {
   return batchId ? getBatchById(batchId)?.name || '' : ''
@@ -38,6 +41,77 @@ function demoCourseSource(rowIndex) {
 
 function pad2(n) {
   return String(n).padStart(2, '0')
+}
+
+/** 代选 demo：原因文案轮转（避免主表/详情全是 —） */
+const DEMO_ADMIN_ADD_REASONS = [
+  '特殊名单补录（演示）',
+  '学院书面同意后代选',
+  '课程冲突调整，管理员代选',
+  '交换生返校补选核心课',
+  '毕业学期必修课补录',
+]
+
+/** 代选 demo：附件文件名轮转 */
+const DEMO_ADMIN_ADD_ATTACHMENTS = [
+  { name: 'special-list-demo.pdf', size: 12288 },
+  { name: 'faculty-approval-memo.pdf', size: 20480 },
+  { name: 'student-request-scan.jpg', size: 153600 },
+  { name: 'course-conflict-note.docx', size: 32768 },
+  { name: 'graduation-checklist.pdf', size: 18432 },
+]
+
+/**
+ * 统一读取代选附件列表（兼容旧单字段 adminAddAttachment）
+ * @param {object|null|undefined} row
+ * @returns {{ name: string, size: number }[]}
+ */
+export function resolveAdminAddAttachments(row) {
+  const list = Array.isArray(row?.adminAddAttachments) ? row.adminAddAttachments : []
+  const normalized = list
+    .filter((item) => item && String(item.name || '').trim())
+    .map((item) => ({
+      name: String(item.name),
+      size: Number(item.size) || 0,
+    }))
+  if (normalized.length) return normalized
+  const single = row?.adminAddAttachment
+  if (single && String(single.name || '').trim()) {
+    return [{ name: String(single.name), size: Number(single.size) || 0 }]
+  }
+  return []
+}
+
+/**
+ * 代选来源行的原因/附件 demo 留痕
+ * @param {number} rowIndex 行序号，用于轮转文案
+ * @returns {{
+ *   adminAddReason: string,
+ *   adminAddAttachments: { name: string, size: number }[],
+ *   adminAddAttachment: { name: string, size: number },
+ * }}
+ */
+export function demoAdminAddTrace(rowIndex) {
+  const reasonIndex = Math.abs(Number(rowIndex) || 0) % DEMO_ADMIN_ADD_REASONS.length
+  const attachmentIndex =
+    Math.abs(Number(rowIndex) || 0) % DEMO_ADMIN_ADD_ATTACHMENTS.length
+  const first = { ...DEMO_ADMIN_ADD_ATTACHMENTS[attachmentIndex] }
+  // 部分行挂 2 个附件，演示多附件
+  const second =
+    rowIndex % 3 === 0
+      ? {
+          ...DEMO_ADMIN_ADD_ATTACHMENTS[
+            (attachmentIndex + 1) % DEMO_ADMIN_ADD_ATTACHMENTS.length
+          ],
+        }
+      : null
+  const adminAddAttachments = second ? [first, second] : [first]
+  return {
+    adminAddReason: DEMO_ADMIN_ADD_REASONS[reasonIndex],
+    adminAddAttachments,
+    /** @deprecated 兼容旧读路径，取首个附件 */
+    adminAddAttachment: first,
+  }
 }
 
 /**
@@ -175,6 +249,8 @@ export function buildStudentRegistrationResults(monitorRows = registrationMonito
         sectionCode: section?.code || '',
         status: row.status === 'normal' ? 'confirmed' : 'warning',
         ...demoStudentOpLogFields(rowIndex, courseSource, row),
+        // 代选 demo：主表原因列 / 详情附件可见实质内容
+        ...(courseSource === 'admin' ? demoAdminAddTrace(rowIndex) : {}),
       })
       rowIndex += 1
     })
@@ -222,6 +298,8 @@ function buildBatchCoverageStudentResults(startIndex = 0) {
         sectionCode: section?.code || '',
         status: 'confirmed',
         ...demoStudentOpLogFields(rowIndex + i, courseSource, profile),
+        // 代选 demo：原因/附件轮转，便于主表与详情演示
+        ...(courseSource === 'admin' ? demoAdminAddTrace(rowIndex + i) : {}),
       })
     }
     rowIndex += ROWS_PER_BATCH
@@ -306,6 +384,10 @@ export function filterStudentResults(rows, filters = {}) {
   }
   if (filters.opResult) {
     list = list.filter((r) => r.opResult === filters.opResult)
+  }
+  // 课程来源精确匹配（空 = 全部）
+  if (filters.courseSource) {
+    list = list.filter((r) => r.courseSource === filters.courseSource)
   }
   if (studentKeyword) {
     list = list.filter(
@@ -883,14 +965,54 @@ function findTargetSection(targetValue) {
   return listTargetCourseSectionOptions().find((opt) => opt.value === targetValue) || null
 }
 
+/** 代选附件上限（与学生退课一致） */
+const ADMIN_ADD_ATTACHMENT_MAX = 5
+
+/**
+ * 规范化代选附件列表（最多 5；兼容旧单附件参数）
+ * @param {{ name?: string, size?: number }[]|undefined} attachments
+ * @param {{ name?: string, size?: number }|null|undefined} legacySingle
+ * @returns {{ name: string, size: number }[]}
+ */
+function normalizeAdminAddAttachments(attachments, legacySingle) {
+  let list = Array.isArray(attachments) ? [...attachments] : []
+  if (!list.length && legacySingle && legacySingle.name) {
+    list = [legacySingle]
+  }
+  return list
+    .filter((item) => item && String(item.name || '').trim())
+    .slice(0, ADMIN_ADD_ATTACHMENT_MAX)
+    .map((item) => ({
+      name: String(item.name),
+      size: Number(item.size) || 0,
+    }))
+}
+
 /**
  * 管理端代选：为多名学生挂上目标课程班
- * @param {{ targetValue: string, studentIds: string[], allowOverCapacity?: boolean }} payload
+ * @param {{
+ *   targetValue: string,
+ *   studentIds: string[],
+ *   allowOverCapacity?: boolean,
+ *   adminAddReason?: string,
+ *   adminAddAttachments?: { name: string, size?: number }[],
+ *   adminAddAttachment?: { name: string, size?: number } | null,
+ * }} payload
  *   targetValue=courseId::sectionId；studentIds 学号列表；
- *   allowOverCapacity=true 时跳过满员校验（仅学生维度「新增」）
+ *   allowOverCapacity=true 时跳过满员校验（仅学生维度「新增」）；
+ *   adminAddReason / adminAddAttachments 为代选留痕（可选）；
+ *   adminAddAttachment 已弃用，仅兼容旧调用（并入 attachments）
  * @returns {{ ok: boolean, added?: number, errorKey?: string, overCapacity?: boolean }}
  */
-export function addAdminStudentRegistrations({ targetValue, studentIds, allowOverCapacity = false }) {
+export function addAdminStudentRegistrations({
+  targetValue,
+  studentIds,
+  allowOverCapacity = false,
+  adminAddReason = '',
+  adminAddAttachments = [],
+  /** @deprecated 请传 adminAddAttachments；保留以兼容旧调用 */
+  adminAddAttachment = null,
+}) {
   const target = findTargetSection(targetValue)
   if (!target) return { ok: false, errorKey: 'courseRegistration.result.addTargetRequired' }
   if (!studentIds?.length) return { ok: false, errorKey: 'courseRegistration.result.addStudentRequired' }
@@ -903,6 +1025,10 @@ export function addAdminStudentRegistrations({ targetValue, studentIds, allowOve
   const candidates = listAdminAddStudentCandidates()
   const course = selectableCourses.value.find((c) => c.id === target.courseId)
   const section = course?.sections?.find((s) => s.id === target.sectionId)
+  const reasonText = String(adminAddReason || '').trim()
+  const attachmentList = normalizeAdminAddAttachments(adminAddAttachments, adminAddAttachment)
+  /** @deprecated 首附件兼容旧读路径 */
+  const attachmentMeta = attachmentList[0] || null
   let added = 0
 
   for (const studentId of studentIds) {
@@ -946,6 +1072,14 @@ export function addAdminStudentRegistrations({ targetValue, studentIds, allowOve
       operatorId: DEMO_ADMIN_OPERATOR_ID,
       operatorName: DEMO_ADMIN_OPERATOR_NAME,
       operatedAt,
+      /** 代选原因（管理端留痕） */
+      adminAddReason: reasonText,
+      /** 代选附件列表（demo 不存二进制） */
+      adminAddAttachments: attachmentList.map((item) => ({ ...item })),
+      /**
+       * @deprecated 请用 adminAddAttachments；保留首项兼容旧展示/导出
+       */
+      adminAddAttachment: attachmentMeta ? { ...attachmentMeta } : null,
     })
     added += 1
 

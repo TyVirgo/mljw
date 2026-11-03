@@ -57,7 +57,11 @@ import {
   selectionGroupToneIndex,
   sortSectionRowsBySelectionGroup,
 } from '../../data/courseRegistration/courseSelectionGroups.js'
-import { GE_VIRTUAL_SELECTION_GROUP } from '../../data/courseRegistration/retakeSubstitutePool.js'
+import {
+  GE_VIRTUAL_SELECTION_GROUP,
+  ME_ORDINARY_VIRTUAL_SELECTION_GROUP,
+  isRetakeCourseBlockedByPassingGrade,
+} from '../../data/courseRegistration/retakeSubstitutePool.js'
 import '../../styles/list-page-search.css'
 
 const props = defineProps({
@@ -71,7 +75,8 @@ const props = defineProps({
   multiple: { type: Boolean, default: true },
   /**
    * 学期学分帽闸门
-   * { currentCredits, creditMax, dropLines, addLines, bypassCreditMax }
+   * { currentCredits, creditMax, dropLines, addOnlyLines, retakeLines, addLines, bypassCreditMax }
+   * addOnlyLines/retakeLines 供三方联动；addLines 为两者合并（兼容）
    */
   termCreditGate: { type: Object, default: null },
   scheduleBaseline: { type: Array, default: () => [] },
@@ -89,10 +94,21 @@ const props = defineProps({
   allowFutureElective: { type: Boolean, default: false },
   /** @type {{ geCredits?: number, meCredits?: number } | null} */
   futureElectiveConfig: { type: Object, default: null },
+  /** 当前申请学年学期（GE/ME 上课学年学期列兜底） */
+  academicSession: { type: String, default: '' },
   /** 本学期必修允许换组的课+教学班白名单 */
   coreSectionSwitchSections: { type: Array, default: () => [] },
+  /** 白名单换组空清单：放行该生可选范围内全部换组 */
+  coreSectionSwitchAllowAll: { type: Boolean, default: false },
   /** 重修无拟退时：在读必修原分组（课+组） */
   originSectionLines: { type: Array, default: () => [] },
+  /**
+   * 重修外层已定类别：锁定内部 tab（core|ge|me），不展示 Tab
+   * 空字符串表示不锁定（加课仍用手点 Tab）
+   */
+  lockedCourseTypeTab: { type: String, default: '' },
+  /** 重修类型：failed | improve_grade；用于组内已及格禁选 */
+  retakeType: { type: String, default: '' },
 })
 
 const emit = defineEmits(['close', 'confirm'])
@@ -145,14 +161,22 @@ const addEligibilityTipParams = computed(() => ({
   ge: props.futureElectiveConfig?.geCredits ?? '—',
   me: props.futureElectiveConfig?.meCredits ?? '—',
 }))
-/** 加课/重修：类别 Tab（必修 / 公选 / 专选）；退课不加 */
-const showCourseTypeTabs = computed(() => isRetakeMode.value || isAddMode.value)
+/** 仅加课：类别 Tab（必修 / 公选 / 专选）；重修 Tab 已外移到原课程区，退课不加 */
+const showCourseTypeTabs = computed(() => isAddMode.value)
 const COURSE_TYPE_TABS = [
   { key: 'core', type: 'CORE', labelKey: 'courseRegistration.student.retakePickerTab.core' },
   { key: 'ge', type: 'GE', labelKey: 'courseRegistration.student.retakePickerTab.ge' },
   { key: 'me', type: 'ME', labelKey: 'courseRegistration.student.retakePickerTab.me' },
 ]
 const courseTypeTab = ref('core')
+/** 有效类别：重修优先用外层锁定，否则用手选 Tab */
+const effectiveCourseTypeTab = computed(() => {
+  const locked = String(props.lockedCourseTypeTab || '').trim()
+  if (isRetakeMode.value && (locked === 'core' || locked === 'ge' || locked === 'me')) {
+    return locked
+  }
+  return courseTypeTab.value
+})
 const courseTypeTabs = computed(() =>
   COURSE_TYPE_TABS.map((tab) => ({
     key: tab.key,
@@ -189,7 +213,57 @@ const showCreditProgress = computed(
       props.creditBars.length > 0),
 )
 
-/** 弹窗勾选 → 拟退/拟加课程（含 sourceType，供必修投影） */
+/** 表单拟退（不含本弹框勾选） */
+function formDropLinesFromGate() {
+  return props.termCreditGate?.dropLines || []
+}
+
+/** 表单拟加（仅加课；无拆分字段时回落空，避免与合并 addLines 双计） */
+function formAddOnlyLinesFromGate() {
+  const gate = props.termCreditGate
+  if (!gate) return []
+  if (Array.isArray(gate.addOnlyLines)) return gate.addOnlyLines
+  return []
+}
+
+/** 表单拟重修 */
+function formRetakeLinesFromGate() {
+  const gate = props.termCreditGate
+  if (!gate) return []
+  if (Array.isArray(gate.retakeLines)) return gate.retakeLines
+  return []
+}
+
+/**
+ * 另一侧「加课类」行：加课弹框→表单重修；重修弹框→表单加课；退课弹框→加∪重修
+ */
+function otherSideAddCreditLines() {
+  if (isDrop.value) {
+    return [...formAddOnlyLinesFromGate(), ...formRetakeLinesFromGate()]
+  }
+  if (isRetakeMode.value) return formAddOnlyLinesFromGate()
+  return formRetakeLinesFromGate()
+}
+
+/**
+ * 表单行 → 学分条课程载荷
+ * @param {object} line
+ */
+function coursePayloadFromFormLine(line) {
+  if (!line) return null
+  return {
+    ...line,
+    type: line.type || line.course?.type,
+    sourceType: line.sourceType || line.course?.sourceType || '',
+    credits: line.credits ?? line.course?.credits,
+    code: line.courseCode || line.code || line.course?.code,
+    courseCode: line.courseCode || line.code || line.course?.courseCode,
+    id: line.courseId || line.id || line.course?.id,
+    courseId: line.courseId || line.id || line.course?.id,
+  }
+}
+
+/** 弹窗勾选 → 拟退/拟加课程（含 sourceType；加/退/重修三方联动投影） */
 const pickerProjectionCourses = computed(() => {
   const selectedCourses = selectedRows.value.map((r) => ({
     ...(r.course || {}),
@@ -204,13 +278,32 @@ const pickerProjectionCourses = computed(() => {
     schoolElectiveCategory:
       r.schoolElectiveCategory || r.course?.schoolElectiveCategory || '',
   }))
-  const dropCourses = isDrop.value
-    ? selectedCourses
-    : props.termCreditGate?.dropLines || []
-  const addCourses = isDrop.value
-    ? props.termCreditGate?.addLines || []
-    : selectedCourses
-  return { dropCourses, addCourses }
+  // 本侧用勾选替换表单同侧；另一侧始终读表单
+  if (isDrop.value) {
+    return {
+      dropCourses: selectedCourses,
+      addCourses: otherSideAddCreditLines(),
+    }
+  }
+  // 重修：本窗课表往往按原课锁定，勾选无法覆盖其它 Tab 已选 → 保留匹配不到的表单重修行
+  if (isRetakeMode.value) {
+    const preservedFormRetakes = formRetakeLinesFromGate()
+      .filter((line) => !flattenedRows.value.some((row) => rowMatchesLine(row, line)))
+      .map(coursePayloadFromFormLine)
+      .filter(Boolean)
+    return {
+      dropCourses: formDropLinesFromGate(),
+      addCourses: [
+        ...otherSideAddCreditLines(),
+        ...preservedFormRetakes,
+        ...selectedCourses,
+      ],
+    }
+  }
+  return {
+    dropCourses: formDropLinesFromGate(),
+    addCourses: [...otherSideAddCreditLines(), ...selectedCourses],
+  }
 })
 
 const termCreditStrip = computed(() => {
@@ -268,24 +361,47 @@ const courseTypeFilterOptions = computed(() => {
 
 /** 退课不展示名额列；加课（含必修）与重修展示；不可选写明详细原因 */
 const showSeatOrRetakeColumn = computed(() => !isDrop.value)
-/** 加课/重修必修 Tab：末列为「是否可选」（无名额数字） */
+/** 加课/重修必修：末列为「是否可选」（无名额数字） */
 const useCoreSelectableColumn = computed(
-  () => showSeatOrRetakeColumn.value && courseTypeTab.value === 'core',
+  () => showSeatOrRetakeColumn.value && effectiveCourseTypeTab.value === 'core',
 )
 const showRetakeHistoryColumn = computed(() => isRetakeMode.value)
-/** 加课必修 Tab：原上课学期（名额列前） */
+/** 加课必修 Tab：原上课学期（类别后） */
 const showOriginalSessionColumn = computed(
-  () => isAddMode.value && courseTypeTab.value === 'core',
+  () => isAddMode.value && effectiveCourseTypeTab.value === 'core',
 )
-/** 重修课程组列：仅专业选修 Tab（公选/必修均隐藏） */
-const showSelectionGroupColumn = computed(
-  () => isRetakeMode.value && courseTypeTab.value === 'me',
-)
+/** 加课 GE/ME Tab：上课学年学期（名额列前，始终显示） */
+const showOfferingSessionColumn = computed(() => {
+  if (!isAddMode.value) return false
+  const tab = effectiveCourseTypeTab.value
+  return tab === 'ge' || tab === 'me'
+})
+/**
+ * 是否为「虚拟大组」（GE / ME选课）：不占课程组列、不挂蓝黄底
+ * @param {object|null|undefined} group
+ */
+function isVirtualRetakeSelectionGroup(group) {
+  const id = group?.id
+  return (
+    id === GE_VIRTUAL_SELECTION_GROUP.id || id === ME_ORDINARY_VIRTUAL_SELECTION_GROUP.id
+  )
+}
+
+/**
+ * 重修课程组列：专选且存在真实 n 选 m 组时才展示（ME选课虚拟大组不展示）
+ */
+const showSelectionGroupColumn = computed(() => {
+  if (!isRetakeMode.value || effectiveCourseTypeTab.value !== 'me') return false
+  return flattenedRows.value.some(
+    (row) => row.selectionGroup && !isVirtualRetakeSelectionGroup(row.selectionGroup),
+  )
+})
 const tableColspan = computed(() => {
   let n = 11
   if (showSeatOrRetakeColumn.value) n += 1
   if (showRetakeHistoryColumn.value) n += 1
   if (showOriginalSessionColumn.value) n += 1
+  if (showOfferingSessionColumn.value) n += 1
   if (showSelectionGroupColumn.value) n += 1
   return n
 })
@@ -339,6 +455,8 @@ function sectionRowsForCourse(course) {
         schoolElectiveCategory:
           course.schoolElectiveCategory || resolveSchoolElectiveCategory(course) || '',
         originalAcademicSession: course.originalAcademicSession || '',
+        offeringAcademicSession: course.offeringAcademicSession || '',
+        futureSession: Boolean(course.futureSession),
         fromEnrolled: course.fromEnrolled,
         remainingCapacity: remaining,
       }
@@ -384,6 +502,8 @@ function sectionRowsForCourse(course) {
       schoolElectiveCategory:
         course.schoolElectiveCategory || resolveSchoolElectiveCategory(course) || '',
       originalAcademicSession: course.originalAcademicSession || '',
+      offeringAcademicSession: course.offeringAcademicSession || '',
+      futureSession: Boolean(course.futureSession),
       fromEnrolled: course.fromEnrolled,
       remainingCapacity: remaining,
     },
@@ -393,6 +513,30 @@ function sectionRowsForCourse(course) {
 function originalSessionLabel(row) {
   const v = String(row?.originalAcademicSession || row?.course?.originalAcademicSession || '').trim()
   return v || '—'
+}
+
+/**
+ * GE/ME 上课学年学期：开课学期 → 未来计划学期 → 当前申请学期
+ * @param {object} row
+ * @returns {string}
+ */
+function offeringSessionOf(row) {
+  const direct = String(
+    row?.offeringAcademicSession || row?.course?.offeringAcademicSession || '',
+  ).trim()
+  if (direct) return direct
+  if (row?.futureSession || row?.course?.futureSession) {
+    const planned = String(
+      row?.originalAcademicSession || row?.course?.originalAcademicSession || '',
+    ).trim()
+    if (planned) return planned
+  }
+  return String(props.academicSession || '').trim()
+}
+
+/** @param {object} row */
+function offeringSessionLabel(row) {
+  return offeringSessionOf(row) || '—'
 }
 
 const flattenedRows = computed(() => {
@@ -416,7 +560,7 @@ const flattenedRows = computed(() => {
 const filteredRows = computed(() => {
   let list = [...flattenedRows.value]
   if (showCourseTypeTabs.value) {
-    const tab = COURSE_TYPE_TABS.find((x) => x.key === courseTypeTab.value)
+    const tab = COURSE_TYPE_TABS.find((x) => x.key === effectiveCourseTypeTab.value)
     const want = tab?.type || 'CORE'
     list = list.filter((row) => rowMatchesCourseTypeTab(row, want))
   }
@@ -453,6 +597,14 @@ const filteredRows = computed(() => {
         courseCategoryApplied.value,
       ),
     )
+  }
+  // GE/ME：按上课学年学期字符串升序（同学期内保持原相对顺序）
+  if (showOfferingSessionColumn.value) {
+    list.sort((a, b) => {
+      const sessionCompare = offeringSessionOf(a).localeCompare(offeringSessionOf(b))
+      if (sessionCompare !== 0) return sessionCompare
+      return String(a.rowKey || '').localeCompare(String(b.rowKey || ''))
+    })
   }
   return list
 })
@@ -518,30 +670,57 @@ const selectedRows = computed(() => {
   return pickedRowKeys.value.map((k) => byKey.get(k)).filter(Boolean)
 })
 
+/** 退课勾选行学分合计（选择说明用；学分条仍为退后剩余） */
+const selectedDropCreditsSum = computed(() =>
+  selectedRows.value.reduce((sum, row) => sum + (Number(row.credits) || 0), 0),
+)
+
+/**
+ * 基线「学期已选总学分」（打开弹窗未扣本次勾选）
+ * @returns {number}
+ */
+const dropMetaOriginalTermTotal = computed(() => {
+  const baseline = props.termCreditStripBaseline
+  if (!baseline) return 0
+  const ge = Number(baseline.geCurrent) || 0
+  const me = Number(baseline.meCurrent) || 0
+  const mandatory = Number(baseline.mandatorySelected) || 0
+  return ge + me + mandatory
+})
+
+/** 还剩合计 = 原来学期总 − 拟退合计（不小于 0） */
+const dropMetaRemainTermTotal = computed(() =>
+  Math.max(0, dropMetaOriginalTermTotal.value - selectedDropCreditsSum.value),
+)
+
 function termGateForRow(row) {
   // 加课 / 重修统一受学期帽约束；非白名单超帽阻断，白名单可超（不收费）
   if (isDrop.value || !props.termCreditGate) {
     return { over: false, blocked: false, net: 0, excess: 0 }
   }
   const gate = props.termCreditGate
-  // 勾选集合即本侧 working set，不再叠加表单 addLines（预勾回填时避免双计）
+  // 本侧：勾选集合（预勾即表单同侧，避免双计）；另一侧：表单加/重修
   const alreadyPicked = selectedRows.value
     .filter((r) => r.rowKey !== row.rowKey)
     .map((r) => ({ credits: Number(r.credits) || 0 }))
   return evaluateTermCreditGate({
     currentCredits: gate.currentCredits,
     creditMax: gate.creditMax,
-    dropLines: gate.dropLines || [],
-    addLines: alreadyPicked,
+    dropLines: formDropLinesFromGate(),
+    addLines: [...otherSideAddCreditLines(), ...alreadyPicked],
     candidateCredits: Number(row.credits) || 0,
     bypassCreditMax: Boolean(gate.bypassCreditMax),
     creditBypassExtra: gate.creditBypassExtra,
   })
 }
 
+/** 选课弹窗计费动作：组合类型归并为 Add / Retake */
 function feeActionForEstimate() {
-  if (props.action === 'AddDrop') return 'Add'
-  if (props.action === 'RetakeDrop') return 'Retake'
+  if (props.action === 'Retake' || props.action === 'RetakeDrop') return 'Retake'
+  if (props.action === 'Add' || props.action === 'AddDrop' || props.action === 'AddDropRetake') {
+    return 'Add'
+  }
+  if (props.action === 'AddRetake') return 'Add'
   return props.action
 }
 
@@ -674,8 +853,11 @@ const selectAllCandidates = computed(() => {
   return filteredRows.value.filter((row) => !isRowDisabled(row) || isRowChecked(row))
 })
 
-/** 无一可选行且无已勾选时，表头全选置灰 */
-const selectAllEnabled = computed(() => selectAllCandidates.value.length > 0)
+/** 无一可选行且无已勾选时，表头全选置灰；重修本窗单课，禁用全选 */
+const selectAllEnabled = computed(() => {
+  if (isRetakeMode.value) return false
+  return selectAllCandidates.value.length > 0
+})
 
 const allSelected = computed(() => {
   const list = selectAllCandidates.value
@@ -737,12 +919,13 @@ function toggleSelectAll(checked) {
       normalizeRegistrationType(row.type || row.course?.type) === 'GE'
     ) {
       const addCourses = [
+        ...otherSideAddCreditLines(),
         ...next.map((k) => rowByKey.get(k)).filter(Boolean).map(coursePayloadFromRow),
         coursePayloadFromRow(row),
       ]
       if (
         wouldExceedAddDropGeTermCap(props.termCreditStripBaseline, {
-          dropCourses: props.termCreditGate?.dropLines || [],
+          dropCourses: formDropLinesFromGate(),
           addCourses,
         })
       ) {
@@ -760,8 +943,8 @@ function toggleSelectAll(checked) {
     const g = evaluateTermCreditGate({
       currentCredits: gate.currentCredits,
       creditMax: gate.creditMax,
-      dropLines: gate.dropLines || [],
-      addLines: already,
+      dropLines: formDropLinesFromGate(),
+      addLines: [...otherSideAddCreditLines(), ...already],
       candidateCredits: Number(row.credits) || 0,
       bypassCreditMax: Boolean(gate.bypassCreditMax),
       creditBypassExtra: gate.creditBypassExtra,
@@ -812,7 +995,12 @@ watch(
     creditsApplied.value = ''
     schoolElectiveApplied.value = ''
     typeApplied.value = ''
-    courseTypeTab.value = 'core'
+    // 重修：外层锁定类别；加课：默认必修 Tab
+    const locked = String(props.lockedCourseTypeTab || '').trim()
+    courseTypeTab.value =
+      isRetakeMode.value && (locked === 'core' || locked === 'ge' || locked === 'me')
+        ? locked
+        : 'core'
     searchExpanded.value = true
     currentPage.value = 1
     pageSize.value = 20
@@ -927,8 +1115,8 @@ function isRowGeTermCapBlocked(row) {
     .filter((r) => r.rowKey !== row.rowKey)
     .map(coursePayloadFromRow)
   return wouldExceedAddDropGeTermCap(props.termCreditStripBaseline, {
-    dropCourses: props.termCreditGate?.dropLines || [],
-    addCourses: [...others, coursePayloadFromRow(row)],
+    dropCourses: formDropLinesFromGate(),
+    addCourses: [...otherSideAddCreditLines(), ...others, coursePayloadFromRow(row)],
   })
 }
 
@@ -936,10 +1124,18 @@ function isRowCreditBlocked(row) {
   return Boolean(termGateForRow(row).blocked) || isRowGeTermCapBlocked(row)
 }
 
+/**
+ * 是否因「已选兄弟行」置灰
+ * - 重修（不及格/提分）：已选任一门后，其余课与分组全部置灰（一门原课只修一门）
+ * - 加课：同一课程只允许选一个课程分组；同课程组内不同课程仍可多选
+ * @param {object} row
+ */
 function isRowDisabledBySibling(row) {
-  // 加课/重修：同一课程只允许选一个课程分组；同课程组内不同课程仍可多选
   if (isDrop.value || row.fromEnrolled) return false
   if (isRowChecked(row)) return false
+  if (isRetakeMode.value) {
+    return pickedRowKeys.value.some((key) => key && key !== row.rowKey)
+  }
   const code = String(row.code || row.course?.code || '')
   if (!code) return false
   return flattenedRows.value.some(
@@ -948,6 +1144,20 @@ function isRowDisabledBySibling(row) {
       String(r.code || r.course?.code || '') === code &&
       isRowChecked(r),
   )
+}
+
+/**
+ * 重修：是否因已选「另一门课」而置灰（用于 tip；同课其它分组仍用同课文案）
+ * @param {object} row
+ */
+function isRowDisabledByOtherRetakeCourse(row) {
+  if (!isRetakeMode.value || isRowChecked(row)) return false
+  if (!pickedRowKeys.value.some((key) => key && key !== row.rowKey)) return false
+  const code = String(row.code || row.course?.code || '')
+  const picked = flattenedRows.value.find((r) => pickedRowKeys.value.includes(r.rowKey))
+  const pickedCode = String(picked?.code || picked?.course?.code || '')
+  if (!code || !pickedCode) return true
+  return code !== pickedCode
 }
 
 /** 加课行 → 课+组线 */
@@ -1002,6 +1212,20 @@ function originLinesForCoreLock() {
  * 本学期必修换组锁：仅加课 / 加退课；重修不限制
  * 默认只许同组加回；白名单命中目标组可换组
  */
+/**
+ * 不及格重修：同组内最新成绩已及格的课，全部分组不可选
+ * @param {object} row
+ */
+function isRowBlockedByPassedRetakeCourse(row) {
+  if (!isRetakeMode.value) return false
+  if (props.retakeType !== 'failed') return false
+  const course = row?.course || row
+  return isRetakeCourseBlockedByPassingGrade({
+    ...course,
+    retakeHistory: course?.retakeHistory || row?.retakeHistory || [],
+  })
+}
+
 function isRowBlockedByCoreSectionLock(row) {
   if (isDrop.value || row.fromEnrolled) return false
   // 重修 / 重修（退课）不施加换组锁
@@ -1012,6 +1236,7 @@ function isRowBlockedByCoreSectionLock(row) {
     rowAsCourseSectionLine(row),
     originLinesForCoreLock(),
     props.coreSectionSwitchSections,
+    Boolean(props.coreSectionSwitchAllowAll),
   )
 }
 
@@ -1021,7 +1246,8 @@ function isRowDisabled(row) {
     isRowFull(row) ||
     isRowCreditBlocked(row) ||
     isRowDisabledBySibling(row) ||
-    isRowBlockedByCoreSectionLock(row)
+    isRowBlockedByCoreSectionLock(row) ||
+    isRowBlockedByPassedRetakeCourse(row)
   )
 }
 
@@ -1032,6 +1258,17 @@ function isRowChecked(row) {
 
 function pickRow(row) {
   if (isRowDisabled(row)) return
+  // 重修：单课互斥（勾选切换；已选其它时本行已置灰）
+  if (isRetakeMode.value) {
+    if (pickedRowKeys.value.includes(row.rowKey)) {
+      pickedRowKeys.value = []
+      pickedRowKey.value = ''
+    } else {
+      pickedRowKeys.value = [row.rowKey]
+      pickedRowKey.value = row.rowKey
+    }
+    return
+  }
   if (useMultiple.value) {
     const set = new Set(pickedRowKeys.value)
     if (set.has(row.rowKey)) set.delete(row.rowKey)
@@ -1099,13 +1336,13 @@ function selectionGroupDisplayLines(group) {
 
 function selectionGroupRowClass(group) {
   if (!showSelectionGroupColumn.value || !group) return undefined
-  // 重修选课器：虚拟 GE 组整表同色 → 不挂底色
-  if (group.id === GE_VIRTUAL_SELECTION_GROUP.id) return undefined
+  // GE / ME选课虚拟大组：无课程组底色（对齐在线「未入 n 选 m」扁平行）
+  if (isVirtualRetakeSelectionGroup(group)) return undefined
   const groups = []
   const seen = new Set()
   for (const row of flattenedRows.value) {
     const g = row.selectionGroup
-    if (g?.id && !seen.has(g.id)) {
+    if (g?.id && !seen.has(g.id) && !isVirtualRetakeSelectionGroup(g)) {
       seen.add(g.id)
       groups.push(g)
     }
@@ -1168,11 +1405,17 @@ function seatStatusLabel(row) {
 /** 不可选状态完整说明（有余量/名额数字不返回 tip） */
 function seatStatusTip(row) {
   if (isDrop.value || row.fromEnrolled) return ''
+  if (isRowDisabledByOtherRetakeCourse(row)) {
+    return t('courseRegistration.student.pickerRetakeSingleCourseOnly')
+  }
   if (isRowDisabledBySibling(row)) {
     return t('courseRegistration.student.pickerSameCourseSectionPicked')
   }
   if (isRowBlockedByCoreSectionLock(row)) {
     return t('courseRegistration.student.coreMustSameSectionReadd')
+  }
+  if (isRowBlockedByPassedRetakeCourse(row)) {
+    return t('courseRegistration.student.retakeCourseAlreadyPassed')
   }
   const conflict = conflictInfo(row)
   if (conflict.conflict) {
@@ -1196,8 +1439,12 @@ function seatStatusTip(row) {
         .map(coursePayloadFromRow)
       const strip = buildAddDropTermCreditStrip({
         ...props.termCreditStripBaseline,
-        dropCourses: props.termCreditGate?.dropLines || [],
-        addCourses: [...others, coursePayloadFromRow(row)],
+        dropCourses: formDropLinesFromGate(),
+        addCourses: [
+          ...otherSideAddCreditLines(),
+          ...others,
+          coursePayloadFromRow(row),
+        ],
       })
       return t('courseRegistration.student.termCreditCapExceeded', {
         type: 'GE',
@@ -1225,6 +1472,7 @@ function seatStatusClass(row) {
   if (isDrop.value || row.fromEnrolled) return ''
   if (isRowDisabledBySibling(row)) return 'conflict'
   if (isRowBlockedByCoreSectionLock(row)) return 'conflict'
+  if (isRowBlockedByPassedRetakeCourse(row)) return 'conflict'
   if (isRowCreditBlocked(row)) return 'conflict'
   if (conflictInfo(row).conflict) return 'conflict'
   if (isRowFull(row)) return 'full'
@@ -1435,15 +1683,36 @@ function handleClose() {
               :aria-selected="courseTypeTab === tab.key"
               @click="selectCourseTypeTab(tab.key)"
             >
-              {{ tab.label }}
+              <span class="picker-retake-type-tab__label">{{ tab.label }}</span>
+              <!-- 加课选修 Tab：第三轮规则说明（仅提示，不禁选） -->
+              <span
+                v-if="isAddMode && (tab.key === 'ge' || tab.key === 'me')"
+                class="tip-icon"
+                :title="t('courseRegistration.student.pickerElectiveTabRound3Tip')"
+                :aria-label="t('courseRegistration.student.pickerElectiveTabRound3Tip')"
+                tabindex="0"
+                @click.stop
+              >?</span>
             </button>
           </div>
 
-          <p class="selection-meta">
+          <p
+            class="selection-meta"
+            :class="{ 'selection-meta--drop-emphasis': isDrop && selectedRows.length }"
+          >
             {{
-              selectedRows.length
-                ? t('courseRegistration.student.coursePickerSelected', { count: selectedRows.length })
-                : t('courseRegistration.student.coursePickerNone')
+              !selectedRows.length
+                ? t('courseRegistration.student.coursePickerNone')
+                : isDrop
+                  ? t('courseRegistration.student.coursePickerSelectedDropCredits', {
+                      count: selectedRows.length,
+                      credits: selectedDropCreditsSum,
+                      original: dropMetaOriginalTermTotal,
+                      remain: dropMetaRemainTermTotal,
+                    })
+                  : t('courseRegistration.student.coursePickerSelected', {
+                      count: selectedRows.length,
+                    })
             }}
           </p>
 
@@ -1485,9 +1754,17 @@ function handleClose() {
                       >?</span>
                     </span>
                   </th>
-                  <th class="col-group">{{ t('courseRegistration.student.fieldGroupNo') }}</th>
+                  <!-- 一级（课级合并）在前 -->
                   <th class="col-credits">{{ t('courseRegistration.courses.credits') }}</th>
                   <th class="col-category">{{ t('courseRegistration.courses.category') }}</th>
+                  <th
+                    v-if="showOriginalSessionColumn"
+                    class="col-original-session"
+                  >
+                    {{ t('courseRegistration.student.pickerOriginalSessionHeader') }}
+                  </th>
+                  <!-- 二级（分组分行）在后 -->
+                  <th class="col-group">{{ t('courseRegistration.student.fieldGroupNo') }}</th>
                   <th class="col-lecturer">{{ t('courseRegistration.courses.lecturer') }}</th>
                   <th class="col-week">{{ t('courseRegistration.courses.weekRange') }}</th>
                   <th class="col-time">{{ t('courseRegistration.courses.classTimeVenue') }}</th>
@@ -1498,10 +1775,18 @@ function handleClose() {
                     {{ t('courseRegistration.student.pickerRetakeHistoryHeader') }}
                   </th>
                   <th
-                    v-if="showOriginalSessionColumn"
-                    class="col-original-session"
+                    v-if="showOfferingSessionColumn"
+                    class="col-offering-session"
                   >
-                    {{ t('courseRegistration.student.pickerOriginalSessionHeader') }}
+                    <span class="th-label-with-tip">
+                      {{ t('courseRegistration.student.pickerOfferingSessionHeader') }}
+                      <span
+                        class="tip-icon"
+                        :title="t('courseRegistration.student.pickerOfferingSessionTip')"
+                        :aria-label="t('courseRegistration.student.pickerOfferingSessionTip')"
+                        tabindex="0"
+                      >?</span>
+                    </span>
                   </th>
                   <th
                     v-if="showSeatOrRetakeColumn"
@@ -1581,7 +1866,6 @@ function handleClose() {
                     </template>
                     <template v-else>—</template>
                   </td>
-                  <td>{{ sectionLabel(row) }}</td>
                   <td
                     v-if="spanCell(row, 'credits')?.show"
                     class="cell-course"
@@ -1596,6 +1880,14 @@ function handleClose() {
                   >
                     {{ courseCategoryLabel(row) }}
                   </td>
+                  <td
+                    v-if="showOriginalSessionColumn && spanCell(row, 'originalSession')?.show"
+                    class="cell-course col-original-session"
+                    :rowspan="spanCell(row, 'originalSession').rowspan"
+                  >
+                    {{ originalSessionLabel(row) }}
+                  </td>
+                  <td>{{ sectionLabel(row) }}</td>
                   <td>{{ lecturerLabel(row) }}</td>
                   <td>{{ weekLabel(row) }}</td>
                   <td class="cr-time-venue" :title="timeVenueLines(row).join('\n') || undefined">
@@ -1626,11 +1918,10 @@ function handleClose() {
                     <span v-if="!retakeHistoryLines(row).length">—</span>
                   </td>
                   <td
-                    v-if="showOriginalSessionColumn && spanCell(row, 'originalSession')?.show"
-                    class="cell-course col-original-session"
-                    :rowspan="spanCell(row, 'originalSession').rowspan"
+                    v-if="showOfferingSessionColumn"
+                    class="col-offering-session"
                   >
-                    {{ originalSessionLabel(row) }}
+                    {{ offeringSessionLabel(row) }}
                   </td>
                   <td
                     v-if="showSeatOrRetakeColumn"
@@ -1639,9 +1930,30 @@ function handleClose() {
                     <span
                       class="seat-status"
                       :class="seatStatusClass(row)"
-                      :title="seatStatusTip(row) || undefined"
+                      :title="
+                        isRowBlockedByCoreSectionLock(row)
+                          ? undefined
+                          : seatStatusTip(row) || undefined
+                      "
                     >
-                      {{ seatStatusLabel(row) }}
+                      <!-- 换组锁：文案与「？」同一内联流，贴句号后不独立换行 -->
+                      <span
+                        v-if="isRowBlockedByCoreSectionLock(row)"
+                        class="seat-status-lock-inline"
+                      >
+                        {{ seatStatusLabel(row) }}<span
+                          class="tip-icon tip-icon--inline"
+                          :title="
+                            t('courseRegistration.student.coreSameSectionReaddWhitelistTip')
+                          "
+                          :aria-label="
+                            t('courseRegistration.student.coreSameSectionReaddWhitelistTip')
+                          "
+                          tabindex="0"
+                          @click.stop
+                        >?</span>
+                      </span>
+                      <template v-else>{{ seatStatusLabel(row) }}</template>
                     </span>
                   </td>
                 </tr>
@@ -1781,6 +2093,9 @@ function handleClose() {
 }
 
 .picker-retake-type-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 10px 18px;
   font-size: 14px;
   color: #6b7280;
@@ -1900,6 +2215,12 @@ function handleClose() {
   margin: 0 0 8px;
   font-size: 13px;
   color: #6b7280;
+}
+
+/* 退课已勾选：整句红字强调 */
+.selection-meta--drop-emphasis {
+  color: #dc2626;
+  font-weight: 600;
 }
 
 .table-wrap {
@@ -2027,6 +2348,12 @@ function handleClose() {
 
 .col-original-session {
   width: 7%;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.col-offering-session {
+  width: 8%;
   white-space: nowrap;
   text-align: center;
 }
@@ -2205,7 +2532,9 @@ function handleClose() {
   gap: 4px;
 }
 
-.th-label-with-tip .tip-icon {
+.th-label-with-tip .tip-icon,
+.picker-retake-type-tab .tip-icon,
+.seat-status .tip-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2260,6 +2589,17 @@ function handleClose() {
   word-break: break-word;
   line-height: 1.35;
   max-width: 100%;
+}
+
+/* 锁文案 +「？」同一内联流，避免 tip 单独换行 */
+.seat-status-lock-inline {
+  display: inline;
+}
+
+.seat-status .tip-icon--inline {
+  display: inline-flex;
+  vertical-align: text-top;
+  margin-left: 2px;
 }
 
 .seat-status.open {

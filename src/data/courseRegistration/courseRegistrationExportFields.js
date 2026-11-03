@@ -111,16 +111,25 @@ export const resultStudentExportFields = [
   { key: 'operator', labelKey: 'courseRegistration.log.operator' },
   { key: 'operatedAt', labelKey: 'courseRegistration.log.operatedAt' },
   { key: 'opResult', labelKey: 'courseRegistration.log.resultLabel' },
+  { key: 'adminAddReason', labelKey: 'courseRegistration.result.adminAddReason' },
+  {
+    key: 'adminAddAttachmentName',
+    labelKey: 'courseRegistration.result.adminAddAttachment',
+  },
 ]
 
+/** 第二/三轮课程维导出（可选口径） */
 export const resultCourseExportFields = [
   { key: 'batchName', labelKey: 'courseRegistration.batch.name' },
   { key: 'courseCode', labelKey: 'courseRegistration.courses.code' },
   { key: 'courseName', labelKey: 'courseRegistration.courses.name' },
   { key: 'credits', labelKey: 'courseRegistration.courses.credits' },
-  { key: 'effectiveCapacity', labelKey: 'courseRegistration.courses.effectiveCapacity' },
-  { key: 'enrolledFreshman', labelKey: 'courseRegistration.courses.enrolledFreshman' },
-  { key: 'enrolledSenior', labelKey: 'courseRegistration.courses.enrolledSenior' },
+  {
+    key: 'effectiveCapacity',
+    labelKey: 'courseRegistration.result.effectiveCapacityAvailableWithRatio',
+  },
+  { key: 'enrolledFreshman', labelKey: 'courseRegistration.result.freshmanCapacityAvailable' },
+  { key: 'enrolledSenior', labelKey: 'courseRegistration.result.seniorCapacityAvailable' },
 ]
 
 /** 第一轮主表 / 志愿名单：学生明细 */

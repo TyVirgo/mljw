@@ -5,13 +5,22 @@
 import { computed, ref, watch } from 'vue'
 import { DEFAULT_MOCK_CURRENT_STUDENT_ID } from '../mockCurrentStudent.js'
 import { getStudentProfileFields } from './studentRegistrationStore.js'
-import { addDropApprovalQueue } from './addDropApprovalQueue.js'
+import {
+  addDropApprovalQueue,
+  filterApprovedAddDropItems,
+  applyApprovedAddDropScheduleEffects,
+} from './addDropApprovalQueue.js'
 import { upsertFeeRosterFromPaymentLines } from './feeRosterQueue.js'
-import { computeSstAmount, SST_RATE } from './addDropFeeRates.js'
+import {
+  computeSstAmount,
+  SST_RATE,
+  buildFeeEstimateFromApplicationItems,
+} from './addDropFeeRates.js'
+import { buildAddDropPlanRemaining } from './studentRegistrationContext.js'
 
 export const PAYMENT_ORDER_TTL_MS = 15 * 60 * 1000
-/** 升 v5：demo 含 1/2/3 门整单混排，丢弃旧待缴结构缓存 */
-const STORAGE_KEY = 'crs-student-course-payment-v5'
+/** 升 v6：待缴行按 feeEstimate 两段规则（重修全额+加课毕业超出）拆行 */
+const STORAGE_KEY = 'crs-student-course-payment-v6'
 
 /**
  * 账单键：优先申请单号，否则 sourceRef，再退回行 id
@@ -373,6 +382,69 @@ function loadPersisted() {
   }
 }
 
+/**
+ * 缴费来源类型（含加+重修组合）
+ * @param {object} app
+ */
+function paymentSourceTypeFromApp(app) {
+  const type = String(app?.type || '')
+  if (type === 'RetakeDrop') return 'retakeDrop'
+  if (type === 'Retake' || type === 'AddRetake') return 'retake'
+  return 'addDrop'
+}
+
+/**
+ * 将 feeEstimate.items 映射为待缴课行（仅 amount>0）
+ * @param {object[]} estimateItems
+ */
+function mapEstimateItemsToPaymentLines(estimateItems) {
+  return (estimateItems || [])
+    .filter((i) => Number(i.amount) > 0)
+    .map((item, index) => ({
+      courseCode: item.courseCode || `fee-${index}`,
+      courseName: item.courseName || item.courseCode || '',
+      credits: item.credits || item.billableCredits || 0,
+      billableCredits: Number(item.billableCredits) || 0,
+      feeAmount: Number(item.amount) || 0,
+      sectionName: item.sectionName || item.section || '01',
+    }))
+}
+
+/**
+ * 解析申请待缴费用行：以通过行重建/存盘 feeEstimate 为真源（amount>0）
+ * 加课应收 0、不通过/驳回课均不进入
+ * @param {object} app
+ * @returns {object[]}
+ */
+function resolvePaymentFeeLinesFromApp(app) {
+  const approvedItems = filterApprovedAddDropItems(app)
+  // 审结后优先按通过行重算，避免存盘预估落后于行决策
+  const rebuilt = buildFeeEstimateFromApplicationItems(
+    { ...app, items: approvedItems },
+    buildAddDropPlanRemaining(app.studentId),
+    app.studentCategory || 'Local',
+  )
+  const fromRebuilt = mapEstimateItemsToPaymentLines(rebuilt?.items || [])
+  if (fromRebuilt.length) return fromRebuilt
+
+  const fromStored = mapEstimateItemsToPaymentLines(app?.feeEstimate?.items || [])
+  if (fromStored.length) return fromStored
+
+  // 旧数据：按通过行 items.fee > 0
+  const feeItems = approvedItems.filter((it) => Number(it.fee) > 0)
+  if (feeItems.length) {
+    return feeItems.map((item) => ({
+      courseCode: item.courseCode,
+      courseName: item.courseName || item.courseCode,
+      credits: item.credits || 0,
+      billableCredits: item.credits || 0,
+      feeAmount: Number(item.fee) || 0,
+      sectionName: item.sectionName || item.section || '01',
+    }))
+  }
+  return []
+}
+
 function collectLiveUnpaidLines(studentId) {
   const lines = []
   for (const app of addDropApprovalQueue.value || []) {
@@ -381,36 +453,28 @@ function collectLiveUnpaidLines(studentId) {
     if (app.billStatus !== 'pending') continue
     const bill = Number(app.billAmount) || 0
     if (bill <= 0) continue
-    const feeItems = (app.items || []).filter((it) => Number(it.fee) > 0)
-    const items =
-      feeItems.length > 0
-        ? feeItems
-        : [
-            (app.items || []).find((i) => ['Add', 'Retake'].includes(i.action)) ||
-              (app.items || [])[0],
-          ].filter(Boolean)
-    const sourceType =
-      app.type === 'RetakeDrop' ? 'retakeDrop' : app.type === 'Retake' ? 'retake' : 'addDrop'
+    const sourceType = paymentSourceTypeFromApp(app)
     const identity = {
       studentName: app.studentName || '',
       programme: app.programme || app.programmeCode || '',
       intake: app.intake || '',
       academicSession: app.academicSession || '',
     }
-    if (feeItems.length) {
-      for (const item of feeItems) {
+    const feeLines = resolvePaymentFeeLinesFromApp(app)
+    if (feeLines.length) {
+      for (const item of feeLines) {
         lines.push(
           withPaymentSst(
             {
-              id: `pay-live-${app.id}-${item.courseCode}`,
+              id: `pay-live-${app.id}-${item.courseCode}-${item.billableCredits}`,
               studentId,
               ...identity,
               courseCode: item.courseCode,
               courseName: item.courseName || item.courseCode,
               credits: item.credits || 0,
-              billableCredits: item.credits || 0,
-              feeAmount: Number(item.fee) || 0,
-              sectionName: item.sectionName || item.section || '01',
+              billableCredits: item.billableCredits || 0,
+              feeAmount: Number(item.feeAmount) || 0,
+              sectionName: item.sectionName || '01',
               sourceType,
               sourceRef: app.id,
               applicationNo: app.applicationNo || '',
@@ -423,67 +487,100 @@ function collectLiveUnpaidLines(studentId) {
           ),
         )
       }
-    } else if (items[0]) {
-      const item = items[0]
-      lines.push(
-        withPaymentSst(
-          {
-            id: `pay-live-${app.id}-${item.courseCode}`,
-            studentId,
-            ...identity,
-            courseCode: item.courseCode,
-            courseName: item.courseName || item.courseCode,
-            credits: item.credits || 0,
-            billableCredits: Number(app.excessCredits) || item.credits || 0,
-            feeAmount: bill,
-            sectionName: item.sectionName || item.section || '01',
-            sourceType,
-            sourceRef: app.id,
-            applicationNo: app.applicationNo || '',
-            paymentDueAt: app.paymentDueAt || '',
-            status: 'unpaid',
-            paidAt: '',
-            orderNo: '',
-          },
-          PAYMENT_DEMO_SST_CATEGORY,
-        ),
-      )
+      continue
     }
+    // 无明细：整单挂到第一门加/重修课（兼容旧单）
+    const fallback =
+      (app.items || []).find((i) => ['Add', 'Retake'].includes(i.action)) ||
+      (app.items || [])[0]
+    if (!fallback) continue
+    lines.push(
+      withPaymentSst(
+        {
+          id: `pay-live-${app.id}-${fallback.courseCode}`,
+          studentId,
+          ...identity,
+          courseCode: fallback.courseCode,
+          courseName: fallback.courseName || fallback.courseCode,
+          credits: fallback.credits || 0,
+          billableCredits: Number(app.excessCredits) || fallback.credits || 0,
+          feeAmount: bill,
+          sectionName: fallback.sectionName || fallback.section || '01',
+          sourceType,
+          sourceRef: app.id,
+          applicationNo: app.applicationNo || '',
+          paymentDueAt: app.paymentDueAt || '',
+          status: 'unpaid',
+          paidAt: '',
+          orderNo: '',
+        },
+        PAYMENT_DEMO_SST_CATEGORY,
+      ),
+    )
   }
   return lines
 }
 
 /**
- * 将审批队列中当前学生的待缴课行增量并入课程缴费（保留 demo / 已有行）
- * 可在已灌种后重复调用
+ * 待缴课目签名：用于判断是否需要写 paymentLines（避免渲染路径死循环）
+ * @param {object[]} lines
+ */
+function unpaidLinesSignature(lines) {
+  return (lines || [])
+    .map(
+      (l) =>
+        `${l.sourceRef || ''}|${String(l.courseCode || '').trim()}|${Number(l.feeAmount) || 0}|${Number(l.billableCredits) || 0}`,
+    )
+    .sort()
+    .join(';')
+}
+
+/**
+ * 将审批队列待缴课行与课程缴费对齐（按申请 reconcile：增/改/删）
+ * 本单课目与金额以审批后 feeEstimate 为准；保留其它申请与 demo / 已缴行
+ * 签名未变时不写 paymentLines（可安全重复调用）
  */
 export function mergeLiveUnpaidFromApproval(studentId) {
   const sid =
     studentId || getStudentProfileFields().studentId || DEFAULT_MOCK_CURRENT_STUDENT_ID
-  const live = collectLiveUnpaidLines(sid)
-  if (!live.length) return { ok: true, added: 0 }
-  const existingIds = new Set(paymentLines.value.map((l) => l.id))
-  const toAdd = []
-  for (const line of live) {
-    if (existingIds.has(line.id)) continue
-    const dup = paymentLines.value.some(
-      (x) =>
-        x.courseCode === line.courseCode &&
-        x.sourceRef === line.sourceRef &&
-        x.status !== 'paid',
-    )
-    if (dup) continue
-    toAdd.push(normalizePaymentLine(line))
+  const pendingApps = (addDropApprovalQueue.value || []).filter(
+    (app) =>
+      app.studentId === sid &&
+      (app.status === 'Approved' || app.status === 'PartiallyApproved') &&
+      app.billStatus === 'pending',
+  )
+  const appIds = new Set(pendingApps.map((a) => a.id))
+  const appNos = new Set(pendingApps.map((a) => a.applicationNo).filter(Boolean))
+
+  const belongsToPendingApp = (line) =>
+    appIds.has(line.sourceRef) ||
+    (line.applicationNo && appNos.has(line.applicationNo))
+
+  const live = collectLiveUnpaidLines(sid).map((l) => normalizePaymentLine(l))
+  const currentOwned = paymentLines.value.filter(
+    (line) => line.status !== 'paid' && belongsToPendingApp(line),
+  )
+
+  // 课目与金额未变：禁止赋值，避免 computed/列表渲染反复触发卡死
+  if (unpaidLinesSignature(live) === unpaidLinesSignature(currentOwned)) {
+    return { ok: true, added: 0, removed: 0 }
   }
-  if (!toAdd.length) return { ok: true, added: 0 }
-  paymentLines.value = [...paymentLines.value, ...toAdd]
+
+  const kept = paymentLines.value.filter((line) => {
+    if (line.status === 'paid') return true
+    return !belongsToPendingApp(line)
+  })
+
+  const next = [...kept, ...live]
+  const removed = paymentLines.value.length - kept.length
+  paymentLines.value = next
   try {
     upsertFeeRosterFromPaymentLines(paymentLines.value)
   } catch {
     /* ignore */
   }
   if (hydrated) persist()
-  return { ok: true, added: toAdd.length }
+  return { ok: true, added: live.length, removed }
 }
 
 /** 持久化行补齐 fee/sst/应付（兼容旧 amount-only；纠正 fee+sst≠amount） */
@@ -809,6 +906,8 @@ export function cancelPaymentOrder(orderId) {
 }
 
 function writeBackPaid(lines) {
+  /** @type {Set<string>} */
+  const paidAppIds = new Set()
   for (const line of lines) {
     try {
       if (line.sourceRef && ['addDrop', 'retakeDrop', 'retake'].includes(line.sourceType)) {
@@ -820,10 +919,20 @@ function writeBackPaid(lines) {
             billStatus: 'paid',
             billAmount: app.billAmount,
           }
+          paidAppIds.add(app.id)
         }
       }
     } catch {
       /* demo：回写失败不阻断 */
+    }
+  }
+  // 有应付时审批未落课：缴费成功后再写入课表（学分随之更新）
+  for (const appId of paidAppIds) {
+    try {
+      const app = addDropApprovalQueue.value.find((a) => a.id === appId)
+      if (app) applyApprovedAddDropScheduleEffects(app)
+    } catch {
+      /* demo：落课失败不阻断缴费回写 */
     }
   }
 }

@@ -10,6 +10,10 @@ import {
   getMonitorRiskStats,
   filterMonitorRows,
   incrementMonitorRemindCount,
+  DEFAULT_MONITOR_ACADEMIC_SESSION,
+  listMonitorAcademicSessions,
+  listMonitorRowsByAcademicSession,
+  resolveMonitorAcademicSession,
 } from '../../data/courseRegistration/registrationMonitorQueue.js'
 import {
   formatGraduationGeSummary,
@@ -59,6 +63,8 @@ function emptySearch() {
 
 const searchForm = ref(emptySearch())
 const appliedSearch = ref(emptySearch())
+/** 选课学期：必选，切换即刷新统计与列表 */
+const selectedAcademicSession = ref(DEFAULT_MONITOR_ACADEMIC_SESSION)
 const searchExpanded = ref(true)
 const currentPage = ref(1)
 const pageSize = ref(20)
@@ -68,7 +74,22 @@ const remindRow = ref(null)
 
 const { t } = useAppI18n()
 
-const riskStats = computed(() => getMonitorRiskStats(registrationMonitorQueue.value))
+/** 有数据的学期选项 */
+const monitorSessionOptions = computed(() => {
+  void registrationMonitorQueue.value
+  const list = listMonitorAcademicSessions()
+  if (!list.includes(selectedAcademicSession.value)) {
+    return [selectedAcademicSession.value, ...list]
+  }
+  return list
+})
+
+/** 当前学期监控池 */
+const sessionMonitorRows = computed(() =>
+  listMonitorRowsByAcademicSession(selectedAcademicSession.value),
+)
+
+const riskStats = computed(() => getMonitorRiskStats(sessionMonitorRows.value))
 
 const riskStatCards = computed(() => [
   {
@@ -100,14 +121,28 @@ const riskStatCards = computed(() => [
 
 const monitorIntakeOptions = computed(() => {
   const set = new Set(intakeOptions)
-  for (const row of registrationMonitorQueue.value) {
+  for (const row of sessionMonitorRows.value) {
     const formatted = formatIntakeBatch(row.intake)
     if (formatted) set.add(formatted)
   }
   return [...set].sort().reverse()
 })
 
-const rows = computed(() => filterMonitorRows(registrationMonitorQueue.value, appliedSearch.value))
+const rows = computed(() =>
+  filterMonitorRows(sessionMonitorRows.value, appliedSearch.value),
+)
+
+/**
+ * 切换选课学期：立即生效并回到第一页
+ */
+function handleAcademicSessionChange() {
+  const next =
+    resolveMonitorAcademicSession({ academicSession: selectedAcademicSession.value }) ||
+    DEFAULT_MONITOR_ACADEMIC_SESSION
+  selectedAcademicSession.value = next
+  currentPage.value = 1
+  detailRow.value = null
+}
 
 const totalCount = computed(() => rows.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / pageSize.value)))
@@ -153,7 +188,9 @@ function handleSearch() {
 function handleReset() {
   searchForm.value = emptySearch()
   appliedSearch.value = emptySearch()
+  selectedAcademicSession.value = DEFAULT_MONITOR_ACADEMIC_SESSION
   currentPage.value = 1
+  detailRow.value = null
 }
 
 function openDetail(row) {
@@ -179,11 +216,12 @@ function remindCountOf(row) {
 function handleExportConfirm({ selectedFields }) {
   const timestamp = new Date().toISOString().slice(0, 10)
   const columns = monitorExportFields.filter((col) => selectedFields.includes(col.key))
+  const sessionSlug = String(selectedAcademicSession.value || '').replace(/\//g, '')
   exportCourseRegistrationData({
     rows: rows.value,
     columns,
     formatRow: formatMonitorExportRow,
-    filename: `registration-monitor-${timestamp}.xlsx`,
+    filename: `registration-monitor-${sessionSlug || 'session'}-${timestamp}.xlsx`,
     sheetName: 'Registration Monitor',
     i18n: { t },
   })
@@ -204,6 +242,22 @@ function handleExportConfirm({ selectedFields }) {
       <div class="search-bar">
         <div class="search-row">
           <div class="search-fields">
+            <div class="search-item">
+              <label>{{ t('courseRegistration.monitor.academicSession') }}</label>
+              <select
+                v-model="selectedAcademicSession"
+                class="search-select"
+                @change="handleAcademicSessionChange"
+              >
+                <option
+                  v-for="sessionOpt in monitorSessionOptions"
+                  :key="sessionOpt"
+                  :value="sessionOpt"
+                >
+                  {{ sessionOpt }}
+                </option>
+              </select>
+            </div>
             <div class="search-item">
               <label>{{ t('courseRegistration.monitor.programme') }}</label>
               <input v-model="searchForm.programme" type="text" class="search-input" />

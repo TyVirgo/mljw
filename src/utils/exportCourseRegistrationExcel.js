@@ -10,6 +10,7 @@ import {
   formatStudentOpResultLabel,
   formatCoursePreferenceLabel,
   formatStudentResultPreferenceLabel,
+  resolveAdminAddAttachments,
 } from '../data/courseRegistration/registrationResult.js'
 import {
   formatGraduationGeSummary,
@@ -280,6 +281,11 @@ export function formatResultStudentExportRow(row, t = (key) => key) {
     operator: formatStudentOperatorDisplay(row),
     operatedAt: row.operatedAt || '',
     opResult: formatStudentOpResultLabel(row, t),
+    adminAddReason: String(row.adminAddReason || '').trim(),
+    // 多附件名用分号拼接（含旧单字段兼容）
+    adminAddAttachmentName: resolveAdminAddAttachments(row)
+      .map((item) => item.name)
+      .join('; '),
   }
 }
 

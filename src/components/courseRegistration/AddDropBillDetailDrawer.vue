@@ -45,34 +45,24 @@ const paymentDueDisplay = computed(() => {
   )
 })
 
-/** 待缴合计文案：课程费；SST（若有）；一共应付 */
+/** 待缴合计：课程合计 / SST合计 / 应付合计（与学生结算明细同源口径） */
 const unpaidSumText = computed(() => {
   const d = detail.value
-  const fee = formatAmountRmb(d.courseFeeUnpaid)
-  const payable = formatAmountRmb(d.payableUnpaid)
-  if (d.sstUnpaid > 0) {
-    return t('courseRegistration.approval.billUnpaidTotalWithSst', {
-      fee,
-      sst: formatAmountRmb(d.sstUnpaid),
-      payable,
-    })
-  }
-  return t('courseRegistration.approval.billUnpaidTotalPlain', { payable: fee })
+  return t('courseRegistration.approval.billUnpaidTotalWithSst', {
+    fee: formatAmountRmb(d.courseFeeUnpaid),
+    sst: formatAmountRmb(d.sstUnpaid),
+    payable: formatAmountRmb(d.payableUnpaid),
+  })
 })
 
-/** 已缴合计文案 */
+/** 已缴合计：课程合计 / SST合计 / 应付合计 */
 const paidSumText = computed(() => {
   const d = detail.value
-  const fee = formatAmountRmb(d.courseFeePaid)
-  const payable = formatAmountRmb(d.payablePaid)
-  if (d.sstPaid > 0) {
-    return t('courseRegistration.approval.billPaidTotalWithSst', {
-      fee,
-      sst: formatAmountRmb(d.sstPaid),
-      payable,
-    })
-  }
-  return t('courseRegistration.approval.billPaidTotalPlain', { payable: fee })
+  return t('courseRegistration.approval.billPaidTotalWithSst', {
+    fee: formatAmountRmb(d.courseFeePaid),
+    sst: formatAmountRmb(d.sstPaid),
+    payable: formatAmountRmb(d.payablePaid),
+  })
 })
 
 /**

@@ -524,6 +524,68 @@ export const initialLecturers = [
   },
 ].map(normalizeLecturer)
 
+/**
+ * 管理端讲师详情「本学期课表」演示排课（按 Staff ID 轻微错位，便于区分）
+ * @param {object|null|undefined} lecturer 讲师档案
+ * @param {{ locale?: 'zh'|'en' }} [opts]
+ * @returns {Array<object>} WeekScheduleGrid 槽位
+ */
+export function buildLecturerDemoSchedule(lecturer, opts = {}) {
+  const locale = opts.locale === 'en' ? 'en' : 'zh'
+  if (!lecturer) return []
+  const offset = Number(String(lecturer.staffId || '').replace(/\D/g, '').slice(-1) || 0) % 3
+  const monStart = 9 + offset
+  const wedStart = 13 + (offset % 2)
+  const friStart = 10 + offset
+  return [
+    {
+      day: 'Mon',
+      start: monStart,
+      end: monStart + 2,
+      course: 'COMP201',
+      label: 'COMP201·L1',
+      courseName: locale === 'zh' ? '数据结构' : 'Data Structures',
+      courseNameEn: 'Data Structures',
+      sectionCode: 'L1',
+      room: 'A101',
+      layer: 'required',
+      kind: 'required',
+      stroke: 'solid',
+      preview: false,
+    },
+    {
+      day: 'Wed',
+      start: wedStart,
+      end: wedStart + 2,
+      course: 'COMP3192',
+      label: 'COMP3192·L1',
+      courseName: locale === 'zh' ? '软件工程' : 'Software Engineering',
+      courseNameEn: 'Software Engineering',
+      sectionCode: 'L1',
+      room: 'B203',
+      layer: 'required',
+      kind: 'required',
+      stroke: 'solid',
+      preview: false,
+    },
+    {
+      day: 'Fri',
+      start: friStart,
+      end: friStart + 2,
+      course: 'MATH201',
+      label: 'MATH201·T1',
+      courseName: locale === 'zh' ? '离散数学' : 'Discrete Mathematics',
+      courseNameEn: 'Discrete Mathematics',
+      sectionCode: 'T1',
+      room: 'C105',
+      layer: 'required',
+      kind: 'required',
+      stroke: 'solid',
+      preview: false,
+    },
+  ]
+}
+
 export function getLecturerFormData(lecturer) {
   if (!lecturer) return createEmptyLecturerForm()
   return {

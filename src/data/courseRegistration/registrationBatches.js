@@ -200,6 +200,12 @@ const initialBatches = [
         supplement: { start: '', end: '' },
       },
     },
+    /** 结果页 demo：4选3 / 3选2 / 2选1（课号对齐 CHS1 演示课） */
+    selectionGroups: buildDemoSelectionGroups('me-chs-i', '2025/09', [
+      { courseCodes: ['CHS1201', 'CHS1202', 'CHS1203', 'CHS1204'], minPick: 3 },
+      { courseCodes: ['CHS1205', 'CHS1206', 'CHS1207'], minPick: 2 },
+      { courseCodes: ['CHS1208', 'CHS1209'], minPick: 1 },
+    ]),
   }),
   meBatch({
     id: 'batch-me-chs-senior-ii',
@@ -220,6 +226,12 @@ const initialBatches = [
       displayAt: '18/08/2026 19:00:00',
     },
     demoClosedRounds: ['preselect', 'main', 'supplement'],
+    /** 结果页 demo：4选3 / 3选2 / 2选1（课号对齐 CHS2 演示课） */
+    selectionGroups: buildDemoSelectionGroups('me-chs-ii', '2025/09', [
+      { courseCodes: ['CHS2301', 'CHS2302', 'CHS2303', 'CHS2304'], minPick: 3 },
+      { courseCodes: ['CHS2305', 'CHS2306', 'CHS2307'], minPick: 2 },
+      { courseCodes: ['CHS2308', 'CHS2309'], minPick: 1 },
+    ]),
   }),
   geBatch({
     id: 'batch-ge-sci-ii',

@@ -71,12 +71,12 @@ export function formatGradeToZh(grade) {
 }
 
 /**
- * §37：挂科池 / 提升池各 ≥3 门本学期重修课（retakeCourseId）
- * 挂科：ALGO / OS / DB；提升：STAT / ENGL / HUM
+ * §37：挂科 / 提升池；专选不及格原课 demo 仅四类各一例：
+ * ME选课(ALGO) / 3选2(SE201) / 4选3(COMP201) / 2选1(STAT301)
  */
 const TRANSCRIPT_BY_STUDENT = {
   XMUM2309001: [
-    // —— 挂科池（最新 F/M）——
+    // —— ME选课（未入 n 选 m）挂科 ——
     {
       id: 'tr-algo101-f',
       courseCode: 'ALGO101',
@@ -100,30 +100,47 @@ const TRANSCRIPT_BY_STUDENT = {
       type: 'ME',
       retakeCourseId: 'course-algo210',
     },
-    {
-      id: 'tr-os101-f',
-      courseCode: 'OS101',
-      courseName: 'Operating Systems Intro',
-      credits: 3,
-      grade: 'F',
-      score: 35,
-      academicSession: '2025/04',
-      feeStream: 'science',
-      type: 'ME',
-      retakeCourseId: 'course-os210',
-    },
-    {
-      id: 'tr-db101-f',
-      courseCode: 'DB101',
-      courseName: 'Database Basics',
-      credits: 3,
-      grade: 'F',
-      score: 48,
-      academicSession: '2025/02',
-      feeStream: 'science',
-      type: 'ME',
-      retakeCourseId: 'course-db110',
-    },
+    /**
+     * @deprecated 专选不及格 demo 已收敛为四类各一例；OS/DB/WEB210 停用以免原课列表过密。
+     * 需要多门 ME选课互替时再恢复。
+     */
+    // {
+    //   id: 'tr-os101-f',
+    //   courseCode: 'OS101',
+    //   courseName: 'Operating Systems Intro',
+    //   credits: 3,
+    //   grade: 'F',
+    //   score: 35,
+    //   academicSession: '2025/04',
+    //   feeStream: 'science',
+    //   type: 'ME',
+    //   retakeCourseId: 'course-os210',
+    // },
+    // {
+    //   id: 'tr-db101-f',
+    //   courseCode: 'DB101',
+    //   courseName: 'Database Basics',
+    //   credits: 3,
+    //   grade: 'F',
+    //   score: 48,
+    //   academicSession: '2025/02',
+    //   feeStream: 'science',
+    //   type: 'ME',
+    //   retakeCourseId: 'course-db110',
+    // },
+    // {
+    //   id: 'tr-web210-f',
+    //   courseCode: 'WEB210',
+    //   courseName: 'Web Development',
+    //   credits: 3,
+    //   grade: 'F',
+    //   score: 42,
+    //   academicSession: '2025/02',
+    //   feeStream: 'science',
+    //   type: 'ME',
+    //   retakeCourseId: 'course-web210',
+    // },
+    // —— ME 3选2 挂科（AI110 / SE201 / WEB220）；AI110 在提升池已及格 ——
     {
       id: 'tr-se201-m',
       courseCode: 'SE201',
@@ -135,17 +152,31 @@ const TRANSCRIPT_BY_STUDENT = {
       type: 'ME',
       retakeCourseId: 'course-se201',
     },
+    // —— ME 4选3 挂科（COMP201 / NET110 / IT102 / COMP220）——
     {
-      id: 'tr-web210-f',
-      courseCode: 'WEB210',
-      courseName: 'Web Development',
-      credits: 3,
+      id: 'tr-comp201-f',
+      courseCode: 'COMP201',
+      courseName: 'Data Structures',
+      credits: 4,
       grade: 'F',
-      score: 42,
+      score: 44,
       academicSession: '2025/02',
       feeStream: 'science',
       type: 'ME',
-      retakeCourseId: 'course-web210',
+      retakeCourseId: 'course-comp201',
+    },
+    // —— ME 2选1 挂科（EMB210 / STAT301）；EMB210 在提升池已及格 ——
+    {
+      id: 'tr-stat301-f',
+      courseCode: 'STAT301',
+      courseName: 'Advanced Statistics',
+      credits: 3,
+      grade: 'F',
+      score: 39,
+      academicSession: '2025/04',
+      feeStream: 'science',
+      type: 'ME',
+      retakeCourseId: 'course-stat301',
     },
     // —— GE 挂科池（不及格重修 · 公共选修）——
     {
@@ -365,6 +396,7 @@ const TRANSCRIPT_BY_STUDENT = {
       courseName: 'Introduction to AI',
       credits: 3,
       grade: 'C',
+      score: 70,
       academicSession: '2025/04',
       feeStream: 'science',
       type: 'ME',
@@ -480,6 +512,39 @@ export function listTranscriptLatestByRetakeType(
 }
 
 /**
+ * 成绩单行归入原课 Tab：core | ge | me | ''
+ * @param {object|null|undefined} row
+ * @returns {'core'|'ge'|'me'|''}
+ */
+export function classifyTranscriptRowCourseTab(row) {
+  const type = String(row?.type || '').toUpperCase()
+  const source = String(row?.sourceType || '').toLowerCase()
+  if (type === 'CORE' || type === 'MANDATORY' || source === 'required') return 'core'
+  if (type === 'GE') return 'ge'
+  if (type === 'ME') return 'me'
+  return ''
+}
+
+/**
+ * 累计不及格课程学分（按课去重后分必修/GE/ME 求和）
+ * @param {string} [studentId]
+ * @returns {{ mandatory: number, ge: number, me: number }}
+ */
+export function summarizeFailedCourseCreditsByCategory(studentId = getCurrentStudentId()) {
+  let mandatory = 0
+  let ge = 0
+  let me = 0
+  for (const row of listTranscriptLatestByRetakeType('failed', studentId)) {
+    const credits = Number(row?.credits) || 0
+    const tab = classifyTranscriptRowCourseTab(row)
+    if (tab === 'core') mandatory += credits
+    else if (tab === 'ge') ge += credits
+    else if (tab === 'me') me += credits
+  }
+  return { mandatory, ge, me }
+}
+
+/**
  * 重修选课候选课程 id（本学期开课 id）
  * @param {'failed'|'improve_grade'|string} retakeType
  * @param {string} [studentId]
@@ -533,7 +598,7 @@ export function findTranscriptForRetakeCourse(
 }
 
 /**
- * 多行「学年学期 分数」展示文本
+ * 多行「学年学期：成绩」展示文本（最新在上，由调用方保证排序）
  * @param {object[]} rows
  */
 export function formatPreviousCourseGradesText(rows) {
@@ -542,7 +607,8 @@ export function formatPreviousCourseGradesText(rows) {
       const session = String(row.academicSession || '').trim()
       const gradeText = formatGradeDisplay(row)
       if (!session && !gradeText) return ''
-      return [session, gradeText].filter(Boolean).join(' ')
+      if (session && gradeText) return `${session}：${gradeText}`
+      return session || gradeText
     })
     .filter(Boolean)
     .join('\n')

@@ -30,6 +30,18 @@ export const GE_VIRTUAL_SELECTION_GROUP = {
   minPick: 1,
 }
 
+/** ME选课虚拟大组：未入 n 选 m selectionGroups 的本学期 ME 开课互替 */
+export const ME_ORDINARY_VIRTUAL_SELECTION_GROUP = {
+  id: 'me-virtual-ordinary',
+  groupLabel: 'ME',
+  name: 'ME选课',
+  nameEn: 'ME (ordinary electives)',
+  intakeLineZh: '(未入 n 选 m 的专选)',
+  intakeLineEn: '(ME not in n-of-m groups)',
+  courseCodes: [],
+  minPick: 1,
+}
+
 const GRADE_RANK = {
   A: 12,
   'A-': 11,
@@ -104,6 +116,38 @@ export function findMeSelectionGroupForCode(courseCode) {
 }
 
 /**
+ * 是否已归属某 ME 批次的 n 选 m 课程组
+ * @param {string} courseCode
+ */
+export function isMeCodeInSelectionGroup(courseCode) {
+  return Boolean(findMeSelectionGroupForCode(courseCode))
+}
+
+/**
+ * 本学期「ME选课」虚拟大组开课：ME 且未入 n 选 m，有教学班
+ * @returns {object[]}
+ */
+export function listTermSelectableMeOrdinaryCourses() {
+  const byId = new Map()
+  function consider(course) {
+    if (!course?.id) return
+    if (normalizeType(course.type) !== 'ME') return
+    if (isCoreType(course.type, course.sourceType)) return
+    if (isMeCodeInSelectionGroup(course.code)) return
+    if (!Array.isArray(course.sections) || !course.sections.length) return
+    byId.set(course.id, course)
+  }
+  for (const c of getEligibleAddCoursesForStudent() || []) consider(c)
+  for (const row of getStudentTranscript()) {
+    if (normalizeType(row.type) !== 'ME') continue
+    const c = getCourseById(row.retakeCourseId)
+    if (c) consider(c)
+  }
+  for (const c of selectableCourses.value || []) consider(c)
+  return [...byId.values()]
+}
+
+/**
  * 本学期可选 GE 开课：加课资格 + 成绩单目标 + 课库常用 GE 码（排除专业批量生成课）
  * @returns {object[]}
  */
@@ -135,8 +179,11 @@ export function listTermSelectableGeCourses() {
  */
 export function listTermCoursesInSelectionGroup(group) {
   const codes = new Set((group?.courseCodes || []).map((c) => String(c).toUpperCase()))
-  if (!codes.size && group?.id === GE_VIRTUAL_SELECTION_GROUP.id) {
+  if (group?.id === GE_VIRTUAL_SELECTION_GROUP.id) {
     return listTermSelectableGeCourses()
+  }
+  if (group?.id === ME_ORDINARY_VIRTUAL_SELECTION_GROUP.id) {
+    return listTermSelectableMeOrdinaryCourses()
   }
   return (selectableCourses.value || []).filter((c) =>
     codes.has(String(c.code || '').toUpperCase()),
@@ -149,19 +196,25 @@ export function listTermCoursesInSelectionGroup(group) {
  * @param {string} [studentId]
  */
 export function listTranscriptRowsInGroup(group, studentId = getCurrentStudentId()) {
-  const codes = new Set(
-    (group?.id === GE_VIRTUAL_SELECTION_GROUP.id
-      ? listTermSelectableGeCourses().map((c) => c.code)
-      : group?.courseCodes || []
-    ).map((c) => String(c || '').toUpperCase()),
-  )
-  // 成绩单 GE 课号也可能不在本学期目录，一并纳入
+  let codes
   if (group?.id === GE_VIRTUAL_SELECTION_GROUP.id) {
+    codes = new Set(listTermSelectableGeCourses().map((c) => String(c.code || '').toUpperCase()))
     for (const row of getStudentTranscript(studentId)) {
       if (normalizeType(row.type) === 'GE' && row.courseCode) {
         codes.add(String(row.courseCode).toUpperCase())
       }
     }
+  } else if (group?.id === ME_ORDINARY_VIRTUAL_SELECTION_GROUP.id) {
+    codes = new Set(
+      listTermSelectableMeOrdinaryCourses().map((c) => String(c.code || '').toUpperCase()),
+    )
+    for (const row of getStudentTranscript(studentId)) {
+      if (normalizeType(row.type) !== 'ME') continue
+      if (isMeCodeInSelectionGroup(row.courseCode)) continue
+      if (row.courseCode) codes.add(String(row.courseCode).toUpperCase())
+    }
+  } else {
+    codes = new Set((group?.courseCodes || []).map((c) => String(c || '').toUpperCase()))
   }
   return getStudentTranscript(studentId).filter((row) =>
     codes.has(String(row.courseCode || '').toUpperCase()),
@@ -193,18 +246,48 @@ function resolveGroupAndSubstitutes(original) {
     return { selectionGroup, substituteCourses: substitutes, sameCourse }
   }
 
-  // ME（及其他按课程组）：先按成绩单课号，再按本学期开课课号
+  // ME：先 n 选 m；未命中则进「ME选课」虚拟大组
   const hit =
     findMeSelectionGroupForCode(original.courseCode) ||
     (sameCourse ? findMeSelectionGroupForCode(sameCourse.code) : null)
-  if (!hit) {
-    return { selectionGroup: null, substituteCourses: [], sameCourse }
+  if (hit) {
+    const substitutes = listTermCoursesInSelectionGroup(hit.group).filter((c) => {
+      if (!sameCourse) return true
+      return (
+        c.id !== sameCourse.id &&
+        String(c.code).toUpperCase() !== String(sameCourse.code).toUpperCase()
+      )
+    })
+    return { selectionGroup: hit.group, substituteCourses: substitutes, sameCourse }
   }
-  const substitutes = listTermCoursesInSelectionGroup(hit.group).filter((c) => {
-    if (!sameCourse) return true
-    return c.id !== sameCourse.id && String(c.code).toUpperCase() !== String(sameCourse.code).toUpperCase()
-  })
-  return { selectionGroup: hit.group, substituteCourses: substitutes, sameCourse }
+  if (type === 'ME') {
+    const ordinaryList = listTermSelectableMeOrdinaryCourses()
+    const selectionGroup = {
+      ...ME_ORDINARY_VIRTUAL_SELECTION_GROUP,
+      courseCodes: ordinaryList.map((c) => String(c.code).toUpperCase()),
+    }
+    const substitutes = ordinaryList.filter((c) => {
+      if (!sameCourse) return true
+      return (
+        c.id !== sameCourse.id &&
+        String(c.code).toUpperCase() !== String(sameCourse.code).toUpperCase()
+      )
+    })
+    return { selectionGroup, substituteCourses: substitutes, sameCourse }
+  }
+  return { selectionGroup: null, substituteCourses: [], sameCourse }
+}
+
+/**
+ * 候选课是否因「最新成绩已及格」在不及格重修中禁选（组内互替场景）
+ * @param {object|null|undefined} course 弹框课行或 course 对象（含 retakeHistory）
+ * @returns {boolean}
+ */
+export function isRetakeCourseBlockedByPassingGrade(course) {
+  const history = course?.retakeHistory || []
+  const latest = history[0]
+  if (!latest) return false
+  return !isFailingGrade(latest)
 }
 
 /**
@@ -325,6 +408,39 @@ function sortRetakePickerCourses(list) {
     const gb = b.selectionGroup?.id || ''
     if (ga !== gb) return ga.localeCompare(gb)
     return String(a.code || '').localeCompare(String(b.code || ''), undefined, { numeric: true })
+  })
+}
+
+/**
+ * 按挂科/原课过滤重修候选（二层选课）
+ * @param {object[]} pool listRetakePickerCourses 结果
+ * @param {object|null|undefined} original 成绩单原课行
+ * @returns {object[]}
+ */
+export function filterRetakePickerCoursesByOriginal(pool = [], original) {
+  if (!original) return [...(pool || [])]
+  const code = String(original.courseCode || original.code || '')
+    .trim()
+    .toUpperCase()
+  const id = String(original.retakeCourseId || original.courseId || original.id || '').trim()
+  return (pool || []).filter((course) => {
+    const replaces = course?.replacesOriginals || []
+    if (
+      replaces.some((o) => {
+        const oc = String(o.courseCode || o.code || '')
+          .trim()
+          .toUpperCase()
+        const oid = String(o.retakeCourseId || o.courseId || o.id || '').trim()
+        return (code && oc === code) || (id && oid && oid === id)
+      })
+    ) {
+      return true
+    }
+    const cc = String(course.code || '')
+      .trim()
+      .toUpperCase()
+    const cid = String(course.id || '').trim()
+    return (code && cc === code) || (id && cid && cid === id)
   })
 }
 

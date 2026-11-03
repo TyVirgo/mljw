@@ -31,6 +31,11 @@ const props = defineProps({
     type: Object,
     default: () => ({ hasSpecialStudents: false, requiredIntakes: [] }),
   },
+  /** 只读：结果页查看课级老生年级占比，禁止编辑 */
+  readonly: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -250,10 +255,15 @@ defineExpose({ validate, clearError })
 </script>
 
 <template>
-  <div class="me-quota-editor">
+  <div class="me-quota-editor" :class="{ 'me-quota-editor--readonly': readonly }">
     <div class="scope-toolbar round1-me-toolbar">
       <div class="round1-me-actions">
-        <button type="button" class="btn btn-primary" @click="addMeIntakeRow">
+        <button
+          v-if="!readonly"
+          type="button"
+          class="btn btn-primary"
+          @click="addMeIntakeRow"
+        >
           + {{ t('common.create') }}
         </button>
         <div v-if="showTotalCapLabel" class="total-cap-field">
@@ -268,8 +278,12 @@ defineExpose({ validate, clearError })
       <div class="round1-me-sums">
         <span
           class="round1-me-sum"
-          :class="{ 'round1-me-sum--over': meCountOverCap }"
-          :title="meCountOverCap ? t('courseRegistration.batch.round1MeCountOverCap', { sum: meCountSum, total: totalCap }) : undefined"
+          :class="{ 'round1-me-sum--over': !readonly && meCountOverCap }"
+          :title="
+            !readonly && meCountOverCap
+              ? t('courseRegistration.batch.round1MeCountOverCap', { sum: meCountSum, total: totalCap })
+              : undefined
+          "
         >
           {{ t('courseRegistration.batch.round1MeCountSum', { sum: meCountSum }) }}
         </span>
@@ -277,7 +291,7 @@ defineExpose({ validate, clearError })
           {{ t('courseRegistration.batch.round1MeShareSum', { sum: meShareSum }) }}
         </span>
       </div>
-      <p v-if="meCountOverCap" class="round1-me-over-hint">
+      <p v-if="!readonly && meCountOverCap" class="round1-me-over-hint">
         {{ t('courseRegistration.batch.round1MeCountOverCap', { sum: meCountSum, total: totalCap }) }}
       </p>
     </div>
@@ -290,19 +304,21 @@ defineExpose({ validate, clearError })
           <tr>
             <th>{{ t('courseRegistration.schedule.meQuotaBucket') }}</th>
             <th>
-              <span class="req">*</span> {{ t('courseRegistration.batch.round1MeShare') }}
+              <span v-if="!readonly" class="req">*</span>
+              {{ t('courseRegistration.batch.round1MeShare') }}
             </th>
             <th>
-              <span class="req">*</span> {{ t('courseRegistration.batch.round1MeCount') }}
+              <span v-if="!readonly" class="req">*</span>
+              {{ t('courseRegistration.batch.round1MeCount') }}
             </th>
-            <th class="col-actions">{{ t('common.actions') }}</th>
+            <th v-if="!readonly" class="col-actions">{{ t('common.actions') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr
             v-for="row in rows"
             :key="row.id"
-            :class="{ 'me-quota-row-picker-open': openIntakePickerRowId === row.id }"
+            :class="{ 'me-quota-row-picker-open': !readonly && openIntakePickerRowId === row.id }"
           >
             <td>
               <template v-if="row.kind === ME_QUOTA_KIND_SPECIAL">
@@ -315,6 +331,7 @@ defineExpose({ validate, clearError })
                   <span v-for="ik in row.intakes" :key="ik" class="me-chip">
                     {{ ik }}
                     <button
+                      v-if="!readonly"
                       type="button"
                       class="me-chip-x"
                       :aria-label="t('common.delete')"
@@ -326,7 +343,7 @@ defineExpose({ validate, clearError })
                   <span v-if="!row.intakes?.length" class="me-intake-empty">{{
                     t('courseRegistration.schedule.meQuotaIntakeEmpty')
                   }}</span>
-                  <div class="me-intake-picker-wrap" @click.stop>
+                  <div v-if="!readonly" class="me-intake-picker-wrap" @click.stop>
                     <button
                       type="button"
                       class="me-intake-add-btn"
@@ -369,6 +386,7 @@ defineExpose({ validate, clearError })
                 step="1"
                 class="inline-number"
                 :value="row.share"
+                :disabled="readonly"
                 @change="setMeRowShare(row.id, $event)"
               />
             </td>
@@ -380,17 +398,18 @@ defineExpose({ validate, clearError })
                 step="1"
                 class="inline-number"
                 :value="row.count"
+                :disabled="readonly"
                 @change="setMeRowCount(row.id, $event)"
               />
             </td>
-            <td class="col-actions">
+            <td v-if="!readonly" class="col-actions">
               <button type="button" class="link-btn" @click="removeMeQuotaRow(row.id)">
                 {{ t('common.delete') }}
               </button>
             </td>
           </tr>
           <tr v-if="!rows.length">
-            <td colspan="4" class="empty-cell">
+            <td :colspan="readonly ? 3 : 4" class="empty-cell">
               {{ t('courseRegistration.batch.round1MeNoData') }}
             </td>
           </tr>

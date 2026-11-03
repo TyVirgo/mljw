@@ -1,5 +1,5 @@
 /**
- * 选课统一「课程类别」：必修课 / GE01–GE04 / ME01–ME04
+ * 选课统一「课程类别」：必修课 / GE-01–GE-04 / ME-01–ME-04（内部码仍为 GE01）
  * 由原「课程类型 + 校选课类型」合并展示
  */
 import { normalizeRegistrationType } from './registrationTypes.js'
@@ -54,6 +54,21 @@ export function resolveUnifiedCourseCategoryCode(courseOrItem) {
 }
 
 /**
+ * 内部码 → 展示码（GE01 → GE-01；required 原样）
+ * @param {string} code
+ * @returns {string}
+ */
+export function formatUnifiedCategoryCodeForDisplay(code) {
+  const raw = String(code || '').trim()
+  if (!raw || raw === 'required') return raw
+  const matched = raw.match(/^(GE|ME)0*([1-4])$/i)
+  if (matched) {
+    return `${matched[1].toUpperCase()}-${String(matched[2]).padStart(2, '0')}`
+  }
+  return raw
+}
+
+/**
  * 统一课程类别展示文案
  * @param {object|null|undefined} courseOrItem
  * @param {(key: string) => string} t i18n
@@ -65,7 +80,7 @@ export function formatUnifiedCourseCategoryLabel(courseOrItem, t) {
   if (code === 'required') {
     return t('courseRegistration.courses.unifiedCategory.required')
   }
-  return code
+  return formatUnifiedCategoryCodeForDisplay(code)
 }
 
 /**
@@ -99,17 +114,17 @@ export function formatUnifiedCourseCategoryFromLine(item, t, opts = {}) {
   return formatUnifiedCourseCategoryLabel(merged, t)
 }
 
-/** 搜索/筛选项（值即统一码） */
+/** 搜索/筛选项（value=内部码 GE01；label=展示 GE-01） */
 export const unifiedCourseCategoryFilterOptions = [
   { value: 'required', labelKey: 'courseRegistration.courses.unifiedCategory.required' },
-  { value: 'GE01', label: 'GE01' },
-  { value: 'GE02', label: 'GE02' },
-  { value: 'GE03', label: 'GE03' },
-  { value: 'GE04', label: 'GE04' },
-  { value: 'ME01', label: 'ME01' },
-  { value: 'ME02', label: 'ME02' },
-  { value: 'ME03', label: 'ME03' },
-  { value: 'ME04', label: 'ME04' },
+  { value: 'GE01', label: 'GE-01' },
+  { value: 'GE02', label: 'GE-02' },
+  { value: 'GE03', label: 'GE-03' },
+  { value: 'GE04', label: 'GE-04' },
+  { value: 'ME01', label: 'ME-01' },
+  { value: 'ME02', label: 'ME-02' },
+  { value: 'ME03', label: 'ME-03' },
+  { value: 'ME04', label: 'ME-04' },
 ]
 
 /**

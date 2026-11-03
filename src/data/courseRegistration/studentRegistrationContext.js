@@ -328,9 +328,10 @@ export function studentHasGeElectiveRequirement(programmeCode) {
  * Demo：入学以来、当前确认课之外的已修学分。
  * 与 DEMO_CONFIRMED（约 ME6 + GE3）合计后故意未满：
  * ME ≈14/24、GE ≈5/12、选修合计 ≈19/36，便于工具栏展示「还差」。
+ * 必修 prior 33 + 本学期必修约 9 → 毕业累计未修 tip 约 30（72−42）。
  */
 export const DEMO_PRIOR_EARNED_CREDITS = {
-  mandatory: 54,
+  mandatory: 33,
   me: 8,
   ge: 2,
 }
@@ -429,8 +430,9 @@ export function getStudentMonitorRow(studentId = getStudentProfileFields().stude
  * 三层学分模型（汇总灰条 / 在线选课顶栏 / 加退弹窗共用）
  * 层1 专业学期总负荷；层2 类型学期局部 + 毕业累计；层3 本学期文商理
  * @param {string} [studentId]
- * @param {{ scope?: 'term'|'round'|'confirmed', batch?: object, roundKey?: string }} [options]
+ * @param {{ scope?: 'term'|'round'|'confirmed', batch?: object, roundKey?: string, includeAdmin?: boolean }} [options]
  *   round=与本轮选课情况同源；confirmed=仅确认课（加退弹窗，不含篮/待分配）
+ *   includeAdmin=true 时 confirmed 口径含管理员代选（加退学分条与退课表对齐）
  */
 export function getStudentCreditLayers(studentId = getStudentProfileFields().studentId, options = {}) {
   const scope =
@@ -442,10 +444,12 @@ export function getStudentCreditLayers(studentId = getStudentProfileFields().stu
   const meRequired = Number(caps.meMax) || Number(row.termElectiveProgress?.meMax) || DEFAULT_ELECTIVE.meMax
   const liveCourses =
     scope === 'confirmed'
-      ? // 与 R3 学分累计同源：排除管理员代选，避免加退 GE 已选被 admin 抬高
-        studentConfirmedCourses.value.filter(
-          (c) => c.intent !== 'waitlist' && c.sourceType !== 'admin',
-        )
+      ? // 默认排除管理员代选（与 R3 学分累计同源）；加退学分条传 includeAdmin
+        studentConfirmedCourses.value.filter((c) => {
+          if (c.intent === 'waitlist') return false
+          if (options.includeAdmin) return true
+          return c.sourceType !== 'admin'
+        })
       : scope === 'round'
         ? listRoundStatusCreditCourses(options.batch, options)
         : listLiveTermCreditCourses()
@@ -1197,13 +1201,11 @@ export function filterStudentCourseList(courses, filters = {}) {
       list = list.filter((item) => Number(item.credits) === credit)
     }
   }
+  // 先修筛选：全部 / 无先修 / 有先修（不再按具体课号枚举）
   if (filters.prerequisites === 'none') {
     list = list.filter((item) => !item.prerequisites?.length)
-  } else if (filters.prerequisites) {
-    const target = String(filters.prerequisites).trim().toLowerCase()
-    list = list.filter((item) =>
-      (item.prerequisites || []).some((code) => String(code).toLowerCase() === target),
-    )
+  } else if (filters.prerequisites === 'has') {
+    list = list.filter((item) => Boolean(item.prerequisites?.length))
   }
   return list
 }

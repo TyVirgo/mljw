@@ -1,10 +1,26 @@
 /** 学生端加退重修申请列表：按类型的主表列配置 */
 
 /** 学生端可见 Tab（含加退关联、重修关联） */
-export const ADD_DROP_TYPE_TABS = ['Add', 'Drop', 'Retake', 'AddDrop', 'RetakeDrop']
+export const ADD_DROP_TYPE_TABS = [
+  'Add',
+  'Drop',
+  'Retake',
+  'AddDrop',
+  'RetakeDrop',
+  'AddRetake',
+  'AddDropRetake',
+]
 
 /** 全部申请类型 */
-export const ADD_DROP_ALL_TYPES = ['Add', 'Drop', 'Retake', 'AddDrop', 'RetakeDrop']
+export const ADD_DROP_ALL_TYPES = [
+  'Add',
+  'Drop',
+  'Retake',
+  'AddDrop',
+  'RetakeDrop',
+  'AddRetake',
+  'AddDropRetake',
+]
 
 /** 当前阶段不在列表/筛选中展示的类型（关联类型已开放） */
 export function isShieldedAddDropType(_type) {
@@ -13,7 +29,12 @@ export function isShieldedAddDropType(_type) {
 
 /** 是否含退课分节的关联/退课类型 */
 export function isDropLinkedType(type) {
-  return type === 'Drop' || type === 'AddDrop' || type === 'RetakeDrop'
+  return (
+    type === 'Drop' ||
+    type === 'AddDrop' ||
+    type === 'RetakeDrop' ||
+    type === 'AddDropRetake'
+  )
 }
 
 /** 加退关联（退+加） */
@@ -27,7 +48,7 @@ export function isRetakeDropLinkedType(type) {
 }
 
 /**
- * @typedef {'serial'|'applicationNo'|'status'|'type'|'needDrop'|'studentId'|'studentName'|'programme'|'academicSession'|'addCourse'|'dropCourse'|'retakeCourse'|'section'|'weekRange'|'classTimeVenue'|'lecturers'|'excessCredits'|'fee'|'retakeType'|'feeWaiver'|'credits'|'bill'|'paymentRemindCount'|'paymentRemaining'|'submittedAt'|'actions'} AddDropListColumnId
+ * @typedef {'serial'|'applicationNo'|'status'|'type'|'needDrop'|'studentId'|'studentName'|'programme'|'academicSession'|'addCourse'|'dropCourse'|'retakeCourse'|'section'|'weekRange'|'classTimeVenue'|'lecturers'|'excessCredits'|'retakeCredits'|'fee'|'retakeType'|'feeWaiver'|'credits'|'bill'|'paymentRemindCount'|'paymentRemaining'|'submittedAt'|'actions'} AddDropListColumnId
  */
 
 /** @type {Record<string, AddDropListColumnId[]>} */
@@ -122,10 +143,10 @@ export function getAddDropApprovalListColumns(type = '', opts = {}) {
   if (opts.showCheck) prefix.push('check')
   prefix.push('serial', 'applicationNo', 'status', 'type', 'needDrop')
 
-  /** 费用相关：超出学分 → 预估费用 → 账单 [→ 发送邮件次数 → 缴费剩余] */
+  /** 费用相关：超出学分（加课毕业超出）→ 重修学分 → 预估费用 → 账单 [→ 发送邮件次数 → 缴费剩余] */
   const feeBlock = opts.showPaymentRemaining
-    ? ['excessCredits', 'fee', 'bill', 'paymentRemindCount', 'paymentRemaining']
-    : ['excessCredits', 'fee', 'bill']
+    ? ['excessCredits', 'retakeCredits', 'fee', 'bill', 'paymentRemindCount', 'paymentRemaining']
+    : ['excessCredits', 'retakeCredits', 'fee', 'bill']
 
   prefix.push(...feeBlock, 'studentId', 'studentName')
 
@@ -137,7 +158,7 @@ export function getAddDropApprovalListColumns(type = '', opts = {}) {
   return [...prefix, ...middle, 'programme', 'submittedAt', 'actions']
 }
 
-/** 学生端混合列表公共列（个性字段进详情） */
+/** 学生端混合列表公共列（个性字段进详情；账单与审批历史同源） */
 export const ADD_DROP_COMMON_LIST_COLUMNS = [
   'serial',
   'applicationNo',
@@ -145,6 +166,7 @@ export const ADD_DROP_COMMON_LIST_COLUMNS = [
   'type',
   'needDrop',
   'status',
+  'bill',
   'submittedAt',
   'actions',
 ]
@@ -171,9 +193,12 @@ export function getAddDropFormNoteKeys(action) {
     case 'Retake':
       return [one, conflict]
     case 'AddDrop':
+    case 'AddDropRetake':
       return [dropThenAdd, one, eligibility, conflict]
     case 'RetakeDrop':
       return [dropThenRetake, one, conflict]
+    case 'AddRetake':
+      return [one, eligibility, conflict]
     case 'Add':
       return [one, eligibility, conflict]
     default:
@@ -189,6 +214,8 @@ export function getAddDropFormNotesTitleKey(action) {
     Retake: 'courseRegistration.student.formNotesTitleRetake',
     AddDrop: 'courseRegistration.student.formNotesTitleAddDrop',
     RetakeDrop: 'courseRegistration.student.formNotesTitleRetakeDrop',
+    AddRetake: 'courseRegistration.student.formNotesTitleAdd',
+    AddDropRetake: 'courseRegistration.student.formNotesTitleAddDrop',
   }
   return map[action] || map.Add
 }
@@ -201,6 +228,8 @@ export function getAddDropDeclarationExtraKey(action) {
     Retake: 'courseRegistration.student.declarationExtraRetake',
     AddDrop: 'courseRegistration.student.declarationExtraAddDrop',
     RetakeDrop: 'courseRegistration.student.declarationExtraRetakeDrop',
+    AddRetake: 'courseRegistration.student.declarationExtraAdd',
+    AddDropRetake: 'courseRegistration.student.declarationExtraAddDrop',
   }
   return map[action] || map.Add
 }

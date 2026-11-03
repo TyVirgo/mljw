@@ -20,6 +20,7 @@ import {
   creditCapsuleTone,
 } from '../../data/courseRegistration/monitorCreditInsights.js'
 import { buildMonitorDetailSchedule } from '../../data/courseRegistration/studentMyResultCourses.js'
+import { formatSchedulePersonLine } from '../../utils/formatSchedulePersonLine.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -32,6 +33,11 @@ const { t, isZh } = useAppI18n()
 
 const title = computed(() => t('courseRegistration.monitor.detailTitle'))
 const subtitle = computed(() => '')
+
+/** 课表表头：学号 + 姓名（管理端查看学生课表） */
+const schedulePersonLine = computed(() =>
+  formatSchedulePersonLine(props.row?.studentId, props.row?.studentName),
+)
 
 const profileGrade = computed(() => {
   if (!props.row) return ''
@@ -114,7 +120,13 @@ function capsuleTone(current, max) {
 </script>
 
 <template>
-  <ApplicationDetailDrawer :visible="visible" :title="title" :subtitle="subtitle" @close="emit('close')">
+  <ApplicationDetailDrawer
+    :visible="visible"
+    :title="title"
+    :person-line="schedulePersonLine"
+    :subtitle="subtitle"
+    @close="emit('close')"
+  >
     <template v-if="row">
       <section class="profile-section">
         <h4>{{ t('courseRegistration.student.typeEntry.studentInfo') }}</h4>

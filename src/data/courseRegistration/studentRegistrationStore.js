@@ -19,7 +19,13 @@ import {
   isRegistrationQueueWaiting,
   cancelRegistrationQueue,
 } from '../../composables/useRegistrationQueue.js'
-import { registrationMonitorQueue } from './registrationMonitorQueue.js'
+import {
+  registrationMonitorQueue,
+  DEFAULT_MONITOR_ACADEMIC_SESSION,
+  findMonitorRowByStudentId,
+  findMonitorRowIndexByStudentId,
+} from './registrationMonitorQueue.js'
+import { normalizeBatchAcademicSession } from './registrationBatchFormUtils.js'
 import { resolveTermCreditMax, resolveTermCreditMin } from './registrationRules.js'
 import {
   buildEligibilityContext,
@@ -957,9 +963,11 @@ function refreshStudentScheduleFromConfirmed() {
 }
 
 function upsertMonitorRow(studentFields, batch, historyAction) {
-  const existingIndex = registrationMonitorQueue.value.findIndex(
-    (row) => row.studentId === studentFields.studentId,
-  )
+  // 按批次选课学期写入/更新监控行，避免跨学期串改
+  const session =
+    normalizeBatchAcademicSession(batch?.academicSession) ||
+    DEFAULT_MONITOR_ACADEMIC_SESSION
+  const existingIndex = findMonitorRowIndexByStudentId(studentFields.studentId, session)
   const existing = existingIndex >= 0 ? registrationMonitorQueue.value[existingIndex] : null
   const mergedCourses = [...studentConfirmedCourses.value]
   const credits = mergedCourses.reduce((sum, item) => sum + (item.credits || 0), 0)
@@ -1025,11 +1033,16 @@ function upsertMonitorRow(studentFields, batch, historyAction) {
     history,
   }
   if (existingIndex === -1) {
-    registrationMonitorQueue.value.unshift({ id: `mon-stu-${studentFields.studentId}`, ...base })
+    registrationMonitorQueue.value.unshift({
+      id: `mon-stu-${studentFields.studentId}-${session.replace('/', '')}`,
+      academicSession: session,
+      ...base,
+    })
   } else {
     registrationMonitorQueue.value[existingIndex] = {
       ...registrationMonitorQueue.value[existingIndex],
       ...base,
+      academicSession: session,
     }
   }
 }
@@ -1341,7 +1354,7 @@ export function getStudentEnrolledCourses(studentId = getStudentProfileFields().
       }
     })
   }
-  const monitorRow = registrationMonitorQueue.value.find((row) => row.studentId === studentId)
+  const monitorRow = findMonitorRowByStudentId(studentId)
   if (monitorRow?.schedule?.length) {
     return monitorRow.schedule.map((slot) => {
       const time = `${slot.day} ${slot.start}:00–${slot.end}:00`

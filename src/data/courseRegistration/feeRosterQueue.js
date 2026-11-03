@@ -1320,10 +1320,19 @@ export function cancelFeeRosterRowsForApplication(app) {
   return { ok: true, count }
 }
 
-/** 审批生成账单时写入缴费名单占位行（演示） */
+/** 审批生成账单时写入缴费名单占位行（演示）；优先 feeEstimate 通过课明细 */
 export function appendFeeRosterFromApproval(app) {
   if (!app) return { ok: false, count: 0 }
-  let feeItems = (app.items || []).filter((item) => Number(item.fee) > 0)
+  const estimateLines = (app.feeEstimate?.items || []).filter((i) => Number(i.amount) > 0)
+  let feeItems = estimateLines.length
+    ? estimateLines.map((line) => ({
+        courseCode: line.courseCode,
+        courseName: line.courseName || line.courseCode,
+        credits: line.credits || line.billableCredits || 0,
+        section: line.sectionName || line.section || '01',
+        fee: Number(line.amount) || 0,
+      }))
+    : (app.items || []).filter((item) => Number(item.fee) > 0)
   if (!feeItems.length) {
     const amount = Number(app.billAmount) || Number(app.feeEstimate?.total) || 0
     if (amount > 0) {

@@ -8,6 +8,7 @@ import StudentPendingRoundPreviewPanel from '../../../components/courseRegistrat
 import StudentCourseCatalogDrawer from '../../../components/courseRegistration/StudentCourseCatalogDrawer.vue'
 import CourseCodeSourcePopover from '../../../components/courseRegistration/CourseCodeSourcePopover.vue'
 import ApplicationDetailDrawer from '../../../components/common/ApplicationDetailDrawer.vue'
+import { formatSchedulePersonLine } from '../../../utils/formatSchedulePersonLine.js'
 import TablePagination from '../../../components/common/TablePagination.vue'
 import ConfirmDialog from '../../../components/common/ConfirmDialog.vue'
 import { useAppI18n } from '../../../composables/useAppI18n.js'
@@ -425,16 +426,6 @@ const creditFilterOptions = computed(() => {
     roundFilteredCourses.value.map((item) => Number(item.credits)).filter((n) => Number.isFinite(n)),
   )
   return [...set].sort((a, b) => a - b)
-})
-
-const prerequisiteFilterOptions = computed(() => {
-  const set = new Set()
-  for (const course of roundFilteredCourses.value) {
-    for (const code of course.prerequisites || []) {
-      if (code) set.add(String(code))
-    }
-  }
-  return [...set].sort((a, b) => a.localeCompare(b))
 })
 
 const creditsFilterActive = computed(() => Boolean(appliedSearch.value.credits))
@@ -932,6 +923,12 @@ const schedulePreviewHint = computed(() => {
     return t('courseRegistration.student.schedulePreviewPreselectHint')
   }
   return t('courseRegistration.student.schedulePreviewRegisterHint')
+})
+
+/** 课表表头：学号 + 姓名 */
+const schedulePersonLine = computed(() => {
+  const profile = getStudentProfileFields()
+  return formatSchedulePersonLine(profile?.studentId, profile?.studentName)
 })
 
 const scheduleToolbarLabel = computed(() => t('courseRegistration.student.scheduleToolbarButton'))
@@ -1644,8 +1641,8 @@ function confirmRegisterSubmit() {
                   <option value="none">
                     {{ t('courseRegistration.student.prerequisiteNone') }}
                   </option>
-                  <option v-for="code in prerequisiteFilterOptions" :key="code" :value="code">
-                    {{ code }}
+                  <option value="has">
+                    {{ t('courseRegistration.student.prerequisiteHas') }}
                   </option>
                 </select>
               </div>
@@ -2086,6 +2083,7 @@ function confirmRegisterSubmit() {
     <ApplicationDetailDrawer
       :visible="scheduleDrawerVisible"
       :title="t('courseRegistration.student.schedulePreviewTitle')"
+      :person-line="schedulePersonLine"
       :subtitle="schedulePreviewHint"
       dense
       fill-body

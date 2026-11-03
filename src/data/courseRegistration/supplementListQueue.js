@@ -204,9 +204,26 @@ function buildPermissionsFromLegacyFlags(item) {
     )
   }
   if (item.allowDropBelowCreditMin) {
-    perms.push(createPermission('allowDropBelowCreditMin', { validHours: null, validUntil: null }))
+    perms.push(
+      createPermission('allowDropBelowCreditMin', {
+        validHours: null,
+        validUntil: null,
+        minCredits: normalizeDropBelowMinCredits(item.dropBelowCreditMinFloor ?? item.minCredits),
+      }),
+    )
   }
   return perms
+}
+
+/**
+ * 退课破最低：学分地板 0–11（默认 0）
+ * @param {unknown} raw
+ * @param {number} [fallback]
+ */
+function normalizeDropBelowMinCredits(raw, fallback = 0) {
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 0) return fallback
+  return Math.min(11, Math.floor(n))
 }
 
 function normalizePositiveCredits(raw, fallback = 1) {
@@ -260,6 +277,10 @@ function syncLegacyFlags(entry) {
     ),
     allowFutureElective: has('allowFutureElective'),
     allowDropBelowCreditMin: has('allowDropBelowCreditMin'),
+    dropBelowCreditMinFloor: normalizeDropBelowMinCredits(
+      perms.find((p) => p.key === 'allowDropBelowCreditMin')?.minCredits,
+      has('allowDropBelowCreditMin') ? 0 : 0,
+    ),
     futureElectiveGeCredits: Number(
       perms.find((p) => p.key === 'allowFutureElective')?.geCredits,
     ) || 0,
@@ -363,21 +384,44 @@ export function getWhitelistFutureMandatorySections(studentId, now = new Date())
 }
 
 /**
+ * 本学期必修换组清单（仅加课侧；重修不再消费换组白名单）
+ * 空数组 + 权限有效 = 允许该生弹框范围内全部换组（见 isWhitelistCoreSectionSwitchAllowAll）
  * @param {'add'|'retake'} kind
  * @returns {import('./whitelistSectionRefs.js').WhitelistSectionRef[]}
  */
 export function getWhitelistCoreSectionSwitchSections(studentId, kind = 'add', now = new Date()) {
+  // 重修路径恒空：产品不再允许「可重修」配置换组；忽略历史 allowCoreSectionSwitchRetake
+  if (kind === 'retake') return []
   const entry = getSupplementEntry(studentId)
   if (!entry) return []
-  const key =
-    kind === 'retake' ? 'allowCoreSectionSwitchRetake' : 'allowCoreSectionSwitchAdd'
-  const perm = getPermission(entry, key)
+  const perm = getPermission(entry, 'allowCoreSectionSwitchAdd')
   if (!isPermissionActive(perm, now)) return []
   return normalizeWhitelistSectionRefs(perm.sections)
 }
 
+/**
+ * 是否已开通必修换组（含「空清单=全部」）
+ * @param {string} studentId
+ * @param {'add'|'retake'} [kind]
+ * @param {Date} [now]
+ */
 export function hasWhitelistCoreSectionSwitch(studentId, kind = 'add', now = new Date()) {
-  return getWhitelistCoreSectionSwitchSections(studentId, kind, now).length > 0
+  if (kind === 'retake') return false
+  const entry = getSupplementEntry(studentId)
+  if (!entry) return false
+  return entryHasActivePermission(entry, 'allowCoreSectionSwitchAdd', now)
+}
+
+/**
+ * 换组权限有效且未选手动课组 → 视为该生可选范围内全部放行
+ * @param {string} studentId
+ * @param {'add'|'retake'} [kind]
+ * @param {Date} [now]
+ */
+export function isWhitelistCoreSectionSwitchAllowAll(studentId, kind = 'add', now = new Date()) {
+  if (kind === 'retake') return false
+  if (!hasWhitelistCoreSectionSwitch(studentId, kind, now)) return false
+  return getWhitelistCoreSectionSwitchSections(studentId, kind, now).length === 0
 }
 
 /** 允许添加未来学期选修课申请 */
@@ -392,6 +436,19 @@ export function hasWhitelistAllowDropBelowCreditMin(studentId, now = new Date())
   const entry = getSupplementEntry(studentId)
   if (!entry) return false
   return entryHasActivePermission(entry, 'allowDropBelowCreditMin', now)
+}
+
+/**
+ * 白名单退课学分地板（勾选后净学分须 ≥ 该值）；无权限返回 null
+ * @param {string} studentId
+ * @param {Date} [now]
+ * @returns {number|null}
+ */
+export function getWhitelistDropBelowCreditMinFloor(studentId, now = new Date()) {
+  const entry = getSupplementEntry(studentId)
+  if (!entry || !entryHasActivePermission(entry, 'allowDropBelowCreditMin', now)) return null
+  const perm = getPermission(entry, 'allowDropBelowCreditMin')
+  return normalizeDropBelowMinCredits(perm?.minCredits, 0)
 }
 
 /**
@@ -503,6 +560,7 @@ function buildDemoWhitelistSeed() {
           createPermission('allowDropBelowCreditMin', {
             validHours: null,
             validUntil: null,
+            minCredits: 0,
           }),
         ],
         { attempt: 1, remainMs: activeRemain },
@@ -843,7 +901,15 @@ export function addStudentToSupplementList(student, options = {}) {
           ]
         : []),
       ...(options.allowDropBelowCreditMin
-        ? [createPermission('allowDropBelowCreditMin', { validHours: null, validUntil: null })]
+        ? [
+            createPermission('allowDropBelowCreditMin', {
+              validHours: null,
+              validUntil: null,
+              minCredits: normalizeDropBelowMinCredits(
+                options.dropBelowCreditMinFloor ?? options.minCredits,
+              ),
+            }),
+          ]
         : []),
     ]
   }
@@ -951,6 +1017,7 @@ export function updateSupplementEntry(id, patch) {
     patch.coreSectionSwitchRetakeSections !== undefined ||
     patch.allowFutureElective !== undefined ||
     patch.allowDropBelowCreditMin !== undefined ||
+    patch.dropBelowCreditMinFloor !== undefined ||
     patch.futureElectiveGeCredits !== undefined ||
     patch.futureElectiveMeCredits !== undefined ||
     patch.futureElectiveMeCategoryKeys !== undefined ||
@@ -986,9 +1053,8 @@ function rebuildPermissionsFromForm(current, patch) {
     allowFutureMandatory: patch.allowFutureMandatory ?? current.allowFutureMandatory,
     allowCoreSectionSwitchAdd:
       canAdd && (patch.allowCoreSectionSwitchAdd ?? current.allowCoreSectionSwitchAdd),
-    allowCoreSectionSwitchRetake:
-      canRetake &&
-      (patch.allowCoreSectionSwitchRetake ?? current.allowCoreSectionSwitchRetake),
+    // 重修换组已下线：新保存不再写入该键
+    allowCoreSectionSwitchRetake: false,
     allowFutureElective: patch.allowFutureElective ?? current.allowFutureElective,
     allowDropBelowCreditMin:
       patch.allowDropBelowCreditMin ?? current.allowDropBelowCreditMin,
@@ -996,6 +1062,9 @@ function rebuildPermissionsFromForm(current, patch) {
   const extraRaw = Number(patch.creditBypassExtra ?? current.creditBypassExtra)
   const creditBypassExtra =
     Number.isFinite(extraRaw) && extraRaw > 0 ? Math.min(3, Math.max(1, Math.floor(extraRaw))) : 3
+  const dropBelowFloor = normalizeDropBelowMinCredits(
+    patch.dropBelowCreditMinFloor ?? current.dropBelowCreditMinFloor,
+  )
   const geCredits = normalizePositiveCredits(
     patch.futureElectiveGeCredits ?? current.futureElectiveGeCredits,
   )
@@ -1010,9 +1079,6 @@ function rebuildPermissionsFromForm(current, patch) {
   )
   const coreSectionSwitchAddSections = normalizeWhitelistSectionRefs(
     patch.coreSectionSwitchAddSections ?? current.coreSectionSwitchAddSections,
-  )
-  const coreSectionSwitchRetakeSections = normalizeWhitelistSectionRefs(
-    patch.coreSectionSwitchRetakeSections ?? current.coreSectionSwitchRetakeSections,
   )
   const prevByKey = Object.fromEntries((current.permissions || []).map((p) => [p.key, p]))
   const list = []
@@ -1039,8 +1105,8 @@ function rebuildPermissionsFromForm(current, patch) {
         ...(key === 'allowCoreSectionSwitchAdd'
           ? { sections: coreSectionSwitchAddSections, validHours: null }
           : {}),
-        ...(key === 'allowCoreSectionSwitchRetake'
-          ? { sections: coreSectionSwitchRetakeSections, validHours: null }
+        ...(key === 'allowDropBelowCreditMin'
+          ? { minCredits: dropBelowFloor, validHours: null }
           : {}),
         ...(key === 'allowFutureElective'
           ? {

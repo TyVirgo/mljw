@@ -15,6 +15,11 @@ import { resolveTermCreditMin } from './registrationRules.js'
 /** 学生可选主类型（三选一；关联由「是否退课」推导） */
 export const ADD_DROP_PRIMARY_TYPES = ['Add', 'Drop', 'Retake']
 
+/**
+ * 由三是否推导的内部 action（含加+重修组合）
+ * @typedef {'Add'|'Drop'|'Retake'|'AddDrop'|'RetakeDrop'|'AddRetake'|'AddDropRetake'|''} AddDropDerivedAction
+ */
+
 export const ADD_COURSE_TYPE_OPTIONS = [
   { value: 'overload', labelKey: 'courseRegistration.student.addType.overload' },
   { value: 'timetable_clash', labelKey: 'courseRegistration.student.addType.timetableClash' },
@@ -50,17 +55,29 @@ export function displayPrimaryType(action) {
 }
 
 /**
- * 筛选主类型是否匹配申请（含关联）
+ * 筛选主类型是否匹配申请（含关联 / 组合单按意图）
  * @param {string} appType
  * @param {string} filterPrimary
+ * @param {object|null} [app] 传入时按 need 标志或 items 判断是否含该意图
  */
-export function matchesPrimaryTypeFilter(appType, filterPrimary) {
+export function matchesPrimaryTypeFilter(appType, filterPrimary, app = null) {
   if (!filterPrimary) return true
+  if (app) {
+    const flags = resolveIntentFlagsFromApp(app)
+    if (filterPrimary === 'Add') return flags.needAdd === 'yes'
+    if (filterPrimary === 'Drop') return flags.needDrop === 'yes'
+    if (filterPrimary === 'Retake') return flags.needRetake === 'yes'
+  }
+  const flags = intentFlagsFromAction(appType)
+  if (filterPrimary === 'Add') return flags.needAdd === 'yes'
+  if (filterPrimary === 'Drop') return flags.needDrop === 'yes'
+  if (filterPrimary === 'Retake') return flags.needRetake === 'yes'
   return displayPrimaryType(appType) === filterPrimary
 }
 
 /**
- * 主类型 + 是否退课 → 内部 action（禁止加+重修）
+ * 主类型 + 是否退课 → 内部 action
+ * @deprecated 学生端已改三是否；保留供旧调用。加+重修请用 deriveActionFromFlags
  * @param {'Add'|'Drop'|'Retake'|''} primaryType
  * @param {'yes'|'no'|''} needDrop
  */
@@ -72,9 +89,90 @@ export function deriveAddDropAction(primaryType, needDrop = '') {
   return ''
 }
 
+/**
+ * 三是否 → 内部 action（允许加+重修同单）
+ * @param {'yes'|'no'|''} needDrop
+ * @param {'yes'|'no'|''} needAdd
+ * @param {'yes'|'no'|''} needRetake
+ * @returns {AddDropDerivedAction}
+ */
+export function deriveActionFromFlags(needDrop = 'no', needAdd = 'no', needRetake = 'no') {
+  const d = needDrop === 'yes'
+  const a = needAdd === 'yes'
+  const r = needRetake === 'yes'
+  if (!d && !a && !r) return ''
+  if (a && r && d) return 'AddDropRetake'
+  if (a && r) return 'AddRetake'
+  if (a && d) return 'AddDrop'
+  if (r && d) return 'RetakeDrop'
+  if (a) return 'Add'
+  if (r) return 'Retake'
+  if (d) return 'Drop'
+  return ''
+}
+
+/**
+ * action → 三是否（详情回推 / 旧单兼容）
+ * @param {string} action
+ * @returns {{ needDrop: 'yes'|'no', needAdd: 'yes'|'no', needRetake: 'yes'|'no' }}
+ */
+export function intentFlagsFromAction(action) {
+  switch (String(action || '')) {
+    case 'Drop':
+      return { needDrop: 'yes', needAdd: 'no', needRetake: 'no' }
+    case 'Add':
+      return { needDrop: 'no', needAdd: 'yes', needRetake: 'no' }
+    case 'Retake':
+      return { needDrop: 'no', needAdd: 'no', needRetake: 'yes' }
+    case 'AddDrop':
+      return { needDrop: 'yes', needAdd: 'yes', needRetake: 'no' }
+    case 'RetakeDrop':
+      return { needDrop: 'yes', needAdd: 'no', needRetake: 'yes' }
+    case 'AddRetake':
+      return { needDrop: 'no', needAdd: 'yes', needRetake: 'yes' }
+    case 'AddDropRetake':
+      return { needDrop: 'yes', needAdd: 'yes', needRetake: 'yes' }
+    default:
+      return { needDrop: 'no', needAdd: 'no', needRetake: 'no' }
+  }
+}
+
+/**
+ * 从申请对象解析意图（优先存盘 flags，否则 items，再否则 type）
+ * @param {object|null|undefined} app
+ */
+export function resolveIntentFlagsFromApp(app) {
+  if (!app) return { needDrop: 'no', needAdd: 'no', needRetake: 'no' }
+  const hasStored =
+    app.needDrop === 'yes' ||
+    app.needDrop === 'no' ||
+    app.needAdd === 'yes' ||
+    app.needAdd === 'no' ||
+    app.needRetake === 'yes' ||
+    app.needRetake === 'no'
+  if (hasStored && (app.needAdd != null || app.needRetake != null)) {
+    return {
+      needDrop: app.needDrop === 'yes' ? 'yes' : 'no',
+      needAdd: app.needAdd === 'yes' ? 'yes' : 'no',
+      needRetake: app.needRetake === 'yes' ? 'yes' : 'no',
+    }
+  }
+  const items = app.items || []
+  if (items.length) {
+    return {
+      needDrop: items.some((i) => i?.action === 'Drop') ? 'yes' : 'no',
+      needAdd: items.some((i) => i?.action === 'Add') ? 'yes' : 'no',
+      needRetake: items.some((i) => i?.action === 'Retake') ? 'yes' : 'no',
+    }
+  }
+  return intentFlagsFromAction(app.type || app.action)
+}
+
 /** @param {string} action */
 export function primaryTypeFromAction(action) {
-  if (action === 'AddDrop' || action === 'Add') return 'Add'
+  if (action === 'AddDrop' || action === 'Add' || action === 'AddRetake' || action === 'AddDropRetake') {
+    return 'Add'
+  }
   if (action === 'RetakeDrop' || action === 'Retake') return 'Retake'
   if (action === 'Drop') return 'Drop'
   return ''
@@ -82,16 +180,33 @@ export function primaryTypeFromAction(action) {
 
 /** @param {string} action */
 export function needDropFromAction(action) {
-  if (action === 'AddDrop' || action === 'RetakeDrop' || action === 'Drop') return 'yes'
-  if (action === 'Add' || action === 'Retake') return 'no'
+  if (
+    action === 'AddDrop' ||
+    action === 'RetakeDrop' ||
+    action === 'Drop' ||
+    action === 'AddDropRetake'
+  ) {
+    return 'yes'
+  }
+  if (action === 'Add' || action === 'Retake' || action === 'AddRetake') return 'no'
   return ''
 }
 
 /**
  * @param {string} action
- * @param {{ needDrop?: string, primaryType?: string }} [opts]
+ * @param {{ needDrop?: string, needAdd?: string, needRetake?: string, primaryType?: string }} [opts]
  */
 export function getVisibleAddDropSections(action, opts = {}) {
+  // 三是否优先（学生合一单）
+  if (opts.needAdd != null || opts.needRetake != null) {
+    return {
+      showI: true,
+      showII: opts.needAdd === 'yes',
+      showIII: opts.needDrop === 'yes',
+      showIV: opts.needRetake === 'yes',
+      showV: true,
+    }
+  }
   const resolved =
     opts.primaryType != null
       ? deriveAddDropAction(opts.primaryType, opts.needDrop)
@@ -99,20 +214,25 @@ export function getVisibleAddDropSections(action, opts = {}) {
   if (!resolved) {
     return { showI: true, showII: false, showIII: false, showIV: false, showV: true }
   }
-  const showII = resolved === 'Add' || resolved === 'AddDrop'
-  const showIII = resolved === 'Drop' || resolved === 'AddDrop' || resolved === 'RetakeDrop'
-  const showIV = resolved === 'Retake' || resolved === 'RetakeDrop'
-  return { showI: true, showII, showIII, showIV, showV: true }
+  const flags = intentFlagsFromAction(resolved)
+  return {
+    showI: true,
+    showII: flags.needAdd === 'yes',
+    showIII: flags.needDrop === 'yes',
+    showIV: flags.needRetake === 'yes',
+    showV: true,
+  }
 }
 
 /**
  * 按表单可见顺序生成连续 SECTION 标题（与模板：学生 → 退课 → 加课 → 重修 → 声明 一致）
  * @param {string} action
  * @param {(key: string, params?: object) => string} t
+ * @param {{ needDrop?: string, needAdd?: string, needRetake?: string }} [flags]
  * @returns {{ student: string, drop: string, add: string, retake: string, declaration: string }}
  */
-export function buildAddDropSectionBars(action, t) {
-  const vis = getVisibleAddDropSections(action)
+export function buildAddDropSectionBars(action, t, flags = {}) {
+  const vis = getVisibleAddDropSections(action, flags)
   let index = 0
   const bar = (labelKey) => {
     const n = ROMAN[index] || String(index + 1)
@@ -171,6 +291,7 @@ export function clearHiddenSectionFields(form, action) {
     ...emptySectionFields('add'),
     addType: '',
     addNotes: '',
+    retakeNotes: '',
     dropReason: '',
     attachmentName: '',
     attachments: [],
@@ -213,28 +334,35 @@ export function clearDropSectionIfHidden(form, needDrop) {
 }
 
 export function createEmptyAddDropSectionForm(overrides = {}) {
-  const hasPrimaryOverride = Object.prototype.hasOwnProperty.call(overrides, 'primaryType')
-  const seedPrimary = hasPrimaryOverride
-    ? overrides.primaryType || ''
-    : overrides.action
-      ? primaryTypeFromAction(overrides.action)
-      : ''
+  const fromAction = overrides.action ? intentFlagsFromAction(overrides.action) : null
   const seedNeedDrop =
-    overrides.needDrop != null
+    overrides.needDrop === 'yes' || overrides.needDrop === 'no'
       ? overrides.needDrop
-      : overrides.action
-        ? needDropFromAction(overrides.action)
-        : seedPrimary === 'Add' || seedPrimary === 'Retake'
-          ? 'no'
-          : ''
+      : fromAction
+        ? fromAction.needDrop
+        : 'no'
+  const seedNeedAdd =
+    overrides.needAdd === 'yes' || overrides.needAdd === 'no'
+      ? overrides.needAdd
+      : fromAction
+        ? fromAction.needAdd
+        : 'no'
+  const seedNeedRetake =
+    overrides.needRetake === 'yes' || overrides.needRetake === 'no'
+      ? overrides.needRetake
+      : fromAction
+        ? fromAction.needRetake
+        : 'no'
   const action =
-    overrides.action && !hasPrimaryOverride
-      ? overrides.action
-      : deriveAddDropAction(seedPrimary, seedNeedDrop)
+    overrides.action ||
+    deriveActionFromFlags(seedNeedDrop, seedNeedAdd, seedNeedRetake)
   const next = {
     academicSession: '',
-    primaryType: seedPrimary,
-    needDrop: seedPrimary === 'Drop' || !seedPrimary ? '' : seedNeedDrop || 'no',
+    /** @deprecated 学生端改三是否；详情仍可能带 primaryType */
+    primaryType: primaryTypeFromAction(action) || '',
+    needDrop: seedNeedDrop,
+    needAdd: seedNeedAdd,
+    needRetake: seedNeedRetake,
     action: action || '',
     courseId: '',
     dropCourseId: '',
@@ -245,6 +373,8 @@ export function createEmptyAddDropSectionForm(overrides = {}) {
     ...emptySectionFields('add'),
     addType: '',
     addNotes: '',
+    /** 重修补充说明（与 addNotes 独立） */
+    retakeNotes: '',
     dropReason: '',
     attachmentName: '',
     attachments: [],
@@ -259,6 +389,8 @@ export function createEmptyAddDropSectionForm(overrides = {}) {
     declarationAgreed: false,
     addLines: [],
     dropLines: [],
+    /** 重修课行（与加课 addLines 分离，支持同单加+重修） */
+    retakeLines: [],
     ...overrides,
   }
   if (!Array.isArray(next.addLines)) next.addLines = []
@@ -269,24 +401,86 @@ export function createEmptyAddDropSectionForm(overrides = {}) {
   }
   next.attachmentName = next.attachments[0]?.name || ''
   if (!Array.isArray(next.dropLines)) next.dropLines = []
-  if (hasPrimaryOverride) {
-    next.primaryType = overrides.primaryType || ''
-  } else if (!next.primaryType) {
-    next.primaryType = primaryTypeFromAction(next.action)
-  }
-  if (!next.primaryType || next.primaryType === 'Drop') {
-    next.needDrop = ''
-  } else if (next.needDrop !== 'yes' && next.needDrop !== 'no') {
-    next.needDrop = 'no'
-  }
-  next.action = deriveAddDropAction(next.primaryType, next.needDrop)
-  if (next.action === 'Retake' || next.action === 'RetakeDrop') {
+  if (!Array.isArray(next.retakeLines)) next.retakeLines = []
+  next.needDrop = next.needDrop === 'yes' ? 'yes' : 'no'
+  next.needAdd = next.needAdd === 'yes' ? 'yes' : 'no'
+  next.needRetake = next.needRetake === 'yes' ? 'yes' : 'no'
+  next.action = deriveActionFromFlags(next.needDrop, next.needAdd, next.needRetake)
+  next.primaryType = primaryTypeFromAction(next.action) || ''
+  if (next.needRetake === 'yes') {
     if (!String(next.academicSessionTaken || '').trim()) {
       next.academicSessionTaken = getPreviousAcademicSession(next.academicSession)
     }
     if (!String(next.retakeType || '').trim()) {
       next.retakeType = 'failed'
     }
+  }
+  return next
+}
+
+/**
+ * 切换三是否：同步 action，并清空被关掉的分区行
+ * @param {object} form
+ * @param {{ needDrop?: string, needAdd?: string, needRetake?: string }} patch
+ */
+export function applyIntentFlagsPatch(form, patch = {}) {
+  const needDrop =
+    patch.needDrop !== undefined ? patch.needDrop : form.needDrop === 'yes' ? 'yes' : 'no'
+  const needAdd =
+    patch.needAdd !== undefined ? patch.needAdd : form.needAdd === 'yes' ? 'yes' : 'no'
+  const needRetake =
+    patch.needRetake !== undefined
+      ? patch.needRetake
+      : form.needRetake === 'yes'
+        ? 'yes'
+        : 'no'
+  const action = deriveActionFromFlags(needDrop, needAdd, needRetake)
+  let next = {
+    ...form,
+    needDrop,
+    needAdd,
+    needRetake,
+    action,
+    primaryType: primaryTypeFromAction(action) || '',
+  }
+  if (needDrop !== 'yes') {
+    next = {
+      ...next,
+      dropCourseId: '',
+      ...emptySectionFields('drop'),
+      dropReason: '',
+      attachmentName: '',
+      attachments: [],
+      dropLines: [],
+    }
+  }
+  if (needAdd !== 'yes') {
+    next = {
+      ...next,
+      addCourseId: '',
+      ...emptySectionFields('add'),
+      addType: '',
+      addNotes: '',
+      addLines: [],
+    }
+  }
+  if (needRetake !== 'yes') {
+    next = {
+      ...next,
+      retakeLines: [],
+      retakeNotes: '',
+      previouslyTakenCourse: '',
+      gradeEarned: '',
+      academicSessionTaken: '',
+      previousCourseGradesText: '',
+      retakeType: '',
+      transcriptId: '',
+    }
+  } else {
+    if (!String(next.academicSessionTaken || '').trim()) {
+      next.academicSessionTaken = getPreviousAcademicSession(next.academicSession)
+    }
+    if (!String(next.retakeType || '').trim()) next.retakeType = 'failed'
   }
   return next
 }
@@ -493,7 +687,8 @@ export function isSameCourseSameSection(a, b) {
 }
 
 /**
- * 加课行是否与退课行存在「同课同分组」
+ * 加课行是否与退课行存在「同课同课程分组」
+ * @deprecated 提交校验已不再因同组禁加回/重修；保留供排查或其它入口
  * @param {object[]} dropLines
  * @param {object[]} addLines
  */
@@ -525,15 +720,17 @@ function lineIsCoreMandatory(line) {
 
 /**
  * 本学期必修：相对原分组（退课/在读）是否禁止换到目标分组
- * 默认只许同组；白名单命中目标课+组时可换组
+ * 默认只许同组；白名单命中目标课+组时可换组；allowAllSwitch 时不拦异组
  * @param {object} addLine
  * @param {object[]} originLines
  * @param {import('./whitelistSectionRefs.js').WhitelistSectionRef[]} [allowedSwitchSections]
+ * @param {boolean} [allowAllSwitch] 白名单换组空清单=全部
  */
 export function isCoreOtherSectionReaddBlocked(
   addLine,
   originLines = [],
   allowedSwitchSections = [],
+  allowAllSwitch = false,
 ) {
   if (!addLine || !lineIsCoreMandatory(addLine)) return false
   const addCode = courseCodeMatchKey(addLine)
@@ -552,6 +749,9 @@ export function isCoreOtherSectionReaddBlocked(
   })
   if (sameSectionOk) return false
 
+  // 白名单「未选手动课组」：放行该生可选范围内全部换组
+  if (allowAllSwitch) return false
+
   const allowed = normalizeWhitelistSectionRefs(allowedSwitchSections)
   if (whitelistSectionListIncludes(allowed, addCode, addSec)) return false
   return true
@@ -562,14 +762,16 @@ export function isCoreOtherSectionReaddBlocked(
  * @param {object[]} originLines
  * @param {object[]} addLines
  * @param {import('./whitelistSectionRefs.js').WhitelistSectionRef[]} [allowedSwitchSections]
+ * @param {boolean} [allowAllSwitch]
  */
 export function hasCoreOtherSectionReaddViolation(
   originLines = [],
   addLines = [],
   allowedSwitchSections = [],
+  allowAllSwitch = false,
 ) {
   return (addLines || []).some((line) =>
-    isCoreOtherSectionReaddBlocked(line, originLines, allowedSwitchSections),
+    isCoreOtherSectionReaddBlocked(line, originLines, allowedSwitchSections, allowAllSwitch),
   )
 }
 
@@ -632,26 +834,33 @@ export function validateAddDropSectionForm(form) {
   if (!form.academicSession) {
     return { ok: false, errorKey: 'courseRegistration.student.academicSessionRequired' }
   }
-  const primaryType = form.primaryType || primaryTypeFromAction(form.action)
-  if (!ADD_DROP_PRIMARY_TYPES.includes(primaryType)) {
-    return { ok: false, errorKey: 'courseRegistration.student.applicationTypeRequired' }
-  }
-  if (primaryType === 'Add' || primaryType === 'Retake') {
-    if (form.needDrop !== 'yes' && form.needDrop !== 'no') {
-      return { ok: false, errorKey: 'courseRegistration.student.needDropRequired' }
-    }
-  }
-  const action = deriveAddDropAction(primaryType, form.needDrop)
+  const needDrop = form.needDrop === 'yes' ? 'yes' : 'no'
+  const needAdd = form.needAdd === 'yes' ? 'yes' : 'no'
+  const needRetake = form.needRetake === 'yes' ? 'yes' : 'no'
+  const action =
+    deriveActionFromFlags(needDrop, needAdd, needRetake) ||
+    form.action ||
+    deriveAddDropAction(form.primaryType || primaryTypeFromAction(form.action), form.needDrop)
   if (!action) {
-    return { ok: false, errorKey: 'courseRegistration.student.applicationTypeRequired' }
+    return { ok: false, errorKey: 'courseRegistration.student.intentFlagsRequired' }
   }
   if (!String(form.contactPhone || '').trim()) {
     return { ok: false, errorKey: 'courseRegistration.student.contactPhoneRequired' }
   }
 
-  const { showII, showIII, showIV } = getVisibleAddDropSections(action)
+  const { showII, showIII, showIV } = getVisibleAddDropSections(action, {
+    needDrop,
+    needAdd,
+    needRetake,
+  })
   const addLines = Array.isArray(form.addLines) ? form.addLines : []
   const dropLines = Array.isArray(form.dropLines) ? form.dropLines : []
+  // 旧单重修写在 addLines：无 retakeLines 时回退
+  const retakeLines = Array.isArray(form.retakeLines)
+    ? form.retakeLines
+    : showIV && !showII
+      ? addLines
+      : []
 
   function lineHasSection(line) {
     return Boolean(line?.sectionId || line?.sectionCode)
@@ -673,19 +882,17 @@ export function validateAddDropSectionForm(form) {
     if (!dropLines.every(lineHasSection)) {
       return { ok: false, errorKey: 'courseRegistration.student.sectionRequired' }
     }
-    if (!String(form.dropReason || '').trim()) {
-      return { ok: false, errorKey: 'courseRegistration.student.dropReasonRequired' }
-    }
+    // 补充说明（原退课原因）改为非必填，不再校验 dropReason
   }
 
   if (showIV) {
-    if (!addLines.length) {
+    if (!retakeLines.length) {
       return { ok: false, errorKey: 'courseRegistration.student.addDropSelectCourse' }
     }
     if (!form.retakeType) {
       return { ok: false, errorKey: 'courseRegistration.student.retakeTypeRequired' }
     }
-    if (!addLines.every(lineHasSection)) {
+    if (!retakeLines.every(lineHasSection)) {
       return { ok: false, errorKey: 'courseRegistration.student.sectionRequired' }
     }
   }
@@ -696,42 +903,63 @@ export function validateAddDropSectionForm(form) {
     ? form.coreLockOriginLines
     : mergeCoreLockOriginLines(dropLines, form.eligibleCoreOriginLines || [])
 
-  // 仅退课：默认不得低于学期最低学分；白名单 allowDropBelowCreditMin 可放行
-  if (action === 'Drop' && !form.allowDropBelowCreditMin) {
-    const min = resolveTermCreditMin(form.academicSession)
+  // 仅退课：默认不得低于学期最低；白名单可设地板分 X（0–11），净学分须 ≥ X
+  if (action === 'Drop') {
+    const termMin = resolveTermCreditMin(form.academicSession)
+    const floor =
+      form.allowDropBelowCreditMin === true
+        ? Math.min(
+            11,
+            Math.max(
+              0,
+              Math.floor(
+                Number(
+                  form.dropBelowCreditMinFloor != null
+                    ? form.dropBelowCreditMinFloor
+                    : 0,
+                ) || 0,
+              ),
+            ),
+          )
+        : termMin
     const current = Number(form.currentCredits)
     const enrolled = Number.isFinite(current) ? current : 0
     const net = enrolled - sumLineCredits(dropLines)
-    if (net < min) {
+    if (net < floor) {
       return {
         ok: false,
         errorKey: 'courseRegistration.student.dropBelowCreditMin',
-        errorParams: { min, net },
+        errorParams: { min: floor, net },
       }
     }
   }
 
-  if (action === 'Add') {
-    // 纯加课：相对资格种子原组拦截异组（与弹窗一致）
-    if (hasCoreOtherSectionReaddViolation(originForCoreLock, addLines, switchSections)) {
+  if (showII) {
+    // 含加课：相对资格种子原组拦截异组（重修行不走此校验）；空清单 allow-all 时不拦
+    if (
+      hasCoreOtherSectionReaddViolation(
+        originForCoreLock,
+        addLines,
+        switchSections,
+        Boolean(form.coreSectionSwitchAllowAll),
+      )
+    ) {
       return { ok: false, errorKey: 'courseRegistration.student.coreMustSameSectionReadd' }
     }
   }
 
-  if (action === 'AddDrop') {
+  if (action === 'AddDrop' || action === 'AddDropRetake') {
     if (!addLines.length || !dropLines.length) {
       return { ok: false, errorKey: 'courseRegistration.student.addDropSelectBothCourses' }
     }
-    // 本学期必修：拟退 ∪ 种子合并后校验；白名单可放行异组（重修不校验）
-    if (hasCoreOtherSectionReaddViolation(originForCoreLock, addLines, switchSections)) {
-      return { ok: false, errorKey: 'courseRegistration.student.coreMustSameSectionReadd' }
-    }
+    // 同「课程分组」加回允许；必修异组仍由上方换组锁 + 白名单约束
   }
 
-  if (action === 'RetakeDrop') {
-    if (!addLines.length || !dropLines.length) {
+  if (action === 'RetakeDrop' || action === 'AddDropRetake') {
+    if ((!retakeLines.length && action === 'RetakeDrop') || !dropLines.length) {
       return { ok: false, errorKey: 'courseRegistration.student.retakeDropSelectBothCourses' }
     }
+    // 产品：退课后允许重修同一门课相同分组；不再做同课同组拦截
     // 重修允许换组，不校验 core 同组锁
   }
 
@@ -781,8 +1009,13 @@ export function buildAddDropSectionPayload(form, snapshots = {}, feeEstimate = n
       form.needDrop === 'yes' || form.needDrop === 'no'
         ? form.needDrop
         : needDropFromAction(form.action),
+    needAdd: form.needAdd === 'yes' || form.needAdd === 'no' ? form.needAdd : 'no',
+    needRetake:
+      form.needRetake === 'yes' || form.needRetake === 'no' ? form.needRetake : 'no',
     addType: form.addType || '',
     addNotes: String(form.addNotes || '').trim(),
+    /** 重修补充说明；与加课说明分存 */
+    retakeNotes: String(form.retakeNotes || '').trim(),
     dropReason: String(form.dropReason || '').trim(),
     previouslyTakenCourse: String(form.previouslyTakenCourse || '').trim(),
     gradeEarned: form.gradeEarned || '',

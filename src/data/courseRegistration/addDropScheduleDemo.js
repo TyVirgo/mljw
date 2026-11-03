@@ -6,11 +6,12 @@
 import { deriveClassTime, getSectionMeetings } from './sectionScheduleFields.js'
 import {
   resolveAddDropExcessCredits,
-  attachSstToFeeEstimate,
+  buildFeeEstimateFromApplicationItems,
   CREDIT_FEE_RATES,
 } from './addDropFeeRates.js'
+import { buildAddDropPlanRemaining } from './studentRegistrationContext.js'
 
-/** ME 默认文科单价（与 resolveFeeStream 一致） */
+/** ME 默认文科单价（与 resolveFeeStream 一致；仅作无行时兜底） */
 const DEMO_DEFAULT_FEE_RATE = CREDIT_FEE_RATES.arts
 
 /** 审批/详情 demo 缺省课程名（对齐课库常用码） */
@@ -191,90 +192,64 @@ function resolveDemoDropReason(app) {
 }
 
 /**
- * 毕业计费 >0 时合成 feeEstimate（缺有效 total 才补）；已有非零 total 则保留。
- * @returns {{ feeEstimate: object|null, synthesized: boolean }}
+ * 按「重修全额 + 加课毕业超出」重建费用；不再用学期帽伪造单行
+ * @param {object} app
+ * @returns {{ feeEstimate: object, billableCredits: number }}
  */
-function ensureFeeEstimateForBillable(app, billable) {
-  if (billable <= 0) {
-    return { feeEstimate: app?.feeEstimate || null, synthesized: false }
-  }
-  const existingTotal = Number(app?.feeEstimate?.total)
-  if (Number.isFinite(existingTotal) && existingTotal > 0) {
-    return { feeEstimate: app.feeEstimate, synthesized: false }
-  }
-  const rate = DEMO_DEFAULT_FEE_RATE
-  const total = billable * rate
-  const addItem = (app?.items || []).find(
-    (i) => i.action === 'Add' || i.action === 'Retake',
+function rebuildDemoFeeEstimate(app) {
+  const hasBillLines = (app?.items || []).some(
+    (i) => i?.action === 'Add' || i?.action === 'Retake',
   )
-  const courseCode = addItem?.courseCode || ''
-  const base = {
-    total,
-    billableCredits: billable,
-    items: courseCode
-      ? [
-          {
-            courseCode,
-            billableCredits: billable,
-            amount: total,
-            feeStream: 'arts',
-            rate,
-          },
-        ]
-      : [],
+  if (!hasBillLines) {
+    return {
+      feeEstimate: app?.feeEstimate || null,
+      billableCredits: 0,
+    }
   }
+  const planRemaining = buildAddDropPlanRemaining(app.studentId)
+  const feeEstimate = buildFeeEstimateFromApplicationItems(
+    app,
+    planRemaining,
+    app.studentCategory || 'Local',
+  )
   return {
-    feeEstimate: attachSstToFeeEstimate(base, app?.studentCategory || 'Local'),
-    synthesized: true,
+    feeEstimate,
+    billableCredits: Math.max(0, Number(feeEstimate?.billableCredits) || 0),
   }
 }
 
-function reconcileExcessFeeBill(app, excessCredits) {
+/**
+ * 对齐 excess / bill / feeEstimate（费用以两段规则重建为准）
+ * @param {object} app
+ * @param {number} [_legacyExcess] 保留参数兼容调用方；不再作计费依据
+ */
+function reconcileExcessFeeBill(app, _legacyExcess) {
+  void _legacyExcess
   const dropReason = resolveDemoDropReason(app)
   const reason = String(app?.reason || dropReason || '').trim()
-  const seededAmount = Number(app?.billAmount)
-  const hasSeededBill = Number.isFinite(seededAmount) && seededAmount > 0
-  if (excessCredits <= 0 && !hasSeededBill) {
-    return {
-      excessCredits: 0,
-      billableCredits: 0,
-      billAmount: 0,
-      billStatus: 'none',
-      feeEstimate: app?.feeEstimate || null,
-      sstAmount: app?.sstAmount ?? app?.feeEstimate?.sstAmount ?? 0,
-      dropReason,
-      reason,
-    }
-  }
-  const billable =
-    excessCredits > 0
-      ? excessCredits
-      : Math.max(0, Number(app?.billableCredits) || Number(app?.feeEstimate?.billableCredits) || 0)
-  const { feeEstimate, synthesized } = ensureFeeEstimateForBillable(app, billable)
+  const { feeEstimate, billableCredits } = rebuildDemoFeeEstimate(app)
   const payable =
     Number(feeEstimate?.payableTotal) ||
     Number(feeEstimate?.total) ||
-    billable * DEMO_DEFAULT_FEE_RATE
-  // 新合成 feeEstimate 时账单与应付对齐；否则保留已有非零 billAmount
-  const billAmount =
-    synthesized || !hasSeededBill
-      ? payable > 0
-        ? payable
-        : billable * DEMO_DEFAULT_FEE_RATE
-      : seededAmount
+    (billableCredits > 0 ? billableCredits * DEMO_DEFAULT_FEE_RATE : 0)
   const status = String(app?.status || '')
   const terminalNoBill = status === 'Rejected' || status === 'Cancelled'
+  // 有重建费用时以应付为准；无计费行时清零
+  const billAmount = terminalNoBill ? 0 : payable > 0 ? payable : 0
   let billStatus = app?.billStatus
-  if (!billStatus || billStatus === 'none') {
-    billStatus = terminalNoBill || billAmount <= 0 ? 'none' : 'pending'
+  if (terminalNoBill || billAmount <= 0) {
+    billStatus = terminalNoBill && app?.billStatus === 'cancelled' ? 'cancelled' : 'none'
+  } else if (!billStatus || billStatus === 'none') {
+    billStatus = 'pending'
   }
   return {
-    excessCredits: billable,
-    billableCredits: app?.billableCredits ?? billable,
+    /** 列表「超出」：与合计计费学分对齐（含重修） */
+    excessCredits: billableCredits,
+    billableCredits,
     billAmount,
     billStatus,
-    feeEstimate: feeEstimate || app?.feeEstimate || null,
-    sstAmount: feeEstimate?.sstAmount ?? app?.sstAmount ?? 0,
+    feeEstimate: feeEstimate || null,
+    sstAmount: feeEstimate?.sstAmount ?? 0,
     dropReason,
     reason,
   }

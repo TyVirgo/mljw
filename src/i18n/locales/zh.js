@@ -1815,7 +1815,7 @@ export default {
       schoolElectiveCategory: '课程类别',
       unifiedCategory: {
         required: '必修课',
-        tip: '必修课或 GE01–GE04 / ME01–ME04（文/商/理/AI与开放选修）',
+        tip: '必修课或 GE-01–GE-04 / ME-01–ME-04（文/商/理/AI与开放选修）',
       },
       schoolElectiveCategoryTip:
         '正式环境需按选课学生所属校选课类型过滤课程行；对应学科学生选择对应类型的专业选修课程。当前原型混杂展示，暂不过滤。',
@@ -1926,6 +1926,7 @@ export default {
       isSelectableNo: '否',
     },
     monitor: {
+      academicSession: '选课学期',
       programme: '专业',
       student: '学生',
       studentId: '学号',
@@ -2088,9 +2089,9 @@ export default {
       billUnpaidTotal: '待缴合计',
       billPaidTotal: '已缴合计',
       billUnpaidTotalPlain: '待缴合计：{payable}',
-      billUnpaidTotalWithSst: '待缴合计：课程费 {fee}；SST {sst}；一共需要缴费 {payable}',
+      billUnpaidTotalWithSst: '待缴合计：课程合计 {fee}，SST合计 {sst}，应付合计 {payable}',
       billPaidTotalPlain: '已缴合计：{payable}',
-      billPaidTotalWithSst: '已缴合计：课程费 {fee}；SST {sst}；一共已缴 {payable}',
+      billPaidTotalWithSst: '已缴合计：课程合计 {fee}，SST合计 {sst}，应付合计 {payable}',
       paymentRemainingPaid: '已缴费',
       sendPaymentRemind: '发送邮件提醒',
       paymentRemindModalTitle: '编辑缴费催缴邮件',
@@ -2137,6 +2138,9 @@ export default {
       approve: '审批',
       modalTitle: '审批',
       creditExceeded: '审批后将超过学分上限',
+      creditOverRequirementHint: '超过{labels}学分要求',
+      creditLabelGeTerm: 'GE学期学分',
+      creditLabelMeTerm: 'ME学期学分',
       invalidAction: '无效的审批结果',
       addDropNoQueueHint: '加课/重修申请不进入在线选课排队；提交时已锁定名额，通过后按延迟缴费天数缴费。',
       batchPartialFail: '有 {count} 条申请未能完成审批',
@@ -2153,8 +2157,13 @@ export default {
       lineSelectRequired: '请先勾选课程',
       lineDecisionRequired: '请为每一行选择通过、不通过或驳回',
       lineUpdateMixed: '驳回不可与通过/不通过混选；请全部驳回或取消驳回',
-      lineCommentRequired: '不通过或驳回时请填写评价意见',
+      lineCommentRequired: '不通过或驳回时请为对应课程填写评价意见',
       lineCommentPlaceholder: '请输入评价意见',
+      addLineComment: '添加评价意见',
+      editLineComment: '编辑评价意见',
+      lineCommentModalTitle: '评价意见',
+      lineCommentDetail: '意见详情',
+      lineCommentEmpty: '—',
       lineApproved: '已通过',
       lineRejected: '不通过',
       lineUpdateRequired: '驳回',
@@ -2164,18 +2173,26 @@ export default {
       approvalWhitelistCreditOverHint:
         '该生在白名单且本次选择超过学期学分要求，请决定全部通过或部分通过',
       type: {
-        Add: '加课（退课）',
+        Add: '加课',
         Drop: '退课',
-        Retake: '重修（退课）',
+        Retake: '重修',
         Replace: '替换',
-        AddDrop: '加课（退课）',
-        RetakeDrop: '重修（退课）',
+        AddDrop: '退课/加课',
+        RetakeDrop: '退课/重修',
+        AddRetake: '加课/重修',
+        AddDropRetake: '退课/加课/重修',
       },
-      /** 表单/筛选/列表/详情主类型三描述 */
-      primaryOption: {
-        Add: '加课（退课）',
+      /** 三是否拼接用短名（详情/审批/列表） */
+      typeFlag: {
         Drop: '退课',
-        Retake: '重修（退课）',
+        Add: '加课',
+        Retake: '重修',
+      },
+      /** 表单/筛选/列表/详情主类型三描述（筛选仍用） */
+      primaryOption: {
+        Add: '加课',
+        Drop: '退课',
+        Retake: '重修',
       },
       /** 列表「是否退课」列头（短） */
       needDropColumn: '是否退课',
@@ -2269,9 +2286,15 @@ export default {
       creditBypassExtraLabel: '可超',
       creditBypassExtraUnit: '分',
       creditBypassExtraInvalid: '可超学分请填写 1–3 的整数',
+      /** 退课破最低：学分最低为 X */
+      dropBelowMinFloorLabel: '学分最低为',
+      dropBelowMinFloorUnit: '分',
+      dropBelowMinFloorInvalid: '学分最低请填写 0–11 的整数',
+      /** 申请时长单位（父项同行） */
+      inviteHoursUnit: '小时',
       capacityHint: '加课申请不可突破课程/分组原有容量；白名单不自动通过审批或缴费。',
       formHint:
-        '① 「允许加退课/重修申请」为父项（同行可设申请时长），勾选后可再选加课/退课/重修。\n② 「可加课 / 可重修」下可分别勾选「本学期必修课允许换组」，并从课程清单中精确选择允许换到的课号+分组。\n③ 「课程豁免先修课」所选为要豁免先修要求的目标课程（非先修课本身），仅作用于加课申请；在线选课仍校验先修。\n④ 「允许突破本学期学分要求」勾选后可设可超学分（1–3）。\n⑤ 「允许添加未来学期必修课申请」须在下方选择具体课号+分组；仅清单内分组进入加课池。\n⑥ 「允许添加未来学期选修课申请」须分别填写 GE/ME 学分，并选择 ME 课程组类别。\n⑦ 「退课允许低于12学分」仅作用于纯退课申请，勾选后允许退课后学分低于学期最低。',
+        '① 新增须先选择学生，再配置权限。\n② 「允许加退课/重修申请」为一级（同行可设申请时长，单位小时）；其下二级仅「可加课 / 可退课 / 可重修」。\n③ 「本学期必修课允许换组」「课程豁免先修课」「突破学分」「退课低于12学分」「未来学期必修/选修」均为一级，与加退课父项并列两列对齐；换组可不选课组（默认=该生弹框内全部），也可精确勾选。\n④ 「课程豁免先修课」所选为要豁免先修要求的目标课程（非先修课本身），仅作用于加课申请；在线选课仍校验先修。\n⑤ 「允许突破本学期学分要求」勾选后可设可超学分（1–3）。\n⑥ 「允许添加未来学期必修课申请」须在下方选择具体课号+分组；仅清单内分组进入加课池。\n⑦ 「允许添加未来学期选修课申请」须分别填写 GE/ME 学分，并选择 ME 课程组类别。\n⑧ 「退课允许低于12学分」仅作用于纯退课申请，勾选后须设学分最低为 X 分，退课后净学分不得低于 X。',
       futureElectiveConfigLabel: '未来学期选修额度',
       futureElectiveGeGroupHint:
         'GE：符合该生选课范围的公共选修视为一个大课程组，只需填写学分。',
@@ -2289,13 +2312,18 @@ export default {
       },
       hoursInlineSep: '，',
       inviteHoursPrefix: '申请时长为',
-      sectionPickEmpty: '请选择课号与课程分组',
-      sectionPickHint: '已选 {n} 门课程（可多选；勾选一门课含其全部分组）',
+      sectionPickEmpty: '未选则默认全部（符合已选学生的弹框课组）',
+      sectionPickHint:
+        '已选 {n} 个课程分组（可多选；可只选同课部分分组）；不选保存则默认全部',
+      selectAllFiltered: '全选当前结果',
+      clearFilteredSelection: '取消全选',
       futureMandatoryPickTitle: '选择未来学期必修课分组',
       futureMandatorySections: '未来学期必修课分组',
       futureMandatorySectionsRequired: '请至少选择一门未来学期必修课的课程分组',
       coreSwitchPickTitle: '选择允许换组的必修课分组',
+      /** @deprecated 空清单已表示全部；保留键避免旧引用 */
       coreSwitchSectionsRequired: '请至少选择一个允许换组的课号+分组',
+      permissionsNeedStudent: '请先选择学生后再配置权限',
       perPermissionHours: '权限有效时长设置（小时）',
       notifyModalTitle: '编辑通知内容',
       reopenModalTitle: '延期开放并发送通知',
@@ -2343,6 +2371,8 @@ export default {
         allowDropBelowCreditMin: '退课允许低于12学分',
         allowCoreSectionSwitch: '本学期必修课允许换组',
       },
+      /** 与 perm.allowDropBelowCreditMin 拼成「…，学分最低为 X 分」 */
+      dropBelowMinInlineSep: '，',
     },
     result: {
       tabStudent: '学生维度',
@@ -2363,6 +2393,8 @@ export default {
       volunteerRosterSearchPlaceholder: '学号或姓名',
       volunteerRelativeSemester: '学期',
       coursePreference: '选课志愿',
+      /** 学生维主表/详情结果列（区别于搜索区 log.resultLabel「操作结果」） */
+      selectionResult: '选课结果',
       preferenceFirst: '第一志愿',
       preferenceSecond: '第二志愿',
       preferenceNth: '第{n}志愿',
@@ -2444,18 +2476,59 @@ export default {
       seniorCapacityWithRatio: '老生容量（已选/总量）',
       freshmanCapacityEnrolled: '新生容量已选',
       seniorCapacityEnrolled: '老生容量已选',
+      /** 第二/三轮：可选口径（与第一轮「已选」键分离） */
+      effectiveCapacityAvailableWithRatio: '有效最大容量（可选/总量）',
+      /** 第二轮：带分母 */
+      freshmanCapacityAvailableWithRatio: '新生容量（可选/总量）',
+      seniorCapacityAvailableWithRatio: '老生容量（可选/总量）',
+      /** 第三轮互释：仅可选分子 */
+      freshmanCapacityAvailable: '新生容量可选',
+      seniorCapacityAvailable: '老生容量可选',
       effectiveCapacityWithRatioTip:
         '总量对齐管理课程容量设置；已选为本轮实际选上人数（第一轮为选上该课人数；第二、三轮为在线选课已选）。不含特殊新加学生。',
       effectiveCapacityWithRatioTipR1:
         '第一轮无新生：有效最大已选/总量与老生容量一致，由各分组志愿选上人数与老生容量汇总；不含特殊新加学生。',
+      effectiveCapacityAvailableWithRatioTip:
+        '总量对齐管理课程容量设置；可选 = 总量 − 本轮已选（不含特殊新加），下限为 0。不扩充时新生容量 + 老生容量 = 有效最大总量。',
       freshmanCapacityWithRatioTip:
         '新生容量总量来自课程新老名额分配；已选为本轮名单中的新生人数（不含特殊新加）。',
       seniorCapacityWithRatioTip:
-        '老生容量总量来自课程新老名额分配；已选为本轮名单中的老生人数（不含特殊新加）。',
+        '老生容量总量来自课程新老名额分配；已选为本轮名单中的老生人数（不含特殊新加）。点击可查看各层次已分配与剩余可选。',
       freshmanCapacityEnrolledTip:
         '本轮名单中的新生已选人数（不含特殊新加）；总量见课程新老名额分配，本列不展示分母。',
       seniorCapacityEnrolledTip:
         '本轮名单中的老生已选人数（不含特殊新加）；总量见课程新老名额分配，本列不展示分母。',
+      freshmanCapacityAvailableWithRatioTip:
+        '新生可选 = 新生容量 − 本轮已选新生（不含特殊新加），下限为 0；分母为课级新生容量。不扩充时新生 + 老生容量 = 有效最大总量。',
+      seniorCapacityAvailableWithRatioTip:
+        '老生可选 = 老生容量 − 本轮已选老生（不含特殊新加），下限为 0；分母为课级老生容量。点击可查看各层次已分配与剩余可选。',
+      freshmanCapacityAvailableTip:
+        '新生可选名额 = 新生容量 − 本轮已选新生（不含特殊新加），下限为 0；本列不展示分母。',
+      seniorCapacityAvailableTip:
+        '老生可选名额 = 老生容量 − 本轮已选老生（不含特殊新加），下限为 0；本列不展示分母。点击可查看各层次已分配与剩余可选。',
+      /** @deprecated 结果页弹窗已改为使用口径，见 meSeniorQuotaUsageTitle */
+      meSeniorQuotaReadonlyTitle: '老生年级占比',
+      meSeniorQuotaUsageTitle: '老生名额使用',
+      meSeniorQuotaReadonlyCourse: '课程：{code} {name}',
+      meSeniorQuotaReadonlyEmpty: '该课尚未配置老生年级占比（可回退批次默认；当前无可用行）。',
+      meSeniorQuotaUsageCapTotal: '老生名额合计：{n}人',
+      meSeniorQuotaUsageAllocatedTotal: '已分配合计：{n}人',
+      meSeniorQuotaUsageRemainingTotal: '剩余可选合计：{n}人',
+      meSeniorQuotaUsageQuota: '配置名额',
+      meSeniorQuotaUsageAllocated: '已分配',
+      meSeniorQuotaUsageRemaining: '剩余可选',
+      /** @deprecated 第二/三轮已改用 effectiveAvailableRange */
+      effectiveEnrolledRange: '有效最大容量已选',
+      /** @deprecated 第二/三轮已改用 freshmanAvailableRange */
+      freshmanEnrolledRange: '新生容量已选',
+      /** @deprecated 第二/三轮已改用 seniorAvailableRange */
+      seniorEnrolledRange: '老生容量已选',
+      effectiveAvailableRange: '有效最大容量可选',
+      freshmanAvailableRange: '新生容量可选',
+      seniorAvailableRange: '老生容量可选',
+      specialAddedRange: '特殊新加学生数量',
+      rangeMinPlaceholder: '最小',
+      rangeMaxPlaceholder: '最大',
       specialAddedCount: '特殊新加学生数量',
       specialAddedCountTip:
         '老师额外为该课增加、且不占用培养方案定义课程容量的学生人数。点击数字可查看名单。',
@@ -2463,6 +2536,12 @@ export default {
       specialAddedRosterHint:
         '以下学生由老师特殊加课，不占用培养方案定义的课程容量；不计入左侧容量「已选」分子。',
       specialAddedRosterCount: '共 {count} 人',
+      studentDetailTitle: '选课结果详情',
+      studentDetailSectionCourse: '课程与来源',
+      studentDetailSectionStudent: '学生信息',
+      studentDetailSectionOp: '操作与留痕',
+      adminAddReason: '原因',
+      adminAddAttachment: '附件',
       addSpecialStudent: '添加特殊学生',
       courseCount: '课程数',
       credits: '学分',
@@ -2514,6 +2593,14 @@ export default {
       gradeProgramme: '年级专业',
       studentCategory: '学生类别',
       selectedStudents: '已选 {count} 人',
+      selectAllStudents: '全选当前筛选学生',
+      addReasonLabel: '原因',
+      addReasonPlaceholder: '请填写代选原因',
+      addReasonRequired: '请填写代选原因',
+      addAttachmentLabel: '上传附件',
+      addAttachmentOptional: '选填，支持上传证明材料',
+      addAttachmentMaxCount: '最多 {n} 个文件。',
+      addAttachmentClear: '清空',
       status: {
         confirmed: '已确认',
         warning: '有预警',
@@ -2694,8 +2781,14 @@ export default {
       paymentStatusPaid: '已缴费',
       paymentStatusUnpaid: '未缴费',
     },
+    /** 修读方式（名单 / 重修汇总表共用） */
+    studyMode: {
+      normal: '正常',
+      retakeSameCourse: '同课号重修',
+      retakeSameGroup: '同课程组重修',
+    },
     sectionRoster: {
-      hint: '按课程班维度查询已选学生；导出为全量字段 Excel（含名单/课程班/课程 ID）。',
+      hint: '按课程班维度查询已选学生；导出可选择字段与范围（当前页/全部结果），含名单/课程班/课程 ID 等可选列。',
       term: '学期',
       sectionName: '课程班名称',
       courseKeyword: '课程代码/课程班名称',
@@ -2703,7 +2796,8 @@ export default {
       studentKeyword: '学号或姓名',
       studentKeywordPh: '学号或姓名（模糊）',
       ownerPh: '负责人（模糊）',
-      studyModePh: '修读方式（模糊）',
+      /** @deprecated 筛选已改为下拉；保留占位文案 */
+      studyModePh: '请选择修读方式',
       movementStatus: '学籍异动',
       studyMode: '修读方式',
       owner: '负责人',
@@ -2712,6 +2806,7 @@ export default {
       courseId: '课程ID',
       grade: '年级',
       sheetName: '课程班学生名单',
+      pageCreditsSumPrefix: '本页查询结果学分和为：',
     },
     /** 旧 BOA 审批链页（未挂菜单）；勿与突破限制 whitelist 同名，否则会覆盖文案 */
     whitelistBoa: {
@@ -3028,9 +3123,9 @@ export default {
         expand: '展开其余 {count} 门',
         collapse: '收起',
         flatHint: '本轮已选 {count} 门课程',
-        panelTitle: '选课情况',
-        titleWithSelected: '选课情况（已选 {count} 门课程）',
-        titleWithPending: '选课情况',
+        panelTitle: '学期选课情况',
+        titleWithSelected: '学期选课情况（已选 {count} 门课程）',
+        titleWithPending: '学期选课情况',
         currentVolunteerSection: '本轮志愿',
         pendingCountBeside: '（已提交 {count} 个志愿）',
         currentSelectedSection: '本轮已选',
@@ -3159,10 +3254,10 @@ export default {
         termStatSelected: '已选：{credit}学分',
         selectedRequired: '(已选/要求)',
         short: {
-          humanities: 'GE01',
-          business: 'GE02',
-          science: 'GE03',
-          aiOpen: 'GE04',
+          humanities: 'GE-01',
+          business: 'GE-02',
+          science: 'GE-03',
+          aiOpen: 'GE-04',
         },
       },
       meGroupShort: {
@@ -3290,7 +3385,10 @@ export default {
       needDropWithAdd: '是否需要退课',
       needDropWithRetake: '是否需要退课',
       needDropLabel: '是否需要退课',
+      needAddLabel: '是否需要加课',
+      needRetakeLabel: '是否需要重修',
       needDropRequired: '请确认是否需要退课',
+      intentFlagsRequired: '请至少选择一项：退课、加课或重修',
       needDropNotAllowed: '当前权限不可同时退课，仅可提交本主类型申请。',
       applicationReason: '申请说明',
       applicationReasonPlaceholder: '请填写申请说明',
@@ -3304,11 +3402,19 @@ export default {
       coursePickerTitle: '选择课程',
       coursePickerSubtitle: '申请类型：{type}',
       coursePickerSelected: '已选择 {count} 门课程',
+      /** 退课弹窗：退课前（基线学期总）→ 退课合计 → 还剩 */
+      coursePickerSelectedDropCredits:
+        '已选择 {count} 门课程，退课前学分为{original}分，退课学分合计{credits}分，还剩学分为{remain}分',
       coursePickerNone: '未选择课程',
       pickerStatusOpen: '有余量',
       pickerSeatCapacityHeader: '可选名额/总名额',
       pickerOriginalSessionHeader: '原上课学期',
+      pickerOfferingSessionHeader: '上课学年学期',
+      pickerOfferingSessionTip:
+        '默认展示当前学年学期课程列表；当白名单允许选择未来学期课程时，课程列表按学年学期从前往后排序显示（如 2025/09 → 2026/04 → 2026/09）。',
       pickerSameCourseSectionPicked: '该课程已选择其他分组',
+      /** 重修弹窗：一门原课只能选一门开课 */
+      pickerRetakeSingleCourseOnly: '该课程已选择其他课程',
       pickerRetakeSubstituteTip:
         '温馨提示：必修课仅可重修原课；公共选修可在本学期可选公选中按课程组替代；专业选修可在同课程组内选择本学期开课作为替代。请结合「课程组 / 曾修成绩 / 可选名额」列核对。',
       pickerRetakeHistoryHeader: '曾修学期/成绩',
@@ -3329,12 +3435,33 @@ export default {
         selectedRequiredSuffix: '已选/要求',
         electiveSelected: '学期选修已选学分',
         mandatorySelected: '学期必修已选学分',
+        gradElectiveSelected: '毕业选修已选学分',
+        gradMandatorySelected: '毕业必修已选学分',
+        /** @deprecated 已拆为 termTotalSelected / gradTotalSelected */
         totalSelected: '已选总学分',
+        termTotalSelected: '学期已选总学分',
+        gradTotalSelected: '毕业已选总学分',
         situationFull:
           '根据programme study plan，你目前均修满学分，无可选课程。',
         situationDeficit:
           '根据programme study plan，目前毕业累计未修学分为：必修课：{mandatory}学分；GE：{ge}学分，ME：{me}学分；',
+        /** 不及格成绩单池按课去重后学分求和 */
+        failedCourseCredits:
+          '目前累计不及格课程学分为：必修课：{mandatory}学分；GE：{ge}学分，ME：{me}学分',
+        /** 有未审申请时学分/课程为估算 */
+        pendingEstimateTip:
+          '目前展示学分和课程数据基于你已经提交的申请进行估算展示，实际情况需要审批通过后确认',
       },
+      /**
+       * 整单二次提交限制（有真实未审单即挡）
+       * @deprecated 语义已变为整单再交，文案已更新；键名保留兼容
+       */
+      primaryTypePendingBlocked:
+        '已有申请等待审核不允许再次提交，取消申请可再次发起申请。',
+      secondApplicationBlocked:
+        '已有申请等待审核不允许再次提交，取消申请可再次发起申请。',
+      secondApplicationUnpaidBlocked:
+        '有待缴费的加退课/重修账单，请先完成课程缴费后再发起下一次申请。',
       /** 加课/重修必修 Tab：是否可选列 */
       pickerSelectableHeader: '是否可选',
       pickerSelectableYes: '是',
@@ -3410,6 +3537,7 @@ export default {
       fieldDropMeCredits: '退课专业选修',
       fieldDropGeCredits: '退课公共选修',
       fieldRetakeTotalCredits: '重修总学分',
+      fieldRetakeTotalCreditsBillable: '重修总学分（计费）',
       fieldCourseName: '课程名称',
       fieldCourseCode: '课程编码',
       sectionRequired: '请选择教学分组',
@@ -3439,6 +3567,9 @@ export default {
         ge: '公共选修',
         me: '专业选修',
       },
+      /** 加课选修 Tab「？」：规则说明（界面仍可选，不置灰） */
+      pickerElectiveTabRound3Tip:
+        '选修课只允许在第三轮时间开放之后才允许选择提交；开放之前能看得到课程信息，但是全部置灰不能操作。必修课则没有这个限制。',
       pickerConfirm: '确认',
       sectionSelectPlaceholder: '请选择课程分组',
       sectionConflictOption: '（冲突不可选）',
@@ -3452,12 +3583,32 @@ export default {
       transcriptPickPlaceholder: '请选择曾修记录',
       feeEstimateTitle: '费用预估',
       feeEstimateShort: '预估费用',
+      feeEstimateAddShort: '加课预估费用',
+      feeEstimateRetakeShort: '重修预估费用',
+      feeBoxAddFee: '加课费用',
+      feeBoxRetakeFee: '重修费用',
+      feeBoxSstFee: 'SST费用',
+      /** 费用预估逐课过程：课号 · 科类 · 应收学分 × 单价 = 金额 */
+      feeDetailProcessLine: '{code} · {stream} · 应收 {n} 学分 × {rate} RMB = {amount} RMB',
+      /** SST 计费过程：课程费合计 × 税率 */
+      feeSstProcessLine: '课程费合计 {fee} × {rate}% = {sst}',
+      /** @deprecated 已拆为不及格/允许重修标题，保留兼容 */
+      retakeOriginalListTitle: '需重修的原课程',
+      retakeOriginalListTitleFailed: '不及格课程',
+      retakeOriginalListTitleImprove: '允许重修课程',
+      retakeOriginalSessionGrade: '学年学期/成绩',
+      retakeOriginalListHint: '先确认挂科/可提升原课，再点「选择重修课程」挑选本学期开班。',
+      retakeOriginalEmpty: '当前重修类型下暂无匹配的成绩单原课',
+      pickRetakeCourseForOriginal: '选择重修课程',
+      retakePickFromOriginalHint: '请先在原课程列表中点击「选择重修课程」',
       feeEstimateTotal: '合计',
       feeEstimateTotalFee: '合计费用',
       paymentDueAt: '缴费截止',
       feeEstimateZero: '当前申请预计不产生超额/重修费用（计划内）。',
       feeRateTip: '1学分单价：文科 {arts} RMB / 理科 {science} RMB / 商科 {business} RMB。',
       fieldExcessCredits: '超出学分',
+      /** 审批列表：重修全额计费学分（紧挨超出学分后） */
+      fieldRetakeCreditsList: '重修学分',
       fieldTermExcessCredits: '学期超出学分',
       fieldGradExcessCredits: '毕业超出学分（计费）',
       retakeReplacesOriginal: '替代原课：{codes}',
@@ -3479,8 +3630,11 @@ export default {
         prerequisiteWaiver: '先修豁免',
         other: '其他',
       },
-      addNotesLabel: '补充说明',
+      addNotesLabel: '加课补充说明',
       addNotesPlaceholder: '可选，补充加课说明',
+      /** 重修区独立说明（与 addNotes 不联动） */
+      retakeNotesLabel: '重修补充说明',
+      retakeNotesPlaceholder: '可选，补充重修说明',
       previouslyTakenCourse: '曾修课程（课号与课名）',
       previouslyTakenPlaceholder: '例如：SEM102 Quantitative Methods…',
       previouslyTakenRequired: '请填写曾修课程',
@@ -3490,8 +3644,20 @@ export default {
       sessionTakenRequired: '请选择曾修学年学期',
       previousCourseGrades: '曾修课程成绩',
       previousCourseGradesHint: '选课后由成绩单自动带出；按学年学期从新到旧分行展示，含缺考。',
+      /** 汇总表列：该行重修课对应的不及格原课 */
+      /** 申请汇总 / 详情：曾修原课代码/名称（原「重修原课程」） */
+      retakeOriginalCourse: '曾修课程',
+      /** 汇总表合并列：本学期重修课 代码/名称 */
+      retakeCourseColumn: '重修课程',
+      /**
+       * @deprecated 列已改为「修读方式」；保留避免旧引用
+       */
+      retakeSameCourseAsOriginal: '修读方式',
+      /** 重修汇总表列：同课号重修 / 同课程组重修 */
+      retakeStudyMode: '修读方式',
       retakeTypeLabel: '重修类型',
       retakeTypeRequired: '请选择重修类型',
+      /** @deprecated 申请弹框已不再展示该提示，保留兼容 */
       retakeTypeFirstHint: '请先选择重修类型，再选择课程；切换类型将清空已选重修课。',
       retakeLatestGrade: '最近成绩',
       retakeOriginalGrade: '原成绩',
@@ -3499,9 +3665,10 @@ export default {
         improveGrade: '提升成绩',
         failed: '不及格重修',
       },
-      retakeCourse: '本学期重修课程',
-      retakeCoursePlaceholder: '请选择本学期重修课程',
-      retakeCourseHint: '本学期拟重修的课号与课名；教学班在选课时已选定。',
+      retakeCourse: '选择的重修课程',
+      retakeCoursePlaceholder: '请从上方各类原课中选择重修课程',
+      retakeCourseHint:
+        '汇总必修/公选/专选各类原课对应选出的本学期重修课（非原课列表）；学分与费用按下表全部行合计。',
       gradeEarnedHint: '上一学期（或曾修学期）该课成绩。',
       academicSessionTakenHint: '曾修该课的学年学期。',
       retakeTimeVenuePlaceholder: '例如：Wednesday 10.00am-1.00pm (A2#G01), Thursday 8.00am-10.00am (A1#106)',
@@ -3554,6 +3721,7 @@ export default {
       dropSelfNoApprovalOffShort: '本批次免多级审批未开启，提交后进入审批队列。',
       dropFormSelfHint: '常规窗口自助退课：选择已选课程后提交即可。',
       dropFormSpecialHint: '已超期：须填写申请理由并上传佐证材料，提交后进入特殊人工审批。',
+      /** @deprecated 学生退课表单底部提示条已移除，勿再引用 */
       dropFormApprovalHint: '退课申请提交后进入审批队列，审批通过后生效。',
       addDropWindowOpen: '加退课申请窗口开放中（{range}），可提交加课、退课、重修或联合加退申请。',
       addDropWindowClosed: '不在申请时间范围内（配置：{range}）。若不在白名单，暂不可发起申请。',
@@ -3629,6 +3797,11 @@ export default {
         selected: '已选学分',
       },
       scheduleToolbarButton: '我的课表',
+      /** 我的课程工具条：本学期全部已选学分和 */
+      /** @deprecated 拆为 prefix + score，保留兼容 */
+      termAccumulatedCredits: '本学期累计学分：{credits}分',
+      termAccumulatedCreditsPrefix: '本学期累计学分：',
+      termAccumulatedCreditsScore: '{credits}分',
       scheduleExpand: '展开课表',
       scheduleCollapse: '收起课表',
       addDropSelectBothCourses: '请选择要退的课程与要加的课程',
@@ -3637,19 +3810,35 @@ export default {
       addDropLinkedHint: '联合申请将先处理退课再加课；提交后进入审批队列。',
       retakeDropLinkedHint: '重修含退课时将先处理退课再重修；提交后进入审批队列。',
       retakeDropSelectBothCourses: '请同时选择退课课程与重修课程。',
-      retakeDropSameCourse: '退课课程与重修课程不能相同。',
+      /**
+       * @deprecated 退+重修已允许同课同组；保留键避免旧引用
+       */
+      retakeDropSameCourse:
+        '不能退课后重修同一门课的相同课程分组，请选择其他分组。',
+      /**
+       * @deprecated 退+重修已允许同课同组；保留键避免旧引用
+       */
       retakeDropSameCourseSameSection:
         '不能退课后重修同一门课的相同课程分组，请选择其他分组。',
+      /**
+       * @deprecated 退后再加同课程分组已允许；必修异组由换组锁约束。保留键避免旧引用
+       */
       addDropSameCourseSameSection:
         '不能退课后加回同一门课的相同课程分组，请选择其他分组。',
-      coreMustSameSectionReadd: '本学期必修课默认不可换组重修。',
+      retakeCourseAlreadyPassed: '该课程已有成绩且及格',
+      coreMustSameSectionReadd: '不符合该分组选课要求',
+      /** 换组锁文案后「？」：白名单换组说明 */
+      coreSameSectionReaddWhitelistTip:
+        '学生加课默认只能选择课程原来的课程分组，需要选择课程其他分组需要开放白名单',
       /** @deprecated 重修已取消换组锁；保留键避免旧引用 */
-      coreMustSameSectionRetake: '本学期必修课默认不可换组重修。',
+      coreMustSameSectionRetake: '不符合该分组选课要求',
       dropBelowCreditMin:
-        '仅退课后学分（{net}）不可低于本学期最低学分（{min}）；如需破例请联系教务开通白名单「退课允许低于12学分」。',
-      dropReason: '退课原因',
-      dropReasonPlaceholder: '请说明退课原因',
-      dropReasonRequired: '请填写退课原因',
+        '仅退课后学分（{net}）不可低于最低学分（{min}）；如需破例请联系教务开通白名单「退课允许低于12学分」并设置学分最低。',
+      dropReason: '退课补充说明',
+      dropReasonOptional: '选填',
+      dropReasonPlaceholder: '可选，补充退课说明',
+      /** @deprecated 补充说明已非必填；保留键避免旧引用 */
+      dropReasonRequired: '请填写退课补充说明',
       dropAttachment: '附件上传',
       dropAttachmentOptional: '选填',
       dropAttachmentHint: '支持格式：PDF、JPG、PNG、DOCX。单文件最大 5MB。',
@@ -3690,6 +3879,7 @@ export default {
       eligibilityFilter: '选课资格',
       creditsFilter: '按学分筛选',
       prerequisiteNone: '无先修',
+      prerequisiteHas: '有先修',
       resultStatus: {
         confirmed: '已确认',
         warning: '需关注',

@@ -9,8 +9,9 @@ import {
 } from '../../data/movementApprovalEngine.js'
 import { getApprovalActionLabel } from '../../utils/approvalActionLabels.js'
 import {
-  addDropLineKey,
+  addDropApprovalLineKey,
   buildApprovalDecisionTermCreditStrip,
+  summarizeApprovalStripCreditViolations,
 } from '../../data/courseRegistration/addDropMultiItems.js'
 import { addDropTypeLabelKey } from '../../data/courseRegistration/addDropTypeDisplay.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
@@ -48,8 +49,15 @@ const submitConfirmVisible = ref(false)
 const pendingPayload = ref(null)
 /** @type {import('vue').Ref<Record<string, 'approved' | 'rejected' | 'update_required' | 'pending'>>} */
 const lineDecisionsMap = ref({})
+/** 每行评价意见（与 lineDecisionsMap 同 key） */
+/** @type {import('vue').Ref<Record<string, string>>} */
+const lineCommentsMap = ref({})
 /** @type {import('vue').Ref<Record<string, boolean>>} */
 const selectedKeysMap = ref({})
+/** 行级意见二级弹层 */
+const commentEditorVisible = ref(false)
+const commentEditorKey = ref('')
+const draftLineComment = ref('')
 
 const LINE_ACTION_OPTIONS = [
   { value: 'approved', labelKey: 'approvalModal.action.approved' },
@@ -64,10 +72,25 @@ const summaryItems = computed(() => {
 
 const showLineOps = computed(() => summaryItems.value.length > 0)
 
-/** 顶部学分要求：仅「通过」行计入，与学生勾选/移除同源算法 */
+/** 顶部学分要求：通过+待定计入（与详情一致）；驳回/退回不计 */
 const liveTermCreditStrip = computed(() => {
   if (!showLineOps.value || !props.application) return null
   return buildApprovalDecisionTermCreditStrip(props.application, lineDecisionsMap.value)
+})
+
+/** GE/ME 学期超限 → 确认置灰 + 左侧提示 */
+const creditGate = computed(() => summarizeApprovalStripCreditViolations(liveTermCreditStrip.value))
+
+const creditGateBlocked = computed(() => Boolean(showLineOps.value && creditGate.value.blocked))
+
+const creditGateHint = computed(() => {
+  if (!creditGateBlocked.value) return ''
+  const labelMap = {
+    geTerm: t('courseRegistration.approval.creditLabelGeTerm'),
+    meTerm: t('courseRegistration.approval.creditLabelMeTerm'),
+  }
+  const labels = creditGate.value.keys.map((k) => labelMap[k] || k).join('、')
+  return t('courseRegistration.approval.creditOverRequirementHint', { labels })
 })
 
 const selectedKeyList = computed(() =>
@@ -106,8 +129,13 @@ function itemCourseTypeLabel(item) {
   })
 }
 
+/**
+ * 审批行唯一键：须含 action，避免退/加同课同组共用 radio 与决策 map
+ * @param {object|null|undefined} item
+ * @param {number} idx
+ */
 function itemKey(item, idx) {
-  return addDropLineKey(item) || String(idx)
+  return addDropApprovalLineKey(item, idx)
 }
 
 function dash(v) {
@@ -145,18 +173,29 @@ function itemTimeVenueLines(item) {
     .filter(Boolean)
 }
 
+/**
+ * 打开弹窗时初始化行决策与行意见
+ */
 function initLineDecisions() {
   const map = {}
+  const commentsMap = {}
   const sel = {}
   for (const [idx, item] of summaryItems.value.entries()) {
     const key = itemKey(item, idx)
     const d = item.lineDecision
+    // 无历史决策时默认通过（打开即可与申请投影学分一致）
     map[key] =
-      d === 'approved' || d === 'rejected' || d === 'update_required' ? d : 'pending'
+      d === 'approved' || d === 'rejected' || d === 'update_required' ? d : 'approved'
+    // 回填已有行意见（若有）
+    commentsMap[key] = String(item.lineComment || '').trim()
     sel[key] = true
   }
   lineDecisionsMap.value = map
+  lineCommentsMap.value = commentsMap
   selectedKeysMap.value = sel
+  commentEditorVisible.value = false
+  commentEditorKey.value = ''
+  draftLineComment.value = ''
 }
 
 watch(
@@ -172,6 +211,9 @@ watch(
     formError.value = ''
     submitConfirmVisible.value = false
     pendingPayload.value = null
+    commentEditorVisible.value = false
+    commentEditorKey.value = ''
+    draftLineComment.value = ''
     initLineDecisions()
   },
 )
@@ -199,9 +241,61 @@ const submitConfirmMessage = computed(() => {
   return template.replace('{count}', String(props.targetCount))
 })
 
-/** 批量无行表：整单 Action + Comments；有行表时仅表下公共 Comments */
+/** 批量无行表：整单 Action + Comments；有行表时意见改到行级，不再显示表下公共 Comments */
 const showWholeForm = computed(() => !showLineOps.value)
-const showSharedComments = computed(() => showLineOps.value || showWholeForm.value)
+const showSharedComments = computed(() => showWholeForm.value)
+
+/**
+ * 行是否已有评价意见
+ * @param {string} key
+ */
+function hasLineComment(key) {
+  return Boolean(String(lineCommentsMap.value[key] || '').trim())
+}
+
+/**
+ * 行末意见按钮文案
+ * @param {string} key
+ */
+function lineCommentButtonLabel(key) {
+  return hasLineComment(key)
+    ? t('courseRegistration.approval.editLineComment')
+    : t('courseRegistration.approval.addLineComment')
+}
+
+/**
+ * 打开某行评价意见二级弹层
+ * @param {string} key
+ */
+function openLineCommentEditor(key) {
+  commentEditorKey.value = key
+  draftLineComment.value = String(lineCommentsMap.value[key] || '')
+  showPresets.value = false
+  formError.value = ''
+  commentEditorVisible.value = true
+}
+
+/** 关闭行意见弹层（不保存） */
+function closeLineCommentEditor() {
+  commentEditorVisible.value = false
+  commentEditorKey.value = ''
+  draftLineComment.value = ''
+  showPresets.value = false
+}
+
+/** 确认写入当前行意见 */
+function saveLineCommentEditor() {
+  const key = commentEditorKey.value
+  if (!key) {
+    closeLineCommentEditor()
+    return
+  }
+  lineCommentsMap.value = {
+    ...lineCommentsMap.value,
+    [key]: String(draftLineComment.value || '').trim().slice(0, 200),
+  }
+  closeLineCommentEditor()
+}
 
 function setLineDecision(key, decision) {
   lineDecisionsMap.value = { ...lineDecisionsMap.value, [key]: decision }
@@ -250,7 +344,36 @@ function buildLineDecisionsPayload(action) {
 }
 
 /**
- * 由行决策推导整单 action / lineDecisions / comment / generateBill
+ * 组装行意见 payload（按 idx / key 双写）
+ * @param {Array<{ key: string, idx: number }>} entries
+ */
+function buildLineCommentsPayload(entries) {
+  const out = {}
+  for (const e of entries) {
+    const text = String(lineCommentsMap.value[e.key] || '').trim()
+    out[e.idx] = text
+    out[e.key] = text
+  }
+  return out
+}
+
+/**
+ * 整单审批日志摘要：课号 + 行意见
+ * @param {Array<{ key: string, item: object }>} entries
+ */
+function buildAggregatedComment(entries) {
+  const parts = []
+  for (const e of entries) {
+    const text = String(lineCommentsMap.value[e.key] || '').trim()
+    if (!text) continue
+    const code = e.item?.courseCode || e.key
+    parts.push(`${code}: ${text}`)
+  }
+  return parts.join('；')
+}
+
+/**
+ * 由行决策推导整单 action / lineDecisions / comment / generateBill / lineComments
  * @returns {{ ok: true, payload: object } | { ok: false, errorKey: string }}
  */
 function resolvePayloadFromLines() {
@@ -274,11 +397,17 @@ function resolvePayloadFromLines() {
   if (anyUpdate && !allUpdate) {
     return { ok: false, errorKey: 'courseRegistration.approval.lineUpdateMixed' }
   }
-  const comment = String(comments.value || '').trim()
+  // 不通过 / 驳回行：该行评价意见必填
+  const missingComment = entries.some((e) => {
+    if (e.decision !== 'rejected' && e.decision !== 'update_required') return false
+    return !String(lineCommentsMap.value[e.key] || '').trim()
+  })
+  if (missingComment) {
+    return { ok: false, errorKey: 'courseRegistration.approval.lineCommentRequired' }
+  }
+  const comment = buildAggregatedComment(entries)
+  const lineComments = buildLineCommentsPayload(entries)
   if (allUpdate) {
-    if (!comment) {
-      return { ok: false, errorKey: 'courseRegistration.approval.lineCommentRequired' }
-    }
     return {
       ok: true,
       payload: {
@@ -286,14 +415,12 @@ function resolvePayloadFromLines() {
         comment,
         generateBill: false,
         lineDecisions: buildLineDecisionsPayload('Update Required'),
+        lineComments,
       },
     }
   }
   const allRejected = entries.every((e) => e.decision === 'rejected')
   if (allRejected) {
-    if (!comment) {
-      return { ok: false, errorKey: 'courseRegistration.approval.lineCommentRequired' }
-    }
     return {
       ok: true,
       payload: {
@@ -301,6 +428,7 @@ function resolvePayloadFromLines() {
         comment,
         generateBill: false,
         lineDecisions: buildLineDecisionsPayload('Rejected'),
+        lineComments,
       },
     }
   }
@@ -319,6 +447,7 @@ function resolvePayloadFromLines() {
       comment,
       generateBill: Boolean(props.showGenerateBill && hasApproved),
       lineDecisions: out,
+      lineComments,
     },
   }
 }
@@ -354,8 +483,17 @@ function onPresetReposition() {
   if (showPresets.value) updatePresetListPosition()
 }
 
+/**
+ * 插入常用意见：行级弹层写 draft，批量整单写 comments
+ * @param {string} text
+ */
 function insertPreset(text) {
-  comments.value = text.slice(0, 200)
+  const clipped = text.slice(0, 200)
+  if (commentEditorVisible.value) {
+    draftLineComment.value = clipped
+  } else {
+    comments.value = clipped
+  }
   showPresets.value = false
 }
 
@@ -376,6 +514,10 @@ onBeforeUnmount(() => {
 
 function handleConfirm() {
   if (showLineOps.value) {
+    if (creditGateBlocked.value) {
+      formError.value = creditGateHint.value
+      return
+    }
     const resolved = resolvePayloadFromLines()
     if (!resolved.ok) {
       formError.value = t(resolved.errorKey)
@@ -418,8 +560,23 @@ function cancelSubmit() {
   pendingPayload.value = null
 }
 
+/**
+ * 课程分组展示：优先 sectionName，避免只传 section 码一律变成「分组名称01」
+ * @param {object|null|undefined} item
+ */
 function sectionLabel(item) {
-  return formatCourseSectionName(item?.section || item?.sectionCode || item?.sectionName, t) || '—'
+  if (!item) return '—'
+  return (
+    formatCourseSectionName(
+      {
+        sectionCode: item.sectionCode || item.section || '',
+        sectionName: item.sectionName || '',
+        code: item.sectionCode || item.section || '',
+        name: item.sectionName || '',
+      },
+      t,
+    ) || '—'
+  )
 }
 
 /** @returns {{ label: string, tone: '' | 'open' | 'full' }} */
@@ -456,7 +613,7 @@ function seatCapacityTone(item) {
         <div class="modal-body">
           <p v-if="batchHint" class="batch-hint">{{ batchHint }}</p>
 
-          <div v-if="liveTermCreditStrip" class="approval-credit-strip">
+          <div v-if="liveTermCreditStrip" class="approval-credit-strip approval-credit-strip--sticky">
             <AddDropTermCreditStrip
               :strip="liveTermCreditStrip"
               :application-type="application?.type || ''"
@@ -503,6 +660,7 @@ function seatCapacityTone(item) {
                         @change="toggleSelectAll($event.target.checked)"
                       />
                     </th>
+                    <th class="col-index">{{ t('common.serialNo') }}</th>
                     <th class="col-app-type">{{ t('courseRegistration.approval.typeLabel') }}</th>
                     <th class="col-code">{{ t('courseRegistration.courses.code') }}</th>
                     <th class="col-name">{{ t('courseRegistration.courses.name') }}</th>
@@ -525,6 +683,7 @@ function seatCapacityTone(item) {
                         @change="toggleRowSelected(itemKey(item, idx), $event.target.checked)"
                       />
                     </td>
+                    <td class="col-index">{{ idx + 1 }}</td>
                     <td class="col-app-type" :title="actionTypeLabel(item.action)">{{ actionTypeLabel(item.action) }}</td>
                     <td class="col-code" :title="item.courseCode || ''">{{ item.courseCode || '—' }}</td>
                     <td class="col-name" :title="itemCourseName(item)">{{ itemCourseName(item) }}</td>
@@ -552,21 +711,31 @@ function seatCapacityTone(item) {
                       </span>
                     </td>
                     <td class="col-op op-cell">
-                      <div class="radio-group line-op-radios">
-                        <label
-                          v-for="opt in LINE_ACTION_OPTIONS"
-                          :key="opt.value"
-                          class="radio-item"
+                      <div class="line-op-wrap">
+                        <div class="radio-group line-op-radios">
+                          <label
+                            v-for="opt in LINE_ACTION_OPTIONS"
+                            :key="opt.value"
+                            class="radio-item"
+                          >
+                            <input
+                              type="radio"
+                              :name="'line-op-' + itemKey(item, idx)"
+                              :value="opt.value"
+                              :checked="lineDecisionsMap[itemKey(item, idx)] === opt.value"
+                              @change="setLineDecision(itemKey(item, idx), opt.value)"
+                            />
+                            <span>{{ t(opt.labelKey) }}</span>
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          class="line-comment-btn"
+                          :class="{ 'has-comment': hasLineComment(itemKey(item, idx)) }"
+                          @click="openLineCommentEditor(itemKey(item, idx))"
                         >
-                          <input
-                            type="radio"
-                            :name="'line-op-' + itemKey(item, idx)"
-                            :value="opt.value"
-                            :checked="lineDecisionsMap[itemKey(item, idx)] === opt.value"
-                            @change="setLineDecision(itemKey(item, idx), opt.value)"
-                          />
-                          <span>{{ t(opt.labelKey) }}</span>
-                        </label>
+                          {{ lineCommentButtonLabel(itemKey(item, idx)) }}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -596,11 +765,7 @@ function seatCapacityTone(item) {
                     class="comments-input"
                     maxlength="200"
                     rows="5"
-                    :placeholder="
-                      showLineOps
-                        ? t('courseRegistration.approval.lineCommentPlaceholder')
-                        : t('common.pleaseInput')
-                    "
+                    :placeholder="t('common.pleaseInput')"
                   />
                   <div class="comments-footer">
                     <div class="presets-wrap">
@@ -641,8 +806,90 @@ function seatCapacityTone(item) {
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
-          <button type="button" class="btn btn-primary" @click="handleConfirm">{{ t('common.confirm') }}</button>
+          <p v-if="creditGateBlocked" class="credit-gate-hint">{{ creditGateHint }}</p>
+          <div class="modal-footer-actions">
+            <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              :disabled="creditGateBlocked"
+              @click="handleConfirm"
+            >
+              {{ t('common.confirm') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- 行级评价意见二级弹层（复用 Comments 壳） -->
+  <Teleport to="body">
+    <div
+      v-if="commentEditorVisible"
+      class="line-comment-overlay"
+      @click.self="closeLineCommentEditor"
+    >
+      <div class="line-comment-panel" role="dialog" aria-modal="true">
+        <div class="modal-header">
+          <h3 class="modal-title">{{ t('courseRegistration.approval.lineCommentModalTitle') }}</h3>
+          <button type="button" class="modal-close" @click="closeLineCommentEditor">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-table">
+            <div class="form-row">
+              <div class="form-label">{{ tr('Comments') }}</div>
+              <div class="form-value">
+                <div class="comments-box">
+                  <textarea
+                    v-model="draftLineComment"
+                    class="comments-input"
+                    maxlength="200"
+                    rows="5"
+                    :placeholder="t('courseRegistration.approval.lineCommentPlaceholder')"
+                  />
+                  <div class="comments-footer">
+                    <div class="presets-wrap">
+                      <button
+                        ref="presetBtnRef"
+                        type="button"
+                        class="preset-btn"
+                        @click="togglePresets"
+                      >
+                        {{ tr('Common Comments') }}
+                      </button>
+                      <Teleport to="body">
+                        <div
+                          v-if="showPresets && commentEditorVisible"
+                          class="add-drop-approval-preset-list"
+                          :style="presetListStyle"
+                        >
+                          <button
+                            v-for="(preset, index) in commonApprovalComments"
+                            :key="index"
+                            type="button"
+                            class="add-drop-approval-preset-item"
+                            @click="insertPreset(preset)"
+                          >
+                            {{ tr(preset) }}
+                          </button>
+                        </div>
+                      </Teleport>
+                    </div>
+                    <span class="char-count">{{ draftLineComment.length }}/200</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" @click="closeLineCommentEditor">
+            {{ t('common.cancel') }}
+          </button>
+          <button type="button" class="btn btn-primary" @click="saveLineCommentEditor">
+            {{ t('common.confirm') }}
+          </button>
         </div>
       </div>
     </div>
@@ -654,7 +901,7 @@ function seatCapacityTone(item) {
     :message="submitConfirmMessage"
     :confirm-text="t('common.confirm')"
     confirm-variant="primary"
-    :z-index="1500"
+    :z-index="1600"
     @confirm="confirmSubmit"
     @cancel="cancelSubmit"
   />
@@ -672,6 +919,29 @@ function seatCapacityTone(item) {
   padding: 24px;
 }
 
+.line-comment-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1550;
+  padding: 24px;
+}
+
+.line-comment-panel {
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
 .modal-panel {
   width: 100%;
   max-width: 720px;
@@ -685,7 +955,7 @@ function seatCapacityTone(item) {
 }
 
 .modal-panel--wide {
-  max-width: min(1320px, 98vw);
+  max-width: min(1400px, 98vw);
 }
 
 .modal-header {
@@ -730,6 +1000,16 @@ function seatCapacityTone(item) {
   margin: 0 0 16px;
 }
 
+.approval-credit-strip--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: -4px 0 16px;
+  padding: 8px 0 10px;
+  background: #fff;
+  box-shadow: 0 6px 10px -8px rgba(15, 23, 42, 0.35);
+}
+
 .lines-summary {
   margin-bottom: 16px;
 }
@@ -743,14 +1023,13 @@ function seatCapacityTone(item) {
 }
 
 .lines-table-wrap {
-  overflow-x: auto;
+  overflow-x: hidden;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
 }
 
 .lines-table {
   width: 100%;
-  min-width: 1280px;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 11px;
@@ -789,10 +1068,17 @@ function seatCapacityTone(item) {
 }
 
 .col-check {
-  width: 32px;
+  width: 28px;
   text-align: center;
-  padding-left: 6px;
+  padding-left: 4px;
   padding-right: 2px;
+}
+
+.col-index {
+  width: 2.6em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: #6b7280;
 }
 
 .col-app-type {
@@ -812,7 +1098,7 @@ function seatCapacityTone(item) {
 }
 
 .col-name {
-  width: 12%;
+  width: 10%;
   max-width: none;
   white-space: nowrap;
 }
@@ -872,12 +1158,41 @@ function seatCapacityTone(item) {
 
 .col-op,
 .op-cell {
-  width: 17em;
-  min-width: 17em;
-  white-space: nowrap;
+  width: 22%;
+  min-width: 14em;
+  white-space: normal;
   vertical-align: middle;
   overflow: visible;
   text-overflow: clip;
+  padding-right: 8px;
+}
+
+.line-op-wrap {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.line-comment-btn {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 12px;
+  color: #2563eb;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.line-comment-btn:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.line-comment-btn.has-comment {
+  color: #0f766e;
 }
 
 .cr-time-venue {
@@ -895,12 +1210,11 @@ function seatCapacityTone(item) {
   margin-top: 1px;
 }
 
-/* 覆盖 .radio-group 的 flex-wrap: wrap，保证三态单行 */
 .radio-group.line-op-radios {
   flex-direction: row;
-  flex-wrap: nowrap;
-  gap: 4px 10px;
-  white-space: nowrap;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  white-space: normal;
 }
 
 .radio-group.line-op-radios .radio-item {
@@ -1037,10 +1351,30 @@ function seatCapacityTone(item) {
 
 .modal-footer {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 12px;
   padding: 16px 24px;
   border-top: 1px solid #f0f0f0;
+}
+
+.credit-gate-hint {
+  margin: 0;
+  margin-right: auto;
+  font-size: 13px;
+  color: #dc2626;
+  line-height: 1.35;
+}
+
+.modal-footer-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btn {

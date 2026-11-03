@@ -8,7 +8,10 @@ import TablePagination from '../../../components/common/TablePagination.vue'
 import { useAppI18n } from '../../../composables/useAppI18n.js'
 import { formatSelectedAt } from '../../../data/courseRegistration/studentRegistrationStore.js'
 import { syncAllVolunteerHitsToHistory } from '../../../data/courseRegistration/studentRegistrationContext.js'
-import { getBatchById } from '../../../data/courseRegistration/registrationBatches.js'
+import {
+  getActiveBatch,
+  getBatchById,
+} from '../../../data/courseRegistration/registrationBatches.js'
 import { displayClassTimeVenueLines } from '../../../data/courseRegistration/sectionScheduleFields.js'
 import { resolveSchoolElectiveCategory } from '../../../data/courseRegistration/selectableCourses.js'
 import { hydrateSelectedCourseDisplay } from '../../../data/courseRegistration/resolveSelectedCourseDisplay.js'
@@ -21,6 +24,8 @@ import {
   listUntimedMyResultCourses,
   buildMyResultSchedule,
 } from '../../../data/courseRegistration/studentMyResultCourses.js'
+import { getStudentProfileFields } from '../../../data/courseRegistration/studentRegistrationStore.js'
+import { formatSchedulePersonLine } from '../../../utils/formatSchedulePersonLine.js'
 import '../../../styles/list-page-search.css'
 import '../../../styles/course-registration-list.css'
 import '../../../styles/course-registration-student.css'
@@ -99,6 +104,38 @@ const scheduleSlotCount = computed(() => finalScheduleSlots.value.length)
 const scheduleToolbarLabel = computed(() => t('courseRegistration.student.scheduleToolbarButton'))
 const schedulePreviewSubtitle = computed(() =>
   t('courseRegistration.student.schedulePreviewFinalHintAll'),
+)
+
+/** 课表表头：学号 + 姓名 */
+const schedulePersonLine = computed(() => {
+  const profile = getStudentProfileFields()
+  return formatSchedulePersonLine(profile?.studentId, profile?.studentName)
+})
+
+/**
+ * 本学期累计学分：全部已选（必修+选修）学分和，不受 Tab/搜索影响
+ */
+const termAccumulatedCredits = computed(() => {
+  const term = String(getActiveBatch()?.academicSession || '').trim()
+  let sum = 0
+  for (const raw of allRawCoursesForSchedule.value) {
+    const session = academicSessionOf(raw)
+    // 有本学期口径时：其它学期排除；无学期字段仍计入（demo 底图）
+    if (term && session && session !== term) continue
+    sum += Number(raw.credits) || 0
+  }
+  return sum
+})
+
+/** 前缀文案（加粗放大）；分数单独红色渲染 */
+const termAccumulatedCreditsPrefix = computed(() =>
+  t('courseRegistration.student.termAccumulatedCreditsPrefix'),
+)
+
+const termAccumulatedCreditsScore = computed(() =>
+  t('courseRegistration.student.termAccumulatedCreditsScore', {
+    credits: termAccumulatedCredits.value,
+  }),
 )
 
 /** 无排课时段已选课（如 INT300 实习）→ 课表 footer 提示 */
@@ -499,6 +536,10 @@ function selectTypeTab(key) {
         >
           {{ scheduleToolbarLabel }}
         </button>
+        <span class="term-credits-hint">
+          <span>{{ termAccumulatedCreditsPrefix }}</span>
+          <span class="term-credits-hint__score">{{ termAccumulatedCreditsScore }}</span>
+        </span>
       </div>
 
       <div class="table-section">
@@ -568,6 +609,7 @@ function selectTypeTab(key) {
     <ApplicationDetailDrawer
       :visible="scheduleDrawerVisible"
       :title="t('courseRegistration.student.schedulePreviewTitle')"
+      :person-line="schedulePersonLine"
       :subtitle="schedulePreviewSubtitle"
       @close="scheduleDrawerVisible = false"
     >
@@ -683,8 +725,21 @@ function selectTypeTab(key) {
 
 .toolbar {
   display: flex;
+  align-items: center;
   justify-content: flex-start;
+  gap: 12px;
   margin-bottom: 12px;
+}
+
+.term-credits-hint {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.term-credits-hint__score {
+  color: #dc2626;
 }
 
 .history-table-wrap {

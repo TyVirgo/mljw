@@ -1,13 +1,22 @@
 /**
  * 审批历史：课级账单明细、缴费剩余、催缴门槛、重新生成订单（延期截止）
  */
-import { addDropApprovalQueue } from './addDropApprovalQueue.js'
+import {
+  addDropApprovalQueue,
+  filterApprovedAddDropItems,
+} from './addDropApprovalQueue.js'
 import { feeRosterRows } from './feeRosterQueue.js'
 import {
   paymentLines,
   paymentOrders,
   ensureStudentCoursePaymentSeeded,
+  PAYMENT_DEMO_SST_CATEGORY,
 } from './studentCoursePaymentStore.js'
+import {
+  buildFeeEstimateFromApplicationItems,
+  computeSstAmount,
+} from './addDropFeeRates.js'
+import { buildAddDropPlanRemaining } from './studentRegistrationContext.js'
 import {
   parseBatchDateTime,
   formatLocalDateTimeWithSeconds,
@@ -299,7 +308,62 @@ function appendSstBillLine(app, lines) {
   return list
 }
 
+/**
+ * 审结单按通过行重算预估，与列表预估费用同源
+ * @param {object} app
+ */
+function resolveBillFeeEstimate(app) {
+  const status = String(app?.status || '')
+  const settled =
+    status === 'Approved' || status === 'PartiallyApproved' || status === 'Rejected'
+  if (settled) {
+    return buildFeeEstimateFromApplicationItems(
+      { ...app, items: filterApprovedAddDropItems(app) },
+      buildAddDropPlanRemaining(app.studentId),
+      app.studentCategory || 'Local',
+    )
+  }
+  return app?.feeEstimate || null
+}
+
+/**
+ * 真源：审批后 feeEstimate 应付课（amount>0）
+ * @param {object} app
+ * @param {object|null} [estimate]
+ * @returns {object[]}
+ */
+function synthesizeLinesFromFeeEstimate(app, estimate = null) {
+  const feeEstimate = estimate || resolveBillFeeEstimate(app) || app?.feeEstimate
+  const items = (feeEstimate?.items || []).filter((i) => Number(i.amount) > 0)
+  if (!items.length) return []
+  const paid = app.billStatus === 'paid'
+  return items.map((item, idx) => ({
+    id: `admin-bill-${app.id}-${item.courseCode || idx}`,
+    studentId: app.studentId,
+    courseCode: item.courseCode || '—',
+    courseName: item.courseName || item.courseCode || '—',
+    credits: item.credits || item.billableCredits || 0,
+    billableCredits: Number(item.billableCredits) || item.credits || 0,
+    feeAmount: Number(item.amount) || 0,
+    amount: Number(item.amount) || 0,
+    sectionName: item.sectionName || item.section || '01',
+    sourceRef: app.id,
+    applicationNo: app.applicationNo || '',
+    paymentDueAt: app.paymentDueAt || '',
+    status: paid ? 'paid' : 'unpaid',
+    paidAt: paid ? app.approvalLog?.slice(-1)?.[0]?.at || '' : '',
+    orderNo: '',
+    academicSession: app.academicSession || '',
+    action: item.action || '',
+    reason: item.reason || '',
+  }))
+}
+
 function synthesizeLinesFromApp(app) {
+  // 优先审批后预估明细，保证与列表预估费用一致
+  const fromEstimate = synthesizeLinesFromFeeEstimate(app)
+  if (fromEstimate.length) return appendSstBillLine(app, fromEstimate)
+
   const feeItems = (app.items || []).filter((i) => Number(i.fee) > 0)
   const items =
     feeItems.length > 0
@@ -342,32 +406,6 @@ function synthesizeLinesFromApp(app) {
     academicSession: app.academicSession || '',
   }))
   return appendSstBillLine(app, lines)
-}
-
-function linesFromFeeRoster(app) {
-  const codes = new Set(
-    (app.items || []).filter((i) => Number(i.fee) > 0).map((i) => i.courseCode),
-  )
-  if (!codes.size) return []
-  return feeRosterRows.value
-    .filter((r) => r.studentId === app.studentId && codes.has(r.courseCode))
-    .map((r) => ({
-      id: r.id,
-      studentId: r.studentId,
-      courseCode: r.courseCode,
-      courseName: r.courseName || r.courseCode,
-      credits: r.courseCredits || 0,
-      billableCredits: r.courseCredits || 0,
-      amount: 0,
-      sectionName: r.sectionCode || '01',
-      sourceRef: app.id,
-      applicationNo: app.applicationNo || '',
-      paymentDueAt: r.paymentDueAt || app.paymentDueAt || '',
-      status: r.paid === 'Y' ? 'paid' : 'unpaid',
-      paidAt: r.paidAt || '',
-      orderNo: '',
-      academicSession: r.academicSession || app.academicSession || '',
-    }))
 }
 
 /** 是否为 SST 占位课行（不入课程表） */
@@ -476,7 +514,21 @@ function enrichBillLinesWithCourseType(lines, app) {
  * @param {object[]} rawLines
  * @param {object[]} courseLines
  */
+/**
+ * 与学生课程缴费同源 SST（demo 国际生口径）
+ * @param {object} app
+ * @param {object[]} rawLines
+ * @param {object[]} courseLines
+ */
 function resolveBillSstAmount(app, rawLines, courseLines) {
+  const courseFee = (courseLines || []).reduce(
+    (s, l) => s + resolveBillLineCourseFee(l),
+    0,
+  )
+  // 优先与学生待缴整单一致：按课程合计 × demo 税率
+  const fromStudentPay = computeSstAmount(courseFee, PAYMENT_DEMO_SST_CATEGORY)
+  if (fromStudentPay > 0) return fromStudentPay
+
   const fromApp = resolveAppSstAmount(app)
   if (fromApp > 0) return fromApp
   const fromSstRows = (rawLines || [])
@@ -515,30 +567,48 @@ export function getApplicationBillDetail(app) {
     payablePaid: 0,
   }
   if (!app) return empty
-  try {
-    ensureStudentCoursePaymentSeeded()
-  } catch {
-    /* ignore */
-  }
+  // 禁止在 computed/列表渲染路径调用 seed/merge（会反复写 paymentLines 导致卡死）
+  // 课目以审批后预估为准；paymentLines 仅用于回填已缴 paidAt/orderNo
 
-  let rawLines = paymentLines.value.filter(
+  // 已缴状态可从 paymentLines 回填 paidAt/orderNo；课目以审批后预估为准
+  const existingPayLines = paymentLines.value.filter(
     (l) =>
       l.sourceRef === app.id ||
       (app.applicationNo && l.applicationNo === app.applicationNo),
   )
 
-  if (!rawLines.length) {
-    const roster = linesFromFeeRoster(app).filter(
-      (r) => r.status === 'paid' || r.status === 'unpaid',
-    )
-    if (roster.some((r) => Number(r.amount) > 0)) {
-      rawLines = roster
-    }
+  const billEstimate = resolveBillFeeEstimate(app)
+  const appForSst = {
+    ...app,
+    feeEstimate: billEstimate || app.feeEstimate,
+    sstAmount: billEstimate?.sstAmount ?? app.sstAmount,
   }
 
-  if (!rawLines.length && hasBillableFee(app)) {
-    // synthesize 会带 SST 行，后面统一剥离
+  let rawLines = []
+  const fromEstimate = synthesizeLinesFromFeeEstimate(app, billEstimate)
+  if (fromEstimate.length) {
+    rawLines = fromEstimate.map((line) => {
+      const paidMatch = existingPayLines.find(
+        (e) =>
+          e.status === 'paid' &&
+          String(e.courseCode || '') === String(line.courseCode || ''),
+      )
+      if (paidMatch || app.billStatus === 'paid') {
+        return {
+          ...line,
+          status: 'paid',
+          paidAt: paidMatch?.paidAt || line.paidAt || '',
+          orderNo: paidMatch?.orderNo || line.orderNo || '',
+        }
+      }
+      return line
+    })
+  } else if (hasBillableFee(app)) {
+    // 无预估明细时再回退合成（含旧单）
     rawLines = synthesizeLinesFromApp(app)
+  } else if (existingPayLines.length) {
+    // 无应付预估：不展示同学号其它课；仅保留已明确挂到本单且已缴的历史行
+    rawLines = existingPayLines.filter((l) => l.status === 'paid' && !isSstBillLine(l))
   }
 
   // 整单语义：以申请 billStatus 为准
@@ -558,7 +628,7 @@ export function getApplicationBillDetail(app) {
   }
 
   let courseLines = enrichBillLinesWithCourseType(dedupeBillCourseLines(rawLines, app), app)
-  const sstTotal = resolveBillSstAmount(app, rawLines, courseLines)
+  const sstTotal = resolveBillSstAmount(appForSst, rawLines, courseLines)
 
   const unpaid = courseLines.filter((l) => l.status === 'unpaid' || l.status === 'locked')
   const paid = courseLines.filter((l) => l.status === 'paid')

@@ -54,10 +54,13 @@ function createEmptyForm() {
     futureMandatorySections: [],
     allowCoreSectionSwitchAdd: false,
     coreSectionSwitchAddSections: [],
+    /** @deprecated 重修换组已下线；保留字段避免旧逻辑报错，恒为 false */
     allowCoreSectionSwitchRetake: false,
     coreSectionSwitchRetakeSections: [],
     allowFutureElective: false,
     allowDropBelowCreditMin: false,
+    /** 退课破最低：学分地板 0–11 */
+    dropBelowCreditMinFloor: 0,
     futureElectiveGeCredits: 3,
     futureElectiveMeCredits: 3,
     futureElectiveMeCategoryKeys: [],
@@ -158,13 +161,14 @@ watch(
       coreSectionSwitchAddSections: normalizeWhitelistSectionRefs(
         n.coreSectionSwitchAddSections,
       ),
-      allowCoreSectionSwitchRetake:
-        parentOn && n.canRetake && n.allowCoreSectionSwitchRetake,
-      coreSectionSwitchRetakeSections: normalizeWhitelistSectionRefs(
-        n.coreSectionSwitchRetakeSections,
-      ),
+      allowCoreSectionSwitchRetake: false,
+      coreSectionSwitchRetakeSections: [],
       allowFutureElective: n.allowFutureElective,
       allowDropBelowCreditMin: n.allowDropBelowCreditMin,
+      dropBelowCreditMinFloor:
+        n.dropBelowCreditMinFloor != null && Number.isFinite(Number(n.dropBelowCreditMinFloor))
+          ? Math.min(11, Math.max(0, Math.floor(Number(n.dropBelowCreditMinFloor))))
+          : 0,
       futureElectiveGeCredits:
         n.futureElectiveGeCredits > 0 ? n.futureElectiveGeCredits : 3,
       futureElectiveMeCredits:
@@ -183,6 +187,21 @@ watch(
 const title = computed(() => {
   if (isCreate.value) return t('courseRegistration.whitelist.createTitle')
   return props.entry?.studentName || t('courseRegistration.whitelist.editTitle')
+})
+
+/** 新增须先选学生才能配权限；编辑始终可配 */
+const permissionsLocked = computed(
+  () => Boolean(isCreate.value) && !(selectedStudents.value || []).length,
+)
+
+/** 已选学生专业（供选课弹框过滤；多生取并集） */
+const selectedStudentProgrammes = computed(() => {
+  const set = new Set()
+  for (const stu of selectedStudents.value || []) {
+    const p = String(stu.programme || '').trim()
+    if (p) set.add(p)
+  }
+  return [...set]
 })
 
 const subtitle = computed(() => {
@@ -204,11 +223,10 @@ const subtitle = computed(() => {
 
 function onSupplementChange() {
   if (!form.value.supplement) {
+    // 仅清空加退课二级动作；换组等一级权限独立保留
     form.value.canAdd = false
     form.value.canDrop = false
     form.value.canRetake = false
-    form.value.allowCoreSectionSwitchAdd = false
-    form.value.coreSectionSwitchAddSections = []
     form.value.allowCoreSectionSwitchRetake = false
     form.value.coreSectionSwitchRetakeSections = []
   } else {
@@ -218,29 +236,23 @@ function onSupplementChange() {
   }
 }
 
+/**
+ * 可加课变更：换组已升为一级，不再随可加课清空
+ * @deprecated 原逻辑会清空换组；保留空处理避免旧引用
+ */
 function onCanAddChange() {
-  if (!form.value.canAdd) {
-    form.value.allowCoreSectionSwitchAdd = false
-    form.value.coreSectionSwitchAddSections = []
-  }
+  // 换组与可加课解耦后无联动清空
 }
 
+/** @deprecated 重修下已无换组；保留空处理避免旧 @change 引用 */
 function onCanRetakeChange() {
-  if (!form.value.canRetake) {
-    form.value.allowCoreSectionSwitchRetake = false
-    form.value.coreSectionSwitchRetakeSections = []
-  }
+  form.value.allowCoreSectionSwitchRetake = false
+  form.value.coreSectionSwitchRetakeSections = []
 }
 
 function onCoreSwitchAddChange() {
   if (!form.value.allowCoreSectionSwitchAdd) {
     form.value.coreSectionSwitchAddSections = []
-  }
-}
-
-function onCoreSwitchRetakeChange() {
-  if (!form.value.allowCoreSectionSwitchRetake) {
-    form.value.coreSectionSwitchRetakeSections = []
   }
 }
 
@@ -265,6 +277,10 @@ function openStudentPicker() {
 }
 
 function openCoursePicker(mode = 'prereq') {
+  if (permissionsLocked.value) {
+    formError.value = t('courseRegistration.whitelist.permissionsNeedStudent')
+    return
+  }
   coursePickerMode.value = mode
   coursePickerOpen.value = true
 }
@@ -295,10 +311,12 @@ function removeSectionRef(listKey, ref) {
 
 const coursePickerProps = computed(() => {
   const mode = coursePickerMode.value
+  const studentProgrammes = selectedStudentProgrammes.value
   if (mode === 'futureMandatory') {
     return {
       selectionUnit: 'section',
       coreOnly: true,
+      studentProgrammes,
       selectedCodes: [],
       selectedSections: form.value.futureMandatorySections,
       titleKey: 'courseRegistration.whitelist.futureMandatoryPickTitle',
@@ -313,6 +331,7 @@ const coursePickerProps = computed(() => {
     return {
       selectionUnit: 'section',
       coreOnly: true,
+      studentProgrammes,
       selectedCodes: [],
       selectedSections: sections,
       titleKey: 'courseRegistration.whitelist.coreSwitchPickTitle',
@@ -322,6 +341,7 @@ const coursePickerProps = computed(() => {
   return {
     selectionUnit: 'course',
     coreOnly: false,
+    studentProgrammes,
     selectedCodes: form.value.prereqCourseCodes,
     selectedSections: [],
     titleKey: 'courseRegistration.whitelist.prereqCoursePickTitle',
@@ -356,14 +376,13 @@ function buildPatch() {
       form.value.canAdd && form.value.allowCoreSectionSwitchAdd
         ? normalizeWhitelistSectionRefs(form.value.coreSectionSwitchAddSections)
         : [],
-    allowCoreSectionSwitchRetake:
-      form.value.canRetake && form.value.allowCoreSectionSwitchRetake,
-    coreSectionSwitchRetakeSections:
-      form.value.canRetake && form.value.allowCoreSectionSwitchRetake
-        ? normalizeWhitelistSectionRefs(form.value.coreSectionSwitchRetakeSections)
-        : [],
+    allowCoreSectionSwitchRetake: false,
+    coreSectionSwitchRetakeSections: [],
     allowFutureElective: form.value.allowFutureElective,
     allowDropBelowCreditMin: form.value.allowDropBelowCreditMin,
+    dropBelowCreditMinFloor: form.value.allowDropBelowCreditMin
+      ? Math.min(11, Math.max(0, Math.floor(Number(form.value.dropBelowCreditMinFloor) || 0)))
+      : 0,
     futureElectiveGeCredits: form.value.allowFutureElective
       ? Math.max(1, Number(form.value.futureElectiveGeCredits) || 1)
       : 0,
@@ -443,15 +462,11 @@ function handleSave() {
       return
     }
   }
-  if (form.value.canAdd && form.value.allowCoreSectionSwitchAdd) {
-    if (!normalizeWhitelistSectionRefs(form.value.coreSectionSwitchAddSections).length) {
-      formError.value = t('courseRegistration.whitelist.coreSwitchSectionsRequired')
-      return
-    }
-  }
-  if (form.value.canRetake && form.value.allowCoreSectionSwitchRetake) {
-    if (!normalizeWhitelistSectionRefs(form.value.coreSectionSwitchRetakeSections).length) {
-      formError.value = t('courseRegistration.whitelist.coreSwitchSectionsRequired')
+  // 换组空清单 = 该生弹框范围内全部，不再强制必选课组
+  if (form.value.allowDropBelowCreditMin) {
+    const floor = Number(form.value.dropBelowCreditMinFloor)
+    if (!Number.isFinite(floor) || floor < 0 || floor > 11 || Math.floor(floor) !== floor) {
+      formError.value = t('courseRegistration.whitelist.dropBelowMinFloorInvalid')
       return
     }
   }
@@ -487,10 +502,11 @@ function handleSave() {
         futureMandatorySections: form.value.futureMandatorySections,
         allowCoreSectionSwitchAdd: form.value.allowCoreSectionSwitchAdd,
         coreSectionSwitchAddSections: form.value.coreSectionSwitchAddSections,
-        allowCoreSectionSwitchRetake: form.value.allowCoreSectionSwitchRetake,
-        coreSectionSwitchRetakeSections: form.value.coreSectionSwitchRetakeSections,
+        allowCoreSectionSwitchRetake: false,
+        coreSectionSwitchRetakeSections: [],
         allowFutureElective: form.value.allowFutureElective,
         allowDropBelowCreditMin: form.value.allowDropBelowCreditMin,
+        dropBelowCreditMinFloor: form.value.dropBelowCreditMinFloor,
         futureElectiveGeCredits: form.value.futureElectiveGeCredits,
         futureElectiveMeCredits: form.value.futureElectiveMeCredits,
         futureElectiveMeCategoryKeys: form.value.futureElectiveMeCategoryKeys,
@@ -573,202 +589,226 @@ function handleSave() {
         </div>
       </template>
 
-      <div class="permission-layout">
-        <div class="permission-group">
-          <label class="checkbox-row checkbox-row--parent credit-bypass-inline">
-            <input
-              v-model="form.supplement"
-              type="checkbox"
-              @change="onSupplementChange"
-            />
-            <span class="credit-bypass-inline-text">
-              {{ t('courseRegistration.whitelist.perm.supplement')
-              }}{{ t('courseRegistration.whitelist.hoursInlineSep')
-              }}{{ t('courseRegistration.whitelist.inviteHoursPrefix') }}
+      <p v-if="permissionsLocked" class="permissions-lock-tip">
+        {{ t('courseRegistration.whitelist.permissionsNeedStudent') }}
+      </p>
+      <!-- 一级权限两列网格对齐；可加/退/重修为加退课父项唯一二级 -->
+      <div class="permission-layout" :class="{ 'is-locked': permissionsLocked }">
+        <div class="permission-col permission-col--left">
+          <div class="permission-l1">
+            <label class="checkbox-row checkbox-row--parent credit-bypass-inline">
               <input
-                v-model.number="form.permissionHours.supplement"
-                type="number"
-                min="1"
-                step="1"
-                class="inline-number"
-                :disabled="!form.supplement"
-              />
-              h
-            </span>
-          </label>
-          <div class="permission-children">
-            <label class="checkbox-row" :class="{ 'is-disabled': !form.supplement }">
-              <input
-                v-model="form.canAdd"
+                v-model="form.supplement"
                 type="checkbox"
-                :disabled="!form.supplement"
-                @change="onCanAddChange"
+                :disabled="permissionsLocked"
+                @change="onSupplementChange"
               />
-              {{ t('courseRegistration.whitelist.perm.canAdd') }}
-            </label>
-            <div class="permission-nested" :class="{ 'is-disabled': !form.supplement || !form.canAdd }">
-              <label class="checkbox-row" :class="{ 'is-disabled': !form.supplement || !form.canAdd }">
+              <span class="credit-bypass-inline-text">
+                {{ t('courseRegistration.whitelist.perm.supplement')
+                }}{{ t('courseRegistration.whitelist.hoursInlineSep')
+                }}{{ t('courseRegistration.whitelist.inviteHoursPrefix') }}
                 <input
-                  v-model="form.allowCoreSectionSwitchAdd"
-                  type="checkbox"
-                  :disabled="!form.supplement || !form.canAdd"
-                  @change="onCoreSwitchAddChange"
+                  v-model.number="form.permissionHours.supplement"
+                  type="number"
+                  min="1"
+                  step="1"
+                  class="inline-number"
+                  :disabled="permissionsLocked || !form.supplement"
                 />
-                {{ t('courseRegistration.whitelist.perm.allowCoreSectionSwitch') }}
-              </label>
-              <div v-if="form.allowCoreSectionSwitchAdd && form.canAdd" class="section-pick-inline">
-                <div
-                  class="tag-field tag-field--single-line"
-                  :class="{
-                    'tag-field--empty': !(form.coreSectionSwitchAddSections || []).length,
-                  }"
-                  @click="openCoursePicker('coreSwitchAdd')"
-                >
-                  <template v-if="(form.coreSectionSwitchAddSections || []).length">
-                    <span
-                      v-for="ref in form.coreSectionSwitchAddSections"
-                      :key="`${ref.courseCode}::${ref.sectionCode}`"
-                      class="tag-chip"
-                      @click.stop
-                    >
-                      <span class="tag-chip-text">{{ formatWhitelistSectionTag(ref) }}</span>
-                      <button
-                        type="button"
-                        class="tag-chip-remove"
-                        :aria-label="t('common.delete')"
-                        @click.stop="removeSectionRef('coreSectionSwitchAddSections', ref)"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  </template>
-                  <span v-else class="tag-placeholder">
-                    {{ t('courseRegistration.whitelist.sectionPickEmpty') }}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  class="btn btn-default"
-                  @click="openCoursePicker('coreSwitchAdd')"
-                >
-                  {{ t('studentSelect.selectButton') }}
-                </button>
-              </div>
-            </div>
-            <label class="checkbox-row" :class="{ 'is-disabled': !form.supplement }">
-              <input v-model="form.canDrop" type="checkbox" :disabled="!form.supplement" />
-              {{ t('courseRegistration.whitelist.perm.canDrop') }}
+                {{ t('courseRegistration.whitelist.inviteHoursUnit') }}
+              </span>
             </label>
-            <label class="checkbox-row" :class="{ 'is-disabled': !form.supplement }">
-              <input
-                v-model="form.canRetake"
-                type="checkbox"
-                :disabled="!form.supplement"
-                @change="onCanRetakeChange"
-              />
-              {{ t('courseRegistration.whitelist.perm.canRetake') }}
-            </label>
-            <div
-              class="permission-nested"
-              :class="{ 'is-disabled': !form.supplement || !form.canRetake }"
-            >
+            <div class="permission-children">
               <label
                 class="checkbox-row"
-                :class="{ 'is-disabled': !form.supplement || !form.canRetake }"
+                :class="{ 'is-disabled': permissionsLocked || !form.supplement }"
               >
                 <input
-                  v-model="form.allowCoreSectionSwitchRetake"
+                  v-model="form.canAdd"
                   type="checkbox"
-                  :disabled="!form.supplement || !form.canRetake"
-                  @change="onCoreSwitchRetakeChange"
+                  :disabled="permissionsLocked || !form.supplement"
+                  @change="onCanAddChange"
                 />
-                {{ t('courseRegistration.whitelist.perm.allowCoreSectionSwitch') }}
+                {{ t('courseRegistration.whitelist.perm.canAdd') }}
               </label>
-              <div
-                v-if="form.allowCoreSectionSwitchRetake && form.canRetake"
-                class="section-pick-inline"
+              <label
+                class="checkbox-row"
+                :class="{ 'is-disabled': permissionsLocked || !form.supplement }"
               >
-                <div
-                  class="tag-field tag-field--single-line"
-                  :class="{
-                    'tag-field--empty': !(form.coreSectionSwitchRetakeSections || []).length,
-                  }"
-                  @click="openCoursePicker('coreSwitchRetake')"
-                >
-                  <template v-if="(form.coreSectionSwitchRetakeSections || []).length">
-                    <span
-                      v-for="ref in form.coreSectionSwitchRetakeSections"
-                      :key="`${ref.courseCode}::${ref.sectionCode}`"
-                      class="tag-chip"
-                      @click.stop
-                    >
-                      <span class="tag-chip-text">{{ formatWhitelistSectionTag(ref) }}</span>
-                      <button
-                        type="button"
-                        class="tag-chip-remove"
-                        :aria-label="t('common.delete')"
-                        @click.stop="removeSectionRef('coreSectionSwitchRetakeSections', ref)"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  </template>
-                  <span v-else class="tag-placeholder">
-                    {{ t('courseRegistration.whitelist.sectionPickEmpty') }}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  class="btn btn-default"
-                  @click="openCoursePicker('coreSwitchRetake')"
-                >
-                  {{ t('studentSelect.selectButton') }}
-                </button>
-              </div>
+                <input
+                  v-model="form.canDrop"
+                  type="checkbox"
+                  :disabled="permissionsLocked || !form.supplement"
+                />
+                {{ t('courseRegistration.whitelist.perm.canDrop') }}
+              </label>
+              <label
+                class="checkbox-row"
+                :class="{ 'is-disabled': permissionsLocked || !form.supplement }"
+              >
+                <input
+                  v-model="form.canRetake"
+                  type="checkbox"
+                  :disabled="permissionsLocked || !form.supplement"
+                  @change="onCanRetakeChange"
+                />
+                {{ t('courseRegistration.whitelist.perm.canRetake') }}
+              </label>
             </div>
           </div>
-        </div>
-        <div class="permission-side">
-          <label class="checkbox-row">
-            <input v-model="form.bypassPrerequisite" type="checkbox" />
-            {{ t('courseRegistration.whitelist.perm.bypassPrerequisite') }}
-          </label>
-          <label class="checkbox-row credit-bypass-inline">
-            <input v-model="form.bypassCreditMax" type="checkbox" />
-            <span class="credit-bypass-inline-text">
-              {{
-                t('courseRegistration.whitelist.perm.bypassCreditMin') +
-                t('courseRegistration.whitelist.creditBypassInlineSep') +
-                t('courseRegistration.whitelist.creditBypassExtraLabel')
-              }}
+          <!-- 一级项：勿把 permission-l1 挂在 label 上（会变成竖排勾在字上） -->
+          <div class="permission-l1">
+            <label
+              class="checkbox-row"
+              :class="{ 'is-disabled': permissionsLocked }"
+            >
               <input
-                v-model.number="form.creditBypassExtra"
-                type="number"
-                min="1"
-                max="3"
-                step="1"
-                class="inline-number"
-                :disabled="!form.bypassCreditMax"
+                v-model="form.allowFutureMandatory"
+                type="checkbox"
+                :disabled="permissionsLocked"
+                @change="onFutureMandatoryChange"
               />
-              {{ t('courseRegistration.whitelist.creditBypassExtraUnit') }}
-            </span>
-          </label>
-          <label class="checkbox-row">
-            <input
-              v-model="form.allowFutureMandatory"
-              type="checkbox"
-              @change="onFutureMandatoryChange"
-            />
-            {{ t('courseRegistration.whitelist.perm.allowFutureMandatory') }}
-          </label>
-          <label class="checkbox-row">
-            <input v-model="form.allowFutureElective" type="checkbox" />
-            {{ t('courseRegistration.whitelist.perm.allowFutureElective') }}
-          </label>
-          <label class="checkbox-row">
-            <input v-model="form.allowDropBelowCreditMin" type="checkbox" />
-            {{ t('courseRegistration.whitelist.perm.allowDropBelowCreditMin') }}
-          </label>
+              {{ t('courseRegistration.whitelist.perm.allowFutureMandatory') }}
+            </label>
+          </div>
+          <div class="permission-l1">
+            <label
+              class="checkbox-row"
+              :class="{ 'is-disabled': permissionsLocked }"
+            >
+              <input
+                v-model="form.allowFutureElective"
+                type="checkbox"
+                :disabled="permissionsLocked"
+              />
+              {{ t('courseRegistration.whitelist.perm.allowFutureElective') }}
+            </label>
+          </div>
+        </div>
+        <div class="permission-col permission-col--right">
+          <div class="permission-l1">
+            <label
+              class="checkbox-row"
+              :class="{ 'is-disabled': permissionsLocked }"
+            >
+              <input
+                v-model="form.allowCoreSectionSwitchAdd"
+                type="checkbox"
+                :disabled="permissionsLocked"
+                @change="onCoreSwitchAddChange"
+              />
+              {{ t('courseRegistration.whitelist.perm.allowCoreSectionSwitch') }}
+            </label>
+            <div v-if="form.allowCoreSectionSwitchAdd" class="section-pick-inline">
+              <div
+                class="tag-field tag-field--single-line"
+                :class="{
+                  'tag-field--empty': !(form.coreSectionSwitchAddSections || []).length,
+                }"
+                @click="openCoursePicker('coreSwitchAdd')"
+              >
+                <template v-if="(form.coreSectionSwitchAddSections || []).length">
+                  <span
+                    v-for="ref in form.coreSectionSwitchAddSections"
+                    :key="`${ref.courseCode}::${ref.sectionCode}`"
+                    class="tag-chip"
+                    @click.stop
+                  >
+                    <span class="tag-chip-text">{{ formatWhitelistSectionTag(ref) }}</span>
+                    <button
+                      type="button"
+                      class="tag-chip-remove"
+                      :aria-label="t('common.delete')"
+                      @click.stop="removeSectionRef('coreSectionSwitchAddSections', ref)"
+                    >
+                      ×
+                    </button>
+                  </span>
+                </template>
+                <span v-else class="tag-placeholder">
+                  {{ t('courseRegistration.whitelist.sectionPickEmpty') }}
+                </span>
+              </div>
+              <button
+                type="button"
+                class="btn btn-default"
+                @click="openCoursePicker('coreSwitchAdd')"
+              >
+                {{ t('studentSelect.selectButton') }}
+              </button>
+            </div>
+          </div>
+          <div class="permission-l1">
+            <label
+              class="checkbox-row"
+              :class="{ 'is-disabled': permissionsLocked }"
+            >
+              <input
+                v-model="form.bypassPrerequisite"
+                type="checkbox"
+                :disabled="permissionsLocked"
+              />
+              {{ t('courseRegistration.whitelist.perm.bypassPrerequisite') }}
+            </label>
+          </div>
+          <div class="permission-l1">
+            <label
+              class="checkbox-row credit-bypass-inline"
+              :class="{ 'is-disabled': permissionsLocked }"
+            >
+              <input
+                v-model="form.bypassCreditMax"
+                type="checkbox"
+                :disabled="permissionsLocked"
+              />
+              <span class="credit-bypass-inline-text">
+                {{
+                  t('courseRegistration.whitelist.perm.bypassCreditMin') +
+                  t('courseRegistration.whitelist.creditBypassInlineSep') +
+                  t('courseRegistration.whitelist.creditBypassExtraLabel')
+                }}
+                <input
+                  v-model.number="form.creditBypassExtra"
+                  type="number"
+                  min="1"
+                  max="3"
+                  step="1"
+                  class="inline-number"
+                  :disabled="permissionsLocked || !form.bypassCreditMax"
+                />
+                {{ t('courseRegistration.whitelist.creditBypassExtraUnit') }}
+              </span>
+            </label>
+          </div>
+          <div class="permission-l1">
+            <label
+              class="checkbox-row credit-bypass-inline"
+              :class="{ 'is-disabled': permissionsLocked }"
+            >
+              <input
+                v-model="form.allowDropBelowCreditMin"
+                type="checkbox"
+                :disabled="permissionsLocked"
+              />
+              <span class="credit-bypass-inline-text">
+                {{
+                  t('courseRegistration.whitelist.perm.allowDropBelowCreditMin') +
+                  t('courseRegistration.whitelist.dropBelowMinInlineSep') +
+                  t('courseRegistration.whitelist.dropBelowMinFloorLabel')
+                }}
+                <input
+                  v-model.number="form.dropBelowCreditMinFloor"
+                  type="number"
+                  min="0"
+                  max="11"
+                  step="1"
+                  class="inline-number"
+                  :disabled="permissionsLocked || !form.allowDropBelowCreditMin"
+                />
+                {{ t('courseRegistration.whitelist.dropBelowMinFloorUnit') }}
+              </span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -953,6 +993,7 @@ function handleSave() {
     :visible="coursePickerOpen"
     :selection-unit="coursePickerProps.selectionUnit"
     :core-only="coursePickerProps.coreOnly"
+    :student-programmes="coursePickerProps.studentProgrammes"
     :selected-codes="coursePickerProps.selectedCodes"
     :selected-sections="coursePickerProps.selectedSections"
     :title-key="coursePickerProps.titleKey"
@@ -1046,18 +1087,46 @@ function handleSave() {
   color: #111827;
   background: #e5e7eb;
 }
+.permissions-lock-tip {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #b45309;
+  line-height: 1.4;
+}
+
 .permission-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: 12px 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px 24px;
   align-items: start;
 }
+
+.permission-layout.is-locked {
+  opacity: 0.72;
+}
+
+.permission-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* 一级权限外层块（勿挂到 label：column 会把勾选竖排到文字上方） */
+.permission-l1 {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 28px;
+}
+
 .permission-group,
 .permission-side {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
+
 .permission-children {
   display: flex;
   flex-direction: column;
@@ -1066,6 +1135,7 @@ function handleSave() {
   padding-left: 10px;
   border-left: 2px solid #e5e7eb;
 }
+
 .permission-nested {
   display: flex;
   flex-direction: column;
@@ -1074,6 +1144,14 @@ function handleSave() {
   padding-left: 10px;
   border-left: 2px solid #e5e7eb;
 }
+
+.permission-nested--side {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: none;
+  gap: 8px;
+}
+
 .permission-nested.is-disabled {
   opacity: 0.65;
 }

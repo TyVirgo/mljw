@@ -2,7 +2,7 @@
 /**
  * 白名单选课：
  * - course：先修豁免（按课号勾选；课级 rowspan）
- * - section：未来必修 / 换组（一课一勾选 = 该课全部教学班 ref；课级 rowspan）
+ * - section：未来必修 / 换组（按课程分组行勾选 section ref；课级字段仍 rowspan）
  */
 import { ref, computed, watch, nextTick } from 'vue'
 import TablePagination from '../common/TablePagination.vue'
@@ -10,6 +10,7 @@ import { useAppI18n } from '../../composables/useAppI18n.js'
 import { selectableCourses } from '../../data/courseRegistration/selectableCourses.js'
 import { displayClassTimeVenueLines } from '../../data/courseRegistration/sectionScheduleFields.js'
 import { isMandatoryAddDropCourse } from '../../data/courseRegistration/addDropMultiItems.js'
+import { courseMatchesStudentProgramme } from '../../data/courseRegistration/studentEligibility.js'
 import {
   whitelistSectionRefKey,
   normalizeWhitelistSectionRefs,
@@ -24,6 +25,11 @@ const props = defineProps({
   /** @type {'course'|'section'} */
   selectionUnit: { type: String, default: 'course' },
   coreOnly: { type: Boolean, default: false },
+  /**
+   * 已选学生专业码列表；有值时课块须匹配其中任一专业（并集）
+   * @type {string[]}
+   */
+  studentProgrammes: { type: Array, default: () => [] },
   titleKey: { type: String, default: 'courseRegistration.whitelist.prereqCoursePickTitle' },
   hintKey: { type: String, default: 'courseRegistration.whitelist.prereqCoursePickHint' },
 })
@@ -43,6 +49,18 @@ const selectAllEl = ref(null)
 const scheduleLocale = computed(() => (locale.value === 'en' ? 'en' : 'zh'))
 const isSectionUnit = computed(() => props.selectionUnit === 'section')
 
+/**
+ * 课程是否落入已选学生专业范围（无专业过滤则不过滤）
+ * @param {object} course
+ */
+function courseMatchesAnySelectedProgramme(course) {
+  const programmes = (props.studentProgrammes || [])
+    .map((p) => String(p || '').trim())
+    .filter(Boolean)
+  if (!programmes.length) return true
+  return programmes.some((programme) => courseMatchesStudentProgramme(course, programme))
+}
+
 /** 按课聚合（分页单位） */
 const courseBlocks = computed(() => {
   const blocks = []
@@ -50,6 +68,7 @@ const courseBlocks = computed(() => {
     const code = String(c.code || '').trim()
     if (!code) continue
     if (props.coreOnly && !isMandatoryAddDropCourse(c)) continue
+    if (!courseMatchesAnySelectedProgramme(c)) continue
     const sections = Array.isArray(c.sections) && c.sections.length
       ? c.sections
       : [
@@ -140,23 +159,43 @@ const paginatedRows = computed(() => {
 
 const pageCourseCodes = computed(() => paginatedBlocks.value.map((b) => b.code))
 
+/** 当前页分组键（section 模式全选用） */
+const pageSectionKeys = computed(() =>
+  paginatedRows.value.map((row) => row.sectionKey).filter(Boolean),
+)
+
 const pageAllSelected = computed(() => {
+  if (isSectionUnit.value) {
+    const keys = pageSectionKeys.value
+    if (!keys.length) return false
+    const set = new Set(pickedSectionKeys.value)
+    return keys.every((k) => set.has(k))
+  }
   const codes = pageCourseCodes.value
   if (!codes.length) return false
   return codes.every((code) => isCoursePicked(code))
 })
 
 const pageSomeSelected = computed(() => {
+  if (isSectionUnit.value) {
+    const keys = pageSectionKeys.value
+    if (!keys.length) return false
+    const set = new Set(pickedSectionKeys.value)
+    let hit = 0
+    for (const k of keys) {
+      if (set.has(k)) hit += 1
+    }
+    return hit > 0 && hit < keys.length
+  }
   const codes = pageCourseCodes.value
   if (!codes.length) return false
   const n = codes.filter((code) => isCoursePicked(code)).length
   return n > 0 && n < codes.length
 })
 
+/** 已选数量：course=课号数；section=分组 ref 数 */
 const pickedCount = computed(() => {
-  if (isSectionUnit.value) {
-    return courseBlocks.value.filter((b) => isCourseFullyPicked(b)).length
-  }
+  if (isSectionUnit.value) return pickedSectionKeys.value.length
   return pickedCodes.value.length
 })
 
@@ -185,36 +224,81 @@ function groupLabelFor(secCode, section) {
   return t('courseRegistration.courses.sectionNameDisplay', { code: secCode })
 }
 
+/**
+ * @deprecated section 模式改为按分组键勾选后不再使用；保留避免外部误引用断裂
+ * @param {string} code
+ */
 function blockByCode(code) {
   return courseBlocks.value.find((b) => b.code === code) || null
 }
 
-function isCourseFullyPicked(block) {
-  const keys = block?.sectionKeys || []
-  if (!keys.length) return false
-  return keys.every((k) => pickedSectionKeys.value.includes(k))
+/**
+ * 课号是否已勾选（仅 course 模式）
+ * @param {string} code
+ */
+function isCoursePicked(code) {
+  return pickedCodes.value.includes(code)
 }
 
-function isCoursePicked(code) {
-  if (isSectionUnit.value) {
-    const block = blockByCode(code)
-    return block ? isCourseFullyPicked(block) : false
-  }
-  return pickedCodes.value.includes(code)
+/**
+ * 分组 ref 是否已勾选（section 模式）
+ * @param {string} sectionKey
+ */
+function isSectionPicked(sectionKey) {
+  if (!sectionKey) return false
+  return pickedSectionKeys.value.includes(sectionKey)
+}
+
+/**
+ * 行是否高亮为已选
+ * @param {object} row
+ */
+function isRowSelected(row) {
+  if (isSectionUnit.value) return isSectionPicked(row.sectionKey)
+  return isCoursePicked(row.code)
 }
 
 function courseSpan(row) {
   return row?._span?.course || { show: true, rowspan: 1 }
 }
 
+/**
+ * 切换课号勾选（course 模式）
+ * @param {string} code
+ */
 function toggleCourse(code) {
-  const block = blockByCode(code)
-  if (!block) return
+  const set = new Set(pickedCodes.value)
+  if (set.has(code)) set.delete(code)
+  else set.add(code)
+  pickedCodes.value = [...set]
+}
+
+/**
+ * 切换单个课程分组勾选（section 模式）
+ * @param {string} sectionKey
+ */
+function toggleSection(sectionKey) {
+  if (!sectionKey) return
+  const set = new Set(pickedSectionKeys.value)
+  if (set.has(sectionKey)) set.delete(sectionKey)
+  else set.add(sectionKey)
+  pickedSectionKeys.value = [...set]
+}
+
+/**
+ * 点击行：section 切分组，course 切课号
+ * @param {object} row
+ */
+function toggleRow(row) {
+  if (isSectionUnit.value) toggleSection(row.sectionKey)
+  else toggleCourse(row.code)
+}
+
+function togglePageSelectAll() {
   if (isSectionUnit.value) {
+    const keys = pageSectionKeys.value
     const set = new Set(pickedSectionKeys.value)
-    const keys = block.sectionKeys || []
-    const allOn = keys.length > 0 && keys.every((k) => set.has(k))
-    if (allOn) {
+    if (pageAllSelected.value) {
       for (const k of keys) set.delete(k)
     } else {
       for (const k of keys) set.add(k)
@@ -222,30 +306,7 @@ function toggleCourse(code) {
     pickedSectionKeys.value = [...set]
     return
   }
-  const set = new Set(pickedCodes.value)
-  if (set.has(code)) set.delete(code)
-  else set.add(code)
-  pickedCodes.value = [...set]
-}
-
-function togglePageSelectAll() {
   const codes = pageCourseCodes.value
-  if (isSectionUnit.value) {
-    const set = new Set(pickedSectionKeys.value)
-    if (pageAllSelected.value) {
-      for (const code of codes) {
-        const block = blockByCode(code)
-        for (const k of block?.sectionKeys || []) set.delete(k)
-      }
-    } else {
-      for (const code of codes) {
-        const block = blockByCode(code)
-        for (const k of block?.sectionKeys || []) set.add(k)
-      }
-    }
-    pickedSectionKeys.value = [...set]
-    return
-  }
   const set = new Set(pickedCodes.value)
   if (pageAllSelected.value) {
     for (const code of codes) set.delete(code)
@@ -253,6 +314,42 @@ function togglePageSelectAll() {
     for (const code of codes) set.add(code)
   }
   pickedCodes.value = [...set]
+}
+
+/** 当前过滤结果是否已全部勾选 */
+const filteredAllSelected = computed(() => {
+  const blocks = filteredBlocks.value
+  if (!blocks.length) return false
+  if (isSectionUnit.value) {
+    const set = new Set(pickedSectionKeys.value)
+    return blocks.every((b) => (b.sectionKeys || []).every((k) => set.has(k)))
+  }
+  const set = new Set(pickedCodes.value)
+  return blocks.every((b) => set.has(b.code))
+})
+
+/**
+ * 全选 / 取消全选：当前搜索过滤后的全部课或分组（非仅本页）
+ */
+function toggleFilteredSelectAll() {
+  const blocks = filteredBlocks.value
+  if (isSectionUnit.value) {
+    if (filteredAllSelected.value) {
+      pickedSectionKeys.value = []
+      return
+    }
+    const set = new Set()
+    for (const block of blocks) {
+      for (const k of block.sectionKeys || []) set.add(k)
+    }
+    pickedSectionKeys.value = [...set]
+    return
+  }
+  if (filteredAllSelected.value) {
+    pickedCodes.value = []
+    return
+  }
+  pickedCodes.value = blocks.map((b) => b.code)
 }
 
 watch(
@@ -333,9 +430,23 @@ function handleConfirm() {
               </div>
             </div>
           </div>
-          <p class="pick-hint">
-            {{ t(hintKey, { n: pickedCount }) }}
-          </p>
+          <div class="pick-hint-row">
+            <p class="pick-hint">
+              {{ t(hintKey, { n: pickedCount }) }}
+            </p>
+            <button
+              type="button"
+              class="btn btn-default pick-select-all-btn"
+              :disabled="!filteredBlocks.length"
+              @click="toggleFilteredSelectAll"
+            >
+              {{
+                filteredAllSelected
+                  ? t('courseRegistration.whitelist.clearFilteredSelection')
+                  : t('courseRegistration.whitelist.selectAllFiltered')
+              }}
+            </button>
+          </div>
           <div class="table-wrap">
             <table class="data-table">
               <thead>
@@ -345,15 +456,17 @@ function handleConfirm() {
                       ref="selectAllEl"
                       type="checkbox"
                       :checked="pageAllSelected"
-                      :disabled="!pageCourseCodes.length"
+                      :disabled="
+                        isSectionUnit ? !pageSectionKeys.length : !pageCourseCodes.length
+                      "
                       :aria-label="t('courseRegistration.whitelist.prereqSelectAllPage')"
                       @change="togglePageSelectAll"
                     />
                   </th>
                   <th>{{ t('courseRegistration.courses.code') }}</th>
                   <th>{{ t('courseRegistration.courses.name') }}</th>
-                  <th>{{ t('courseRegistration.student.fieldGroupNo') }}</th>
                   <th>{{ t('courseRegistration.courses.credits') }}</th>
+                  <th>{{ t('courseRegistration.student.fieldGroupNo') }}</th>
                   <th>{{ t('courseRegistration.courses.lecturer') }}</th>
                   <th>{{ t('courseRegistration.courses.classTimeVenue') }}</th>
                 </tr>
@@ -362,11 +475,23 @@ function handleConfirm() {
                 <tr
                   v-for="row in paginatedRows"
                   :key="row.rowKey"
-                  :class="{ selected: isCoursePicked(row.code) }"
-                  @click="toggleCourse(row.code)"
+                  :class="{ selected: isRowSelected(row) }"
+                  @click="toggleRow(row)"
                 >
+                  <!-- section：每行分组勾选；course：课级合并勾选 -->
                   <td
-                    v-if="courseSpan(row).show"
+                    v-if="isSectionUnit"
+                    class="col-check"
+                    @click.stop
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="isSectionPicked(row.sectionKey)"
+                      @change="toggleSection(row.sectionKey)"
+                    />
+                  </td>
+                  <td
+                    v-else-if="courseSpan(row).show"
                     class="col-check cell-course"
                     :rowspan="courseSpan(row).rowspan"
                     @click.stop
@@ -391,7 +516,6 @@ function handleConfirm() {
                   >
                     {{ row.name }}
                   </td>
-                  <td>{{ row.groupLabel }}</td>
                   <td
                     v-if="courseSpan(row).show"
                     class="cell-course"
@@ -399,6 +523,7 @@ function handleConfirm() {
                   >
                     {{ row.credits }}
                   </td>
+                  <td>{{ row.groupLabel }}</td>
                   <td>{{ row.lecturer }}</td>
                   <td class="col-time" :title="row.timeLines.join('\n') || undefined">
                     <template v-if="row.timeLines.length">
@@ -488,10 +613,26 @@ function handleConfirm() {
   border-radius: 8px;
   background: #f9fafb;
 }
-.pick-hint {
+.pick-hint-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin: 0 0 8px;
+}
+
+.pick-hint {
+  margin: 0;
   font-size: 12px;
   color: #6b7280;
+}
+
+.pick-select-all-btn {
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 .table-wrap {
   border: 1px solid #e5e7eb;

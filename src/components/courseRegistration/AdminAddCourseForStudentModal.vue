@@ -9,8 +9,25 @@ import {
   listTargetCourseSectionOptions,
   addAdminStudentRegistrations,
 } from '../../data/courseRegistration/registrationResult.js'
+import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
 import AdminAddSectionPickModal from './AdminAddSectionPickModal.vue'
 import AdminAddStudentPickModal from './AdminAddStudentPickModal.vue'
+
+/** 代选附件上限（对齐学生退课） */
+const MAX_ADMIN_ADD_ATTACHMENTS = 5
+
+/**
+ * 附件大小展示
+ * @param {number} bytes
+ * @returns {string}
+ */
+function formatAttachSize(bytes) {
+  const n = Number(bytes) || 0
+  if (n <= 0) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`
+}
 
 const props = defineProps({
   visible: Boolean,
@@ -25,6 +42,11 @@ const selectedStudents = ref([])
 const selectedSection = ref(null)
 const sectionPickerOpen = ref(false)
 const studentPickerOpen = ref(false)
+/** 代选原因（必填） */
+const adminAddReason = ref('')
+/** 代选附件列表（可选，仅文件名/大小；最多 5） */
+const adminAddAttachments = ref([])
+const attachmentInputRef = ref(null)
 const errorKey = ref('')
 
 const sectionOptions = computed(() =>
@@ -58,6 +80,9 @@ watch(
     selectedSection.value = null
     sectionPickerOpen.value = false
     studentPickerOpen.value = false
+    adminAddReason.value = ''
+    adminAddAttachments.value = []
+    if (attachmentInputRef.value) attachmentInputRef.value.value = ''
     errorKey.value = ''
   },
 )
@@ -92,6 +117,43 @@ function onPickStudents(rows) {
   errorKey.value = ''
 }
 
+/**
+ * 追加附件：仅保留文件名与大小（demo），最多 MAX_ADMIN_ADD_ATTACHMENTS
+ * @param {Event} event
+ */
+function onAttachmentsAdd(event) {
+  const files = Array.from(event?.target?.files || [])
+  if (attachmentInputRef.value) attachmentInputRef.value.value = ''
+  if (!files.length) return
+  const current = [...adminAddAttachments.value]
+  for (const file of files) {
+    if (current.length >= MAX_ADMIN_ADD_ATTACHMENTS) break
+    const name = String(file.name || '').trim()
+    if (!name) continue
+    const dup = current.some((item) => item.name === name && item.size === (file.size || 0))
+    if (dup) continue
+    current.push({ name, size: file.size || 0 })
+  }
+  adminAddAttachments.value = current
+  errorKey.value = ''
+}
+
+/**
+ * 移除单个附件
+ * @param {number} index
+ */
+function removeAttachment(index) {
+  const list = [...adminAddAttachments.value]
+  list.splice(index, 1)
+  adminAddAttachments.value = list
+}
+
+/** 清空全部附件 */
+function clearAttachments() {
+  adminAddAttachments.value = []
+  if (attachmentInputRef.value) attachmentInputRef.value.value = ''
+}
+
 function handleConfirm() {
   errorKey.value = ''
   if (!selectedStudents.value.length) {
@@ -100,6 +162,10 @@ function handleConfirm() {
   }
   if (!selectedSection.value?.value) {
     errorKey.value = 'courseRegistration.result.addSectionRequired'
+    return
+  }
+  if (!String(adminAddReason.value || '').trim()) {
+    errorKey.value = 'courseRegistration.result.addReasonRequired'
     return
   }
   if (selectedSectionFull.value) {
@@ -117,6 +183,8 @@ function handleConfirm() {
     targetValue: selectedSection.value.value,
     studentIds: selectedStudents.value.map((s) => s.studentId),
     allowOverCapacity: true,
+    adminAddReason: String(adminAddReason.value || '').trim(),
+    adminAddAttachments: adminAddAttachments.value,
   })
   if (!result.ok) {
     errorKey.value = result.errorKey
@@ -220,6 +288,83 @@ function handleConfirm() {
                 }}
               </button>
             </div>
+          </div>
+
+          <div class="form-row">
+            <label class="field-label">
+              {{ t('courseRegistration.result.addReasonLabel') }}
+              <span class="req">*</span>
+            </label>
+            <textarea
+              v-model="adminAddReason"
+              class="form-textarea"
+              rows="3"
+              :placeholder="t('courseRegistration.result.addReasonPlaceholder')"
+            />
+          </div>
+
+          <div class="form-row">
+            <label class="field-label">{{ t('courseRegistration.result.addAttachmentLabel') }}</label>
+            <div class="attach-row">
+              <label
+                class="btn attach-btn attach-btn--soft"
+                :class="{ 'is-disabled': adminAddAttachments.length >= MAX_ADMIN_ADD_ATTACHMENTS }"
+              >
+                {{ t('courseRegistration.student.chooseFile') }}
+                <input
+                  ref="attachmentInputRef"
+                  type="file"
+                  class="attach-input"
+                  multiple
+                  :disabled="adminAddAttachments.length >= MAX_ADMIN_ADD_ATTACHMENTS"
+                  accept=".pdf,.jpg,.jpeg,.png,.docx,application/pdf,image/*"
+                  @change="onAttachmentsAdd"
+                />
+              </label>
+              <span v-if="!adminAddAttachments.length" class="attach-name">
+                {{ t('courseRegistration.student.noFileChosen') }}
+              </span>
+              <button
+                v-if="adminAddAttachments.length"
+                type="button"
+                class="link-btn"
+                @click="clearAttachments"
+              >
+                {{ t('courseRegistration.result.addAttachmentClear') }}
+              </button>
+            </div>
+            <ul v-if="adminAddAttachments.length" class="attach-list">
+              <li
+                v-for="(file, idx) in adminAddAttachments"
+                :key="`${file.name}-${idx}`"
+                class="attach-list-item"
+              >
+                <AttachmentPreviewTrigger
+                  :file-name="file.name"
+                  :file-meta="{ fileName: file.name, size: file.size || 0 }"
+                  :download-label="file.name"
+                />
+                <span v-if="formatAttachSize(file.size)" class="attach-size">
+                  {{ formatAttachSize(file.size) }}
+                </span>
+                <button
+                  type="button"
+                  class="link-btn attach-remove"
+                  :aria-label="t('common.delete')"
+                  @click="removeAttachment(idx)"
+                >
+                  {{ t('common.delete') }}
+                </button>
+              </li>
+            </ul>
+            <p class="field-hint">
+              {{ t('courseRegistration.result.addAttachmentOptional') }}
+              {{
+                t('courseRegistration.result.addAttachmentMaxCount', {
+                  n: MAX_ADMIN_ADD_ATTACHMENTS,
+                })
+              }}
+            </p>
           </div>
 
           <p v-if="errorKey" class="field-error">{{ t(errorKey) }}</p>
@@ -355,6 +500,97 @@ function handleConfirm() {
 .form-input[readonly] {
   background: #f9fafb;
   cursor: default;
+}
+
+.form-textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #111827;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.attach-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.attach-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+}
+
+.attach-btn--soft {
+  border: 1px solid #93c5fd;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.attach-btn--soft:hover {
+  background: #bfdbfe;
+  border-color: #60a5fa;
+}
+
+.attach-btn--soft.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.attach-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.attach-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attach-list-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.attach-size {
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.attach-remove {
+  color: #b91c1c;
+}
+
+.attach-name {
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.link-btn {
+  border: none;
+  background: none;
+  color: #2563eb;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
 }
 
 .tag-field {

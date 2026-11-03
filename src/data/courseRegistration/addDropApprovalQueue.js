@@ -35,10 +35,57 @@ import { ADD_DROP_TYPE_TABS, isShieldedAddDropType } from './addDropListColumns.
 import { matchesPrimaryTypeFilter, ADD_DROP_PRIMARY_TYPES } from './addDropFormSections.js'
 import {
   addDropLineKey,
+  addDropApprovalLineKey,
   summarizeLineDecisions,
   sumApplicationActionCredits,
-  buildDemoTermCreditStripFromItems,
+  buildApprovalDecisionTermCreditStrip,
+  buildLiveConfirmedTermCreditStrip,
 } from './addDropMultiItems.js'
+import {
+  buildFeeEstimateFromApplicationItems,
+  sumAddGraduationExcessBillable,
+  sumRetakeFullBillableCredits,
+} from './addDropFeeRates.js'
+import { buildAddDropPlanRemaining } from './studentRegistrationContext.js'
+
+/** 行决策为通过（缺省在已通过整单时视为通过） */
+function isApprovedLineDecision(item, status) {
+  const d = String(item?.lineDecision || '').trim()
+  if (d === 'approved') return true
+  if (d === 'rejected' || d === 'update_required' || d === 'pending') return false
+  return status === 'Approved'
+}
+
+/** 审结后计入选课生效 / 账单的行 */
+export function filterApprovedAddDropItems(app) {
+  const status = String(app?.status || '')
+  if (status === 'Rejected') return []
+  const items = app?.items || []
+  if (status === 'Approved' || status === 'PartiallyApproved') {
+    return items.filter((item) => isApprovedLineDecision(item, status))
+  }
+  return items
+}
+
+/**
+ * 按通过行重建费用快照（部分通过不含不通过/驳回课）
+ * @param {object} app
+ * @param {object[]} approvedItems
+ */
+function buildPostDecisionFeePatch(app, approvedItems) {
+  const feeEstimate = buildFeeEstimateFromApplicationItems(
+    { ...app, items: approvedItems },
+    buildAddDropPlanRemaining(app.studentId),
+    app.studentCategory || 'Local',
+  )
+  return {
+    feeEstimate,
+    billAmount: Number(feeEstimate?.total) || 0,
+    excessCredits: sumAddGraduationExcessBillable(feeEstimate),
+    billableCredits: Number(feeEstimate?.billableCredits) || 0,
+    retakeCredits: sumRetakeFullBillableCredits(feeEstimate),
+  }
+}
 
 const initialQueue = [
   {
@@ -72,7 +119,8 @@ const initialQueue = [
       gradGeMax: 18,
       gradMeCurrent: 22,
       gradMeMax: 24,
-      gradMandatoryCurrent: 54,
+      // 毕业必修与学期必修同源
+      gradMandatoryCurrent: 13,
       gradMandatoryMax: 72,
       mandatorySelected: 13,
     },
@@ -163,6 +211,7 @@ const initialQueue = [
     billAmount: 320,
     retakeType: 'failed',
     addNotes: 'Prefer Friday afternoon section if available.',
+    retakeNotes: '',
     items: [
       {
         action: 'Retake',
@@ -174,6 +223,9 @@ const initialQueue = [
         time: 'Fri 14:00–16:00',
         retakeGrade: 'M',
         fee: 320,
+        // 详情「曾修课程」列 demo
+        replacesCourseCode: 'MATH201',
+        replacesCourseName: 'Linear Algebra',
       },
     ],
     schedule: [
@@ -251,6 +303,7 @@ const initialQueue = [
         time: 'Mon 14:00–16:00',
         fee: 550,
         lineDecision: 'approved',
+        lineComment: '符合学期 GE 进度，同意加课。',
       },
       {
         action: 'Add',
@@ -263,6 +316,7 @@ const initialQueue = [
         time: 'Tue 10:00–12:00',
         fee: 550,
         lineDecision: 'approved',
+        lineComment: '',
       },
     ],
     schedule: [],
@@ -297,6 +351,7 @@ const initialQueue = [
         retakeGrade: 'F',
         fee: 1100,
         lineDecision: 'rejected',
+        lineComment: '本学期名额已满，建议下学期再申请重修。',
       },
       {
         action: 'Retake',
@@ -309,6 +364,7 @@ const initialQueue = [
         retakeGrade: 'F',
         fee: 550,
         lineDecision: 'approved',
+        lineComment: '成绩与课表核对无误，同意重修。',
       },
     ],
     schedule: [],
@@ -514,7 +570,8 @@ const initialQueue = [
       gradGeMax: 18,
       gradMeCurrent: 22,
       gradMeMax: 24,
-      gradMandatoryCurrent: 54,
+      // 毕业必修与学期必修同源
+      gradMandatoryCurrent: 13,
       gradMandatoryMax: 72,
       mandatorySelected: 13,
     },
@@ -573,7 +630,8 @@ const initialQueue = [
     paymentDueAt: '2026-07-22 23:59:00',
     sstAmount: 33,
     retakeType: 'failed',
-    addNotes: '退统计导论后重修线性代数，课表已核对无冲突。',
+    addNotes: '',
+    retakeNotes: '退统计导论后重修线性代数，课表已核对无冲突。',
     dropReason: '重修线性代数，退选统计导论腾出名额',
     reason: '重修线性代数，退选统计导论腾出名额',
     feeEstimate: {
@@ -609,6 +667,8 @@ const initialQueue = [
         retakeGrade: 'F',
         fee: 550,
         lineDecision: 'approved',
+        replacesCourseCode: 'MATH201',
+        replacesCourseName: 'Linear Algebra',
       },
     ],
     schedule: [],
@@ -658,7 +718,7 @@ export function filterAddDropQueue(rows, tab, filters = {}) {
     })
   }
   if (filters.type) {
-    list = list.filter((r) => matchesPrimaryTypeFilter(r.type, filters.type))
+    list = list.filter((r) => matchesPrimaryTypeFilter(r.type, filters.type, r))
   }
   if (filters.status) {
     list = list.filter((r) => r.status === filters.status)
@@ -754,28 +814,61 @@ export function addDropApplicationHasBillableFee(app) {
   return Number.isFinite(excess) && excess > 0
 }
 
+/**
+ * 从 options.lineComments 取某行意见
+ * @param {object|null} lineComments
+ * @param {object} item
+ * @param {number} idx
+ */
+function resolveLineCommentFromOptions(lineComments, item, idx) {
+  if (!lineComments) return String(item?.lineComment || '').trim()
+  const bareKey = addDropLineKey(item)
+  const approvalKey = addDropApprovalLineKey(item, idx)
+  const raw =
+    lineComments[idx] ??
+    lineComments[approvalKey] ??
+    lineComments[bareKey] ??
+    lineComments[item?.courseCode] ??
+    item?.lineComment
+  return String(raw || '').trim()
+}
+
 export function approveAddDropApplication(id, comment = '', generateBill = true, options = {}) {
   const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
   const app = addDropApprovalQueue.value[index]
 
   const lineDecisions = options.lineDecisions || null
+  const lineComments = options.lineComments || null
   const items = (app.items || []).map((item, idx) => {
-    const key = addDropLineKey(item)
+    const bareKey = addDropLineKey(item)
+    const approvalKey = addDropApprovalLineKey(item, idx)
     const fromMap =
       lineDecisions?.[idx] ??
-      lineDecisions?.[key] ??
+      lineDecisions?.[approvalKey] ??
+      lineDecisions?.[bareKey] ??
       lineDecisions?.[item.courseCode]
     const decision = fromMap || item.lineDecision || 'approved'
-    return { ...item, lineDecision: decision === 'rejected' ? 'rejected' : 'approved' }
+    return {
+      ...item,
+      lineDecision: decision === 'rejected' ? 'rejected' : 'approved',
+      // 行级评价意见写入课行
+      lineComment: resolveLineCommentFromOptions(lineComments, item, idx),
+    }
   })
   const status = summarizeLineDecisions(items)
   const approvedItems = items.filter((i) => i.lineDecision === 'approved')
+  const draftForStrip = { ...app, items, status }
+  const termCreditStrip = buildApprovalDecisionTermCreditStrip(draftForStrip, {})
+  const feePatch = buildPostDecisionFeePatch(draftForStrip, approvedItems)
+  const fee = Number(feePatch.billAmount) || 0
 
   // 超分为加课常态：不因学分超限拦截，仅核对信息后可通过
   const patch = {
     items,
     status,
+    termCreditStrip,
+    ...feePatch,
     approvalLog: [
       ...app.approvalLog,
       {
@@ -787,15 +880,12 @@ export function approveAddDropApplication(id, comment = '', generateBill = true,
       },
     ],
   }
-  const feeBase = { ...app, items: approvedItems }
-  const fee = resolveAddDropBillAmount(feeBase)
   if (generateBill && fee > 0 && status !== 'Rejected') {
     const hasRetake =
       approvedItems.some((i) => i.action === 'Retake') ||
       String(app.type || '') === 'Retake' ||
       String(app.type || '') === 'RetakeDrop'
     patch.billStatus = 'pending'
-    patch.billAmount = fee
     if (hasRetake) {
       // 重修通过后付费默认 72 小时
       patch.paymentGraceDays = null
@@ -809,23 +899,24 @@ export function approveAddDropApplication(id, comment = '', generateBill = true,
     }
     // 通过后催缴次数从 0 起；仅点击「发送邮件提醒」后累计
     patch.paymentRemindCount = 0
+  } else if (status === 'Rejected' || fee <= 0) {
+    patch.billStatus = app.billStatus === 'paid' ? app.billStatus : ''
+    patch.billAmount = 0
+    patch.paymentDueAt = ''
   }
+  const needsPayment = Boolean(generateBill && fee > 0 && status !== 'Rejected')
   addDropApprovalQueue.value[index] = { ...app, ...patch }
 
-  // 写回选课 / 缴费名单失败不回滚已通过状态（原型侧写）；仅生效通过行
+  // 写回选课 / 缴费名单失败不回滚已通过状态（原型侧写）
   try {
-    const currentId = getStudentProfileFields().studentId
-    if (app.studentId === currentId && approvedItems.length) {
-      for (const item of approvedItems) {
-        if (item.action === 'Drop' && item.courseCode) {
-          dropConfirmedCourseByCode(item.courseCode)
-        }
-      }
-      confirmCoursesFromAddDropItems(approvedItems, {
-        seatAlreadyHeld: Boolean((app.seatHolds || []).length),
-      })
+    // 无应付：审批结束即落课；有应付：缴费成功后再落课（学分随之变）
+    if (!needsPayment && approvedItems.length) {
+      applyApprovedAddDropScheduleEffects(
+        { ...app, ...patch, scheduleApplied: false },
+        approvedItems,
+      )
     }
-    if (generateBill && fee > 0 && status !== 'Rejected') {
+    if (needsPayment) {
       appendFeeRosterFromApproval({ ...app, ...patch, items: approvedItems })
       // 动态 import，避免与 studentCoursePaymentStore 循环依赖
       import('./studentCoursePaymentStore.js')
@@ -843,6 +934,40 @@ export function approveAddDropApplication(id, comment = '', generateBill = true,
   }
 
   return { ok: true, status }
+}
+
+/**
+ * 将通过行落入当前学生课表（退课 + 确认加/重修）
+ * @param {object} app
+ * @param {object[]} [approvedItems]
+ */
+export function applyApprovedAddDropScheduleEffects(app, approvedItems = null) {
+  if (!app?.id) return { ok: false }
+  if (app.scheduleApplied) return { ok: true, skipped: true }
+  const items =
+    approvedItems ||
+    filterApprovedAddDropItems({ ...app, status: app.status || 'Approved' })
+  if (!items.length) return { ok: true, skipped: true }
+  const currentId = getStudentProfileFields().studentId
+  if (app.studentId !== currentId) return { ok: false, reason: 'not_current_student' }
+  for (const item of items) {
+    if (item.action === 'Drop' && item.courseCode) {
+      dropConfirmedCourseByCode(item.courseCode)
+    }
+  }
+  confirmCoursesFromAddDropItems(items, {
+    seatAlreadyHeld: Boolean((app.seatHolds || []).length),
+  })
+  const liveStrip = buildLiveConfirmedTermCreditStrip()
+  const index = addDropApprovalQueue.value.findIndex((a) => a.id === app.id)
+  if (index >= 0) {
+    addDropApprovalQueue.value[index] = {
+      ...addDropApprovalQueue.value[index],
+      scheduleApplied: true,
+      termCreditStrip: liveStrip,
+    }
+  }
+  return { ok: true }
 }
 
 /** 再次发送缴费提醒邮件：次数 +1 */
@@ -909,51 +1034,97 @@ export function ensureApplicationItems(app) {
 }
 
 /**
- * 详情/审批：补齐学分要求快照与本次申请三学分（无则按 items 兜底）
+ * 详情/审批：按环节行决策投影学分要求，并补齐本次申请三学分
+ * 待审无决策=全量计入；审结后仅通过行计入（与审批弹框同源）
  * @param {object|null} app
  */
 export function ensureApplicationDetailCredits(app) {
   if (!app) return app
   const base = ensureApplicationItems(app)
   const items = base.items || []
-  const applicationCredits =
-    base.applicationCredits &&
-    typeof base.applicationCredits === 'object'
+  const status = String(base.status || '')
+  const settled =
+    status === 'Approved' || status === 'PartiallyApproved' || status === 'Rejected'
+  const creditItems = settled ? filterApprovedAddDropItems(base) : items
+  const applicationCredits = settled
+    ? sumApplicationActionCredits(creditItems)
+    : base.applicationCredits && typeof base.applicationCredits === 'object'
       ? {
           add: Number(base.applicationCredits.add) || 0,
           retake: Number(base.applicationCredits.retake) || 0,
           drop: Number(base.applicationCredits.drop) || 0,
         }
       : sumApplicationActionCredits(items)
-  // 有自定义基线时按 items 重算投影（真超额 demo）；否则保留快照或默认基线兜底
-  const termCreditStrip = items.length
-    ? base.termCreditStripBaseline
-      ? buildDemoTermCreditStripFromItems(items, base.termCreditStripBaseline)
-      : base.termCreditStrip || buildDemoTermCreditStripFromItems(items)
-    : base.termCreditStrip || null
+  // 当前生已落课/已付款/已拒绝：详情与二次申请顶栏均用课表确认态
+  const currentId = getStudentProfileFields().studentId
+  const isCurrentStudent = String(base.studentId || '') === String(currentId || '')
+  const billPending = String(base.billStatus || '') === 'pending'
+  const useLiveStrip =
+    settled &&
+    isCurrentStudent &&
+    (base.scheduleApplied ||
+      base.billStatus === 'paid' ||
+      status === 'Rejected' ||
+      !billPending)
+
+  const termCreditStrip = useLiveStrip
+    ? buildLiveConfirmedTermCreditStrip()
+    : items.length
+      ? buildApprovalDecisionTermCreditStrip(base, {})
+      : base.termCreditStrip || null
+
+  let feeEstimate = base.feeEstimate
+  if (settled) {
+    feeEstimate = buildFeeEstimateFromApplicationItems(
+      { ...base, items: filterApprovedAddDropItems(base) },
+      buildAddDropPlanRemaining(base.studentId),
+      base.studentCategory || 'Local',
+    )
+  }
+
   if (
     base.applicationCredits?.add === applicationCredits.add &&
     base.applicationCredits?.retake === applicationCredits.retake &&
     base.applicationCredits?.drop === applicationCredits.drop &&
-    base.termCreditStrip === termCreditStrip
+    base.termCreditStrip === termCreditStrip &&
+    base.feeEstimate === feeEstimate
   ) {
     return base
   }
-  return { ...base, applicationCredits, termCreditStrip }
+  return { ...base, applicationCredits, termCreditStrip, feeEstimate }
 }
 
-export function rejectAddDropApplication(id, comment = '') {
+/**
+ * 拒绝整单；可选写入各行 lineComment
+ * @param {string} id
+ * @param {string} [comment]
+ * @param {{ lineComments?: object }} [options]
+ */
+export function rejectAddDropApplication(id, comment = '', options = {}) {
   const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
   const app = addDropApprovalQueue.value[index]
   if (app.status === 'Pending' || app.status === 'In Review') {
     releaseSeatsForApplication(app)
   }
-  const items = (app.items || []).map((item) => ({ ...item, lineDecision: 'rejected' }))
+  const lineComments = options.lineComments || null
+  const items = (app.items || []).map((item, idx) => ({
+    ...item,
+    lineDecision: 'rejected',
+    lineComment: resolveLineCommentFromOptions(lineComments, item, idx),
+  }))
+  const draft = { ...app, items, status: 'Rejected' }
+  const termCreditStrip = buildApprovalDecisionTermCreditStrip(draft, {})
+  const feePatch = buildPostDecisionFeePatch(draft, [])
   addDropApprovalQueue.value[index] = {
     ...app,
     items,
     status: 'Rejected',
+    termCreditStrip,
+    ...feePatch,
+    billStatus: '',
+    billAmount: 0,
+    paymentDueAt: '',
     seatHolds: [],
     approvalLog: [
       ...app.approvalLog,
@@ -969,13 +1140,26 @@ export function rejectAddDropApplication(id, comment = '') {
   return { ok: true }
 }
 
-/** Update Required：记日志，保持 Pending */
-export function requestAddDropUpdate(id, comment = '') {
+/**
+ * Update Required：记日志，保持 Pending；可选写入各行 lineComment
+ * @param {string} id
+ * @param {string} [comment]
+ * @param {{ lineComments?: object }} [options]
+ */
+export function requestAddDropUpdate(id, comment = '', options = {}) {
   const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
   const app = addDropApprovalQueue.value[index]
+  const lineComments = options.lineComments || null
+  const items = lineComments
+    ? (app.items || []).map((item, idx) => ({
+        ...item,
+        lineComment: resolveLineCommentFromOptions(lineComments, item, idx),
+      }))
+    : app.items
   addDropApprovalQueue.value[index] = {
     ...app,
+    items,
     status: 'Pending',
     approvalLog: [
       ...app.approvalLog,
@@ -994,16 +1178,23 @@ export function requestAddDropUpdate(id, comment = '') {
 /**
  * 统一决策入口（单条/批量）
  * @param {'Approved'|'Rejected'|'Update Required'} action
+ * @param {string} [comment]
+ * @param {{ generateBill?: boolean, lineDecisions?: object, lineComments?: object }} [options]
  */
 export function decideAddDropApplication(id, action, comment = '', options = {}) {
   const generateBill = options.generateBill !== false
   if (action === 'Approved') {
     return approveAddDropApplication(id, comment, generateBill, {
       lineDecisions: options.lineDecisions,
+      lineComments: options.lineComments,
     })
   }
-  if (action === 'Rejected') return rejectAddDropApplication(id, comment)
-  if (action === 'Update Required') return requestAddDropUpdate(id, comment)
+  if (action === 'Rejected') {
+    return rejectAddDropApplication(id, comment, { lineComments: options.lineComments })
+  }
+  if (action === 'Update Required') {
+    return requestAddDropUpdate(id, comment, { lineComments: options.lineComments })
+  }
   return { ok: false, errorKey: 'courseRegistration.approval.invalidAction' }
 }
 
@@ -1013,10 +1204,12 @@ export function setAddDropLineDecision(id, itemKeyOrIndex, decision) {
   if (index === -1) return { ok: false }
   const app = addDropApprovalQueue.value[index]
   const items = (app.items || []).map((item, idx) => {
-    const key = addDropLineKey(item)
+    const bareKey = addDropLineKey(item)
+    const approvalKey = addDropApprovalLineKey(item, idx)
     const match =
       itemKeyOrIndex === idx ||
-      itemKeyOrIndex === key ||
+      itemKeyOrIndex === approvalKey ||
+      itemKeyOrIndex === bareKey ||
       itemKeyOrIndex === item.courseCode
     if (!match) return item
     return { ...item, lineDecision: decision }
@@ -1031,6 +1224,12 @@ export const ALL_ADD_DROP_ACTIONS = [...ADD_DROP_TYPE_TABS]
 
 let studentAdrSeq = 9005
 
+/**
+ * 白名单有效权限 → 允许的申请类型（含三是否合并提交的组合类型）
+ * @param {object|null|undefined} entry
+ * @param {Date} [now]
+ * @returns {string[]}
+ */
 function actionsFromSupplementEntry(entry, now = new Date()) {
   if (!entry) return []
   // 窗外/新生：须补注册门有效；动作看各权限是否有效
@@ -1045,6 +1244,9 @@ function actionsFromSupplementEntry(entry, now = new Date()) {
   if (canRetake) actions.push('Retake')
   if (canAdd && canDrop) actions.push('AddDrop')
   if (canRetake && canDrop) actions.push('RetakeDrop')
+  // 三是否合并提交：加课+重修 / 加课+退课+重修 为合法组合，不另开权限键
+  if (canAdd && canRetake) actions.push('AddRetake')
+  if (canAdd && canDrop && canRetake) actions.push('AddDropRetake')
   return actions
 }
 
@@ -1165,13 +1367,20 @@ function releaseSeatsForApplication(app) {
 export function submitStudentAddDropApplication(studentFields, items, options = {}) {
   if (!items?.length) return { ok: false, errorKey: 'courseRegistration.student.addDropEmpty' }
 
-  const inferredType =
-    options.type ||
-    (items.some((i) => i.action === 'Retake') && items.some((i) => i.action === 'Drop')
-      ? 'RetakeDrop'
-      : items.length > 1
-        ? 'AddDrop'
-        : items[0]?.action)
+  // 无显式 type 时按 items 反推（与三是否合并类型对齐，避免多课误判为 AddDrop）
+  const hasAddItem = items.some((i) => i.action === 'Add')
+  const hasDropItem = items.some((i) => i.action === 'Drop')
+  const hasRetakeItem = items.some((i) => i.action === 'Retake')
+  let inferredFromItems = items[0]?.action || ''
+  if (hasAddItem && hasRetakeItem && hasDropItem) inferredFromItems = 'AddDropRetake'
+  else if (hasAddItem && hasRetakeItem) inferredFromItems = 'AddRetake'
+  else if (hasAddItem && hasDropItem) inferredFromItems = 'AddDrop'
+  else if (hasRetakeItem && hasDropItem) inferredFromItems = 'RetakeDrop'
+  else if (hasAddItem) inferredFromItems = 'Add'
+  else if (hasRetakeItem) inferredFromItems = 'Retake'
+  else if (hasDropItem) inferredFromItems = 'Drop'
+
+  const inferredType = options.type || inferredFromItems
 
   const gate = canStudentSubmitAddDrop(studentFields.studentId, getActiveBatch(), inferredType)
   if (!gate.ok) return gate
@@ -1221,8 +1430,12 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
     contactPhone: options.contactPhone || '',
     primaryType: options.primaryType || '',
     needDrop: options.needDrop === 'yes' || options.needDrop === 'no' ? options.needDrop : '',
+    needAdd: options.needAdd === 'yes' || options.needAdd === 'no' ? options.needAdd : '',
+    needRetake:
+      options.needRetake === 'yes' || options.needRetake === 'no' ? options.needRetake : '',
     addType: options.addType || '',
     addNotes: options.addNotes || '',
+    retakeNotes: options.retakeNotes || '',
     dropReason: options.dropReason || options.reason || '',
     previouslyTakenCourse: options.previouslyTakenCourse || '',
     gradeEarned: options.gradeEarned || '',

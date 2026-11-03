@@ -4,6 +4,10 @@ import { useAppI18n } from '../../composables/useAppI18n.js'
 defineProps({
   visible: Boolean,
   title: { type: String, default: '' },
+  /**
+   * 课表等场景：学号/Staff ID + 姓名（过长省略，完整看 title 属性）
+   */
+  personLine: { type: String, default: '' },
   subtitle: { type: String, default: '' },
   /** 课表等场景：收紧内边距，减少底部空白与滚动条 */
   dense: { type: Boolean, default: false },
@@ -25,8 +29,15 @@ function handleClose() {
     <div v-if="visible" class="drawer-overlay" :class="{ 'is-dense': dense }" @click.self="handleClose">
       <aside class="drawer-panel" role="dialog" aria-modal="true" @click.stop>
         <div class="drawer-header">
-          <div>
+          <div class="drawer-header-text">
             <h2 class="drawer-title">{{ title || t('common.details') }}</h2>
+            <p
+              v-if="personLine"
+              class="drawer-person-line"
+              :title="personLine"
+            >
+              {{ personLine }}
+            </p>
             <p v-if="subtitle" class="drawer-subtitle">{{ subtitle }}</p>
           </div>
           <button type="button" class="drawer-close" :aria-label="t('common.close')" @click="handleClose">×</button>
@@ -73,11 +84,27 @@ function handleClose() {
   flex-shrink: 0;
 }
 
+.drawer-header-text {
+  min-width: 0;
+  flex: 1;
+  padding-right: 12px;
+}
+
 .drawer-title {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
   color: #111827;
+}
+
+.drawer-person-line {
+  margin: 6px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .drawer-subtitle {

@@ -10,10 +10,25 @@ import { formatIntakeBatch } from '../intakeSets.js'
 import {
   formatClassTimeVenueLine,
   getSectionMeetings,
+  displayClassTimeVenueLines,
 } from './sectionScheduleFields.js'
 
-const OWNER_POOL = ['Tan Poh Qing', 'Erica Seng Ee-Su', 'Ng Kee Ong', 'AC Lee', 'Ms. Chan']
-const STUDY_MODES = ['Normal', 'Normal', 'Normal', 'Retake', 'Normal']
+/** 名单 demo：每课班最多保留时段数，避免时间地点列过宽 */
+const ROSTER_DEMO_MAX_MEETINGS = 2
+import { STUDY_MODE_KEYS, studyModeLabel } from './studyMode.js'
+
+/** 负责人 demo：短名，避免名单表被撑出横滑 */
+const OWNER_POOL = ['Tan P.Q.', 'Erica Seng', 'Ng K.O.', 'AC Lee', 'Ms. Chan']
+/** 修读方式 demo：正常为主，间插两种重修 */
+const STUDY_MODES = [
+  'normal',
+  'normal',
+  'normal',
+  'retakeSameCourse',
+  'normal',
+  'retakeSameGroup',
+  'normal',
+]
 /** 学籍异动 demo 取值对齐旧导出参考（以 CHS 为主，间插 ENG） */
 const MOVEMENT_STATUSES = [
   'CHS',
@@ -63,16 +78,26 @@ export function toCompactIntake(intake) {
 }
 
 /**
- * 上课时间地点：与在线选课同一套中英文文案，多时段用「; 」拼单行
+ * 上课时间地点行列表（表格分行用）
+ * @param {{ meetings?: object[] }|object} rowOrSection
+ * @param {'zh'|'en'|boolean} [locale='zh']
+ * @returns {string[]}
+ */
+export function rosterClassTimeVenueLines(rowOrSection, locale = 'zh') {
+  if (Array.isArray(rowOrSection?.meetings) && rowOrSection.meetings.length) {
+    return rowOrSection.meetings.map((m) => formatClassTimeVenueLine(m, locale)).filter(Boolean)
+  }
+  return displayClassTimeVenueLines(rowOrSection, locale)
+}
+
+/**
+ * 上课时间地点：与在线选课同一套中英文文案，多时段用「; 」拼单行（导出/title）
  * @param {{ meetings?: object[] }|object} rowOrSection
  * @param {'zh'|'en'|boolean} [locale='zh']
  */
 export function formatRosterClassTimeVenue(rowOrSection, locale = 'zh') {
-  const meetings = Array.isArray(rowOrSection?.meetings)
-    ? rowOrSection.meetings
-    : getSectionMeetings(rowOrSection)
-  if (!meetings.length) return ''
-  return meetings.map((m) => formatClassTimeVenueLine(m, locale)).join('; ')
+  const lines = rosterClassTimeVenueLines(rowOrSection, locale)
+  return lines.length ? lines.join('; ') : ''
 }
 
 function buildRosterRows() {
@@ -102,7 +127,8 @@ function buildRosterRows() {
         section.sectionName ||
         `${course.name || course.code}${sectionCode ? ` (${sectionCode})` : ''}`
       const lecturer = section.lecturer || ''
-      const meetings = getSectionMeetings(section)
+      // demo：最多 2 个时段，减轻时间地点列宽度
+      const meetings = getSectionMeetings(section).slice(0, ROSTER_DEMO_MAX_MEETINGS)
       // 每课班挂 2～4 名学生
       const n = 2 + (sectionSeq % 3)
       for (let i = 0; i < n; i += 1) {
@@ -157,8 +183,12 @@ export function listSectionRosterProgrammes(rows = sectionStudentRosterQueue.val
   return [...new Set(rows.map((r) => r.programme).filter(Boolean))].sort()
 }
 
-export function listSectionRosterStudyModes(rows = sectionStudentRosterQueue.value) {
-  return [...new Set(rows.map((r) => r.studyMode).filter(Boolean))].sort()
+/**
+ * 修读方式筛选项（固定三值，不依赖当前页数据）
+ * @returns {string[]}
+ */
+export function listSectionRosterStudyModes() {
+  return [...STUDY_MODE_KEYS]
 }
 
 /**
@@ -226,7 +256,14 @@ export function filterSectionStudentRoster(rows, filters = {}) {
   }
   const studyMode = String(filters.studyMode || '').trim()
   if (studyMode) {
-    list = list.filter((r) => includesRosterKw(r.studyMode, studyMode))
+    // 精确匹配枚举键（兼容旧 Normal/Retake 模糊）
+    list = list.filter((r) => {
+      const mode = String(r.studyMode || '').trim()
+      if (mode === studyMode) return true
+      if (studyMode === 'normal' && mode === 'Normal') return true
+      if (studyMode === 'retakeSameCourse' && mode === 'Retake') return true
+      return false
+    })
   }
   return list
 }
@@ -241,8 +278,11 @@ export function sumRosterCredits(rows = []) {
  * @param {(key: string) => string} [_t]
  * @param {'zh'|'en'|boolean} [locale='zh']
  */
-export function formatSectionStudentRosterExportRow(row, _t, locale = 'zh') {
+export function formatSectionStudentRosterExportRow(row, t, locale = 'zh') {
   const courseCode = row.courseCode || ''
+  const modeRaw = row.studyMode || ''
+  const modeLabel =
+    typeof t === 'function' ? studyModeLabel(modeRaw, t) : modeRaw
   return {
     rosterId: row.rosterId ?? '',
     sectionId: row.sectionId ?? '',
@@ -258,7 +298,7 @@ export function formatSectionStudentRosterExportRow(row, _t, locale = 'zh') {
     grade: row.intakeCompact || toCompactIntake(row.intake) || '',
     movementStatus: row.movementStatus || '',
     programme: row.programme || '',
-    studyMode: row.studyMode || '',
+    studyMode: modeLabel,
     lecturers: row.lecturers || '',
     classTimeVenue: formatRosterClassTimeVenue(row, locale),
     owner: row.owner || '',

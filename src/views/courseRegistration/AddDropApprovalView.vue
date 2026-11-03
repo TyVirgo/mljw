@@ -37,7 +37,7 @@ import {
 } from '../../data/courseRegistration/sectionScheduleFields.js'
 import { getAddDropApprovalListColumns, isShieldedAddDropType } from '../../data/courseRegistration/addDropListColumns.js'
 import {
-  addDropTypeLabelKey,
+  formatAddDropApplicationTypeLabel,
   addDropTypeTagClass,
   addDropPrimaryOptionLabelKey,
   resolveAppNeedDrop,
@@ -46,7 +46,8 @@ import { addDropStatusBadgeClass } from '../../data/courseRegistration/addDropSt
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 import {
   formatAmountRmb,
-  resolveAddDropExcessCredits,
+  resolveAddDropGradExcessCredits,
+  resolveAddDropRetakeBillableCredits,
 } from '../../data/courseRegistration/addDropFeeRates.js'
 import {
   ensureHistoryPaymentDueDemo,
@@ -58,6 +59,7 @@ import {
   buildPaymentRemindDraft,
   collectApprovalPaymentExportLines,
 } from '../../data/courseRegistration/adminAddDropPaymentInsight.js'
+import { mergeLiveUnpaidFromApproval } from '../../data/courseRegistration/studentCoursePaymentStore.js'
 import {
   ensureDateTimeWithSeconds,
   registrationAcademicSessionOptions,
@@ -197,12 +199,18 @@ function canApproveRow(row) {
   return row.status === 'Pending' || row.status === 'In Review'
 }
 
-function typeLabel(type) {
-  return t(addDropTypeLabelKey(type))
+function typeLabel(appOrType) {
+  if (appOrType && typeof appOrType === 'object') {
+    return formatAddDropApplicationTypeLabel(appOrType, t)
+  }
+  return formatAddDropApplicationTypeLabel({ type: appOrType }, t)
 }
 
-function typeClass(type) {
-  return addDropTypeTagClass(type)
+function typeClass(appOrType) {
+  if (appOrType && typeof appOrType === 'object') {
+    return addDropTypeTagClass(appOrType.type, appOrType)
+  }
+  return addDropTypeTagClass(appOrType)
 }
 
 /** 筛选主类型三选一文案 */
@@ -288,8 +296,14 @@ function listFee(row) {
   return formatAmountRmb(amount)
 }
 
+/** 列表「超出学分」：加课毕业超出计费 */
 function listExcessCredits(row) {
-  return resolveAddDropExcessCredits(row)
+  return resolveAddDropGradExcessCredits(row)
+}
+
+/** 列表「重修学分」：重修缴费学分 */
+function listRetakeCredits(row) {
+  return resolveAddDropRetakeBillableCredits(row)
 }
 
 function listRetakeType(row) {
@@ -327,6 +341,7 @@ const COLUMN_HEADER_KEYS = {
   venue: 'courseRegistration.student.fieldVenue',
   lecturers: 'courseRegistration.student.fieldLecturers',
   excessCredits: 'courseRegistration.student.fieldExcessCredits',
+  retakeCredits: 'courseRegistration.student.fieldRetakeCreditsList',
   fee: 'courseRegistration.student.feeEstimateShort',
   retakeType: 'courseRegistration.student.retakeTypeLabel',
   feeWaiver: 'courseRegistration.student.feeWaiverLabel',
@@ -351,6 +366,7 @@ function columnClass(col) {
   if (col === 'classTimeVenue') return 'col-time-venue'
   if (col === 'needDrop') return 'col-compact col-need-drop'
   if (col === 'excessCredits') return 'col-compact col-excess'
+  if (col === 'retakeCredits') return 'col-compact col-retake-credits'
   if (col === 'fee') return 'col-compact col-fee'
   if (col === 'bill') return 'col-compact col-bill'
   if (col === 'paymentRemindCount') return 'col-compact col-remind-count'
@@ -382,6 +398,7 @@ function cellText(col, row, index) {
   if (col === 'classTimeVenue') return listClassTimeVenueLines(row).join('\n')
   if (col === 'lecturers') return listLecturers(row)
   if (col === 'excessCredits') return listExcessCredits(row)
+  if (col === 'retakeCredits') return listRetakeCredits(row)
   if (col === 'fee') return listFee(row)
   if (col === 'retakeType') return listRetakeType(row)
   if (col === 'feeWaiver') return feeWaiverLabel(row)
@@ -408,6 +425,12 @@ function openDetail(row) {
 }
 
 function openBillDetail(row) {
+  // 命令式 reconcile 一次（签名未变则不写库）；勿放进账单 computed
+  try {
+    mergeLiveUnpaidFromApproval(row?.studentId)
+  } catch {
+    /* ignore */
+  }
   billDetailApp.value = row
 }
 
@@ -473,7 +496,11 @@ function openRowApproval(row) {
   approvalModalVisible.value = true
 }
 
-function handleApprovalConfirm({ action, comment, generateBill, lineDecisions }) {
+/**
+ * 审批弹窗确认：透传行决策与行级评价意见
+ * @param {{ action: string, comment: string, generateBill?: boolean, lineDecisions?: object, lineComments?: object }} payload
+ */
+function handleApprovalConfirm({ action, comment, generateBill, lineDecisions, lineComments }) {
   const id = pendingApprovalIds.value[0]
   pendingApprovalIds.value = []
   approvalModalVisible.value = false
@@ -483,6 +510,7 @@ function handleApprovalConfirm({ action, comment, generateBill, lineDecisions })
   const result = decideAddDropApplication(id, action, comment, {
     generateBill,
     lineDecisions,
+    lineComments,
   })
   if (!result.ok) {
     window.alert(t(result.errorKey || 'courseRegistration.approval.invalidAction'))
@@ -691,7 +719,7 @@ function handlePaymentExportConfirm({ selectedFields }) {
                     </span>
                   </template>
                   <template v-else-if="col === 'type'">
-                    <span class="type-tag" :class="typeClass(row.type)">{{ typeLabel(row.type) }}</span>
+                    <span class="type-tag" :class="typeClass(row)">{{ typeLabel(row) }}</span>
                   </template>
                   <template v-else-if="col === 'classTimeVenue'">
                     <div class="cr-time-venue">
@@ -888,6 +916,11 @@ function handlePaymentExportConfirm({ selectedFields }) {
   text-align: center;
 }
 
+.col-retake-credits {
+  min-width: 4.5em;
+  text-align: center;
+}
+
 .col-fee {
   min-width: 5.5em;
 }
@@ -912,6 +945,7 @@ function handlePaymentExportConfirm({ selectedFields }) {
 /* 数据格不换行；表头单独允许最多约两行 */
 .data-table--sticky tbody td.col-need-drop,
 .data-table--sticky tbody td.col-excess,
+.data-table--sticky tbody td.col-retake-credits,
 .data-table--sticky tbody td.col-fee,
 .data-table--sticky tbody td.col-bill,
 .data-table--sticky tbody td.col-remind-count,
@@ -961,6 +995,7 @@ function handlePaymentExportConfirm({ selectedFields }) {
 
 .cr-approval-page .data-table--sticky thead th.col-need-drop,
 .cr-approval-page .data-table--sticky thead th.col-excess,
+.cr-approval-page .data-table--sticky thead th.col-retake-credits,
 .cr-approval-page .data-table--sticky thead th.col-remind-count,
 .cr-approval-page .data-table--sticky thead th.col-fee,
 .cr-approval-page .data-table--sticky thead th.col-bill,

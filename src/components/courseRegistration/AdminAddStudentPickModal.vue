@@ -47,6 +47,24 @@ const selectedHint = computed(() => {
   return t('courseRegistration.result.selectedStudents', { count: selectedCount.value })
 })
 
+/** 当前筛选结果是否已全部勾选（跨页） */
+const allFilteredSelected = computed(() => {
+  const rows = filteredRows.value
+  if (!rows.length) return false
+  return rows.every((row) => selectedMap.value.has(row.studentId))
+})
+
+/** 部分勾选（用于表头半选态） */
+const someFilteredSelected = computed(() => {
+  const rows = filteredRows.value
+  if (!rows.length) return false
+  let hit = 0
+  for (const row of rows) {
+    if (selectedMap.value.has(row.studentId)) hit += 1
+  }
+  return hit > 0 && hit < rows.length
+})
+
 watch(
   () => props.visible,
   (visible) => {
@@ -76,6 +94,26 @@ function toggleRow(row) {
   const next = new Map(selectedMap.value)
   if (next.has(row.studentId)) next.delete(row.studentId)
   else next.set(row.studentId, { ...row })
+  selectedMap.value = next
+  errorKey.value = ''
+}
+
+/**
+ * 表头全选：勾选/取消当前筛选结果中的全部学生（含跨页）
+ * @param {Event} event
+ */
+function toggleSelectAllFiltered(event) {
+  const checked = Boolean(event?.target?.checked)
+  const next = new Map(selectedMap.value)
+  if (checked) {
+    for (const row of filteredRows.value) {
+      next.set(row.studentId, { ...row })
+    }
+  } else {
+    for (const row of filteredRows.value) {
+      next.delete(row.studentId)
+    }
+  }
   selectedMap.value = next
   errorKey.value = ''
 }
@@ -174,7 +212,17 @@ function handleConfirm() {
             <table class="data-table">
               <thead>
                 <tr>
-                  <th class="col-check"></th>
+                  <th class="col-check">
+                    <input
+                      type="checkbox"
+                      :checked="allFilteredSelected"
+                      :indeterminate.prop="someFilteredSelected"
+                      :disabled="!filteredRows.length"
+                      :aria-label="t('courseRegistration.result.selectAllStudents')"
+                      @change="toggleSelectAllFiltered"
+                      @click.stop
+                    />
+                  </th>
                   <th>{{ t('courseRegistration.monitor.studentId') }}</th>
                   <th>{{ t('courseRegistration.monitor.studentName') }}</th>
                   <th>{{ t('courseRegistration.result.gender') }}</th>

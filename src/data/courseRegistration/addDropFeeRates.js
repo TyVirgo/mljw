@@ -1,9 +1,11 @@
 /**
  * 加退重修费用：应收学分 × 科类单价
+ * 规则：重修全部学分计费；加课仅毕业 GE/ME 总分超出部分计费；合计为两者之和
  */
 
 import { isLocalCategory } from '../students.js'
 import { resolveAddDropFeeCategoryKey } from './studentRegistrationContext.js'
+import { getCourseByCode, getCourseById } from './selectableCourses.js'
 
 export const CREDIT_FEE_RATES = {
   arts: 500,
@@ -133,10 +135,124 @@ export function estimateCourseFee({
     categoryKey,
     amount: billableCredits * rate,
     reason,
+    /** 计费动作：Add=毕业超出；Retake=全额；供展示过滤 */
+    action: action === 'Retake' || action === 'RetakeDrop' ? 'Retake' : 'Add',
     credits,
     courseCode: course.code || '',
     courseName: course.name || course.code || '',
   }
+}
+
+/**
+ * 从申请行拼 course（缺 type 时回课库）
+ * @param {object} line
+ */
+function courseFromApplicationLine(line) {
+  if (!line) return null
+  const catalog =
+    (line.courseId && getCourseById(line.courseId)) ||
+    getCourseByCode(line.courseCode || line.code) ||
+    null
+  return {
+    id: line.courseId || catalog?.id || '',
+    code: line.courseCode || line.code || catalog?.code || '',
+    name: line.courseName || line.name || catalog?.name || '',
+    credits: Number(line.credits) || Number(catalog?.credits) || 0,
+    type: line.type || catalog?.type || '',
+    feeStream: line.feeStream || catalog?.feeStream,
+    schoolElectiveCategory: line.schoolElectiveCategory || catalog?.schoolElectiveCategory,
+    g1Category: line.g1Category || catalog?.g1Category,
+    batchId: line.batchId || catalog?.batchId,
+    eligibilitySource: line.eligibilitySource || '',
+  }
+}
+
+/**
+ * 从申请 items 重建费用预估：重修全额 + 加课毕业超出，求和
+ * @param {object|null|undefined} app
+ * @param {object} [planRemaining] 毕业 GE/ME 剩余
+ * @param {string} [studentCategory]
+ */
+export function buildFeeEstimateFromApplicationItems(
+  app,
+  planRemaining = {},
+  studentCategory = 'Local',
+) {
+  const items = app?.items || []
+  const dropLines = items.filter((i) => i?.action === 'Drop')
+  const billLines = [
+    ...items.filter((i) => i?.action === 'Add').map((line) => ({ line, feeAction: 'Add' })),
+    ...items
+      .filter((i) => i?.action === 'Retake')
+      .map((line) => ({ line, feeAction: 'Retake' })),
+  ]
+  if (!billLines.length) {
+    return attachSstToFeeEstimate(sumFeeEstimates([]), studentCategory || app?.studentCategory || 'Local')
+  }
+  let remaining = dropLines.length
+    ? boostPlanRemainingFromDrops(planRemaining, dropLines.map(courseFromApplicationLine).filter(Boolean))
+    : clonePlanRemaining(planRemaining)
+  const lines = []
+  for (const { line, feeAction } of billLines) {
+    const course = courseFromApplicationLine(line)
+    if (!course) continue
+    const fee = estimateCourseFee({
+      action: feeAction,
+      course,
+      planRemaining: remaining,
+      eligibilitySource: course.eligibilitySource || app?.eligibilitySource || '',
+    })
+    lines.push(fee)
+    if (feeAction === 'Add') {
+      remaining = consumePlanRemaining(remaining, course, fee.billableCredits)
+    }
+  }
+  return attachSstToFeeEstimate(
+    sumFeeEstimates(lines),
+    studentCategory || app?.studentCategory || 'Local',
+  )
+}
+
+/**
+ * 是否加课侧毕业超出计费行（不含重修全额）
+ * @param {object} line feeEstimate item
+ */
+export function isAddGraduationExcessFeeLine(line) {
+  if (!line) return false
+  if (line.action === 'Retake' || line.reason === 'retake_full_credits') return false
+  return true
+}
+
+/**
+ * 加课毕业超出计费学分合计（不含重修）
+ * @param {object|null|undefined} feeEstimate
+ */
+export function sumAddGraduationExcessBillable(feeEstimate) {
+  return (feeEstimate?.items || []).reduce((sum, line) => {
+    if (!isAddGraduationExcessFeeLine(line)) return sum
+    return sum + (Math.max(0, Number(line.billableCredits) || 0))
+  }, 0)
+}
+
+/**
+ * 是否重修全额计费行
+ * @param {object|null|undefined} line feeEstimate item
+ */
+export function isRetakeFullBillableFeeLine(line) {
+  if (!line) return false
+  if (line.action === 'Retake' || line.reason === 'retake_full_credits') return true
+  return false
+}
+
+/**
+ * 重修缴费学分合计（重修全额计费，不含加课毕业超出）
+ * @param {object|null|undefined} feeEstimate
+ */
+export function sumRetakeFullBillableCredits(feeEstimate) {
+  return (feeEstimate?.items || []).reduce((sum, line) => {
+    if (!isRetakeFullBillableFeeLine(line)) return sum
+    return sum + (Math.max(0, Number(line.billableCredits) || 0))
+  }, 0)
 }
 
 /** 深拷贝毕业类别剩余（供多课逐课扣减） */
@@ -285,20 +401,45 @@ export function resolveAddDropExcessCredits(app) {
   return Math.max(0, ...candidates)
 }
 
-/** 毕业超出（计费学分） */
+/**
+ * 毕业超出（计费学分）：仅加课侧毕业超出，不含重修全额
+ * @param {object|null|undefined} app
+ */
 export function resolveAddDropGradExcessCredits(app) {
   if (!app || app.type === 'Drop') return 0
-  const fromItems = (app.feeEstimate?.items || []).reduce(
-    (s, i) => s + (Number(i.billableCredits) || 0),
-    0,
-  )
-  const candidates = [
-    Number(app.billableCredits),
-    Number(app.feeEstimate?.billableCredits),
-    fromItems,
-  ].filter((n) => Number.isFinite(n) && n >= 0)
-  if (!candidates.length) return 0
-  return Math.max(0, ...candidates)
+  const fromFee = sumAddGraduationExcessBillable(app.feeEstimate)
+  if (fromFee > 0) return fromFee
+  const n = Number(app.gradExcessCredits)
+  if (Number.isFinite(n) && n > 0) return n
+  // 无重修时：历史 excessCredits 可视为加课毕业超出
+  const type = String(app.type || '')
+  const hasRetake =
+    type.includes('Retake') ||
+    (app.items || []).some((i) => i?.action === 'Retake' || i?.reason === 'retake_full_credits')
+  if (!hasRetake) {
+    const legacy = Number(app.excessCredits)
+    if (Number.isFinite(legacy) && legacy > 0) return legacy
+  }
+  return 0
+}
+
+/**
+ * 重修缴费学分：重修全额计费合计
+ * @param {object|null|undefined} app
+ */
+export function resolveAddDropRetakeBillableCredits(app) {
+  if (!app || app.type === 'Drop') return 0
+  const fromFee = sumRetakeFullBillableCredits(app.feeEstimate)
+  if (fromFee > 0) return fromFee
+  const fromAppCredits = Number(app.applicationCredits?.retake)
+  if (Number.isFinite(fromAppCredits) && fromAppCredits > 0) return fromAppCredits
+  const n = Number(app.retakeCredits)
+  if (Number.isFinite(n) && n > 0) return n
+  // 无费用明细时：按重修课行学分合计（与「重修总学分（计费）」同源）
+  return (app.items || []).reduce((sum, item) => {
+    if (item?.action !== 'Retake' && item?.reason !== 'retake_full_credits') return sum
+    return sum + (Math.max(0, Number(item.credits) || 0))
+  }, 0)
 }
 
 /** 学期超出（学分条 GE/ME 总分口径落库值） */

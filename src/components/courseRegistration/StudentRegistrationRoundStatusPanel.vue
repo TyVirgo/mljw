@@ -888,12 +888,14 @@ defineExpose({ scrollIntoView })
                   </span>
                 </td>
                 <td v-if="showActionsColumn" class="col-actions sticky-right sticky-actions">
-                  <button type="button" class="link-btn" @click="handleCancelQueue(item)">
-                    {{ t('courseRegistration.queue.cancelQueue') }}
-                  </button>
-                  <button type="button" class="link-btn" @click="handleViewProgress(item)">
-                    {{ t('courseRegistration.student.viewQueueProgress') }}
-                  </button>
+                  <div class="queue-actions">
+                    <button type="button" class="link-btn" @click="handleCancelQueue(item)">
+                      {{ t('courseRegistration.queue.cancelQueue') }}
+                    </button>
+                    <button type="button" class="link-btn" @click="handleViewProgress(item)">
+                      {{ t('courseRegistration.student.viewQueueProgress') }}
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -1117,6 +1119,56 @@ defineExpose({ scrollIntoView })
   font-weight: 500;
   color: #374151;
   text-align: left;
+}
+
+/* 排队表：双操作竖排；列宽与 sticky 右偏移联动（主表单按钮仍 72px） */
+.queue-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.data-table--pref.data-table--queue .sticky-actions,
+.data-table--pref.data-table--queue .col-actions,
+.data-table--flat.data-table--queue .sticky-actions,
+.data-table--flat.data-table--queue .col-actions {
+  right: 0;
+  min-width: 108px;
+  width: 108px;
+  max-width: none;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.data-table--pref.data-table--queue .sticky-capacity,
+.data-table--flat.data-table--queue .sticky-capacity {
+  right: 108px;
+}
+
+.data-table--pref.data-table--queue .sticky-status,
+.data-table--flat.data-table--queue .sticky-status {
+  right: 108px;
+}
+
+.data-table--pref.data-table--queue.has-capacity-col .sticky-status,
+.data-table--flat.data-table--queue.has-capacity-col .sticky-status {
+  right: 220px;
+}
+
+.data-table--pref.data-table--queue.has-capacity-col .sticky-status--flushright,
+.data-table--flat.data-table--queue.has-capacity-col .sticky-status--flushright {
+  right: 112px;
+}
+
+.data-table--pref.data-table--queue .sticky-status--flushright,
+.data-table--flat.data-table--queue .sticky-status--flushright {
+  right: 0;
+}
+
+.data-table--pref.data-table--queue .sticky-capacity--flushright,
+.data-table--flat.data-table--queue .sticky-capacity--flushright {
+  right: 0;
 }
 
 /* 按内容自适应列宽，避免 fixed 均分导致短列留白、长列狂换行 */

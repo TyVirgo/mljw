@@ -1,5 +1,9 @@
 import { ref } from 'vue'
 import { formatIntakeBatch } from '../intakeSets.js'
+import {
+  normalizeBatchAcademicSession,
+  registrationAcademicSessionOptions,
+} from './registrationBatchFormUtils.js'
 import { LONG_SEMESTER_CREDIT_MIN, LONG_SEMESTER_CREDIT_MAX } from './registrationRules.js'
 import {
   deriveMonitorIssues,
@@ -10,6 +14,93 @@ import {
   getTermMeCompletionPct,
   getGraduationMandatoryCompletionPct,
 } from './monitorCreditInsights.js'
+
+/** 监控页默认选课学期（与当前主批 demo 对齐） */
+export const DEFAULT_MONITOR_ACADEMIC_SESSION = '2026/09'
+
+/** Demo 额外学期（本学期指标会相对默认学期偏移） */
+const MONITOR_EXTRA_DEMO_SESSIONS = [
+  { session: '2026/04', idPrefix: 's2604', creditShift: -3 },
+  { session: '2025/09', idPrefix: 's2509', creditShift: 2 },
+]
+
+/**
+ * 解析行上的选课学期（缺省视为默认学期）
+ * @param {object|null|undefined} row
+ */
+export function resolveMonitorAcademicSession(row) {
+  return (
+    normalizeBatchAcademicSession(row?.academicSession) || DEFAULT_MONITOR_ACADEMIC_SESSION
+  )
+}
+
+/**
+ * 按选课学期切出监控行
+ * @param {string} academicSession
+ * @param {object[]} [rows]
+ */
+export function listMonitorRowsByAcademicSession(
+  academicSession,
+  rows = registrationMonitorQueue.value,
+) {
+  const want =
+    normalizeBatchAcademicSession(academicSession) || DEFAULT_MONITOR_ACADEMIC_SESSION
+  return (rows || []).filter((r) => resolveMonitorAcademicSession(r) === want)
+}
+
+/**
+ * 当前队列中实际有数据的学期（按选项表新→旧排序）
+ * @param {object[]} [rows]
+ */
+export function listMonitorAcademicSessions(rows = registrationMonitorQueue.value) {
+  const present = new Set((rows || []).map((r) => resolveMonitorAcademicSession(r)))
+  const ordered = registrationAcademicSessionOptions.filter((s) => present.has(s))
+  for (const s of present) {
+    if (!ordered.includes(s)) ordered.push(s)
+  }
+  return ordered
+}
+
+/**
+ * 按学号查找监控行（优先指定学期，否则默认学期，再否则首条）
+ * @param {string} studentId
+ * @param {string} [academicSession]
+ */
+export function findMonitorRowByStudentId(
+  studentId,
+  academicSession = DEFAULT_MONITOR_ACADEMIC_SESSION,
+) {
+  const id = String(studentId || '').trim()
+  if (!id) return null
+  const list = registrationMonitorQueue.value
+  const want =
+    normalizeBatchAcademicSession(academicSession) || DEFAULT_MONITOR_ACADEMIC_SESSION
+  const preferred = list.find(
+    (r) => r.studentId === id && resolveMonitorAcademicSession(r) === want,
+  )
+  if (preferred) return preferred
+  const defaultHit = list.find(
+    (r) =>
+      r.studentId === id &&
+      resolveMonitorAcademicSession(r) === DEFAULT_MONITOR_ACADEMIC_SESSION,
+  )
+  if (defaultHit) return defaultHit
+  return list.find((r) => r.studentId === id) || null
+}
+
+/**
+ * @param {string} studentId
+ * @param {string} [academicSession]
+ * @returns {number}
+ */
+export function findMonitorRowIndexByStudentId(
+  studentId,
+  academicSession = DEFAULT_MONITOR_ACADEMIC_SESSION,
+) {
+  const row = findMonitorRowByStudentId(studentId, academicSession)
+  if (!row) return -1
+  return registrationMonitorQueue.value.findIndex((r) => r.id === row.id)
+}
 
 const DEFAULT_ELECTIVE_CAPS = { geMax: 6, meMax: 22 }
 
@@ -309,9 +400,78 @@ function buildExtraMonitorDemoRows() {
   })
 }
 
-export const registrationMonitorQueue = ref(
-  initialMonitorRows.map((item) => ({ ...item, remindCount: Number(item.remindCount) || 0 })),
+/**
+ * 为其它学期克隆监控行，并偏移本学期学分指标（便于切换学期可感知）
+ * @param {object[]} baseRows 已打默认学期的行
+ * @param {{ session: string, idPrefix: string, creditShift: number }} opts
+ */
+function cloneMonitorRowsForSession(baseRows, opts) {
+  const session = opts.session
+  const idPrefix = opts.idPrefix
+  const creditShift = Number(opts.creditShift) || 0
+  return baseRows.map((row, index) => {
+    const nudge = creditShift + ((index % 3) - 1)
+    const credits = Math.max(0, (Number(row.credits) || 0) + nudge)
+    const creditMin = Number(row.creditMin) || LONG_SEMESTER_CREDIT_MIN
+    const creditMax = Number(row.creditMax) || LONG_SEMESTER_CREDIT_MAX
+    const prevTerm = row.termElectiveProgress || {}
+    const termGe = Math.max(0, (Number(prevTerm.ge) || 0) + Math.sign(nudge || creditShift))
+    const termMe = Math.max(0, (Number(prevTerm.me) || 0) + Math.trunc(nudge / 2))
+    const prevCats = row.termGeCategories || {}
+    const scaleCat = (key) => Math.max(0, (Number(prevCats[key]) || 0) + (nudge < 0 ? -1 : nudge > 0 ? 1 : 0))
+    let status = row.status
+    if (credits === 0) status = 'notRegistered'
+    else if (credits < creditMin) status = 'creditLow'
+    else if (credits > creditMax) status = 'creditHigh'
+    else if (status === 'notRegistered' || status === 'creditLow' || status === 'creditHigh') {
+      status = 'normal'
+    }
+    return {
+      ...row,
+      id: `${idPrefix}-${row.id}`,
+      academicSession: session,
+      credits,
+      status,
+      termElectiveProgress: {
+        ...prevTerm,
+        ge: termGe,
+        me: termMe,
+      },
+      termGeCategories: {
+        ...prevCats,
+        group4of3: scaleCat('group4of3'),
+        group3of2: scaleCat('group3of2'),
+        group2of1: scaleCat('group2of1'),
+        ordinary: scaleCat('ordinary'),
+        required: { ...(prevCats.required || {}) },
+      },
+      issues:
+        credits === 0
+          ? ['notRegistered']
+          : credits < creditMin
+            ? ['creditBelowMin']
+            : Array.isArray(row.issues)
+              ? [...row.issues]
+              : [],
+      remindCount: 0,
+    }
+  })
+}
+
+const defaultSessionMonitorRows = initialMonitorRows.map((item) => ({
+  ...item,
+  academicSession: DEFAULT_MONITOR_ACADEMIC_SESSION,
+  remindCount: Number(item.remindCount) || 0,
+}))
+
+const extraSessionMonitorRows = MONITOR_EXTRA_DEMO_SESSIONS.flatMap((cfg) =>
+  cloneMonitorRowsForSession(defaultSessionMonitorRows, cfg),
 )
+
+export const registrationMonitorQueue = ref([
+  ...defaultSessionMonitorRows,
+  ...extraSessionMonitorRows,
+])
 
 export const monitorStatusOptions = [
   'normal',
@@ -403,6 +563,7 @@ function pctInRange(pct, min, max) {
 /**
  * @param {object[]} rows
  * @param {{
+ *   academicSession?: string,
  *   programme?: string,
  *   intake?: string,
  *   studentName?: string,
@@ -416,6 +577,12 @@ function pctInRange(pct, min, max) {
  */
 export function filterMonitorRows(rows, filters = {}) {
   let list = [...rows]
+  if (filters.academicSession) {
+    const want =
+      normalizeBatchAcademicSession(filters.academicSession) ||
+      DEFAULT_MONITOR_ACADEMIC_SESSION
+    list = list.filter((r) => resolveMonitorAcademicSession(r) === want)
+  }
   if (filters.programme) {
     const p = String(filters.programme).trim().toLowerCase()
     list = list.filter((r) => String(r.programme || '').toLowerCase().includes(p))

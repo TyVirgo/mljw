@@ -920,6 +920,7 @@ export const zhFlat = {
     '相关行业经验（年）：',
   'No CPD records available. Data will appear after HR sync or teacher portal approval.':
     '暂无 CPD 记录。人事同步或教师门户审批后将显示数据。',
+  'Teaching timetable preview (demo).': '任课课表预览（演示）。',
   'Number of Activity Attended:': '参加活动次数：',
   'Number of Hours Earned:': '获得学时：',
   'Name of Activity': '活动名称',

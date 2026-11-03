@@ -6,7 +6,10 @@ import {
   formatDateDisplay,
   formatAttachmentSize,
   formatUploadTimestamp,
+  buildLecturerDemoSchedule,
 } from '../../data/lecturers.js'
+import WeekScheduleGrid from '../courseRegistration/WeekScheduleGrid.vue'
+import { formatSchedulePersonLine } from '../../utils/formatSchedulePersonLine.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -15,7 +18,17 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-const { t, tr } = useAppI18n()
+const { t, tr, isZh } = useAppI18n()
+
+/** 老师侧课表表头：Staff ID + 姓名 */
+const schedulePersonLine = computed(() =>
+  formatSchedulePersonLine(props.data?.staffId, props.data?.name),
+)
+
+/** 本学期任课课表（演示） */
+const lecturerSchedule = computed(() =>
+  buildLecturerDemoSchedule(props.data, { locale: isZh.value ? 'zh' : 'en' }),
+)
 
 const currentStep = ref(1)
 const translatedSteps = computed(() => formSteps.map((step) => ({ ...step, label: tr(step.label) })))
@@ -173,6 +186,22 @@ function handleOverlayClick(event) {
               <div class="detail-row detail-row-full">
                 <span class="label">{{ tr('Remarks') }}:</span>
                 <span class="value">{{ display(data.remarks) }}</span>
+              </div>
+            </section>
+
+            <!-- 管理端老师侧课表：Staff ID + 姓名 + 周课表演示 -->
+            <section class="detail-section schedule-section">
+              <h3 class="section-title"><span class="bar" />{{ t('courseRegistration.monitor.schedule') }}</h3>
+              <p
+                v-if="schedulePersonLine"
+                class="schedule-person-line"
+                :title="schedulePersonLine"
+              >
+                {{ schedulePersonLine }}
+              </p>
+              <p class="schedule-hint">{{ tr('Teaching timetable preview (demo).') }}</p>
+              <div class="schedule-grid-wrap">
+                <WeekScheduleGrid :schedule="lecturerSchedule" />
               </div>
             </section>
           </div>
@@ -405,6 +434,27 @@ function handleOverlayClick(event) {
 }
 .modal-body { flex: 1; overflow-y: auto; padding: 0 var(--modal-pad-right) 20px var(--modal-pad-left); }
 .detail-section { margin-bottom: 24px; }
+.schedule-person-line {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.schedule-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #6b7280;
+}
+.schedule-grid-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+}
 .section-title {
   display: flex; align-items: center; gap: 8px;
   font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 14px;

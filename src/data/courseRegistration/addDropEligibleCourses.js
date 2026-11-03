@@ -8,6 +8,7 @@
 import { getCurrentStudent } from '../mockCurrentStudent.js'
 import {
   getCourseById,
+  getCourseByCode,
   courseMatchesStudentSchoolElective,
   getDefaultStudentSchoolElectiveCategory,
 } from './selectableCourses.js'
@@ -119,11 +120,19 @@ function mapSeedToRow(seed, course, sectionFilter = null) {
       whitelistSectionListIncludes(allowed, code, String(sec.code || sec.id || '').trim()),
     )
   }
+  const isFuture = Boolean(seed.futureSession)
+  const plannedSession = String(seed.originalAcademicSession || '').trim()
   return {
     ...course,
-    eligibilitySource: seed.futureSession ? 'future_session' : seed.source,
-    futureSession: Boolean(seed.futureSession),
-    originalAcademicSession: seed.originalAcademicSession || '',
+    eligibilitySource: isFuture ? 'future_session' : seed.source,
+    futureSession: isFuture,
+    /** 原上课学期（必修列）；未来选修亦复用种子学期作计划开课 */
+    originalAcademicSession: plannedSession,
+    /**
+     * 开课学年学期（GE/ME「上课学年学期」列）：
+     * 未来学期种子写计划开课学期；当前学期资格留空由弹窗用申请学期兜底
+     */
+    offeringAcademicSession: isFuture ? plannedSession : '',
     originalSectionCode: seed.originalSectionCode || '',
     id: course.id,
     code: course.code,
@@ -228,5 +237,93 @@ export function getEligibilitySourceLabelKey(source) {
   if (source === 'prior_drop') return 'courseRegistration.student.eligibilityPriorDrop'
   if (source === 'deferment_gap') return 'courseRegistration.student.eligibilityDefermentGap'
   if (source === 'future_session') return 'courseRegistration.student.eligibilityFutureSession'
+  // 本单拟退再加回：展示口径同曾退
+  if (source === 'same_term_drop') return 'courseRegistration.student.eligibilityPriorDrop'
   return ''
+}
+
+/**
+ * 解析拟退并入用的原上课学期
+ * @param {object} line 拟退行
+ * @param {object|null} existing 已有加课池行
+ * @param {string} [fallbackAcademicSession] 当前申请学期兜底
+ * @returns {string}
+ */
+function resolveOriginalAcademicSessionForDropMerge(
+  line,
+  existing,
+  fallbackAcademicSession = '',
+) {
+  return (
+    String(line?.academicSession || line?.originalAcademicSession || '').trim() ||
+    String(existing?.originalAcademicSession || '').trim() ||
+    String(fallbackAcademicSession || '').trim()
+  )
+}
+
+/**
+ * 将本单拟退必修并入加课池（同课号以拟退原组覆盖种子）
+ * @param {object[]} eligibleRows 资格种子行
+ * @param {object[]} dropLines 表单拟退行
+ * @param {{ fallbackAcademicSession?: string }} [opts] 当前申请学期兜底
+ * @returns {object[]}
+ */
+export function mergeEligibleAddWithPendingDropCores(
+  eligibleRows = [],
+  dropLines = [],
+  opts = {},
+) {
+  const fallbackAcademicSession = String(opts.fallbackAcademicSession || '').trim()
+  const byCode = new Map()
+  for (const row of eligibleRows || []) {
+    if (!row) continue
+    const code = String(row.code || '')
+      .trim()
+      .toUpperCase()
+    if (code) byCode.set(code, { ...row })
+  }
+  for (const line of dropLines || []) {
+    if (!line || !isMandatoryAddDropCourse(line)) continue
+    const code = String(line.courseCode || line.code || '')
+      .trim()
+      .toUpperCase()
+    if (!code) continue
+    const course =
+      (line.courseId && getCourseById(line.courseId)) || getCourseByCode(code)
+    if (!course) continue
+    const originalSectionCode = String(
+      line.sectionCode || line.section?.code || '',
+    ).trim()
+    const existing = byCode.get(code)
+    const originalAcademicSession = resolveOriginalAcademicSessionForDropMerge(
+      line,
+      existing,
+      fallbackAcademicSession,
+    )
+    if (existing) {
+      // 本单拟退原组优先于种子；学期空则保留种子或兜底
+      byCode.set(code, {
+        ...existing,
+        originalSectionCode: originalSectionCode || existing.originalSectionCode || '',
+        originalAcademicSession:
+          originalAcademicSession || existing.originalAcademicSession || '',
+        eligibilitySource: 'same_term_drop',
+        sections: course.sections || existing.sections || [],
+      })
+      continue
+    }
+    byCode.set(
+      code,
+      mapSeedToRow(
+        {
+          courseId: course.id,
+          source: 'same_term_drop',
+          originalAcademicSession,
+          originalSectionCode,
+        },
+        course,
+      ),
+    )
+  }
+  return [...byCode.values()]
 }

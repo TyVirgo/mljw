@@ -1855,7 +1855,7 @@ export default {
       schoolElectiveCategory: 'Course Category',
       unifiedCategory: {
         required: 'Compulsory',
-        tip: 'Compulsory, or GE01–GE04 / ME01–ME04 (Arts/Business/Science/AI & Open)',
+        tip: 'Compulsory, or GE-01–GE-04 / ME-01–ME-04 (Arts/Business/Science/AI & Open)',
       },
       schoolElectiveCategoryTip:
         "In production, filter course rows by the student's school elective course type; students should take major electives matching their category. This prototype shows mixed categories without filtering.",
@@ -1973,6 +1973,7 @@ export default {
       isSelectableNo: 'No',
     },
     monitor: {
+      academicSession: 'Academic session',
       programme: 'Programme',
       student: 'Student',
       studentId: 'Student ID',
@@ -2140,9 +2141,9 @@ export default {
       billPaidTotal: 'Paid total',
       billUnpaidTotalPlain: 'Unpaid total: {payable}',
       billUnpaidTotalWithSst:
-        'Unpaid total: course fee {fee}; SST {sst}; amount due {payable}',
+        'Unpaid total: course fee {fee}, SST {sst}, amount due {payable}',
       billPaidTotalPlain: 'Paid total: {payable}',
-      billPaidTotalWithSst: 'Paid total: course fee {fee}; SST {sst}; paid {payable}',
+      billPaidTotalWithSst: 'Paid total: course fee {fee}, SST {sst}, amount due {payable}',
       sendPaymentRemind: 'Send email reminder',
       paymentRemindModalTitle: 'Edit payment reminder',
       paymentRemindSent: 'Payment reminder sent to {name} (demo)',
@@ -2192,6 +2193,9 @@ export default {
       approve: 'Approve',
       modalTitle: 'Approval',
       creditExceeded: 'Credits would exceed maximum after approval',
+      creditOverRequirementHint: 'Exceeds {labels} credit requirement',
+      creditLabelGeTerm: 'GE term credits',
+      creditLabelMeTerm: 'ME term credits',
       invalidAction: 'Invalid approval result',
       addDropNoQueueHint:
         'Add/retake applications do not enter the online registration queue. A seat is locked on submit; after approval, pay within the payment grace days.',
@@ -2209,8 +2213,14 @@ export default {
       lineSelectRequired: 'Please select course(s) first',
       lineDecisionRequired: 'Please choose Pass, Fail, or Return for every line',
       lineUpdateMixed: 'Return cannot be mixed with Pass/Fail; return all lines or none',
-      lineCommentRequired: 'Please enter evaluation comments when failing or returning',
+      lineCommentRequired:
+        'Please enter evaluation comments for each failed or returned course line',
       lineCommentPlaceholder: 'Enter evaluation comments',
+      addLineComment: 'Add comment',
+      editLineComment: 'Edit comment',
+      lineCommentModalTitle: 'Evaluation comments',
+      lineCommentDetail: 'Comment details',
+      lineCommentEmpty: '—',
       lineApproved: 'Passed',
       lineRejected: 'Failed',
       lineUpdateRequired: 'Returned',
@@ -2220,18 +2230,26 @@ export default {
       approvalWhitelistCreditOverHint:
         'This student is on the whitelist and the selection exceeds the semester credit max. Decide to approve all or partially.',
       type: {
-        Add: 'Add (with drop)',
+        Add: 'Add',
         Drop: 'Drop',
-        Retake: 'Retake (with drop)',
+        Retake: 'Retake',
         Replace: 'Replace',
-        AddDrop: 'Add (with drop)',
-        RetakeDrop: 'Retake (with drop)',
+        AddDrop: 'Drop/Add',
+        RetakeDrop: 'Drop/Retake',
+        AddRetake: 'Add/Retake',
+        AddDropRetake: 'Drop/Add/Retake',
+      },
+      /** Flag labels joined for detail/approval/list */
+      typeFlag: {
+        Drop: 'Drop',
+        Add: 'Add',
+        Retake: 'Retake',
       },
       /** Form/filter/list/detail primary trio labels */
       primaryOption: {
-        Add: 'Add (with drop)',
+        Add: 'Add',
         Drop: 'Drop',
-        Retake: 'Retake (with drop)',
+        Retake: 'Retake',
       },
       /** List column: need drop (short) */
       needDropColumn: 'Need drop',
@@ -2327,9 +2345,14 @@ export default {
       creditBypassExtraLabel: 'up to',
       creditBypassExtraUnit: 'credits',
       creditBypassExtraInvalid: 'Enter an integer from 1 to 3 for over-credit allowance',
+      dropBelowMinFloorLabel: 'minimum credits',
+      dropBelowMinFloorUnit: 'credits',
+      dropBelowMinFloorInvalid: 'Enter an integer from 0 to 11 for the drop credit floor',
+      inviteHoursUnit: 'hours',
+      dropBelowMinInlineSep: ', ',
       capacityHint: 'Add applications cannot exceed original section capacity; whitelist does not auto-approve or skip fees.',
       formHint:
-        '① “Allow Add/Drop/Retake applications” is the parent (inline application duration); enable it to pick Add / Drop / Retake.\n② Under Can Add / Can Retake you may allow same-term CORE section switching and pick exact course+section pairs from the course list.\n③ “Course prereq waiver” selects the target course whose prerequisites are waived (not the prerequisite courses themselves); applies only to add applications; online registration still checks prerequisites.\n④ “Allow exceeding term credit requirements” lets you set over-credit allowance (1–3).\n⑤ “Allow add application for future-term mandatory courses” requires selecting course+section pairs in the block below; only listed sections enter the add pool.\n⑥ “Allow add application for future-term elective courses” requires GE and ME credit amounts and at least one ME course-group category.\n⑦ “Allow Drop below 12-credit minimum” applies to Drop-only applications and permits ending below the term credit minimum.',
+        '① Create flow: select student(s) first, then configure permissions.\n② “Allow Add/Drop/Retake applications” is a top-level permission (inline duration in hours); its only second-level options are Can Add / Can Drop / Can Retake.\n③ “Same-term CORE section switching”, “Course prereq waiver”, “Exceed term credits”, “Drop below 12”, and “Future-term mandatory/elective” are also top-level and shown in an aligned two-column grid; section switching may leave the picker empty (all for the student) or pick exact pairs.\n④ “Course prereq waiver” selects the target course whose prerequisites are waived (not the prerequisite courses themselves); applies only to add applications; online registration still checks prerequisites.\n⑤ “Allow exceeding term credit requirements” lets you set over-credit allowance (1–3).\n⑥ “Allow add application for future-term mandatory courses” requires selecting course+section pairs in the block below; only listed sections enter the add pool.\n⑦ “Allow add application for future-term elective courses” requires GE and ME credit amounts and at least one ME course-group category.\n⑧ “Allow Drop below 12-credit minimum” applies to Drop-only applications; when enabled, set a credit floor X and post-drop credits must be ≥ X.',
       futureElectiveConfigLabel: 'Future-term elective allowance',
       futureElectiveGeGroupHint:
         'GE: all general electives in the student’s selectable scope form one large group; enter credits only.',
@@ -2347,14 +2370,20 @@ export default {
       },
       hoursInlineSep: ', ',
       inviteHoursPrefix: 'application duration ',
-      sectionPickEmpty: 'Select course code and section',
-      sectionPickHint: '{n} course(s) selected (multi-select; all sections of a course are included)',
+      sectionPickEmpty:
+        'Leave empty to allow all sections in the picker for the selected student(s)',
+      sectionPickHint:
+        '{n} section(s) selected (multi-select; you may pick only some sections of the same course). Leave empty on save to allow all.',
+      selectAllFiltered: 'Select all results',
+      clearFilteredSelection: 'Clear selection',
       futureMandatoryPickTitle: 'Select future-term mandatory sections',
       futureMandatorySections: 'Future-term mandatory sections',
       futureMandatorySectionsRequired:
         'Select at least one future-term mandatory course section',
       coreSwitchPickTitle: 'Select CORE sections allowed for switching',
+      /** @deprecated Empty list now means all; key kept for old refs */
       coreSwitchSectionsRequired: 'Select at least one allowed course+section for switching',
+      permissionsNeedStudent: 'Select student(s) before configuring permissions',
       perPermissionHours: 'Permission validity duration (hours)',
       notifyModalTitle: 'Edit notification',
       reopenModalTitle: 'Extend window and send notification',
@@ -2424,6 +2453,8 @@ export default {
       volunteerRosterSearchPlaceholder: 'Student ID or name',
       volunteerRelativeSemester: 'Semester',
       coursePreference: 'Course preference',
+      /** Student-dim result column (distinct from search log.resultLabel) */
+      selectionResult: 'Selection result',
       preferenceFirst: 'First preference',
       preferenceSecond: 'Second preference',
       preferenceNth: 'Preference {n}',
@@ -2507,18 +2538,60 @@ export default {
       seniorCapacityWithRatio: 'Senior Capacity (Enrolled/Total)',
       freshmanCapacityEnrolled: 'Freshman enrolled',
       seniorCapacityEnrolled: 'Senior enrolled',
+      /** R2/R3 available seats (separate from R1 enrolled keys) */
+      effectiveCapacityAvailableWithRatio: 'Effective Max Capacity (Available/Total)',
+      /** Round 2: with denominator */
+      freshmanCapacityAvailableWithRatio: 'Freshman Capacity (Available/Total)',
+      seniorCapacityAvailableWithRatio: 'Senior Capacity (Available/Total)',
+      /** Round 3 cross-release: available only */
+      freshmanCapacityAvailable: 'Freshman available',
+      seniorCapacityAvailable: 'Senior available',
       effectiveCapacityWithRatioTip:
         'Total matches course capacity settings. Enrolled is this round’s selected count (R1: selected; R2/R3: online enrollment). Excludes specially added students.',
       effectiveCapacityWithRatioTipR1:
         'No freshmen in Round 1: Effective max enrolled/total matches senior capacity, summed from section preference selections; excludes specially added students.',
+      effectiveCapacityAvailableWithRatioTip:
+        'Total matches course capacity settings. Available = total − enrolled this round (excluding specially added), floored at 0. Without expansion, freshman + senior quota = effective max total.',
       freshmanCapacityWithRatioTip:
         'Freshman total comes from audience quota settings; enrolled is freshmen on this round’s roster (excluding specially added).',
       seniorCapacityWithRatioTip:
-        'Senior total comes from audience quota settings; enrolled is seniors on this round’s roster (excluding specially added).',
+        'Senior total comes from audience quota settings; enrolled is seniors on this round’s roster (excluding specially added). Click to view allocated / remaining by cohort.',
       freshmanCapacityEnrolledTip:
         'Freshmen enrolled this round (excluding specially added). Quota totals are not shown in this column.',
       seniorCapacityEnrolledTip:
         'Seniors enrolled this round (excluding specially added). Quota totals are not shown in this column.',
+      freshmanCapacityAvailableWithRatioTip:
+        'Freshman available = freshman quota − enrolled freshmen this round (excluding specially added), floored at 0. Denominator is course freshman quota. Without expansion, freshman + senior = effective max total.',
+      seniorCapacityAvailableWithRatioTip:
+        'Senior available = senior quota − enrolled seniors this round (excluding specially added), floored at 0. Denominator is course senior quota. Click to view allocated / remaining by cohort.',
+      freshmanCapacityAvailableTip:
+        'Freshman available = freshman quota − enrolled freshmen this round (excluding specially added), floored at 0. No denominator in this column.',
+      seniorCapacityAvailableTip:
+        'Senior available = senior quota − enrolled seniors this round (excluding specially added), floored at 0. No denominator in this column. Click to view allocated / remaining by cohort.',
+      /** @deprecated Result modal now uses usage title */
+      meSeniorQuotaReadonlyTitle: 'Senior Grade Share',
+      meSeniorQuotaUsageTitle: 'Senior Quota Usage',
+      meSeniorQuotaReadonlyCourse: 'Course: {code} {name}',
+      meSeniorQuotaReadonlyEmpty:
+        'No senior grade-share rows for this course (batch default may apply; none resolved).',
+      meSeniorQuotaUsageCapTotal: 'Senior quota total: {n}',
+      meSeniorQuotaUsageAllocatedTotal: 'Allocated total: {n}',
+      meSeniorQuotaUsageRemainingTotal: 'Remaining total: {n}',
+      meSeniorQuotaUsageQuota: 'Configured',
+      meSeniorQuotaUsageAllocated: 'Allocated',
+      meSeniorQuotaUsageRemaining: 'Remaining',
+      /** @deprecated use effectiveAvailableRange for R2/R3 */
+      effectiveEnrolledRange: 'Effective max enrolled',
+      /** @deprecated use freshmanAvailableRange for R2/R3 */
+      freshmanEnrolledRange: 'Freshman enrolled',
+      /** @deprecated use seniorAvailableRange for R2/R3 */
+      seniorEnrolledRange: 'Senior enrolled',
+      effectiveAvailableRange: 'Effective max available',
+      freshmanAvailableRange: 'Freshman available',
+      seniorAvailableRange: 'Senior available',
+      specialAddedRange: 'Specially added count',
+      rangeMinPlaceholder: 'Min',
+      rangeMaxPlaceholder: 'Max',
       specialAddedCount: 'Specially Added Students',
       specialAddedCountTip:
         'Students added by staff outside programme-defined capacity. Click the count to view the roster.',
@@ -2526,6 +2599,12 @@ export default {
       specialAddedRosterHint:
         'These students were specially added and do not consume programme-defined capacity; they are excluded from the capacity “enrolled” numerator.',
       specialAddedRosterCount: '{count} student(s)',
+      studentDetailTitle: 'Registration result detail',
+      studentDetailSectionCourse: 'Course & source',
+      studentDetailSectionStudent: 'Student',
+      studentDetailSectionOp: 'Operation & notes',
+      adminAddReason: 'Reason',
+      adminAddAttachment: 'Attachment',
       addSpecialStudent: 'Add Special Student',
       courseCount: 'Courses',
       credits: 'Credits',
@@ -2577,6 +2656,14 @@ export default {
       gradeProgramme: 'Grade / Programme',
       studentCategory: 'Student Category',
       selectedStudents: '{count} selected',
+      selectAllStudents: 'Select all students in current filter',
+      addReasonLabel: 'Reason',
+      addReasonPlaceholder: 'Enter reason for admin add',
+      addReasonRequired: 'Please enter a reason',
+      addAttachmentLabel: 'Upload attachment',
+      addAttachmentOptional: 'Optional supporting document',
+      addAttachmentMaxCount: 'Up to {n} files.',
+      addAttachmentClear: 'Clear all',
       status: {
         confirmed: 'Confirmed',
         warning: 'Warning',
@@ -2761,8 +2848,14 @@ export default {
       paymentStatusPaid: 'Paid',
       paymentStatusUnpaid: 'Unpaid',
     },
+    /** Study mode (roster / retake summary shared) */
+    studyMode: {
+      normal: 'Normal',
+      retakeSameCourse: 'Same-course retake',
+      retakeSameGroup: 'Same-group retake',
+    },
     sectionRoster: {
-      hint: 'Query enrolled students by course section; export includes full fields (roster / section / course IDs).',
+      hint: 'Query enrolled students by course section; export opens a dialog to choose fields and scope (current page / all results), including optional roster / section / course IDs.',
       term: 'Term',
       sectionName: 'Section Name',
       courseKeyword: 'Course Code / Section Name',
@@ -2770,7 +2863,8 @@ export default {
       studentKeyword: 'Student ID or Name',
       studentKeywordPh: 'Student ID or name (fuzzy)',
       ownerPh: 'Owner (fuzzy)',
-      studyModePh: 'Study mode (fuzzy)',
+      /** @deprecated Filter is a select; keep placeholder text */
+      studyModePh: 'Select study mode',
       movementStatus: 'Student Status Change',
       studyMode: 'Study Mode',
       owner: 'Owner',
@@ -2779,6 +2873,7 @@ export default {
       courseId: 'Course ID',
       grade: 'Intake Grade',
       sheetName: 'Section Student Roster',
+      pageCreditsSumPrefix: 'Credit sum for this page: ',
     },
     /** Legacy BOA approval page (not in menu); must not share key with door whitelist */
     whitelistBoa: {
@@ -3103,9 +3198,9 @@ export default {
         expand: 'Show {count} more',
         collapse: 'Collapse',
         flatHint: '{count} course(s) selected this round',
-        panelTitle: 'Registration status',
-        titleWithSelected: 'Registration status ({count} course(s) selected)',
-        titleWithPending: 'Registration status',
+        panelTitle: 'Term registration status',
+        titleWithSelected: 'Term registration status ({count} course(s) selected)',
+        titleWithPending: 'Term registration status',
         currentVolunteerSection: 'This round preferences',
         pendingCountBeside: '({count} preferences submitted)',
         currentSelectedSection: 'This round selected',
@@ -3236,10 +3331,10 @@ export default {
         termStatSelected: ' Selected: {credit} credit(s)',
         selectedRequired: ' (Selected/Required)',
         short: {
-          humanities: 'GE01',
-          business: 'GE02',
-          science: 'GE03',
-          aiOpen: 'GE04',
+          humanities: 'GE-01',
+          business: 'GE-02',
+          science: 'GE-03',
+          aiOpen: 'GE-04',
         },
       },
       meGroupShort: {
@@ -3379,7 +3474,10 @@ export default {
       needDropWithAdd: 'Need to drop a course?',
       needDropWithRetake: 'Need to drop a course?',
       needDropLabel: 'Need to drop a course?',
+      needAddLabel: 'Need to add a course?',
+      needRetakeLabel: 'Need to retake a course?',
       needDropRequired: 'Please confirm whether you need to drop a course',
+      intentFlagsRequired: 'Select at least one of: drop, add, or retake',
       needDropNotAllowed:
         'Linked drop is not allowed with your current permissions; submit the primary type only.',
       applicationReason: 'Application Notes',
@@ -3394,11 +3492,19 @@ export default {
       coursePickerTitle: 'Select course',
       coursePickerSubtitle: 'Application type: {type}',
       coursePickerSelected: '{count} course(s) selected',
+      /** Drop picker: before drop (baseline term total) → drop sum → remaining */
+      coursePickerSelectedDropCredits:
+        '{count} course(s) selected; credits before drop are {original}; drop credits total {credits}; remaining credits are {remain}',
       coursePickerNone: 'No course selected',
       pickerStatusOpen: 'Seats available',
       pickerSeatCapacityHeader: 'Avail./Total',
       pickerOriginalSessionHeader: 'Original Class Session',
+      pickerOfferingSessionHeader: 'Class Academic Session',
+      pickerOfferingSessionTip:
+        'By default the list shows courses for the current academic session. When the whitelist allows future-session electives, courses are sorted by academic session ascending (e.g. 2025/09 → 2026/04 → 2026/09).',
       pickerSameCourseSectionPicked: 'Another section of this course is already selected',
+      /** Retake picker: one original → one offering */
+      pickerRetakeSingleCourseOnly: 'Another course is already selected for this retake',
       pickerRetakeSubstituteTip:
         'Note: Required courses may only be retaken as the same course; GE may be substituted within the virtual GE group among courses offered this term; ME may be substituted within the same selection group among courses offered this term. Check Selection Group, prior grades, and Available seats columns.',
       pickerRetakeHistoryHeader: 'Prev. Session/Grade',
@@ -3419,12 +3525,31 @@ export default {
         selectedRequiredSuffix: 'Selected/Required',
         electiveSelected: 'Term Elective Credits Selected',
         mandatorySelected: 'Term Required Credits Selected',
+        gradElectiveSelected: 'Graduation Elective Credits Selected',
+        gradMandatorySelected: 'Graduation Required Credits Selected',
+        /** @deprecated Split into termTotalSelected / gradTotalSelected */
         totalSelected: 'Total Credits Selected',
+        termTotalSelected: 'Term Total Credits Selected',
+        gradTotalSelected: 'Graduation Total Credits Selected',
         situationFull:
           'According to the programme study plan, you have fulfilled all credit requirements and have no courses available to add.',
         situationDeficit:
           'According to the programme study plan, outstanding graduation credits are: Compulsory: {mandatory}; GE: {ge}; ME: {me}.',
+        /** Failed transcript pool, deduped by course, summed by category */
+        failedCourseCredits:
+          'Cumulative failed-course credits: Compulsory: {mandatory}; GE: {ge}; ME: {me}',
+        /** Pending apps: credits/courses are estimates */
+        pendingEstimateTip:
+          'Displayed credits and courses are estimated from your submitted application(s); the actual result is confirmed after approval.',
       },
+      /** Same primary type already pending */
+      /** Whole-application second-submit gate (any pending self-submit) */
+      primaryTypePendingBlocked:
+        'You already have an application awaiting review and cannot submit again. Cancel it to start a new one.',
+      secondApplicationBlocked:
+        'You already have an application awaiting review and cannot submit again. Cancel it to start a new one.',
+      secondApplicationUnpaidBlocked:
+        'You have an unpaid add/drop/retake bill. Complete course payment before starting another application.',
       /** Add/Retake CORE tab: selectable column */
       pickerSelectableHeader: 'Selectable',
       pickerSelectableYes: 'Yes',
@@ -3506,6 +3631,7 @@ export default {
       fieldDropMeCredits: 'Drop ME credits',
       fieldDropGeCredits: 'Drop GE credits',
       fieldRetakeTotalCredits: 'Total retake credits',
+      fieldRetakeTotalCreditsBillable: 'Total retake credits (billable)',
       fieldCourseName: 'Course name',
       fieldCourseCode: 'Course code',
       sectionRequired: 'Please select a teaching section',
@@ -3536,6 +3662,9 @@ export default {
         ge: 'General Elective',
         me: 'Major Elective',
       },
+      /** Add-course elective tab “?”: rule tip only (list stays selectable) */
+      pickerElectiveTabRound3Tip:
+        'Electives may be selected and submitted only after Round 3 opens. Before then, courses remain visible but are grayed out and not operable. Required courses have no such restriction.',
       pickerConfirm: 'Confirm',
       sectionSelectPlaceholder: 'Select course group',
       sectionConflictOption: '(clash — unavailable)',
@@ -3549,12 +3678,35 @@ export default {
       transcriptPickPlaceholder: 'Select a past course record',
       feeEstimateTitle: 'Fee estimate',
       feeEstimateShort: 'Est. fee',
+      feeEstimateAddShort: 'Est. add fee',
+      feeEstimateRetakeShort: 'Est. retake fee',
+      feeBoxAddFee: 'Add fee',
+      feeBoxRetakeFee: 'Retake fee',
+      feeBoxSstFee: 'SST fee',
+      /** Per-course fee process line in fee estimate box */
+      feeDetailProcessLine:
+        '{code} · {stream} · {n} billable credit(s) × {rate} RMB = {amount} RMB',
+      /** SST process: course-fee total × rate */
+      feeSstProcessLine: 'Course fee total {fee} × {rate}% = {sst}',
+      /** @deprecated Split into failed/improve titles; kept for compatibility */
+      retakeOriginalListTitle: 'Original courses to retake',
+      retakeOriginalListTitleFailed: 'Failed courses',
+      retakeOriginalListTitleImprove: 'Courses allowed for retake',
+      retakeOriginalSessionGrade: 'Session / grade',
+      retakeOriginalListHint:
+        'Confirm failed/improve originals first, then choose this-term offerings via Select retake course.',
+      retakeOriginalEmpty: 'No matching transcript originals for this retake type',
+      pickRetakeCourseForOriginal: 'Select retake course',
+      retakePickFromOriginalHint: 'Please click Select retake course on an original course row first',
       feeEstimateTotal: 'Total',
       feeEstimateTotalFee: 'Total fee',
       paymentDueAt: 'Payment due',
       feeEstimateZero: 'No excess/retake fee expected for this application (within plan).',
       feeRateTip: 'Per credit: Arts {arts} RMB / Science {science} RMB / Business {business} RMB.',
       fieldExcessCredits: 'Excess credits',
+      /** Approval list: retake full billable credits (after excess) */
+      fieldRetakeCreditsList: 'Retake credits',
+
       fieldTermExcessCredits: 'Term excess credits',
       fieldGradExcessCredits: 'Graduation excess credits (billable)',
       retakeReplacesOriginal: 'Replaces: {codes}',
@@ -3577,8 +3729,11 @@ export default {
         prerequisiteWaiver: 'Prerequisite waiver',
         other: 'Other',
       },
-      addNotesLabel: 'Additional notes',
+      addNotesLabel: 'Add notes',
       addNotesPlaceholder: 'Optional notes for the add request',
+      /** Independent retake notes (not linked to addNotes) */
+      retakeNotesLabel: 'Retake notes',
+      retakeNotesPlaceholder: 'Optional notes for the retake request',
       previouslyTakenCourse: 'Course Previously Taken (Code, Name)',
       previouslyTakenPlaceholder: 'e.g. SEM102 Quantitative Methods…',
       previouslyTakenRequired: 'Please enter the previously taken course',
@@ -3589,8 +3744,21 @@ export default {
       previousCourseGrades: 'Previous course grades',
       previousCourseGradesHint:
         'Filled from the transcript after course selection; one line per session (newest first), including absent.',
+      /** Summary column: failed original course for this retake row */
+      /** Form summary / detail: previously taken course code/name */
+      retakeOriginalCourse: 'Previously taken course',
+      /** Summary column: retake offering as code/name */
+      retakeCourseColumn: 'Retake course',
+      /** Same course code as previously taken; No = same-group substitute retake */
+      /**
+       * @deprecated Column renamed to study mode; keep key for old refs
+       */
+      retakeSameCourseAsOriginal: 'Study mode',
+      /** Retake summary column: same-course / same-group retake only */
+      retakeStudyMode: 'Study mode',
       retakeTypeLabel: 'Course Retake Type',
       retakeTypeRequired: 'Please select retake type',
+      /** @deprecated No longer shown on application form */
       retakeTypeFirstHint:
         'Select retake type first, then pick courses. Changing type clears selected retake courses.',
       retakeLatestGrade: 'Latest grade',
@@ -3599,9 +3767,10 @@ export default {
         improveGrade: 'Improve grade',
         failed: 'Failed / retake',
       },
-      retakeCourse: 'Retake course this semester',
-      retakeCoursePlaceholder: 'Select the course to retake this semester',
-      retakeCourseHint: 'Course code and name for this semester. The teaching group is chosen in the course picker.',
+      retakeCourse: 'Selected retake courses',
+      retakeCoursePlaceholder: 'Select retake courses from each original type above',
+      retakeCourseHint:
+        'Aggregates retake offerings chosen for originals across Required / GE / ME tabs (not the original list). Credits and fees total all rows below.',
       gradeEarnedHint: 'Grade earned for this course in a previous semester.',
       academicSessionTakenHint: 'Academic session when the course was previously taken.',
       retakeTimeVenuePlaceholder: 'e.g. Wednesday 10.00am-1.00pm (A2#G01), Thursday 8.00am-10.00am (A1#106)',
@@ -3661,6 +3830,7 @@ export default {
       dropFormSelfHint: 'Regular-window self-service drop: select an enrolled course and submit.',
       dropFormSpecialHint:
         'Past deadline: reason and supporting evidence are required; submission goes to special manual approval.',
+      /** @deprecated Drop form footer approval-queue hint removed; do not reuse */
       dropFormApprovalHint: 'Drop requests enter the approval queue and take effect after approval.',
       addDropWindowOpen:
         'Add/Drop application window is open ({range}). You may submit add, drop, retake or linked add/drop.',
@@ -3745,6 +3915,11 @@ export default {
         selected: 'Credits Chosen',
       },
       scheduleToolbarButton: 'My Timetable',
+      /** My courses toolbar: sum of all selected credits this term */
+      /** @deprecated Prefer prefix + score for red score styling */
+      termAccumulatedCredits: 'Term accumulated credits: {credits}',
+      termAccumulatedCreditsPrefix: 'Term accumulated credits: ',
+      termAccumulatedCreditsScore: '{credits}',
       scheduleExpand: 'Show timetable',
       scheduleCollapse: 'Hide timetable',
       addDropSelectBothCourses: 'Please select both the drop course and the add course',
@@ -3754,21 +3929,35 @@ export default {
       retakeDropLinkedHint:
         'Retake with Drop processes Drop then Retake; submission enters the approval queue.',
       retakeDropSelectBothCourses: 'Please select both the drop course and the retake course',
-      retakeDropSameCourse: 'Drop course and retake course must be different',
+      /**
+       * @deprecated Drop+retake same course/section is now allowed; key kept for old refs
+       */
+      retakeDropSameCourse:
+        'You cannot drop a section and retake the same course section. Choose a different section.',
+      /**
+       * @deprecated Drop+retake same course/section is now allowed; key kept for old refs
+       */
       retakeDropSameCourseSameSection:
         'You cannot drop a section and retake the same course section. Choose a different section.',
+      /**
+       * @deprecated Same section re-add after drop is allowed; CORE switch still uses whitelist lock
+       */
       addDropSameCourseSameSection:
         'You cannot drop a section and add back the same course section. Choose a different section.',
-      coreMustSameSectionReadd:
-        'Same-term CORE courses cannot switch section by default.',
+      retakeCourseAlreadyPassed: 'This course already has a passing grade',
+      coreMustSameSectionReadd: 'Does not meet this section selection requirement',
+      /** “?” after lock label: whitelist needed to switch section */
+      coreSameSectionReaddWhitelistTip:
+        'When adding a course, students may only choose the original section by default; choosing another section requires whitelist access.',
       /** @deprecated Retake no longer locks section switch; key kept for old refs */
-      coreMustSameSectionRetake:
-        'Same-term CORE courses cannot switch section by default.',
+      coreMustSameSectionRetake: 'Does not meet this section selection requirement',
       dropBelowCreditMin:
-        'After Drop-only, credits ({net}) cannot be below the term minimum ({min}). Ask Academic staff to enable whitelist “Allow Drop below 12-credit minimum” if an exception is needed.',
-      dropReason: 'Drop Reason',
-      dropReasonPlaceholder: 'Please explain why you are dropping the course',
-      dropReasonRequired: 'Please enter the drop reason',
+        'After Drop-only, credits ({net}) cannot be below the minimum ({min}). Ask Academic staff to enable whitelist “Allow Drop below 12-credit minimum” and set the credit floor if an exception is needed.',
+      dropReason: 'Drop notes',
+      dropReasonOptional: 'Optional',
+      dropReasonPlaceholder: 'Optional notes for the drop request',
+      /** @deprecated Notes are optional; key kept for old refs */
+      dropReasonRequired: 'Please enter drop notes',
       dropAttachment: 'Attachment',
       dropAttachmentOptional: 'Optional',
       dropAttachmentHint: 'Supported formats: PDF, JPG, PNG, DOCX. Max 5MB per file.',
@@ -3811,6 +4000,7 @@ export default {
       eligibilityFilter: 'Eligibility',
       creditsFilter: 'Filter by credits',
       prerequisiteNone: 'No prerequisite',
+      prerequisiteHas: 'Has prerequisite',
       resultStatus: {
         confirmed: 'Confirmed',
         warning: 'Attention',

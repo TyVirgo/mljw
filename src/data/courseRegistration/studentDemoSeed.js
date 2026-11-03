@@ -1,4 +1,8 @@
-import { registrationMonitorQueue } from './registrationMonitorQueue.js'
+import {
+  registrationMonitorQueue,
+  DEFAULT_MONITOR_ACADEMIC_SESSION,
+  findMonitorRowIndexByStudentId,
+} from './registrationMonitorQueue.js'
 import {
   studentConfirmedCourses,
   studentRequiredCourses,
@@ -210,11 +214,11 @@ const DEMO_INCREMENTAL_ROUND_COURSES = DEMO_ROUND_CONFIRMED_COURSES.filter(
 )
 
 /**
+ * @deprecated 加退学分条与退课表对齐后不再并入确认半池（保持学期总 29）
  * 管理端代选样例：BUS201 挂 GE R2 批（sourceType=admin）
- * 不计入 GE「本轮选课」累计（R2=HUM201+BUS301→4；R3=+MPU401→6）
- * credits 用 1 控学期演示帽；课库可为 3，本轮表不展示代选故无双口径
+ * 保留导出供历史申请 demo 对照，勿再写入 studentConfirmedCourses
  */
-const DEMO_ADMIN_CONFIRMED_COURSES = [
+export const DEMO_ADMIN_CONFIRMED_COURSES = [
   {
     courseId: 'course-bus201',
     courseCode: 'BUS201',
@@ -243,8 +247,8 @@ const DEMO_ADMIN_CONFIRMED_COURSES = [
   isRetake: false,
 }))
 
-/** 选课结果 / 我的选课：ME+GE 分批确认课 + 1 管理员代选 */
-const DEMO_CONFIRMED_COURSES = [...DEMO_ROUND_CONFIRMED_COURSES, ...DEMO_ADMIN_CONFIRMED_COURSES]
+/** 选课结果 / 我的选课：仅轮次确认课（不含管理员代选） */
+const DEMO_CONFIRMED_COURSES = [...DEMO_ROUND_CONFIRMED_COURSES]
 
 /**
  * Demo 必修底图（字段同选修确认课；不进确认半池、不计选修学分帽）
@@ -267,6 +271,7 @@ export const DEMO_REQUIRED_COURSES = [
     lecturer: '陈教授',
     lecturerEn: 'Prof. Chen',
     batchId: 'batch-2504-m1',
+    academicSession: DEMO_TERM_ACADEMIC_SESSION,
     classTime: deriveClassTime('Wed 09:00–11:00'),
     selectedAt: '2026-03-01 08:00:00',
     sourceType: 'required',
@@ -289,6 +294,7 @@ export const DEMO_REQUIRED_COURSES = [
     lecturer: '黄博士',
     lecturerEn: 'Dr. Wong',
     batchId: 'batch-2504-m1',
+    academicSession: DEMO_TERM_ACADEMIC_SESSION,
     classTime: deriveClassTime('Sat 18:00–20:00'),
     selectedAt: '2026-03-01 08:00:00',
     sourceType: 'required',
@@ -1101,6 +1107,166 @@ function buildDemoAddDropApplications(credits, schedule) {
       retakeType: 'failed',
       approvalLog: [],
     },
+    /** 加课+重修：覆盖 AddRetake 类型文案与双意图组合 */
+    {
+      id: 'adr-xmum-addretake-01',
+      applicationNo: 'ADR2509035',
+      ...baseStudent,
+      currentCredits: 22,
+      type: 'AddRetake',
+      needDrop: 'no',
+      needAdd: 'yes',
+      needRetake: 'yes',
+      status: 'Pending',
+      submittedAt: '2026-07-18 10:15:00',
+      billStatus: 'pending',
+      billAmount: 3700,
+      reason: 'Add STAT201 elective and retake MATH201 failed course',
+      retakeType: 'failed',
+      gradeEarned: 'F',
+      academicSessionTaken: '2025/09',
+      previousCourseGradesText: '2025/09 45分',
+      items: [
+        {
+          action: 'Add',
+          courseCode: 'STAT201',
+          credits: 3,
+          section: '01',
+          time: 'Mon 14:00–16:00',
+          fee: 1500,
+        },
+        {
+          action: 'Retake',
+          courseCode: 'MATH201',
+          credits: 4,
+          section: '02',
+          sectionName: '分组名称02',
+          time: 'Fri 14:00–16:00',
+          room: 'D5-1-111',
+          weekRange: '1-18',
+          lecturer: 'Dr. Ng',
+          retakeGrade: 'F',
+          fee: 2200,
+        },
+      ],
+      approvalLog: [],
+    },
+    /** 退课+加课+重修：覆盖 AddDropRetake 三意图组合 */
+    {
+      id: 'adr-xmum-adddropretake-01',
+      applicationNo: 'ADR2509036',
+      ...baseStudent,
+      currentCredits: 20,
+      type: 'AddDropRetake',
+      needDrop: 'yes',
+      needAdd: 'yes',
+      needRetake: 'yes',
+      status: 'Approved',
+      submittedAt: '2026-07-10 14:00:00',
+      billStatus: 'paid',
+      billAmount: 2050,
+      dropChannel: 'self',
+      teachingWeek: 2,
+      feeWaiver: true,
+      reason: 'Drop IT102, add HUM110, retake PHYS101',
+      retakeType: 'failed',
+      gradeEarned: 'F',
+      academicSessionTaken: '2024/09',
+      previousCourseGradesText: '2024/09 42分',
+      items: [
+        { action: 'Drop', courseCode: 'IT102', credits: 2, section: '01', time: 'Mon 09:00–11:00' },
+        {
+          action: 'Add',
+          courseCode: 'HUM110',
+          credits: 3,
+          section: '01',
+          time: 'Fri 09:00–12:00',
+          fee: 1500,
+        },
+        {
+          action: 'Retake',
+          courseCode: 'PHYS101',
+          credits: 4,
+          section: '01',
+          sectionName: '分组名称01',
+          time: 'Tue 14:00–17:00',
+          retakeGrade: 'F',
+          fee: 550,
+        },
+      ],
+      approvalLog: [{ at: '2026-07-11 11:00', actor: 'AC SWE', action: 'Approved' }],
+    },
+    /**
+     * 同课异组合法样例：退 MATH101-01 + 重修 MATH101-02（同课号不同分组）
+     * 审批弹窗可见双行 MATH101 且分组分别为 01 / 02
+     */
+    {
+      id: 'adr-xmum-adddropretake-samecourse-01',
+      applicationNo: 'ADR2509040',
+      ...baseStudent,
+      currentCredits: 18,
+      type: 'AddDropRetake',
+      needDrop: 'yes',
+      needAdd: 'yes',
+      needRetake: 'yes',
+      status: 'Pending',
+      submittedAt: '2026-07-18 15:30:00',
+      billStatus: 'pending',
+      billAmount: 550,
+      dropChannel: 'self',
+      teachingWeek: 3,
+      feeWaiver: true,
+      reason: 'Drop MATH101 sec01 then retake MATH101 sec02',
+      dropReason: '课程安排调整',
+      addNotes: '',
+      retakeNotes: '',
+      retakeType: 'failed',
+      gradeEarned: 'F',
+      academicSessionTaken: '2025/04',
+      previousCourseGradesText: '2025/04: 45分',
+      items: [
+        {
+          action: 'Drop',
+          courseCode: 'MATH101',
+          courseName: 'Calculus I',
+          credits: 4,
+          type: 'CORE',
+          section: '01',
+          sectionCode: '01',
+          sectionName: '分组名称01',
+          time: 'Wed 09:00–11:00',
+        },
+        {
+          action: 'Add',
+          courseCode: 'CHEM101',
+          courseName: 'General Chemistry',
+          credits: 3,
+          type: 'CORE',
+          section: '01',
+          sectionCode: '01',
+          sectionName: '分组名称01',
+          time: 'Fri 08:00–10:00',
+          fee: 0,
+        },
+        {
+          action: 'Retake',
+          courseCode: 'MATH101',
+          courseName: 'Calculus I',
+          credits: 4,
+          type: 'CORE',
+          section: '02',
+          sectionCode: '02',
+          sectionName: '分组名称02',
+          time: 'Thu 14:00–16:00',
+          retakeGrade: 'F',
+          fee: 550,
+          replacesCourseCode: 'MATH101',
+          replacesCourseName: 'Calculus I',
+          previousCourseGradesText: '2025/04: 45分',
+        },
+      ],
+      approvalLog: [],
+    },
   ].map((app, index) => enrichAddDropApplicationSchedule(app, index))
 }
 
@@ -1112,15 +1278,33 @@ function syncDemoAddDropApplications(credits, schedule) {
   }
   const requiredStatuses = ['Pending', 'Approved', 'Rejected', 'Cancelled']
   const statusCoverageOk = requiredStatuses.every((s) => (statusCounts[s] || 0) >= 2)
-  const typeCoverageOk = ['Add', 'Drop', 'Retake', 'AddDrop', 'RetakeDrop'].every((type) =>
-    studentApps.some((app) => app.type === type),
-  )
+  /** 七种意图组合：单/双/三类型均需有 demo 行 */
+  const typeCoverageOk = [
+    'Add',
+    'Drop',
+    'Retake',
+    'AddDrop',
+    'RetakeDrop',
+    'AddRetake',
+    'AddDropRetake',
+  ].every((type) => studentApps.some((app) => app.type === type))
   const retakeDropCount = studentApps.filter((app) => app.type === 'RetakeDrop').length
+  /** 含重修却费用明细无重修全额行 → 旧学期帽伪造费用，强制重种 */
+  const feeEstimateMissingRetake = studentApps.some((app) => {
+    const hasRetake = (app.items || []).some((i) => i?.action === 'Retake')
+    if (!hasRetake) return false
+    const items = app.feeEstimate?.items || []
+    if (!items.length) return true
+    return !items.some(
+      (i) => i.action === 'Retake' || i.reason === 'retake_full_credits',
+    )
+  })
   const needsReseed =
     studentApps.length < 16 ||
     !statusCoverageOk ||
     !typeCoverageOk ||
     retakeDropCount < 5 ||
+    feeEstimateMissingRetake ||
     studentApps.some((app) => !app.academicSession) ||
     studentApps.some((app) => !String(app.programme || '').trim()) ||
     studentApps.some((app) => app.type === 'Replace') ||
@@ -1266,9 +1450,13 @@ function syncDemoMonitor(courses) {
           ? ['creditAboveMax']
           : []
 
-  const existingIndex = registrationMonitorQueue.value.findIndex((r) => r.studentId === DEMO_STUDENT_ID)
+  const existingIndex = findMonitorRowIndexByStudentId(
+    DEMO_STUDENT_ID,
+    DEMO_TERM_ACADEMIC_SESSION || DEFAULT_MONITOR_ACADEMIC_SESSION,
+  )
   const base = {
     id: 'mon-xmum-demo',
+    academicSession: DEMO_TERM_ACADEMIC_SESSION || DEFAULT_MONITOR_ACADEMIC_SESSION,
     studentId: DEMO_STUDENT_ID,
     studentName: 'Tan Wei Ming',
     programme: 'SWE',
@@ -1336,8 +1524,9 @@ export function seedStudentRegistrationDemo() {
   const needsReseed =
     studentConfirmedCourses.value.some((item) => !item.selectedAt || !item.sourceType) ||
     studentConfirmedCourses.value.some((item) => !item.schoolElectiveCategory) ||
-    !studentConfirmedCourses.value.some(
-      (item) => item.courseCode === 'BUS201' && item.schoolElectiveCategory === 'ai_open',
+    // 旧种子含 admin 代选 BUS201 时重灌，去掉后学期总保持 29
+    studentConfirmedCourses.value.some(
+      (item) => item.courseCode === 'BUS201' && item.sourceType === 'admin',
     ) ||
     !studentConfirmedCourses.value.some(
       (item) => item.courseCode === 'HUM201' && item.roundKey === 'preselect',
@@ -1368,8 +1557,7 @@ export function seedStudentRegistrationDemo() {
         (item.courseCode === 'CST202' || item.courseCode === 'BUS302' || item.courseCode === 'MPU401') &&
         String(item.time || '').includes('Mon 08:00'),
     ) ||
-    studentConfirmedCourses.value.length <
-      DEMO_BASE_ROUND_COURSES.length + DEMO_ADMIN_CONFIRMED_COURSES.length
+    studentConfirmedCourses.value.length < DEMO_BASE_ROUND_COURSES.length
   if (needsReseed) {
     // 先写入全量（含增量），再按学分帽 reconcile
     studentConfirmedCourses.value = DEMO_CONFIRMED_COURSES.map((item) => ({ ...item }))
@@ -1393,6 +1581,12 @@ export function seedStudentRegistrationDemo() {
     studentRequiredCourses.value.some(
       (item) => item.courseCode === 'INT300' && !item.academicSession,
     ) ||
+    // 补学期字段：拟退并入加课池「原上课学期」用
+    studentRequiredCourses.value.some(
+      (item) =>
+        (item.courseCode === 'MATH101' || item.courseCode === 'PHYS101') &&
+        !item.academicSession,
+    ) ||
     studentRequiredCourses.value.some(
       (item) =>
         item.courseCode === 'MATH101' &&
@@ -1412,7 +1606,10 @@ export function seedStudentRegistrationDemo() {
   syncDemoWaitlistEntries()
 
   // 刷新演示生学期帽与文商理（与确认课汇总保持一致）
-  const monitorIdx = registrationMonitorQueue.value.findIndex((r) => r.studentId === DEMO_STUDENT_ID)
+  const monitorIdx = findMonitorRowIndexByStudentId(
+    DEMO_STUDENT_ID,
+    DEMO_TERM_ACADEMIC_SESSION || DEFAULT_MONITOR_ACADEMIC_SESSION,
+  )
   if (monitorIdx >= 0) {
     const row = registrationMonitorQueue.value[monitorIdx]
     const geCats = sumTermCategoryCreditsFromCourses(studentConfirmedCourses.value, 'GE')
