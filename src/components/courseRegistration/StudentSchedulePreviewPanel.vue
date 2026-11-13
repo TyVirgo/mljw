@@ -1,36 +1,38 @@
 <script setup>
 import WeekScheduleGrid from './WeekScheduleGrid.vue'
-import { useAppI18n } from '../../composables/useAppI18n.js'
 
 defineProps({
   title: { type: String, default: '' },
   schedule: { type: Array, default: () => [] },
   hint: { type: String, default: '' },
+  /**
+   * default：标题区灰字 hint
+   * banner：图例上方浅蓝 tip（申请课表预览；与 header 去重）
+   */
+  hintPlacement: { type: String, default: 'default' },
   /** 抽屉/表单内嵌时更紧凑，去掉大块灰底占位感 */
   embedded: { type: Boolean, default: false },
   /** 展示图层图例（学生课表抽屉默认开） */
   showLegend: { type: Boolean, default: true },
-  /** register | myResult */
+  /** register | myResult | addDropPreview */
   legendMode: { type: String, default: 'register' },
 })
-
-const { t } = useAppI18n()
 </script>
 
 <template>
   <div class="schedule-preview-panel" :class="{ 'is-embedded': embedded }">
-    <div v-if="title || hint" class="schedule-preview-head">
+    <div v-if="title || (hint && hintPlacement === 'default')" class="schedule-preview-head">
       <h4 v-if="title" class="schedule-preview-title">{{ title }}</h4>
-      <p v-if="hint" class="schedule-preview-hint">{{ hint }}</p>
+      <p v-if="hint && hintPlacement === 'default'" class="schedule-preview-hint">{{ hint }}</p>
     </div>
+    <!-- 无课块仍渲染图例+周时间轴空表（全退后不整页空白） -->
     <WeekScheduleGrid
-      v-if="schedule.length"
       :schedule="schedule"
       :show-legend="showLegend"
       :legend-mode="legendMode"
+      :banner-hint="hintPlacement === 'banner' ? hint : ''"
       :stretch="embedded"
     />
-    <p v-else class="schedule-preview-empty">{{ t('courseRegistration.student.schedulePreviewEmpty') }}</p>
   </div>
 </template>
 
@@ -69,11 +71,5 @@ const { t } = useAppI18n()
   margin: 4px 0 0;
   font-size: 12px;
   color: #6b7280;
-}
-
-.schedule-preview-empty {
-  margin: 0;
-  font-size: 12px;
-  color: #9ca3af;
 }
 </style>

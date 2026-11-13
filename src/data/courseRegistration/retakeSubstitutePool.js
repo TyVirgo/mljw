@@ -445,6 +445,147 @@ export function filterRetakePickerCoursesByOriginal(pool = [], original) {
 }
 
 /**
+ * 从行/课多字段推断课性（增量 bi：避免 type 空导致不过滤）
+ * @param {object|null|undefined} courseOrLine
+ * @returns {''|'core'|'GE'|'ME'}
+ */
+function inferRetakeScopeElectiveKind(courseOrLine) {
+  if (!courseOrLine) return ''
+  if (isCoreType(courseOrLine.type, courseOrLine.sourceType)) return 'core'
+  const fields = [
+    courseOrLine.type,
+    courseOrLine.sourceType,
+    courseOrLine.schoolElectiveCategory,
+    courseOrLine.courseType,
+    courseOrLine.category,
+  ]
+  for (const field of fields) {
+    const raw = String(field || '').trim()
+    if (!raw) continue
+    const upper = raw.toUpperCase()
+    if (upper === 'CORE' || upper === 'REQUIRED' || upper === 'MANDATORY') return 'core'
+    if (upper === 'GE' || upper.startsWith('GE')) return 'GE'
+    if (upper === 'ME' || upper.startsWith('ME')) return 'ME'
+  }
+  return ''
+}
+
+/**
+ * 解析重修/换课的课程组范围（增量 bh / bi）
+ * - core：仅同课号池（由上层课性锁处理）
+ * - ge-virtual：全部可选 GE
+ * - me-group：真实 n 选 m 组
+ * - me-ordinary：普通 ME（非几选几）
+ * @param {object|null|undefined} courseOrLine 原课/驳回行
+ * @returns {{ kind: string, groupId: string, group: object|null }}
+ */
+export function resolveRetakeSelectionGroupScope(courseOrLine) {
+  if (!courseOrLine) return { kind: '', groupId: '', group: null }
+  const code = String(courseOrLine.courseCode || courseOrLine.code || '').trim()
+  const electiveKind = inferRetakeScopeElectiveKind(courseOrLine)
+  if (electiveKind === 'core') {
+    return { kind: 'core', groupId: '', group: null }
+  }
+  if (electiveKind === 'GE') {
+    return {
+      kind: 'ge-virtual',
+      groupId: GE_VIRTUAL_SELECTION_GROUP.id,
+      group: GE_VIRTUAL_SELECTION_GROUP,
+    }
+  }
+  // 课号落在真实 n 选 m → 仅该组（优先于可能脏的 selectionGroupId）
+  const meHit = findMeSelectionGroupForCode(code)
+  if (meHit?.group) {
+    return { kind: 'me-group', groupId: meHit.group.id, group: meHit.group }
+  }
+  // 挂载真组（带 courseCodes）且课号未命中批次时仍按挂载组收窄
+  const attachedId = String(courseOrLine.selectionGroupId || courseOrLine.selectionGroup?.id || '').trim()
+  const attached = courseOrLine.selectionGroup
+  const attachedCodes = Array.isArray(attached?.courseCodes) ? attached.courseCodes : []
+  if (
+    attachedId &&
+    attachedCodes.length &&
+    attachedId !== GE_VIRTUAL_SELECTION_GROUP.id &&
+    attachedId !== ME_ORDINARY_VIRTUAL_SELECTION_GROUP.id
+  ) {
+    return {
+      kind: 'me-group',
+      groupId: attachedId,
+      group: attached,
+    }
+  }
+  if (electiveKind === 'ME') {
+    return {
+      kind: 'me-ordinary',
+      groupId: ME_ORDINARY_VIRTUAL_SELECTION_GROUP.id,
+      group: ME_ORDINARY_VIRTUAL_SELECTION_GROUP,
+    }
+  }
+  return { kind: '', groupId: '', group: null }
+}
+
+/**
+ * 候选课是否落在指定课程组范围内
+ * @param {object} course
+ * @param {{ kind: string, groupId: string, group: object|null }} scope
+ */
+export function courseMatchesRetakeSelectionGroupScope(course, scope) {
+  if (!course || !scope?.kind) return true
+  if (scope.kind === 'core') return true
+  const courseGroupId = String(course.selectionGroup?.id || course.selectionGroupId || '').trim()
+  const code = String(course.code || course.courseCode || '').trim()
+  if (scope.kind === 'ge-virtual') {
+    const t = normalizeType(course.type)
+    return t === 'GE' || String(course.type || '').toUpperCase().startsWith('GE')
+  }
+  if (scope.kind === 'me-group') {
+    if (courseGroupId && courseGroupId === scope.groupId) return true
+    // 池未挂组时按课号是否属于该组判断
+    const hit = findMeSelectionGroupForCode(code)
+    return Boolean(hit?.group?.id && hit.group.id === scope.groupId)
+  }
+  if (scope.kind === 'me-ordinary') {
+    const t = normalizeType(course.type)
+    if (t !== 'ME' && !String(course.type || '').toUpperCase().startsWith('ME')) return false
+    // 真实 n 选 m 组排除（挂载 id / 课号批次 / 组标签 GroupN）
+    if (courseGroupId && courseGroupId !== ME_ORDINARY_VIRTUAL_SELECTION_GROUP.id) {
+      if (
+        courseGroupId !== GE_VIRTUAL_SELECTION_GROUP.id &&
+        !isVirtualMeOrdinaryGroupId(courseGroupId)
+      ) {
+        return false
+      }
+    }
+    if (isMeCodeInSelectionGroup(code)) return false
+    const label = String(
+      course.selectionGroup?.groupLabel || course.selectionGroup?.name || '',
+    ).trim()
+    if (/^Group\s*\d+/i.test(label)) return false
+    return true
+  }
+  return true
+}
+
+/**
+ * @param {string} groupId
+ */
+function isVirtualMeOrdinaryGroupId(groupId) {
+  return groupId === ME_ORDINARY_VIRTUAL_SELECTION_GROUP.id
+}
+
+/**
+ * 按课程组范围过滤重修/换课候选（增量 bh：普通 ME 不含几选几组）
+ * @param {object[]} pool
+ * @param {object|null|undefined} focusCourseOrLine 原课或驳回行
+ * @returns {object[]}
+ */
+export function filterRetakePickerCoursesBySelectionGroupScope(pool = [], focusCourseOrLine) {
+  const scope = resolveRetakeSelectionGroupScope(focusCourseOrLine)
+  if (!scope.kind || scope.kind === 'core') return [...(pool || [])]
+  return (pool || []).filter((course) => courseMatchesRetakeSelectionGroupScope(course, scope))
+}
+
+/**
  * 课表必修行是否匹配当前重修类型（最新成绩：提升≥60；不及格&lt;60 或缺考）
  * @param {object[]} history
  * @param {'failed'|'improve_grade'|string} retakeType

@@ -10,6 +10,7 @@ import {
   getVisibleAddDropSections,
   buildAddDropSectionBars,
   applyIntentFlagsPatch,
+  getDropLineRemoveBlockInfo,
 } from '../../data/courseRegistration/addDropFormSections.js'
 import {
   retakeHistoryFromCourse,
@@ -81,12 +82,37 @@ const props = defineProps({
   /** 学期三卡学分条 { ge, me, mandatory } */
   termCreditStrip: { type: Object, default: null },
   /**
-   * 退课前学期基线（未扣本单拟退）：含 geCurrent / meCurrent / mandatorySelected
-   * 用于「选择」旁退课学分摘要
+   * 硬拦用因修未修（含拟退不含拟加）
+   * { ge, me, mandatory }
+   */
+  termCatchUpCredits: {
+    type: Object,
+    default: () => ({ ge: 0, me: 0, mandatory: 0 }),
+  },
+  /**
+   * 蓝底 tip 固定落下快照（增量 ah：仅 tip；矩阵未修跟 strip）；不传则回退 termCatchUpCredits
+   */
+  situationCatchUpCredits: {
+    type: Object,
+    default: null,
+  },
+  /**
+   * 学分条基线（GE/ME/必修等）；条投影用，不再作为退课红字「退课前」
    */
   termCreditStripBaseline: { type: Object, default: null },
+  /**
+   * 可退池学分总和（与退课选课器 courses / listMyResultCourses 同源）
+   * 「选择」旁摘要：退课前 = 本值
+   */
+  dropPoolCreditsTotal: { type: Number, default: 0 },
   /** 净学分超出学期上限（当前 − 拟退 + 拟加/重修 − 上限） */
   termCreditExcess: { type: Number, default: 0 },
+  /** 学期学分上限（拟退移除闸门用） */
+  termCreditMax: { type: Number, default: 0 },
+  /** 未审投影后学期净学分基线（拟退移除闸门用） */
+  termCurrentCredits: { type: Number, default: 0 },
+  /** 白名单绕过学期学分上限 */
+  bypassCreditMax: { type: Boolean, default: false },
   /** 学分条基于未审申请估算时展示感叹号 tip */
   showPendingEstimateTip: { type: Boolean, default: false },
   /** 二次申请门控（未审/待缴）：用于展示拦截提示 */
@@ -103,6 +129,10 @@ const emit = defineEmits([
   'attachments-add',
   'remove-attachment',
   'clear-attachments',
+  /**
+   * @deprecated 增量 x：预览按钮已移到申请弹窗底栏左侧，表单内不再触发
+   */
+  'preview-schedule',
 ])
 
 const { t, isZh } = useAppI18n()
@@ -215,19 +245,21 @@ const dropCreditsSum = computed(() =>
 )
 
 /**
- * 退课前学期总学分（基线 GE+ME+必修已选）
+ * 退课前 = 可退池学分总和（与弹窗表内可全选课程一致）
  * @returns {number}
  */
-const dropMetaOriginalTermTotal = computed(() => {
-  const baseline = props.termCreditStripBaseline
-  if (!baseline) return 0
-  const ge = Number(baseline.geCurrent) || 0
-  const me = Number(baseline.meCurrent) || 0
-  const mandatory = Number(baseline.mandatorySelected) || 0
-  return ge + me + mandatory
-})
+const dropMetaOriginalTermTotal = computed(() => Number(props.dropPoolCreditsTotal) || 0)
 
-/** 还剩 = 退课前 − 拟退（不小于 0） */
+/*
+ * @deprecated 旧「退课前」=学分条 GE+ME+必修已选；增量 al 摘要改读 dropPoolCreditsTotal，保留对照勿删。
+ * function dropMetaOriginalFromTermStripBaseline() {
+ *   const baseline = props.termCreditStripBaseline
+ *   if (!baseline) return 0
+ *   return (Number(baseline.geCurrent)||0)+(Number(baseline.meCurrent)||0)+(Number(baseline.mandatorySelected)||0)
+ * }
+ */
+
+/** 还剩 = 可退池总 − 拟退（不小于 0） */
 const dropMetaRemainTermTotal = computed(() =>
   Math.max(0, dropMetaOriginalTermTotal.value - dropCreditsSum.value),
 )
@@ -425,11 +457,33 @@ const RETAKE_ORIGINAL_TYPE_TABS = [
   { key: 'me', labelKey: 'courseRegistration.student.retakePickerTab.me' },
 ]
 const retakeOriginalCourseTypeTab = ref('core')
+
+/**
+ * 当前重修类型池中各类别门数（供 Tab「（N门课程）」）
+ * @returns {{ core: number, ge: number, me: number }}
+ */
+const retakeOriginalTabCourseCounts = computed(() => {
+  const counts = { core: 0, ge: 0, me: 0 }
+  if (!canPickRetakeCourse.value) return counts
+  const sid = props.studentFields?.studentId
+  for (const row of listTranscriptLatestByRetakeType(props.form.retakeType, sid)) {
+    if (transcriptMatchesOriginalTypeTab(row, 'core')) counts.core += 1
+    else if (transcriptMatchesOriginalTypeTab(row, 'ge')) counts.ge += 1
+    else if (transcriptMatchesOriginalTypeTab(row, 'me')) counts.me += 1
+  }
+  return counts
+})
+
 const retakeOriginalCourseTypeTabs = computed(() =>
-  RETAKE_ORIGINAL_TYPE_TABS.map((tab) => ({
-    key: tab.key,
-    label: t(tab.labelKey),
-  })),
+  RETAKE_ORIGINAL_TYPE_TABS.map((tab) => {
+    const count = Number(retakeOriginalTabCourseCounts.value[tab.key]) || 0
+    return {
+      key: tab.key,
+      label: `${t(tab.labelKey)}${t('courseRegistration.student.retakeOriginalTabCourseCount', {
+        count,
+      })}`,
+    }
+  }),
 )
 
 /**
@@ -770,9 +824,55 @@ function lineTimeVenueTitle(line) {
 }
 
 function removeLine(listKey, line) {
+  // 拟退移除被加课/重修依赖时禁止操作
+  if (listKey === 'dropLines' && dropLineRemoveBlocked(line)) return
   const key = lineKey(line)
   const nextList = (props.form[listKey] || []).filter((l) => lineKey(l) !== key)
   patch({ [listKey]: nextList })
+}
+
+/**
+ * 拟退移除闸门：是否因加课/重修依赖而置灰
+ * @param {object} line 拟退行
+ */
+function dropLineRemoveBlocked(line) {
+  return dropLineRemoveInfo(line).blocked
+}
+
+/**
+ * 拟退移除依赖信息（时段冲突 / 学分超限）
+ * @param {object} line 拟退行
+ */
+function dropLineRemoveInfo(line) {
+  return getDropLineRemoveBlockInfo(line, {
+    dropLines: props.form.dropLines || [],
+    addLines: props.form.addLines || [],
+    retakeLines: props.form.retakeLines || [],
+    currentCredits: props.termCurrentCredits,
+    creditMax: props.termCreditMax,
+    bypassCreditMax: props.bypassCreditMax,
+    termCreditStripBaseline: props.termCreditStripBaseline,
+    electiveCatchUpCredits: props.termCatchUpCredits,
+  })
+}
+
+/**
+ * 拟退移除置灰时的 tooltip 文案
+ * @param {object} line 拟退行
+ */
+function dropLineRemoveTooltip(line) {
+  const { blocked, blockers } = dropLineRemoveInfo(line)
+  if (!blocked || !blockers.length) return ''
+  const parts = blockers.map((item) => {
+    const kindLabel =
+      item.kind === 'retake'
+        ? t('courseRegistration.student.dropRemoveDependsRetake')
+        : t('courseRegistration.student.dropRemoveDependsAdd')
+    return `${kindLabel} ${item.courseCode}`
+  })
+  return t('courseRegistration.student.dropRemoveBlockedTip', {
+    courses: parts.join('、'),
+  })
 }
 
 function feeStreamLabel(stream) {
@@ -785,6 +885,7 @@ function feeStreamLabel(stream) {
   <div class="adddrop-sections">
     <div class="adddrop-sections__pin">
       <CourseRegistrationCallout variant="rule">
+        <!-- 增量 x：课程预览改到弹窗底栏左侧，说明区仅保留标题+条文 -->
         <p class="notes-title">{{ t(notesTitleKey) }}</p>
         <ol class="notes-list">
           <li v-for="key in noteKeys" :key="key">{{ t(key) }}</li>
@@ -794,19 +895,21 @@ function feeStreamLabel(stream) {
       <div v-if="termCreditStrip" class="adddrop-form-credit-strip">
         <AddDropTermCreditStrip
           :strip="termCreditStrip"
+          :term-catch-up-credits="situationCatchUpCredits || termCatchUpCredits"
           :application-type="form.action"
           :show-pending-estimate-tip="showPendingEstimateTip"
         />
       </div>
-      <!-- 二次申请拦截：紧挨估算提示下一行（钉在顶部，下方仍可滚） -->
+      <!-- 二次申请拦截红字：合并估算说明；蓝底不再单独出估算 tip -->
       <p
         v-if="primaryTypePendingBlocked || secondApplicationBlockTip"
         class="form-field-error adddrop-second-app-tip"
       >
-        {{
+        <span class="adddrop-second-app-bang" aria-hidden="true">!</span>
+        <span>{{
           secondApplicationBlockTip ||
           t('courseRegistration.student.secondApplicationBlocked')
-        }}
+        }}</span>
       </p>
     </div>
 
@@ -1020,7 +1123,15 @@ function feeStreamLabel(stream) {
                     <template v-else>—</template>
                   </td>
                   <td class="col-op op-cell">
-                    <button type="button" class="link-btn" @click="removeLine('dropLines', line)">
+                    <!-- 增量 x：加课/重修依赖本拟退时置灰 + tooltip -->
+                    <button
+                      type="button"
+                      class="link-btn"
+                      :class="{ 'is-disabled': dropLineRemoveBlocked(line) }"
+                      :disabled="dropLineRemoveBlocked(line) || formOpsDisabled"
+                      :title="dropLineRemoveTooltip(line) || undefined"
+                      @click="removeLine('dropLines', line)"
+                    >
                       {{ t('common.remove') }}
                     </button>
                   </td>
@@ -1068,63 +1179,6 @@ function feeStreamLabel(stream) {
             :disabled="formOpsDisabled"
             @input="onField('dropReason', $event)"
           />
-        </div>
-        <div class="form-field span-2">
-          <label>
-            {{ t('courseRegistration.student.dropAttachment') }}
-            <span class="optional">（{{ t('courseRegistration.student.dropAttachmentOptional') }}）</span>
-          </label>
-          <div class="attach-row">
-            <label
-              class="btn attach-btn attach-btn--soft"
-              :class="{ 'is-disabled': formAttachments.length >= MAX_DROP_ATTACHMENTS }"
-            >
-              {{ t('courseRegistration.student.chooseFile') }}
-              <input
-                type="file"
-                class="attach-input"
-                multiple
-                :disabled="formAttachments.length >= MAX_DROP_ATTACHMENTS"
-                accept=".pdf,.jpg,.jpeg,.png,.docx,application/pdf,image/*"
-                @change="onAttachInputChange"
-              />
-            </label>
-            <span v-if="!formAttachments.length" class="attach-name">
-              {{ t('courseRegistration.student.noFileChosen') }}
-            </span>
-            <button
-              v-if="formAttachments.length"
-              type="button"
-              class="link-btn"
-              @click="emit('clear-attachments')"
-            >
-              {{ t('courseRegistration.student.clearFile') }}
-            </button>
-          </div>
-          <ul v-if="formAttachments.length" class="attach-list">
-            <li v-for="(file, idx) in formAttachments" :key="`${file.name}-${idx}`" class="attach-list-item">
-              <AttachmentPreviewTrigger
-                :file-name="file.name"
-                :file-meta="{ fileName: file.name, size: file.size || 0 }"
-                :download-label="file.name"
-              />
-              <span v-if="formatAttachSize(file.size)" class="attach-size">
-                {{ formatAttachSize(file.size) }}
-              </span>
-              <button
-                type="button"
-                class="link-btn attach-remove"
-                :aria-label="t('common.delete')"
-                @click="emit('remove-attachment', idx)"
-              >
-                {{ t('common.delete') }}
-              </button>
-            </li>
-          </ul>
-          <p class="field-hint">
-            {{ t('courseRegistration.student.dropAttachmentHint') }}
-            {{ t('courseRegistration.student.dropAttachmentMaxCount', { n: MAX_DROP_ATTACHMENTS }) }}
-          </p>
         </div>
       </div>
     </template>
@@ -1212,7 +1266,15 @@ function feeStreamLabel(stream) {
             />
           </div>
           <div class="form-field">
-            <label>{{ t('courseRegistration.student.fieldTermExcessCredits') }}</label>
+            <label class="label-with-tip">
+              <span>{{ t('courseRegistration.student.fieldTermExcessCredits') }}</span>
+              <span
+                class="tip-icon"
+                :title="t('courseRegistration.student.fieldTermExcessCreditsTip')"
+                :aria-label="t('courseRegistration.student.fieldTermExcessCreditsTip')"
+                tabindex="0"
+              >?</span>
+            </label>
             <input
               type="text"
               class="form-control"
@@ -1420,7 +1482,9 @@ function feeStreamLabel(stream) {
                   <td class="col-retake-original" :title="lineRetakeOriginalCourse(line)">
                     {{ lineRetakeOriginalCourse(line) }}
                   </td>
-                  <td class="col-retake-same">{{ lineRetakeStudyModeLabel(line) }}</td>
+                  <td class="col-retake-same" :title="lineRetakeStudyModeLabel(line)">
+                    {{ lineRetakeStudyModeLabel(line) }}
+                  </td>
                   <td class="col-op op-cell">
                     <button type="button" class="link-btn" @click="removeLine('retakeLines', line)">
                       {{ t('common.remove') }}
@@ -1435,7 +1499,7 @@ function feeStreamLabel(stream) {
               </tbody>
             </table>
           </div>
-          <p class="field-hint">{{ t('courseRegistration.student.retakeCourseHint') }}</p>
+          <!-- retakeCourseHint 已弃用：不再展示汇总灰字 -->
           <div class="fields-row-2 retake-common-summary">
             <div class="form-field">
               <label>{{ t('courseRegistration.student.fieldRetakeTotalCreditsBillable') }}</label>
@@ -1582,6 +1646,68 @@ function feeStreamLabel(stream) {
       </p>
     </div>
 
+    <!-- 增量 be：整单附件材料（声明前；不挂退课区） -->
+    <div class="section-bar">{{ sectionBars.attachments }}</div>
+    <div class="form-grid">
+      <div class="form-field span-2">
+        <label>
+          {{ t('courseRegistration.student.dropAttachment') }}
+          <span class="optional">（{{ t('courseRegistration.student.dropAttachmentOptional') }}）</span>
+        </label>
+        <div class="attach-row">
+          <label
+            class="btn attach-btn attach-btn--soft"
+            :class="{ 'is-disabled': formAttachments.length >= MAX_DROP_ATTACHMENTS }"
+          >
+            {{ t('courseRegistration.student.chooseFile') }}
+            <input
+              type="file"
+              class="attach-input"
+              multiple
+              :disabled="formAttachments.length >= MAX_DROP_ATTACHMENTS"
+              accept=".pdf,.jpg,.jpeg,.png,.docx,application/pdf,image/*"
+              @change="onAttachInputChange"
+            />
+          </label>
+          <span v-if="!formAttachments.length" class="attach-name">
+            {{ t('courseRegistration.student.noFileChosen') }}
+          </span>
+          <button
+            v-if="formAttachments.length"
+            type="button"
+            class="link-btn"
+            @click="emit('clear-attachments')"
+          >
+            {{ t('courseRegistration.student.clearFile') }}
+          </button>
+        </div>
+        <ul v-if="formAttachments.length" class="attach-list">
+          <li v-for="(file, idx) in formAttachments" :key="`${file.name}-${idx}`" class="attach-list-item">
+            <AttachmentPreviewTrigger
+              :file-name="file.name"
+              :file-meta="{ fileName: file.name, size: file.size || 0 }"
+              :download-label="file.name"
+            />
+            <span v-if="formatAttachSize(file.size)" class="attach-size">
+              {{ formatAttachSize(file.size) }}
+            </span>
+            <button
+              type="button"
+              class="link-btn attach-remove"
+              :aria-label="t('common.delete')"
+              @click="emit('remove-attachment', idx)"
+            >
+              {{ t('common.delete') }}
+            </button>
+          </li>
+        </ul>
+        <p class="field-hint">
+          {{ t('courseRegistration.student.dropAttachmentHint') }}
+          {{ t('courseRegistration.student.dropAttachmentMaxCount', { n: MAX_DROP_ATTACHMENTS }) }}
+        </p>
+      </div>
+    </div>
+
     <div class="section-bar">{{ sectionBars.declaration }}</div>
     <div class="declaration-box">
       <p class="declaration-extra">{{ t(declarationExtraKey) }}</p>
@@ -1635,8 +1761,27 @@ function feeStreamLabel(stream) {
 }
 
 .adddrop-second-app-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin: 8px 0 0;
   flex-shrink: 0;
+}
+
+.adddrop-second-app-bang {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .form-field-error {
@@ -1646,30 +1791,51 @@ function feeStreamLabel(stream) {
   color: #b91c1c;
 }
 
+/* 增量 x：标题与条文再贴紧（预览按钮已移出说明区） */
 .notes-title {
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 13px;
   font-weight: 600;
+  line-height: 1.25;
 }
 
 .notes-list {
   margin: 0;
-  padding-left: 20px;
+  margin-top: 0;
+  padding-left: 18px;
   font-size: 12px;
-  line-height: 1.55;
+  line-height: 1.3;
   color: #4b5563;
 }
 
 .notes-list li + li {
-  margin-top: 4px;
+  margin-top: 1px;
 }
 
 .adddrop-form-credit-strip {
-  margin: 12px 0 4px;
+  margin: 8px 0 4px;
 }
 
+/* 仅本表单说明块收紧，不改全局 CourseRegistrationCallout 默认疏密 */
 .adddrop-sections :deep(.cr-callout) {
   font-size: 12px;
+  gap: 6px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+.adddrop-sections :deep(.cr-callout__body ol),
+.adddrop-sections :deep(.cr-callout__body ul) {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* 覆盖 callout 默认 p+p / ul 的 8px，避免标题与条文被撑开 */
+.adddrop-sections :deep(.cr-callout__body p + p),
+.adddrop-sections :deep(.cr-callout__body p + ol),
+.adddrop-sections :deep(.cr-callout__body p + ul) {
+  margin-top: 0;
 }
 
 .section-bar {
@@ -1953,10 +2119,14 @@ textarea.form-control {
   word-break: break-word;
 }
 
+/* 修读方式：全文展示（同课号重修/同课程组重修），禁 ellipsis */
 .lines-table .col-retake-same {
-  width: 8%;
+  width: 12%;
+  min-width: 7.5em;
   white-space: nowrap;
   text-align: center;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .lines-table .prev-grade-line + .prev-grade-line {
@@ -2123,6 +2293,13 @@ textarea.form-control {
   overflow: hidden;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  line-height: 1;
+  box-sizing: border-box;
+  cursor: pointer;
+  text-align: center;
 }
 
 .attach-btn--soft {
@@ -2187,6 +2364,12 @@ textarea.form-control {
   font-size: 13px;
   cursor: pointer;
   padding: 0;
+}
+
+.link-btn.is-disabled,
+.link-btn:disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
 }
 
 .field-hint {

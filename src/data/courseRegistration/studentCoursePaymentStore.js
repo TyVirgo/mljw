@@ -36,29 +36,85 @@ export function paymentBillKey(line) {
 }
 
 /**
+ * 已缴费分组键：优先订单号，保证与支付时同一批行一致（增量 bg）
+ * @param {object} line
+ * @returns {string}
+ */
+export function paymentPaidGroupKey(line) {
+  const orderNo = String(line?.orderNo || '').trim()
+  if (orderNo) return `order:${orderNo}`
+  return paymentBillKey(line)
+}
+
+/**
+ * 同整单内按课去重（同 sourceRef+课号+计费学分+课程费只留一条）
+ * @param {object[]} billLines
+ * @returns {object[]}
+ */
+function dedupePaymentBillLines(billLines) {
+  /** @type {Map<string, object>} */
+  const map = new Map()
+  for (const line of billLines || []) {
+    const id = String(line?.id || '').trim()
+    const logical = [
+      String(line?.sourceRef || '').trim(),
+      String(line?.courseCode || '').trim().toUpperCase(),
+      String(Number(line?.billableCredits) || 0),
+      String(Number(line?.feeAmount) || 0),
+    ].join('|')
+    const key = id || logical
+    if (!key || map.has(key)) continue
+    // 再拦逻辑重复（不同 id 同课同费）
+    let dup = false
+    for (const existing of map.values()) {
+      const exLogical = [
+        String(existing?.sourceRef || '').trim(),
+        String(existing?.courseCode || '').trim().toUpperCase(),
+        String(Number(existing?.billableCredits) || 0),
+        String(Number(existing?.feeAmount) || 0),
+      ].join('|')
+      if (exLogical === logical && logical !== '|||0|0') {
+        dup = true
+        break
+      }
+    }
+    if (dup) continue
+    map.set(key, line)
+  }
+  return [...map.values()]
+}
+
+/**
  * 将课行按账单键聚合成整单
  * @param {object[]} lines
- * @returns {{ billKey: string, applicationNo: string, sourceRef: string, paymentDueAt: string, lines: object[], feeTotal: number, sstTotal: number, amount: number, courseCount: number }[]}
+ * @param {{ groupBy?: 'bill'|'paidOrder' }} [options] bill=申请单；paidOrder=已缴按订单
+ * @returns {{ billKey: string, applicationNo: string, sourceRef: string, paymentDueAt: string, billGeneratedAt: string, lines: object[], feeTotal: number, sstTotal: number, amount: number, courseCount: number }[]}
  */
-export function groupPaymentLinesByBill(lines) {
+export function groupPaymentLinesByBill(lines, options = {}) {
+  const groupByPaidOrder = options.groupBy === 'paidOrder'
   /** @type {Map<string, object[]>} */
   const map = new Map()
   for (const line of lines || []) {
-    const key = paymentBillKey(line)
+    const key = groupByPaidOrder ? paymentPaidGroupKey(line) : paymentBillKey(line)
     if (!key) continue
     if (!map.has(key)) map.set(key, [])
     map.get(key).push(line)
   }
-  return [...map.entries()].map(([billKey, billLines]) => {
+  return [...map.entries()].map(([billKey, rawLines]) => {
+    // 增量 bg：去重后再汇总，避免同课重复抬高合计
+    const billLines = dedupePaymentBillLines(rawLines)
     const feeTotal = billLines.reduce((s, l) => s + (Number(l.feeAmount) || 0), 0)
     const sstTotal = billLines.reduce((s, l) => s + (Number(l.sstAmount) || 0), 0)
     const amount = billLines.reduce((s, l) => s + (Number(l.amount) || 0), 0)
     const dues = billLines.map((l) => l.paymentDueAt).filter(Boolean).sort()
+    // 增量 ay/bb：整单生成时间取最早一条；缺则按截止推算
+    const generated = billLines.map((l) => l.billGeneratedAt).filter(Boolean).sort()
     return {
       billKey,
       applicationNo: billLines.find((l) => l.applicationNo)?.applicationNo || billKey,
       sourceRef: billLines.find((l) => l.sourceRef)?.sourceRef || '',
       paymentDueAt: dues[0] || '',
+      billGeneratedAt: generated[0] || defaultBillGeneratedAt(dues[0]) || '',
       lines: billLines,
       feeTotal,
       sstTotal,
@@ -66,6 +122,22 @@ export function groupPaymentLinesByBill(lines) {
       courseCount: billLines.length,
     }
   })
+}
+
+/**
+ * demo：由缴费截止推一版更早的生成时间（约早 7 天 10:00）
+ * @param {string} paymentDueAt
+ */
+function defaultBillGeneratedAt(paymentDueAt) {
+  const due = String(paymentDueAt || '').trim()
+  const m = due.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return nowIsoMinute()
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 10, 0, 0)
+  d.setDate(d.getDate() - 7)
+  const y = d.getFullYear()
+  const mo = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${mo}-${day} 10:00`
 }
 
 /** Demo 待缴行固定按 China 计 SST，保证界面能明显看到税费 */
@@ -324,7 +396,16 @@ function buildDemoSeedLines(studentId) {
       orderNo: 'PAY20260718-0915',
     },
   ]
-  return raw.map((line) => withPaymentSst(line, PAYMENT_DEMO_SST_CATEGORY))
+  // 增量 ay：demo 待缴/已缴行补齐账单生成时间
+  return raw.map((line) =>
+    withPaymentSst(
+      {
+        ...line,
+        billGeneratedAt: line.billGeneratedAt || defaultBillGeneratedAt(line.paymentDueAt),
+      },
+      PAYMENT_DEMO_SST_CATEGORY,
+    ),
+  )
 }
 
 /** @type {import('vue').Ref<object[]>} */
@@ -462,11 +543,16 @@ function collectLiveUnpaidLines(studentId) {
     }
     const feeLines = resolvePaymentFeeLinesFromApp(app)
     if (feeLines.length) {
+      /** @type {Map<string, object>} 增量 bg：同课同计费学分去重 */
+      const byId = new Map()
       for (const item of feeLines) {
-        lines.push(
+        const lineId = `pay-live-${app.id}-${item.courseCode}-${item.billableCredits}`
+        if (byId.has(lineId)) continue
+        byId.set(
+          lineId,
           withPaymentSst(
             {
-              id: `pay-live-${app.id}-${item.courseCode}-${item.billableCredits}`,
+              id: lineId,
               studentId,
               ...identity,
               courseCode: item.courseCode,
@@ -479,6 +565,8 @@ function collectLiveUnpaidLines(studentId) {
               sourceRef: app.id,
               applicationNo: app.applicationNo || '',
               paymentDueAt: app.paymentDueAt || '',
+              billGeneratedAt:
+                app.billGeneratedAt || defaultBillGeneratedAt(app.paymentDueAt) || nowIsoMinute(),
               status: 'unpaid',
               paidAt: '',
               orderNo: '',
@@ -487,6 +575,7 @@ function collectLiveUnpaidLines(studentId) {
           ),
         )
       }
+      lines.push(...byId.values())
       continue
     }
     // 无明细：整单挂到第一门加/重修课（兼容旧单）
@@ -510,6 +599,8 @@ function collectLiveUnpaidLines(studentId) {
           sourceRef: app.id,
           applicationNo: app.applicationNo || '',
           paymentDueAt: app.paymentDueAt || '',
+          billGeneratedAt:
+            app.billGeneratedAt || defaultBillGeneratedAt(app.paymentDueAt) || nowIsoMinute(),
           status: 'unpaid',
           paidAt: '',
           orderNo: '',
@@ -529,7 +620,7 @@ function unpaidLinesSignature(lines) {
   return (lines || [])
     .map(
       (l) =>
-        `${l.sourceRef || ''}|${String(l.courseCode || '').trim()}|${Number(l.feeAmount) || 0}|${Number(l.billableCredits) || 0}`,
+        `${l.sourceRef || ''}|${String(l.courseCode || '').trim()}|${Number(l.feeAmount) || 0}|${Number(l.billableCredits) || 0}|${String(l.billGeneratedAt || '').trim()}`,
     )
     .sort()
     .join(';')
@@ -583,6 +674,20 @@ export function mergeLiveUnpaidFromApproval(studentId) {
   return { ok: true, added: live.length, removed }
 }
 
+/**
+ * 补齐账单生成时间（增量 bb：旧 localStorage / 缺字段 demo 行）
+ * @param {object} line
+ */
+function withBillGeneratedAt(line) {
+  if (!line) return line
+  const existing = String(line.billGeneratedAt || '').trim()
+  if (existing) return line
+  return {
+    ...line,
+    billGeneratedAt: defaultBillGeneratedAt(line.paymentDueAt) || nowIsoMinute(),
+  }
+}
+
 /** 持久化行补齐 fee/sst/应付（兼容旧 amount-only；纠正 fee+sst≠amount） */
 function normalizePaymentLine(line) {
   if (!line) return line
@@ -595,18 +700,24 @@ function normalizePaymentLine(line) {
         : computeSstAmount(feeAmount, category)
     const payable = feeAmount + sstAmount
     if (Number(line.amount) === payable && Number(line.sstAmount) === sstAmount) {
-      return { ...line, feeAmount, sstAmount, amount: payable, studentCategory: category }
+      return withBillGeneratedAt({
+        ...line,
+        feeAmount,
+        sstAmount,
+        amount: payable,
+        studentCategory: category,
+      })
     }
-    return {
+    return withBillGeneratedAt({
       ...line,
       feeAmount,
       sstAmount,
       sstRate: SST_RATE,
       amount: payable,
       studentCategory: category,
-    }
+    })
   }
-  return withPaymentSst(line, category)
+  return withBillGeneratedAt(withPaymentSst(line, category))
 }
 
 /**
@@ -668,6 +779,8 @@ export function ensureStudentCoursePaymentSeeded() {
   if (hydrated) {
     expirePaymentOrderIfNeeded()
     mergeLiveUnpaidFromApproval()
+    // 增量 bb：再次进入仍补齐缺失生成时间
+    paymentLines.value = paymentLines.value.map(normalizePaymentLine)
     return
   }
   const studentId = getStudentProfileFields().studentId || DEFAULT_MOCK_CURRENT_STUDENT_ID
@@ -798,9 +911,9 @@ export const paidPaymentLines = computed(() =>
     .sort((a, b) => String(b.paidAt).localeCompare(String(a.paidAt))),
 )
 
-/** 已缴费按申请整单分组（展示用） */
+/** 已缴费按支付订单分组（增量 bg：与支付时同一批行一致） */
 export const paidPaymentBillGroups = computed(() =>
-  groupPaymentLinesByBill(paidPaymentLines.value),
+  groupPaymentLinesByBill(paidPaymentLines.value, { groupBy: 'paidOrder' }),
 )
 
 export function getPaymentOrderById(orderId) {

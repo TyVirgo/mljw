@@ -14,27 +14,44 @@ import { buildAddDropPlanRemaining } from './studentRegistrationContext.js'
 /** ME 默认文科单价（与 resolveFeeStream 一致；仅作无行时兜底） */
 const DEMO_DEFAULT_FEE_RATE = CREDIT_FEE_RATES.arts
 
-/** 审批/详情 demo 缺省课程名（对齐课库常用码） */
-const DEMO_COURSE_NAMES = {
-  COMP101: 'Introduction to Programming',
-  COMP201: 'Data Structures',
-  COMP301: 'Database Systems',
-  COMP3192: 'Algorithm Design',
-  MATH201: 'Linear Algebra',
-  MATH301: 'Discrete Mathematics',
-  STAT201: 'Probability & Statistics',
-  MPU3183: 'Malaysian Studies',
-  MPU3193: 'Philosophy and Current Issues',
-  ENGL201: 'Academic Writing',
-  ENG201: 'Academic Writing',
-  AI110: 'Introduction to AI',
-  IT102: 'Digital Literacy Workshop',
-  HUM110: 'Introduction to Humanities',
+/**
+ * 审批/详情/重提 demo 缺省课名与类型（对齐 selectableCourses / 课库，勿用课号冒充名称）
+ * type：CORE=必修；GE/ME=选修（GE 可带 schoolElectiveCategory）
+ */
+const DEMO_COURSE_META = {
+  COMP101: { courseName: 'Introduction to Programming', type: 'ME' },
+  COMP201: { courseName: 'Data Structures', type: 'ME' },
+  COMP301: { courseName: 'Database Systems', type: 'ME' },
+  COMP3192: { courseName: 'Algorithm Design', type: 'ME' },
+  COMP220: { courseName: 'Discrete Mathematics', type: 'ME' },
+  MATH101: { courseName: 'Calculus I', type: 'CORE' },
+  MATH201: { courseName: 'Linear Algebra', type: 'CORE' },
+  MATH301: { courseName: 'Discrete Mathematics', type: 'ME' },
+  STAT201: { courseName: 'Probability & Statistics', type: 'ME' },
+  PHYS101: { courseName: 'Physics I', type: 'CORE' },
+  BUS201: { courseName: 'Business Ethics', type: 'GE', schoolElectiveCategory: 'business' },
+  MPU3183: { courseName: 'Malaysian Studies', type: 'GE', schoolElectiveCategory: 'arts' },
+  MPU3193: { courseName: 'Philosophy and Current Issues', type: 'GE', schoolElectiveCategory: 'arts' },
+  ENGL201: { courseName: 'Academic Writing', type: 'GE', schoolElectiveCategory: 'arts' },
+  ENG201: { courseName: 'Academic Writing', type: 'GE', schoolElectiveCategory: 'arts' },
+  AI110: { courseName: 'Introduction to AI', type: 'GE', schoolElectiveCategory: 'ai_open' },
+  IT102: { courseName: 'Digital Literacy Workshop', type: 'ME' },
+  HUM110: { courseName: 'Introduction to Humanities', type: 'GE', schoolElectiveCategory: 'arts' },
+  WEB210: { courseName: 'Web Development', type: 'ME' },
+}
+
+/** @deprecated 增量 ab 起由 DEMO_COURSE_META 覆盖；保留导出名逻辑供旧引用 */
+const DEMO_COURSE_NAMES = Object.fromEntries(
+  Object.entries(DEMO_COURSE_META).map(([code, meta]) => [code, meta.courseName]),
+)
+
+function resolveDemoCourseMeta(courseCode) {
+  const code = String(courseCode || '').trim()
+  return code ? DEMO_COURSE_META[code] || null : null
 }
 
 function resolveDemoCourseName(courseCode) {
-  const code = String(courseCode || '').trim()
-  return code ? DEMO_COURSE_NAMES[code] || '' : ''
+  return resolveDemoCourseMeta(courseCode)?.courseName || ''
 }
 
 /** 图示样本池（含多段 meetings） */
@@ -98,10 +115,11 @@ export function sampleScheduleAt(index) {
   }
 }
 
-/** 补齐单条 item 的排课字段；缺省时从样本池取，不留空 */
+/** 补齐单条 item 的排课字段；缺省时从样本池/课库元数据取，不留空 */
 export function enrichAddDropScheduleItem(item, index = 0) {
   if (!item) return item
   const sample = sampleScheduleAt(index)
+  const meta = resolveDemoCourseMeta(item.courseCode || item.code)
   const time = item.time || sample.time
   const weekRange = item.weekRange || sample.weekRange
   const room = item.room || item.venue || sample.room
@@ -113,8 +131,13 @@ export function enrichAddDropScheduleItem(item, index = 0) {
   const courseName =
     item.courseName ||
     item.name ||
+    meta?.courseName ||
     resolveDemoCourseName(item.courseCode || item.code) ||
     ''
+  // 增量 ab：缺 type 时按课库合理补齐，避免重提/详情「课程类型」长期 —
+  const type = item.type || meta?.type || ''
+  const schoolElectiveCategory =
+    item.schoolElectiveCategory || meta?.schoolElectiveCategory || undefined
 
   /** demo 名额：已有字段优先；否则按 index 给稳定样本 */
   const capacityRaw = Number(item.capacity ?? item.sectionCapacity)
@@ -131,6 +154,8 @@ export function enrichAddDropScheduleItem(item, index = 0) {
   return {
     ...item,
     courseName,
+    ...(type ? { type } : {}),
+    ...(schoolElectiveCategory ? { schoolElectiveCategory } : {}),
     capacity,
     remainingCapacity: remaining,
     section: item.section || item.sectionCode || '01',

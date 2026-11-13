@@ -267,6 +267,18 @@ function nodeType(node) {
   color: #b91c1c;
 }
 
+/** 加退课列表四态：已驳回 */
+.badge-addDropRejected {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/** 加退课列表四态：已结束（含通过/部分不通过） */
+.badge-addDropEnded {
+  background: #dcfce7;
+  color: #15803d;
+}
+
 .badge-updateRequired {
   background: #7c3aed;
   color: #fff;

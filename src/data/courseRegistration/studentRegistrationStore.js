@@ -1192,16 +1192,31 @@ export function unselectConfirmedCourse(courseId, section = null) {
   return { ok: false, errorKey: 'courseRegistration.student.unselectNotFound' }
 }
 
-/** 开课后退课生效：按课号移除已确认结果（不校验选课阶段） */
+/**
+ * 开课后退课生效：按课号移除已确认结果，并同步必修底图
+ * （我的课表含 studentRequiredCourses，仅清确认半池会导致退课不生效）
+ * @param {string} courseCode 课号
+ */
 export function dropConfirmedCourseByCode(courseCode) {
   if (!courseCode) {
     return { ok: false, errorKey: 'courseRegistration.student.unselectNotFound' }
   }
-  const removed = studentConfirmedCourses.value.find((item) => item.courseCode === courseCode)
-  if (!removed) {
+  const code = String(courseCode)
+  let removedAny = false
+  const removed = studentConfirmedCourses.value.find((item) => item.courseCode === code)
+  if (removed) {
+    removeConfirmedCourseRecord(removed, `Dropped ${removed.courseCode} (post-start)`)
+    removedAny = true
+  }
+  // 同步移除必修底图中的同课号，否则「我的课表」仍会画出该课
+  const beforeRequired = studentRequiredCourses.value.length
+  studentRequiredCourses.value = (studentRequiredCourses.value || []).filter(
+    (item) => String(item.courseCode || '') !== code,
+  )
+  if (studentRequiredCourses.value.length !== beforeRequired) removedAny = true
+  if (!removedAny) {
     return { ok: false, errorKey: 'courseRegistration.student.unselectNotFound' }
   }
-  removeConfirmedCourseRecord(removed, `Dropped ${removed.courseCode} (post-start)`)
   return { ok: true }
 }
 

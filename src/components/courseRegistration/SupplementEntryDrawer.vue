@@ -20,6 +20,8 @@ import {
   formatWhitelistSectionTag,
   normalizeWhitelistSectionRefs,
 } from '../../data/courseRegistration/whitelistSectionRefs.js'
+import { getActiveBatch, formatRoundRange } from '../../data/courseRegistration/registrationBatches.js'
+import { resolveEffectiveAddDropWindow } from '../../data/courseRegistration/sessionRegistrationSchedules.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -43,10 +45,11 @@ const selectedStudents = ref([])
 
 function createEmptyForm() {
   return {
-    supplement: true,
-    canAdd: true,
-    canDrop: true,
-    canRetake: true,
+    // 增量 bn：延期开门默认不勾选
+    supplement: false,
+    canAdd: false,
+    canDrop: false,
+    canRetake: false,
     bypassPrerequisite: false,
     bypassCreditMax: false,
     creditBypassExtra: 3,
@@ -193,6 +196,43 @@ const title = computed(() => {
 const permissionsLocked = computed(
   () => Boolean(isCreate.value) && !(selectedStudents.value || []).length,
 )
+
+/**
+ * 右列只读：当前学期/批次加退课申请窗口时段
+ * 增量 bm
+ */
+const applicationWindowRangeText = computed(() => {
+  const batch = getActiveBatch()
+  const win = resolveEffectiveAddDropWindow(batch)
+  const text = formatRoundRange(win)
+  if (!text || text === '—') return t('courseRegistration.whitelist.applicationWindowUnset')
+  return text
+})
+
+/**
+ * 性别文案（与选人弹框同源）
+ * @param {string} gender
+ */
+function genderLabel(gender) {
+  if (gender === 'M') return t('courseRegistration.result.genderMale')
+  if (gender === 'F') return t('courseRegistration.result.genderFemale')
+  return gender || '—'
+}
+
+/**
+ * 已选学生副行：学号·性别·学院·专业·入学批次
+ * @param {object} stu
+ */
+function studentMetaLine(stu) {
+  if (!stu) return ''
+  return [
+    stu.studentId || '—',
+    genderLabel(stu.gender),
+    stu.faculty || '—',
+    stu.programme || '—',
+    formatIntakeBatch(stu.intake) || '—',
+  ].join(' · ')
+}
 
 /** 已选学生专业（供选课弹框过滤；多生取并集） */
 const selectedStudentProgrammes = computed(() => {
@@ -434,7 +474,8 @@ function handleSave() {
     !form.value.bypassCreditMax &&
     !form.value.allowFutureMandatory &&
     !form.value.allowFutureElective &&
-    !form.value.allowDropBelowCreditMin
+    !form.value.allowDropBelowCreditMin &&
+    !form.value.allowCoreSectionSwitchAdd
   ) {
     formError.value = t('courseRegistration.whitelist.permissionAnyRequired')
     return
@@ -517,7 +558,8 @@ function handleSave() {
         continue
       }
       updateSupplementEntry(result.item.id, patch)
-      if (form.value.sendInviteOnSave) {
+      // 仅勾选延期开门时才发通知起算延期时长
+      if (form.value.supplement && form.value.sendInviteOnSave) {
         sendSupplementInvite(result.item.id)
       }
       createdIds.push(result.item.id)
@@ -560,11 +602,14 @@ function handleSave() {
               <span
                 v-for="stu in selectedStudents"
                 :key="stu.studentId"
-                class="tag-chip"
-                :title="`${stu.studentName}（${stu.studentId}）`"
+                class="tag-chip tag-chip--student"
+                :title="studentMetaLine(stu)"
                 @click.stop
               >
-                <span class="tag-chip-text">{{ stu.studentName }}</span>
+                <span class="tag-chip-body">
+                  <span class="tag-chip-text">{{ stu.studentName || '—' }}</span>
+                  <span class="tag-chip-meta">{{ studentMetaLine(stu) }}</span>
+                </span>
                 <button
                   type="button"
                   class="tag-chip-remove"
@@ -592,100 +637,15 @@ function handleSave() {
       <p v-if="permissionsLocked" class="permissions-lock-tip">
         {{ t('courseRegistration.whitelist.permissionsNeedStudent') }}
       </p>
-      <!-- 一级权限两列网格对齐；可加/退/重修为加退课父项唯一二级 -->
+      <!-- 增量 bn：左列窗口内权限+申请窗口；右列延期开门 -->
       <div class="permission-layout" :class="{ 'is-locked': permissionsLocked }">
         <div class="permission-col permission-col--left">
-          <div class="permission-l1">
-            <label class="checkbox-row checkbox-row--parent credit-bypass-inline">
-              <input
-                v-model="form.supplement"
-                type="checkbox"
-                :disabled="permissionsLocked"
-                @change="onSupplementChange"
-              />
-              <span class="credit-bypass-inline-text">
-                {{ t('courseRegistration.whitelist.perm.supplement')
-                }}{{ t('courseRegistration.whitelist.hoursInlineSep')
-                }}{{ t('courseRegistration.whitelist.inviteHoursPrefix') }}
-                <input
-                  v-model.number="form.permissionHours.supplement"
-                  type="number"
-                  min="1"
-                  step="1"
-                  class="inline-number"
-                  :disabled="permissionsLocked || !form.supplement"
-                />
-                {{ t('courseRegistration.whitelist.inviteHoursUnit') }}
-              </span>
-            </label>
-            <div class="permission-children">
-              <label
-                class="checkbox-row"
-                :class="{ 'is-disabled': permissionsLocked || !form.supplement }"
-              >
-                <input
-                  v-model="form.canAdd"
-                  type="checkbox"
-                  :disabled="permissionsLocked || !form.supplement"
-                  @change="onCanAddChange"
-                />
-                {{ t('courseRegistration.whitelist.perm.canAdd') }}
-              </label>
-              <label
-                class="checkbox-row"
-                :class="{ 'is-disabled': permissionsLocked || !form.supplement }"
-              >
-                <input
-                  v-model="form.canDrop"
-                  type="checkbox"
-                  :disabled="permissionsLocked || !form.supplement"
-                />
-                {{ t('courseRegistration.whitelist.perm.canDrop') }}
-              </label>
-              <label
-                class="checkbox-row"
-                :class="{ 'is-disabled': permissionsLocked || !form.supplement }"
-              >
-                <input
-                  v-model="form.canRetake"
-                  type="checkbox"
-                  :disabled="permissionsLocked || !form.supplement"
-                  @change="onCanRetakeChange"
-                />
-                {{ t('courseRegistration.whitelist.perm.canRetake') }}
-              </label>
-            </div>
+          <div class="application-window-banner" :title="t('courseRegistration.whitelist.applicationWindowHint')">
+            <span class="application-window-banner__label">
+              {{ t('courseRegistration.whitelist.applicationWindowLabel') }}
+            </span>
+            <span class="application-window-banner__range">{{ applicationWindowRangeText }}</span>
           </div>
-          <!-- 一级项：勿把 permission-l1 挂在 label 上（会变成竖排勾在字上） -->
-          <div class="permission-l1">
-            <label
-              class="checkbox-row"
-              :class="{ 'is-disabled': permissionsLocked }"
-            >
-              <input
-                v-model="form.allowFutureMandatory"
-                type="checkbox"
-                :disabled="permissionsLocked"
-                @change="onFutureMandatoryChange"
-              />
-              {{ t('courseRegistration.whitelist.perm.allowFutureMandatory') }}
-            </label>
-          </div>
-          <div class="permission-l1">
-            <label
-              class="checkbox-row"
-              :class="{ 'is-disabled': permissionsLocked }"
-            >
-              <input
-                v-model="form.allowFutureElective"
-                type="checkbox"
-                :disabled="permissionsLocked"
-              />
-              {{ t('courseRegistration.whitelist.perm.allowFutureElective') }}
-            </label>
-          </div>
-        </div>
-        <div class="permission-col permission-col--right">
           <div class="permission-l1">
             <label
               class="checkbox-row"
@@ -808,6 +768,96 @@ function handleSave() {
                 {{ t('courseRegistration.whitelist.dropBelowMinFloorUnit') }}
               </span>
             </label>
+          </div>
+          <div class="permission-l1">
+            <label
+              class="checkbox-row"
+              :class="{ 'is-disabled': permissionsLocked }"
+            >
+              <input
+                v-model="form.allowFutureMandatory"
+                type="checkbox"
+                :disabled="permissionsLocked"
+                @change="onFutureMandatoryChange"
+              />
+              {{ t('courseRegistration.whitelist.perm.allowFutureMandatory') }}
+            </label>
+          </div>
+          <div class="permission-l1">
+            <label
+              class="checkbox-row"
+              :class="{ 'is-disabled': permissionsLocked }"
+            >
+              <input
+                v-model="form.allowFutureElective"
+                type="checkbox"
+                :disabled="permissionsLocked"
+              />
+              {{ t('courseRegistration.whitelist.perm.allowFutureElective') }}
+            </label>
+          </div>
+        </div>
+        <div class="permission-col permission-col--right">
+          <div class="permission-l1 permission-l1--extension">
+            <label class="checkbox-row checkbox-row--parent credit-bypass-inline">
+              <input
+                v-model="form.supplement"
+                type="checkbox"
+                :disabled="permissionsLocked"
+                @change="onSupplementChange"
+              />
+              <span class="credit-bypass-inline-text">
+                {{ t('courseRegistration.whitelist.perm.supplement')
+                }}{{ t('courseRegistration.whitelist.hoursInlineSep')
+                }}{{ t('courseRegistration.whitelist.inviteHoursPrefix') }}
+                <input
+                  v-model.number="form.permissionHours.supplement"
+                  type="number"
+                  min="1"
+                  step="1"
+                  class="inline-number"
+                  :disabled="permissionsLocked || !form.supplement"
+                />
+                {{ t('courseRegistration.whitelist.inviteHoursUnit') }}
+              </span>
+            </label>
+            <div class="permission-children permission-children--wide">
+              <label
+                class="checkbox-row"
+                :class="{ 'is-disabled': permissionsLocked || !form.supplement }"
+              >
+                <input
+                  v-model="form.canAdd"
+                  type="checkbox"
+                  :disabled="permissionsLocked || !form.supplement"
+                  @change="onCanAddChange"
+                />
+                {{ t('courseRegistration.whitelist.perm.canAdd') }}
+              </label>
+              <label
+                class="checkbox-row"
+                :class="{ 'is-disabled': permissionsLocked || !form.supplement }"
+              >
+                <input
+                  v-model="form.canDrop"
+                  type="checkbox"
+                  :disabled="permissionsLocked || !form.supplement"
+                />
+                {{ t('courseRegistration.whitelist.perm.canDrop') }}
+              </label>
+              <label
+                class="checkbox-row"
+                :class="{ 'is-disabled': permissionsLocked || !form.supplement }"
+              >
+                <input
+                  v-model="form.canRetake"
+                  type="checkbox"
+                  :disabled="permissionsLocked || !form.supplement"
+                  @change="onCanRetakeChange"
+                />
+                {{ t('courseRegistration.whitelist.perm.canRetake') }}
+              </label>
+            </div>
           </div>
         </div>
       </div>
@@ -968,7 +1018,7 @@ function handleSave() {
       </label>
       <textarea v-model="form.remark" class="form-input" rows="3" />
 
-      <label v-if="isCreate" class="checkbox-row">
+      <label v-if="isCreate && form.supplement" class="checkbox-row">
         <input v-model="form.sendInviteOnSave" type="checkbox" />
         {{ t('courseRegistration.whitelist.sendInviteOnSave') }}
       </label>
@@ -1070,10 +1120,31 @@ function handleSave() {
   color: #1d4ed8;
   font-size: 12px;
 }
+.tag-chip--student {
+  align-items: flex-start;
+  max-width: 100%;
+  padding: 6px 8px;
+  gap: 8px;
+}
+.tag-chip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
 .tag-chip-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
+}
+.tag-chip-meta {
+  font-size: 11px;
+  font-weight: 400;
+  color: #64748b;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
 }
 .tag-chip-remove {
   border: none;
@@ -1098,7 +1169,7 @@ function handleSave() {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px 24px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .permission-layout.is-locked {
@@ -1108,8 +1179,18 @@ function handleSave() {
 .permission-col {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   min-width: 0;
+}
+
+/* 增量 bn：左列窗口内权限行距收紧 */
+.permission-col--left {
+  gap: 6px;
+  justify-content: flex-start;
+}
+
+/* 增量 bn：右列延期块行距加宽 */
+.permission-col--right {
+  gap: 18px;
 }
 
 /* 一级权限外层块（勿挂到 label：column 会把勾选竖排到文字上方） */
@@ -1118,6 +1199,37 @@ function handleSave() {
   flex-direction: column;
   gap: 6px;
   min-height: 28px;
+}
+
+.permission-l1--extension {
+  gap: 12px;
+  flex: 1;
+}
+
+.application-window-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 0 0 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #334155;
+}
+
+.application-window-banner__label {
+  font-weight: 600;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.application-window-banner__range {
+  color: #0f172a;
+  word-break: break-word;
 }
 
 .permission-group,
@@ -1134,6 +1246,10 @@ function handleSave() {
   margin-left: 22px;
   padding-left: 10px;
   border-left: 2px solid #e5e7eb;
+}
+
+.permission-children--wide {
+  gap: 14px;
 }
 
 .permission-nested {

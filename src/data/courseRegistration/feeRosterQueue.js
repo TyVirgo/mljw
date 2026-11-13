@@ -1366,7 +1366,9 @@ export function appendFeeRosterFromApproval(app) {
       paid: 'N',
       paidAt: '',
       paymentDueAt: app.paymentDueAt || '',
+      /** @deprecated 增量 af 起优先 paymentGraceHours */
       paymentGraceDays: app.paymentGraceDays ?? null,
+      paymentGraceHours: app.paymentGraceHours ?? null,
     })
     count += 1
   }

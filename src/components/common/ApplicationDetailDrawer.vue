@@ -1,7 +1,8 @@
 <script setup>
+import { computed } from 'vue'
 import { useAppI18n } from '../../composables/useAppI18n.js'
 
-defineProps({
+const props = defineProps({
   visible: Boolean,
   title: { type: String, default: '' },
   /**
@@ -13,11 +14,28 @@ defineProps({
   dense: { type: Boolean, default: false },
   /** 内容区撑满剩余高度（课表抽屉） */
   fillBody: { type: Boolean, default: false },
+  /**
+   * 盖过申请弹窗等更高层遮罩（默认抽屉 1000，申请弹窗约 1100）
+   * 用于「课程预览」从弹窗内打开时置顶可见
+   */
+  elevate: { type: Boolean, default: false },
+  /**
+   * 增量 bh：自定义遮罩 z-index（如审批弹窗 1400 时需 ≥1500）
+   * 有值时优先于 elevate 默认档
+   */
+  overlayZIndex: { type: [Number, String], default: null },
 })
 
 const emit = defineEmits(['close'])
 
 const { t } = useAppI18n()
+
+/** 遮罩样式：优先 overlayZIndex */
+const overlayStyle = computed(() => {
+  const z = Number(props.overlayZIndex)
+  if (Number.isFinite(z) && z > 0) return { zIndex: z }
+  return undefined
+})
 
 function handleClose() {
   emit('close')
@@ -26,7 +44,13 @@ function handleClose() {
 
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="drawer-overlay" :class="{ 'is-dense': dense }" @click.self="handleClose">
+    <div
+      v-if="visible"
+      class="drawer-overlay"
+      :class="{ 'is-dense': dense, 'is-elevate': elevate }"
+      :style="overlayStyle"
+      @click.self="handleClose"
+    >
       <aside class="drawer-panel" role="dialog" aria-modal="true" @click.stop>
         <div class="drawer-header">
           <div class="drawer-header-text">
@@ -63,6 +87,11 @@ function handleClose() {
   z-index: 1000;
   display: flex;
   justify-content: flex-end;
+}
+
+/** 高于申请弹窗（约 1100），保证从弹窗内打开预览时完整可见 */
+.drawer-overlay.is-elevate {
+  z-index: 1200;
 }
 
 .drawer-panel {

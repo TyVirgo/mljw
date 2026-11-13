@@ -135,14 +135,14 @@ const initialCourses = [
       {
         id: 'sec-engl201-3',
         code: '03',
-        time: 'Wed 09:00–12:00',
+        /** 增量 au/aw：原 Wed09–12 / Fri14–16 易撞；周四下午空档供落课 ENGL201 */
+        time: 'Thu 14:00–16:00',
         room: 'A2-2-105',
         weekRange: '1-18',
         lecturer: 'Ms. Chan',
         enrolled: 15,
         capacity: 30,
-        /** demo：周三上午相对选修基线空闲 */
-        meetings: [{ time: 'Wed 09:00–12:00', room: 'A2-2-105', weekRange: '1-18' }],
+        meetings: [{ time: 'Thu 14:00–16:00', room: 'A2-2-105', weekRange: '1-18' }],
       },
     ],
     quota: { total: 90, senior: 50, freshman: 40, releaseToFreshman: false, byIntake: {} },
@@ -589,7 +589,16 @@ const initialCourses = [
     g1Category: null,
     sections: [
       { id: 'sec-7', code: '01', time: 'Fri 14:00–16:00', room: 'D5-1-201', lecturer: 'Dr. Chen', enrolled: 25, capacity: 35 },
-      { id: 'sec-math201-2', code: '02', time: 'Mon 08:00–10:00', room: 'D5-1-202', lecturer: 'Dr. Ong', enrolled: 25, capacity: 35 },
+      /** 增量 aw：原 Mon08–10 撞 COMP3192 落课；改 Mon10–12 与已批准重修同源 */
+      {
+        id: 'sec-math201-2',
+        code: '02',
+        time: 'Mon 10:00–12:00',
+        room: 'D5-1-202',
+        lecturer: 'Dr. Ong',
+        enrolled: 25,
+        capacity: 35,
+      },
     ],
     quota: { total: 70, senior: 40, freshman: 30, releaseToFreshman: false, byIntake: {} },
   },

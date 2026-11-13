@@ -294,6 +294,8 @@ function syncLegacyFlags(entry) {
     inviteSentAt: supplement?.inviteSentAt || entry.inviteSentAt || null,
     deadlineAt: supplement?.deadlineAt || entry.deadlineAt || null,
     lastEmailMockAt: entry.lastEmailMockAt || supplement?.inviteSentAt || null,
+    /** 无延期时的告知通知次数（不起算延期门） */
+    infoNotifyAttempt: Number(entry.infoNotifyAttempt) || 0,
   }
 }
 
@@ -304,6 +306,7 @@ export function normalizeWhitelistEntry(item) {
     inviteSentAt: null,
     deadlineAt: null,
     lastEmailMockAt: null,
+    infoNotifyAttempt: 0,
     ...item,
   }
   if (!Array.isArray(base.permissions) || !base.permissions.length) {
@@ -624,6 +627,30 @@ function buildDemoWhitelistSeed() {
         createPermission('canDrop'),
       ],
     },
+    // 增量 bm：无延期开门，仅窗口内例外 → 生效剩余 NA
+    {
+      id: 'sup-006b',
+      studentId: 'ACC2409033',
+      studentName: 'Cathy Wong',
+      programme: 'ACC',
+      intake: '2024/09',
+      addedAt: '2025-09-04 11:00:00',
+      addedBy: 'AC Demo',
+      source: 'manual',
+      remark: '无延期 · 仅课程豁免先修（窗口内）',
+      permissions: [
+        createPermission('bypassPrerequisite', {
+          validHours: null,
+          validUntil: '2026/02',
+          courseCodes: ['COMP3192'],
+        }),
+        createPermission('bypassCreditMax', {
+          validHours: null,
+          validUntil: null,
+          extraCredits: 2,
+        }),
+      ],
+    },
     {
       id: 'sup-007',
       studentId: 'COS2409001',
@@ -938,13 +965,15 @@ export function removeSupplementEntry(id) {
 }
 
 /**
- * 列表筛选用：未发送 / 有效 / 已逾期
+ * 列表筛选用：未发送 / 有效 / 已逾期 / 不适用（无延期）
  * @param {object} row
  * @param {Date} [now]
- * @returns {'notSent'|'active'|'expired'}
+ * @returns {'notSent'|'active'|'expired'|'na'}
  */
 export function getWhitelistDoorFilterStatus(row, now = new Date()) {
   const entry = normalizeWhitelistEntry(row || {})
+  // 增量 bm：未勾选延期开门 → 生效列不适用
+  if (!entry.supplement) return 'na'
   const attempt = Number(getPermission(entry, 'supplement')?.inviteAttempt) || 0
   if (attempt <= 0) return 'notSent'
   const door = getSupplementDoorStatus(entry.studentId, now)
@@ -1167,12 +1196,24 @@ function applyInviteWindow(entry, attempt, now = new Date(), deadlineOverride = 
 }
 
 /**
- * 发送/再次发送通知（有效期内可多次；逾期须走 reopen）
+ * 发送/再次发送通知
+ * - 有延期：有效期内可多次起算/刷新延期门；逾期须走 reopen
+ * - 无延期（增量 bn）：仅告知通知，记 infoNotifyAttempt，不起算 deadline
  */
 export function sendSupplementInvite(id, now = new Date()) {
   const index = supplementListQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
   const entry = normalizeWhitelistEntry(supplementListQueue.value[index])
+  // 无延期：告知类通知
+  if (!entry.supplement) {
+    const next = normalizeWhitelistEntry({
+      ...entry,
+      infoNotifyAttempt: (Number(entry.infoNotifyAttempt) || 0) + 1,
+      lastEmailMockAt: formatInviteStamp(now),
+    })
+    supplementListQueue.value[index] = next
+    return { ok: true, item: next, emailMock: true, infoOnly: true }
+  }
   const attempt = Number(getPermission(entry, 'supplement')?.inviteAttempt) || 0
   if (attempt >= 1) {
     const door = getSupplementDoorStatus(entry.studentId, now)

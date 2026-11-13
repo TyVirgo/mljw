@@ -217,7 +217,8 @@ export function ensureHistoryPaymentDueDemo(now = Date.now()) {
     addDropApprovalQueue.value[i] = {
       ...addDropApprovalQueue.value[i],
       paymentDueAt: dueStr,
-      paymentGraceDays: addDropApprovalQueue.value[i].paymentGraceDays ?? 2,
+      paymentGraceDays: null,
+      paymentGraceHours: addDropApprovalQueue.value[i].paymentGraceHours ?? 48,
     }
   })
   // 已缴：补「缴前」截止（相对已付时间或固定 demo 截止）
@@ -245,7 +246,8 @@ export function ensureHistoryPaymentDueDemo(now = Date.now()) {
     addDropApprovalQueue.value[i] = {
       ...addDropApprovalQueue.value[i],
       paymentDueAt: dueStr,
-      paymentGraceDays: addDropApprovalQueue.value[i].paymentGraceDays ?? 2,
+      paymentGraceDays: null,
+      paymentGraceHours: addDropApprovalQueue.value[i].paymentGraceHours ?? 48,
     }
   })
   if (!dueByAppId.size) return

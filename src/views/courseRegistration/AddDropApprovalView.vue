@@ -42,7 +42,11 @@ import {
   addDropPrimaryOptionLabelKey,
   resolveAppNeedDrop,
 } from '../../data/courseRegistration/addDropTypeDisplay.js'
-import { addDropStatusBadgeClass } from '../../data/courseRegistration/addDropStatusBadge.js'
+import {
+  ADD_DROP_TEACHER_HISTORY_STATUS_OPTIONS,
+  resolveAddDropStudentListStatus,
+  addDropStudentListStatusBadgeClass,
+} from '../../data/courseRegistration/addDropStudentListStatus.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 import {
   formatAmountRmb,
@@ -88,7 +92,8 @@ const EMPTY_SEARCH = {
 
 const BILL_STATUS_OPTIONS = ['pending', 'paid', 'cancelled', 'none']
 const PENDING_STATUS_OPTIONS = ['Pending', 'In Review']
-const HISTORY_STATUS_OPTIONS = ['Approved', 'PartiallyApproved', 'Rejected', 'Cancelled']
+/** 历史：与学生对齐的已驳回/已结束 + 已取消 */
+const HISTORY_STATUS_OPTIONS = ADD_DROP_TEACHER_HISTORY_STATUS_OPTIONS
 
 const activeTab = ref('pending')
 const searchExpanded = ref(true)
@@ -186,7 +191,27 @@ function handleReset() {
 }
 
 function statusFilterLabel(status) {
+  // 待审 Tab 仍用内部码文案；历史 Tab 用四态+已取消
+  if (isHistoryTab.value) {
+    return t(`courseRegistration.student.listStatus.${status}`)
+  }
   return t(`courseRegistration.approval.appStatus.${status}`)
+}
+
+/**
+ * 列表/历史状态展示（与学生四态同步；增量 aa 按行决策）
+ * @param {string|object} statusOrApp 内部 status 或申请对象
+ */
+function statusDisplayLabel(statusOrApp) {
+  const key = resolveAddDropStudentListStatus(statusOrApp)
+  const raw =
+    statusOrApp && typeof statusOrApp === 'object'
+      ? String(statusOrApp.status || '')
+      : String(statusOrApp || '')
+  if (key === 'Pending' || raw === 'In Review') {
+    return t(`courseRegistration.approval.appStatus.${raw || 'Pending'}`)
+  }
+  return t(`courseRegistration.student.listStatus.${key}`)
 }
 
 function billStatusFilterLabel(status) {
@@ -372,6 +397,7 @@ function columnClass(col) {
   if (col === 'paymentRemindCount') return 'col-compact col-remind-count'
   if (col === 'paymentRemaining') return 'col-remaining'
   if (col === 'actions') {
+    // 历史/待审：操作个数单行；历史靠钮内文案折行收窄
     return isHistoryTab.value
       ? 'sticky-right sticky-actions sticky-actions--history nowrap'
       : 'sticky-right sticky-actions sticky-actions--simple nowrap'
@@ -464,8 +490,14 @@ function handleOrderRegenConfirm() {
 
 function handleAbortApplication(row) {
   if (!row?.id || !canAbortApprovedAddDropBill(row)) return
+  const isRejected = row.status === 'Rejected'
   const ok = window.confirm(
-    t('courseRegistration.approval.abortConfirm', { name: row.studentName || row.applicationNo }),
+    t(
+      isRejected
+        ? 'courseRegistration.approval.abortConfirmRejected'
+        : 'courseRegistration.approval.abortConfirm',
+      { name: row.studentName || row.applicationNo },
+    ),
   )
   if (!ok) return
   const result = abortApprovedAddDropApplication(row.id)
@@ -474,9 +506,12 @@ function handleAbortApplication(row) {
     return
   }
   nowTick.value = Date.now()
-  pageToast.value = t('courseRegistration.approval.abortSuccess', {
-    name: row.studentName || '',
-  })
+  pageToast.value = t(
+    result.abortedRejected
+      ? 'courseRegistration.approval.abortSuccessRejected'
+      : 'courseRegistration.approval.abortSuccess',
+    { name: row.studentName || '' },
+  )
   window.setTimeout(() => {
     if (pageToast.value) pageToast.value = ''
   }, 3200)
@@ -714,8 +749,11 @@ function handlePaymentExportConfirm({ selectedFields }) {
                   :class="columnClass(col)"
                 >
                   <template v-if="col === 'status'">
-                    <span class="status-badge" :class="addDropStatusBadgeClass(row.status)">
-                      {{ t(`courseRegistration.approval.appStatus.${row.status}`) }}
+                    <span
+                      class="status-badge"
+                      :class="addDropStudentListStatusBadgeClass(row)"
+                    >
+                      {{ statusDisplayLabel(row) }}
                     </span>
                   </template>
                   <template v-else-if="col === 'type'">
@@ -934,10 +972,11 @@ function handlePaymentExportConfirm({ selectedFields }) {
   text-align: center;
 }
 
+/* 缴费剩余时间：单行不换行 */
 .col-remaining {
-  min-width: 6.5em;
-  max-width: 118px;
-  white-space: normal;
+  min-width: 11em;
+  max-width: none;
+  white-space: nowrap;
   line-height: 1.3;
   font-size: 12px;
 }
@@ -1058,11 +1097,14 @@ function handlePaymentExportConfirm({ selectedFields }) {
   padding-right: 10px;
 }
 
-/* 历史：按行内操作内容自适应，不强制过宽 */
+/**
+ * 历史：操作单行横排、文案不换行；靠短文案（发送邮件 / 生成订单）收窄冻结列
+ */
 .sticky-actions--history {
   min-width: 0;
-  padding-left: 8px;
-  padding-right: 8px;
+  padding-left: 6px;
+  padding-right: 6px;
+  vertical-align: middle;
 }
 
 .action-links {

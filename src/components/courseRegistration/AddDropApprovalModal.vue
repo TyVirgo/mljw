@@ -10,10 +10,21 @@ import {
 import { getApprovalActionLabel } from '../../utils/approvalActionLabels.js'
 import {
   addDropApprovalLineKey,
+  approvalDecisionCountsTowardCreditStrip,
   buildApprovalDecisionTermCreditStrip,
+  buildFixedSituationCatchUpFromApplication,
+  hasRejectedOrReturnedDropDecision,
+  normalizeAddDropLineAction,
+  summarizeApprovalCatchUpSoftExcess,
+  summarizeApprovalDropRejectScheduleConflicts,
   summarizeApprovalStripCreditViolations,
+  validateApprovalLineDecisionsMap,
 } from '../../data/courseRegistration/addDropMultiItems.js'
-import { addDropTypeLabelKey } from '../../data/courseRegistration/addDropTypeDisplay.js'
+import { saveAddDropApprovalDraft } from '../../data/courseRegistration/addDropApprovalQueue.js'
+import {
+  addDropTypeLabelKey,
+  addDropLineActionTagClass,
+} from '../../data/courseRegistration/addDropTypeDisplay.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 import { displayClassTimeVenueFromFields } from '../../data/courseRegistration/sectionScheduleFields.js'
 import {
@@ -22,7 +33,16 @@ import {
   getCourseByCode,
 } from '../../data/courseRegistration/selectableCourses.js'
 import { formatUnifiedCourseCategoryFromLine } from '../../data/courseRegistration/unifiedCourseCategory.js'
+import {
+  buildAddDropApplicationSchedulePreview,
+  listMyResultCourses,
+} from '../../data/courseRegistration/studentMyResultCourses.js'
+import { getCurrentStudent } from '../../data/mockCurrentStudent.js'
+import { formatSchedulePersonLine } from '../../utils/formatSchedulePersonLine.js'
 import AddDropTermCreditStrip from './AddDropTermCreditStrip.vue'
+import AttachmentPreviewTrigger from '../common/AttachmentPreviewTrigger.vue'
+import ApplicationDetailDrawer from '../common/ApplicationDetailDrawer.vue'
+import StudentSchedulePreviewPanel from './StudentSchedulePreviewPanel.vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -58,6 +78,18 @@ const selectedKeysMap = ref({})
 const commentEditorVisible = ref(false)
 const commentEditorKey = ref('')
 const draftLineComment = ref('')
+/** 增量 ay：锁定行打开意见时只读 */
+const commentEditorReadonly = ref(false)
+/** 打开时行决策/意见快照；取消有改动才问存草稿 */
+const approvalBaselineSnapshot = ref('')
+const draftSavePromptVisible = ref(false)
+/** 门控拦截后强制重绑 radio，避免原生选中与 map 不一致 */
+const decisionRadioSyncKey = ref(0)
+/**
+ * 增量 ay：打开时已是通过/不通过的行锁定（key → true）
+ * @type {import('vue').Ref<Record<string, boolean>>}
+ */
+const lockedDecisionKeys = ref({})
 
 const LINE_ACTION_OPTIONS = [
   { value: 'approved', labelKey: 'approvalModal.action.approved' },
@@ -72,14 +104,125 @@ const summaryItems = computed(() => {
 
 const showLineOps = computed(() => summaryItems.value.length > 0)
 
-/** 顶部学分要求：通过+待定计入（与详情一致）；驳回/退回不计 */
+/**
+ * 顶部学分要求：通过+待定计入；不通过/驳回不计
+ * 增量 ap：显式读出每个决策值 + 同步键，保证点选后矩阵必刷新
+ */
 const liveTermCreditStrip = computed(() => {
   if (!showLineOps.value || !props.application) return null
-  return buildApprovalDecisionTermCreditStrip(props.application, lineDecisionsMap.value)
+  const decisions = lineDecisionsMap.value
+  void decisionRadioSyncKey.value
+  // 逐键读取，避免仅依赖对象引用时漏触发
+  const snapshot = {}
+  for (const key of Object.keys(decisions || {})) {
+    snapshot[key] = decisions[key]
+  }
+  return buildApprovalDecisionTermCreditStrip(props.application, snapshot)
 })
 
-/** GE/ME 学期超限 → 确认置灰 + 左侧提示 */
-const creditGate = computed(() => summarizeApprovalStripCreditViolations(liveTermCreditStrip.value))
+/** 蓝底 tip：申请基线固定落下，不随行决策变（增量 ah：矩阵未修行跟 live strip） */
+const situationCatchUpDisplay = computed(() =>
+  props.application ? buildFixedSituationCatchUpFromApplication(props.application) : null,
+)
+
+/** 增量 bf：单条审批展示学生附件材料（空也展示） */
+const showAttachmentsSection = computed(
+  () => Boolean(props.application) && props.targetCount <= 1,
+)
+
+/** 增量 bg：附件节标题仅「附件材料」，无 SECTION 前缀 */
+const attachmentSectionTitle = computed(() =>
+  t('courseRegistration.student.sectionLabelAttachments'),
+)
+
+/** 规范化附件列表（{ fileName, size }） */
+const attachmentFiles = computed(() => {
+  const list = Array.isArray(props.application?.attachments) ? props.application.attachments : []
+  return list
+    .filter((f) => f?.name)
+    .map((f) => ({ fileName: f.name, size: Number(f.size) || 0 }))
+})
+
+/**
+ * 格式化附件大小
+ * @param {number} bytes
+ */
+function formatAttachSize(bytes) {
+  const n = Number(bytes) || 0
+  if (n <= 0) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`
+}
+
+/** 增量 bg：课程预览抽屉 */
+const schedulePreviewVisible = ref(false)
+
+/**
+ * 按当前行决策取预览有效行（通过/待定计入；不通过/驳回不计）
+ * @param {'Drop'|'Add'|'Retake'} action
+ */
+function approvalPreviewLinesByAction(action) {
+  const items = summaryItems.value || []
+  const decisions = lineDecisionsMap.value || {}
+  void decisionRadioSyncKey.value
+  return items.filter((item, idx) => {
+    if (normalizeAddDropLineAction(item?.action) !== action) return false
+    const key = itemKey(item, idx)
+    const decision = decisions[key] || item?.lineDecision || 'pending'
+    return approvalDecisionCountsTowardCreditStrip(decision)
+  })
+}
+
+/** 审批课程预览：投影跟当前 radio */
+const approvalSchedulePreviewSlots = computed(() => {
+  if (!props.application) {
+    return buildAddDropApplicationSchedulePreview({
+      baseCourses: listMyResultCourses(),
+      locale: isZh.value ? 'zh' : 'en',
+    })
+  }
+  const dropCourses = approvalPreviewLinesByAction('Drop')
+  const addCourses = approvalPreviewLinesByAction('Add')
+  const retakeCourses = approvalPreviewLinesByAction('Retake')
+  return buildAddDropApplicationSchedulePreview({
+    baseCourses: listMyResultCourses(props.application.studentId),
+    dropCourses,
+    addCourses,
+    retakeCourses,
+    locale: isZh.value ? 'zh' : 'en',
+  })
+})
+
+/** 预览抽屉学号姓名（申请学生） */
+const approvalSchedulePersonLine = computed(() => {
+  const app = props.application
+  if (app?.studentId || app?.studentName) {
+    return formatSchedulePersonLine(app.studentId || '', app.studentName || '')
+  }
+  const student = getCurrentStudent()
+  const basic = student?.basicInfo || {}
+  return formatSchedulePersonLine(
+    basic.studentId,
+    basic.fullName || basic.chineseName || '',
+  )
+})
+
+/** 打开课程预览 */
+function openSchedulePreview() {
+  schedulePreviewVisible.value = true
+}
+
+/**
+ * GE/ME 超「学期要求+因修未修」→ 确认置灰 + 左侧提示
+ * 与学生申请硬拦同源；条上相对学期要求发红不单独阻断
+ */
+const creditGate = computed(() =>
+  summarizeApprovalStripCreditViolations(
+    liveTermCreditStrip.value,
+    situationCatchUpDisplay.value,
+  ),
+)
 
 const creditGateBlocked = computed(() => Boolean(showLineOps.value && creditGate.value.blocked))
 
@@ -92,6 +235,65 @@ const creditGateHint = computed(() => {
   const labels = creditGate.value.keys.map((k) => labelMap[k] || k).join('、')
   return t('courseRegistration.approval.creditOverRequirementHint', { labels })
 })
+
+/**
+ * 增量 ar/bh：否/驳退课后已选 > 学期+因修（含必修）→ 左下角软提示（不禁选）
+ * 与冲突提示同源：按 itemKey 快照 live 决策
+ */
+const dropRejectCatchUpSoftHint = computed(() => {
+  if (!showLineOps.value || !props.application) return ''
+  void decisionRadioSyncKey.value
+  const live = lineDecisionsMap.value || {}
+  /** @type {Record<string, string>} */
+  const decisions = {}
+  for (const [idx, item] of summaryItems.value.entries()) {
+    const key = itemKey(item, idx)
+    decisions[key] = live[key] || 'pending'
+  }
+  if (!hasRejectedOrReturnedDropDecision(props.application, decisions)) return ''
+  const soft = summarizeApprovalCatchUpSoftExcess(
+    liveTermCreditStrip.value,
+    situationCatchUpDisplay.value,
+  )
+  if (!soft.over) return ''
+  return t('courseRegistration.approval.dropRejectAffectsAddRetakeHint')
+})
+
+/**
+ * 增量 bd/bh：不同意退课（仅 rejected）恢复后与加/重修时段冲突 → 左下提示
+ * 按当前弹窗 itemKey 快照 live 决策，避免回落申请 items 陈旧 lineDecision
+ */
+const dropRejectScheduleConflictHint = computed(() => {
+  if (!showLineOps.value || !props.application) return ''
+  void decisionRadioSyncKey.value
+  const live = lineDecisionsMap.value || {}
+  /** @type {Record<string, string>} */
+  const decisions = {}
+  for (const [idx, item] of summaryItems.value.entries()) {
+    const key = itemKey(item, idx)
+    // 逐键读取，保证跟手
+    decisions[key] = live[key] || 'pending'
+  }
+  // 增量 bj：传入锁定行，退课已锁时话术以加课/重修为问题点
+  const result = summarizeApprovalDropRejectScheduleConflicts(props.application, decisions, {
+    lockedDecisionKeys: lockedDecisionKeys.value || {},
+  })
+  if (!result.conflict) return ''
+  return t(
+    result.errorKey || 'courseRegistration.approval.dropRejectScheduleConflictHint',
+    result.errorParams || {},
+  )
+})
+
+/**
+ * 增量 as/bd：软提示、课表冲突或 GE/ME 硬门控任一成立 → 确定置灰（radio 仍可选）
+ */
+const confirmBlocked = computed(
+  () =>
+    creditGateBlocked.value ||
+    Boolean(dropRejectCatchUpSoftHint.value) ||
+    Boolean(dropRejectScheduleConflictHint.value),
+)
 
 const selectedKeyList = computed(() =>
   Object.keys(selectedKeysMap.value).filter((k) => selectedKeysMap.value[k]),
@@ -112,6 +314,11 @@ function resolveI18nLabel(key, fallback) {
 
 function actionTypeLabel(action) {
   return resolveI18nLabel(addDropTypeLabelKey(action), action || '—')
+}
+
+/** 行申请类型胶囊 class（增量 bi） */
+function actionTypeTagClass(action) {
+  return addDropLineActionTagClass(action)
 }
 
 function itemCourseName(item) {
@@ -174,28 +381,107 @@ function itemTimeVenueLines(item) {
 }
 
 /**
- * 打开弹窗时初始化行决策与行意见
+ * 是否学生驳回后重新提交再审（增量 az：仅此时锁定通过/不通过）
+ * @param {object|null|undefined} app
+ */
+function isPostStudentResubmit(app) {
+  return (app?.approvalLog || []).some(
+    (entry) => String(entry?.action || '').trim() === 'Resubmitted',
+  )
+}
+
+/**
+ * 行是否锁定（打开时已是通过/不通过/已驳回，且仅学生重提后再审）
+ * @param {string} key
+ */
+function isLineDecisionLocked(key) {
+  return Boolean(lockedDecisionKeys.value[key])
+}
+
+/**
+ * 打开弹窗时初始化行决策与行意见（含已存审批草稿回显）
  */
 function initLineDecisions() {
   const map = {}
   const commentsMap = {}
   const sel = {}
+  const locked = {}
+  // 增量 az：草稿再开不锁；仅 Resubmitted 后再审才锁
+  const lockSettledLines = isPostStudentResubmit(props.application)
   for (const [idx, item] of summaryItems.value.entries()) {
     const key = itemKey(item, idx)
-    const d = item.lineDecision
-    // 无历史决策时默认通过（打开即可与申请投影学分一致）
-    map[key] =
-      d === 'approved' || d === 'rejected' || d === 'update_required' ? d : 'approved'
-    // 回填已有行意见（若有）
+    const d = String(item.lineDecision || '').trim()
+    // 回显通过/不通过/驳回
+    if (d === 'approved' || d === 'rejected' || d === 'update_required') {
+      map[key] = d
+    } else if (d === 'pending' && lockSettledLines) {
+      // 增量 bb：学生重提后的 pending（原驳回换课）默认上次老师操作「驳回」
+      map[key] = 'update_required'
+    } else {
+      // 全新待审或缺省：默认通过
+      map[key] = 'approved'
+    }
+    // 增量 br：学生未改的已驳回行也锁定，老师仍见「已驳回」
+    if (lockSettledLines && (d === 'approved' || d === 'rejected' || d === 'update_required')) {
+      locked[key] = true
+      sel[key] = false
+    } else {
+      sel[key] = true
+    }
+    // 回填已有行意见（含原驳回意见）
     commentsMap[key] = String(item.lineComment || '').trim()
-    sel[key] = true
   }
   lineDecisionsMap.value = map
   lineCommentsMap.value = commentsMap
   selectedKeysMap.value = sel
+  lockedDecisionKeys.value = locked
   commentEditorVisible.value = false
   commentEditorKey.value = ''
   draftLineComment.value = ''
+  captureApprovalBaseline()
+}
+
+/**
+ * 行决策/意见快照（用于取消脏检查）
+ */
+function snapshotApprovalDraftState() {
+  return JSON.stringify({
+    decisions: lineDecisionsMap.value,
+    lineComments: lineCommentsMap.value,
+  })
+}
+
+/** 记录打开时 baseline */
+function captureApprovalBaseline() {
+  approvalBaselineSnapshot.value = snapshotApprovalDraftState()
+}
+
+/** 相对打开快照是否有改动 */
+function isApprovalDraftDirty() {
+  if (!showLineOps.value || !props.application?.id) return false
+  return snapshotApprovalDraftState() !== approvalBaselineSnapshot.value
+}
+
+/** 关窗（不存草稿） */
+function discardAndClose() {
+  draftSavePromptVisible.value = false
+  approvalBaselineSnapshot.value = ''
+  schedulePreviewVisible.value = false
+  emit('close')
+}
+
+/**
+ * 确认存入审批草稿并关窗
+ */
+function confirmSaveApprovalDraft() {
+  const id = props.application?.id
+  if (id) {
+    saveAddDropApprovalDraft(id, {
+      lineDecisions: { ...lineDecisionsMap.value },
+      lineComments: { ...lineCommentsMap.value },
+    })
+  }
+  discardAndClose()
 }
 
 watch(
@@ -203,6 +489,7 @@ watch(
   (visible) => {
     if (!visible) {
       showPresets.value = false
+      draftSavePromptVisible.value = false
       return
     }
     selectedAction.value = ''
@@ -214,6 +501,7 @@ watch(
     commentEditorVisible.value = false
     commentEditorKey.value = ''
     draftLineComment.value = ''
+    draftSavePromptVisible.value = false
     initLineDecisions()
   },
 )
@@ -270,6 +558,8 @@ function lineCommentButtonLabel(key) {
 function openLineCommentEditor(key) {
   commentEditorKey.value = key
   draftLineComment.value = String(lineCommentsMap.value[key] || '')
+  // 增量 ay：锁定行可查看意见，不可改
+  commentEditorReadonly.value = isLineDecisionLocked(key)
   showPresets.value = false
   formError.value = ''
   commentEditorVisible.value = true
@@ -280,11 +570,16 @@ function closeLineCommentEditor() {
   commentEditorVisible.value = false
   commentEditorKey.value = ''
   draftLineComment.value = ''
+  commentEditorReadonly.value = false
   showPresets.value = false
 }
 
 /** 确认写入当前行意见 */
 function saveLineCommentEditor() {
+  if (commentEditorReadonly.value) {
+    closeLineCommentEditor()
+    return
+  }
   const key = commentEditorKey.value
   if (!key) {
     closeLineCommentEditor()
@@ -297,11 +592,57 @@ function saveLineCommentEditor() {
   closeLineCommentEditor()
 }
 
+/**
+ * 学分超限门控提示文案（GE/ME 学期学分标签）
+ * @param {('geTerm'|'meTerm')[]} keys
+ */
+function formatCreditViolationLabels(keys) {
+  const labelMap = {
+    geTerm: t('courseRegistration.approval.creditLabelGeTerm'),
+    meTerm: t('courseRegistration.approval.creditLabelMeTerm'),
+  }
+  return (keys || []).map((k) => labelMap[k] || k).join('、')
+}
+
+/**
+ * 依赖门控 B：拟议决策若相对当前决策新引入/加重 GE/ME 超限则禁止
+ * @param {Record<string, string>} nextMap
+ * @returns {boolean} true=已应用；false=被拦
+ */
+function tryApplyLineDecisionsMap(nextMap) {
+  const previousMap = { ...lineDecisionsMap.value }
+  const check = validateApprovalLineDecisionsMap(props.application, nextMap, previousMap)
+  if (!check.ok) {
+    const labels = formatCreditViolationLabels(check.keys)
+    formError.value = t('courseRegistration.approval.dropRejectBlockedByAddCredit', { labels })
+    // 强制重渲染 radio，回滚到 map 中的选中态
+    decisionRadioSyncKey.value += 1
+    return false
+  }
+  formError.value = ''
+  lineDecisionsMap.value = { ...nextMap }
+  // 成功也递增：驱动学分条 computed 与受控 radio 同步
+  decisionRadioSyncKey.value += 1
+  return true
+}
+
+/**
+ * 单行决策变更（含门控 B）
+ * 增量 ap：由受控 radio click 调用；退课否/驳→已选回升，加/重修否/驳→已选不加
+ * @param {string} key
+ * @param {string} decision approved|rejected|update_required
+ */
 function setLineDecision(key, decision) {
-  lineDecisionsMap.value = { ...lineDecisionsMap.value, [key]: decision }
+  if (!key || !decision) return
+  // 增量 ay：锁定行不可改
+  if (isLineDecisionLocked(key)) return
+  if (lineDecisionsMap.value[key] === decision) return
+  const next = { ...lineDecisionsMap.value, [key]: decision }
+  tryApplyLineDecisionsMap(next)
 }
 
 function toggleRowSelected(key, checked) {
+  if (isLineDecisionLocked(key)) return
   selectedKeysMap.value = { ...selectedKeysMap.value, [key]: checked }
 }
 
@@ -309,20 +650,32 @@ function toggleSelectAll(checked) {
   if (!summaryItems.value.length) return
   const sel = { ...selectedKeysMap.value }
   for (const [idx, item] of summaryItems.value.entries()) {
-    sel[itemKey(item, idx)] = checked
+    const key = itemKey(item, idx)
+    // 锁定行不参与批量勾选
+    if (isLineDecisionLocked(key)) {
+      sel[key] = false
+      continue
+    }
+    sel[key] = checked
   }
   selectedKeysMap.value = sel
 }
 
+/**
+ * 批量写入勾选行决策（含门控 B）
+ * @param {string} decision approved|rejected|update_required
+ */
 function applyDecisionToSelected(decision) {
   if (!hasSelectedLines.value) {
     formError.value = t('courseRegistration.approval.lineSelectRequired')
     return
   }
-  formError.value = ''
   const map = { ...lineDecisionsMap.value }
-  for (const key of selectedKeyList.value) map[key] = decision
-  lineDecisionsMap.value = map
+  for (const key of selectedKeyList.value) {
+    if (isLineDecisionLocked(key)) continue
+    map[key] = decision
+  }
+  tryApplyLineDecisionsMap(map)
 }
 
 function buildLineDecisionsPayload(action) {
@@ -392,29 +745,25 @@ function resolvePayloadFromLines() {
   if (entries.some((e) => e.decision === 'pending')) {
     return { ok: false, errorKey: 'courseRegistration.approval.lineDecisionRequired' }
   }
-  const allUpdate = entries.every((e) => e.decision === 'update_required')
+  // 增量 aa：允许驳回与通过/不通过混选；有驳回行则整单走 Update Required → 已驳回
   const anyUpdate = entries.some((e) => e.decision === 'update_required')
-  if (anyUpdate && !allUpdate) {
-    return { ok: false, errorKey: 'courseRegistration.approval.lineUpdateMixed' }
-  }
-  // 不通过 / 驳回行：该行评价意见必填
-  const missingComment = entries.some((e) => {
-    if (e.decision !== 'rejected' && e.decision !== 'update_required') return false
-    return !String(lineCommentsMap.value[e.key] || '').trim()
-  })
-  if (missingComment) {
-    return { ok: false, errorKey: 'courseRegistration.approval.lineCommentRequired' }
-  }
+  // 增量：评价意见选填；不通过/驳回意见为空不拦提交（有填仍写回 lineComment）
   const comment = buildAggregatedComment(entries)
   const lineComments = buildLineCommentsPayload(entries)
-  if (allUpdate) {
+  if (anyUpdate) {
+    // 写回各行真实决策（通过 / 不通过 / 驳回）
+    const out = {}
+    for (const e of entries) {
+      out[e.idx] = e.decision
+      out[e.key] = e.decision
+    }
     return {
       ok: true,
       payload: {
         action: 'Update Required',
         comment,
         generateBill: false,
-        lineDecisions: buildLineDecisionsPayload('Update Required'),
+        lineDecisions: out,
         lineComments,
       },
     }
@@ -432,7 +781,7 @@ function resolvePayloadFromLines() {
       },
     }
   }
-  // Approved 或部分通过（含通过行）
+  // 仅通过 / 不通过 → 已结束（Approved 或部分通过）
   const out = {}
   for (const e of entries) {
     const resolved = e.decision === 'rejected' ? 'rejected' : 'approved'
@@ -452,8 +801,15 @@ function resolvePayloadFromLines() {
   }
 }
 
+/**
+ * 取消/关闭：有行决策改动才问存草稿；无改动直接关
+ */
 function handleClose() {
-  emit('close')
+  if (isApprovalDraftDirty()) {
+    draftSavePromptVisible.value = true
+    return
+  }
+  discardAndClose()
 }
 
 function handleOverlayClick(event) {
@@ -514,8 +870,17 @@ onBeforeUnmount(() => {
 
 function handleConfirm() {
   if (showLineOps.value) {
+    // 硬门控优先；否则软提示阻断（必修等超学期+因修）
     if (creditGateBlocked.value) {
       formError.value = creditGateHint.value
+      return
+    }
+    if (dropRejectCatchUpSoftHint.value) {
+      formError.value = dropRejectCatchUpSoftHint.value
+      return
+    }
+    if (dropRejectScheduleConflictHint.value) {
+      formError.value = dropRejectScheduleConflictHint.value
       return
     }
     const resolved = resolvePayloadFromLines()
@@ -613,13 +978,17 @@ function seatCapacityTone(item) {
         <div class="modal-body">
           <p v-if="batchHint" class="batch-hint">{{ batchHint }}</p>
 
-          <div v-if="liveTermCreditStrip" class="approval-credit-strip approval-credit-strip--sticky">
+          <!-- 学分要求钉在上方，不随课程表滚动 -->
+          <div v-if="liveTermCreditStrip" class="approval-credit-strip approval-credit-strip--pin">
             <AddDropTermCreditStrip
+              :key="'approval-strip-' + decisionRadioSyncKey"
               :strip="liveTermCreditStrip"
+              :term-catch-up-credits="situationCatchUpDisplay"
               :application-type="application?.type || ''"
             />
           </div>
 
+          <div class="modal-body__scroll">
           <div v-if="showLineOps" class="lines-summary">
             <div class="lines-summary-actions">
               <button
@@ -672,19 +1041,29 @@ function seatCapacityTone(item) {
                     <th class="col-lecturer">{{ t('courseRegistration.student.fieldLecturers') }}</th>
                     <th class="col-seats">{{ t('courseRegistration.student.pickerSeatCapacityHeader') }}</th>
                     <th class="col-op">{{ t('courseRegistration.approval.lineDecision') }}</th>
+                    <th class="col-line-comment">{{ t('courseRegistration.approval.lineCommentColumn') }}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(item, idx) in summaryItems" :key="itemKey(item, idx)">
+                  <tr
+                    v-for="(item, idx) in summaryItems"
+                    :key="itemKey(item, idx)"
+                    :class="{ 'is-decision-locked': isLineDecisionLocked(itemKey(item, idx)) }"
+                  >
                     <td class="col-check">
                       <input
                         type="checkbox"
                         :checked="!!selectedKeysMap[itemKey(item, idx)]"
+                        :disabled="isLineDecisionLocked(itemKey(item, idx))"
                         @change="toggleRowSelected(itemKey(item, idx), $event.target.checked)"
                       />
                     </td>
                     <td class="col-index">{{ idx + 1 }}</td>
-                    <td class="col-app-type" :title="actionTypeLabel(item.action)">{{ actionTypeLabel(item.action) }}</td>
+                    <td class="col-app-type" :title="actionTypeLabel(item.action)">
+                      <span class="type-tag" :class="actionTypeTagClass(item.action)">
+                        {{ actionTypeLabel(item.action) }}
+                      </span>
+                    </td>
                     <td class="col-code" :title="item.courseCode || ''">{{ item.courseCode || '—' }}</td>
                     <td class="col-name" :title="itemCourseName(item)">{{ itemCourseName(item) }}</td>
                     <td class="col-course-type" :title="itemCourseTypeLabel(item)">{{ itemCourseTypeLabel(item) }}</td>
@@ -711,38 +1090,82 @@ function seatCapacityTone(item) {
                       </span>
                     </td>
                     <td class="col-op op-cell">
-                      <div class="line-op-wrap">
-                        <div class="radio-group line-op-radios">
-                          <label
-                            v-for="opt in LINE_ACTION_OPTIONS"
-                            :key="opt.value"
-                            class="radio-item"
-                          >
-                            <input
-                              type="radio"
-                              :name="'line-op-' + itemKey(item, idx)"
-                              :value="opt.value"
-                              :checked="lineDecisionsMap[itemKey(item, idx)] === opt.value"
-                              @change="setLineDecision(itemKey(item, idx), opt.value)"
-                            />
-                            <span>{{ t(opt.labelKey) }}</span>
-                          </label>
-                        </div>
-                        <button
-                          type="button"
-                          class="line-comment-btn"
-                          :class="{ 'has-comment': hasLineComment(itemKey(item, idx)) }"
-                          @click="openLineCommentEditor(itemKey(item, idx))"
+                      <div
+                        class="radio-group line-op-radios"
+                        :key="'ops-' + decisionRadioSyncKey + '-' + itemKey(item, idx)"
+                      >
+                        <label
+                          v-for="opt in LINE_ACTION_OPTIONS"
+                          :key="opt.value"
+                          class="radio-item"
+                          :class="{ 'is-locked': isLineDecisionLocked(itemKey(item, idx)) }"
                         >
-                          {{ lineCommentButtonLabel(itemKey(item, idx)) }}
-                        </button>
+                          <input
+                            type="radio"
+                            :name="'line-op-' + decisionRadioSyncKey + '-' + itemKey(item, idx)"
+                            :value="opt.value"
+                            :checked="lineDecisionsMap[itemKey(item, idx)] === opt.value"
+                            :disabled="isLineDecisionLocked(itemKey(item, idx))"
+                            @click.stop.prevent="setLineDecision(itemKey(item, idx), opt.value)"
+                          />
+                          <span>{{ t(opt.labelKey) }}</span>
+                        </label>
                       </div>
+                    </td>
+                    <td class="col-line-comment">
+                      <button
+                        type="button"
+                        class="line-comment-btn"
+                        :class="{ 'has-comment': hasLineComment(itemKey(item, idx)) }"
+                        @click="openLineCommentEditor(itemKey(item, idx))"
+                      >
+                        {{
+                          isLineDecisionLocked(itemKey(item, idx))
+                            ? hasLineComment(itemKey(item, idx))
+                              ? t('courseRegistration.approval.lineCommentDetail')
+                              : '—'
+                            : lineCommentButtonLabel(itemKey(item, idx))
+                        }}
+                      </button>
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
+
+          <!-- 增量 bf：课程表下学生附件材料（只读） -->
+          <section v-if="showAttachmentsSection" class="approval-attachments">
+            <div class="section-bar">{{ attachmentSectionTitle }}</div>
+            <div class="attachment-panel">
+              <div class="attachment-header">
+                <label class="attachment-label">
+                  {{ t('courseRegistration.student.dropAttachment') }}
+                  <span class="optional">（{{ t('courseRegistration.student.dropAttachmentOptional') }}）</span>
+                </label>
+              </div>
+              <ul v-if="attachmentFiles.length" class="detail-attach-list">
+                <li
+                  v-for="(file, idx) in attachmentFiles"
+                  :key="`approval-att-${file.fileName}-${idx}`"
+                  class="detail-attach-item"
+                >
+                  <AttachmentPreviewTrigger
+                    :file-name="file.fileName"
+                    :file-meta="file"
+                    :download-label="file.fileName"
+                    :show-download="true"
+                  />
+                  <span v-if="formatAttachSize(file.size)" class="detail-attach-size">
+                    {{ formatAttachSize(file.size) }}
+                  </span>
+                </li>
+              </ul>
+              <div v-else class="attachment-file-row">
+                <span>{{ t('courseRegistration.approval.attachmentNone') }}</span>
+              </div>
+            </div>
+          </section>
 
           <div v-if="showSharedComments" class="form-table" :class="{ 'form-table--after-lines': showLineOps }">
             <div v-if="showWholeForm" class="form-row">
@@ -803,16 +1226,31 @@ function seatCapacityTone(item) {
           </div>
 
           <p v-if="formError" class="form-error">{{ formError }}</p>
+          </div>
         </div>
 
         <div class="modal-footer">
-          <p v-if="creditGateBlocked" class="credit-gate-hint">{{ creditGateHint }}</p>
+          <button
+            v-if="showLineOps"
+            type="button"
+            class="btn btn-default approval-preview-btn"
+            @click="openSchedulePreview"
+          >
+            {{ t('courseRegistration.student.applicationSchedulePreviewButton') }}
+          </button>
+          <div class="modal-footer-hints">
+            <p v-if="dropRejectScheduleConflictHint" class="credit-soft-hint">
+              {{ dropRejectScheduleConflictHint }}
+            </p>
+            <p v-if="dropRejectCatchUpSoftHint" class="credit-soft-hint">{{ dropRejectCatchUpSoftHint }}</p>
+            <p v-if="creditGateBlocked" class="credit-gate-hint">{{ creditGateHint }}</p>
+          </div>
           <div class="modal-footer-actions">
             <button type="button" class="btn btn-default" @click="handleClose">{{ t('common.cancel') }}</button>
             <button
               type="button"
               class="btn btn-primary"
-              :disabled="creditGateBlocked"
+              :disabled="confirmBlocked"
               @click="handleConfirm"
             >
               {{ t('common.confirm') }}
@@ -821,6 +1259,41 @@ function seatCapacityTone(item) {
         </div>
       </div>
     </div>
+
+    <!-- 增量 bg：课程预览（投影跟当前行决策） -->
+    <ApplicationDetailDrawer
+      :visible="schedulePreviewVisible"
+      :title="t('courseRegistration.student.applicationSchedulePreviewTitle')"
+      :person-line="approvalSchedulePersonLine"
+      elevate
+      :overlay-z-index="1500"
+      @close="schedulePreviewVisible = false"
+    >
+      <StudentSchedulePreviewPanel
+        embedded
+        legend-mode="addDropPreview"
+        :schedule="approvalSchedulePreviewSlots"
+      />
+      <template #footer>
+        <div class="application-schedule-preview-footer">
+          <p class="application-schedule-preview-footer__tip" role="note">
+            <span class="application-schedule-preview-footer__badge">{{
+              t('courseRegistration.student.scheduleUntimedTipBadge')
+            }}</span>
+            <span class="application-schedule-preview-footer__text">{{
+              t('courseRegistration.student.applicationSchedulePreviewFooterHint')
+            }}</span>
+          </p>
+          <button
+            type="button"
+            class="btn btn-primary"
+            @click="schedulePreviewVisible = false"
+          >
+            {{ t('common.close') }}
+          </button>
+        </div>
+      </template>
+    </ApplicationDetailDrawer>
   </Teleport>
 
   <!-- 行级评价意见二级弹层（复用 Comments 壳） -->
@@ -846,9 +1319,10 @@ function seatCapacityTone(item) {
                     class="comments-input"
                     maxlength="200"
                     rows="5"
+                    :readonly="commentEditorReadonly"
                     :placeholder="t('courseRegistration.approval.lineCommentPlaceholder')"
                   />
-                  <div class="comments-footer">
+                  <div v-if="!commentEditorReadonly" class="comments-footer">
                     <div class="presets-wrap">
                       <button
                         ref="presetBtnRef"
@@ -885,9 +1359,14 @@ function seatCapacityTone(item) {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-default" @click="closeLineCommentEditor">
-            {{ t('common.cancel') }}
+            {{ commentEditorReadonly ? t('common.close') : t('common.cancel') }}
           </button>
-          <button type="button" class="btn btn-primary" @click="saveLineCommentEditor">
+          <button
+            v-if="!commentEditorReadonly"
+            type="button"
+            class="btn btn-primary"
+            @click="saveLineCommentEditor"
+          >
             {{ t('common.confirm') }}
           </button>
         </div>
@@ -904,6 +1383,19 @@ function seatCapacityTone(item) {
     :z-index="1600"
     @confirm="confirmSubmit"
     @cancel="cancelSubmit"
+  />
+
+  <!-- 审批取消：有改动才问是否存草稿 -->
+  <ConfirmDialog
+    :visible="draftSavePromptVisible"
+    :title="t('courseRegistration.approval.draftSaveConfirmTitle')"
+    :message="t('courseRegistration.approval.draftSaveConfirmMessage')"
+    :confirm-text="t('courseRegistration.approval.draftSaveConfirmYes')"
+    :cancel-text="t('courseRegistration.approval.draftSaveConfirmNo')"
+    confirm-variant="primary"
+    :z-index="1650"
+    @confirm="confirmSaveApprovalDraft"
+    @cancel="discardAndClose"
   />
 </template>
 
@@ -986,28 +1478,38 @@ function seatCapacityTone(item) {
 
 .modal-body {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 20px 24px;
 }
 
 .batch-hint {
-  margin: 0 0 16px;
+  flex-shrink: 0;
+  margin: 0 0 12px;
   font-size: 13px;
   color: #2563eb;
 }
 
 .approval-credit-strip {
-  margin: 0 0 16px;
+  margin: 0 0 12px;
 }
 
-.approval-credit-strip--sticky {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  margin: -4px 0 16px;
-  padding: 8px 0 10px;
+/* 学分要求上钉：不滚，避免 sticky 透出操作钮 */
+.approval-credit-strip--pin {
+  flex-shrink: 0;
+  margin: 0 0 12px;
+  padding: 0 0 8px;
   background: #fff;
-  box-shadow: 0 6px 10px -8px rgba(15, 23, 42, 0.35);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-body__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .lines-summary {
@@ -1023,13 +1525,15 @@ function seatCapacityTone(item) {
 }
 
 .lines-table-wrap {
-  overflow-x: hidden;
+  /* 增量 ac：短列表头完整优先，不足时横滚，勿裁表头 */
+  overflow-x: auto;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
 }
 
 .lines-table {
   width: 100%;
+  min-width: 1100px;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 11px;
@@ -1041,6 +1545,10 @@ function seatCapacityTone(item) {
   border-bottom: 1px solid #f3f4f6;
   text-align: left;
   vertical-align: middle;
+}
+
+/* 单元格内容可省略；表头禁止 ellipsis 缩写 */
+.lines-table td {
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1050,10 +1558,15 @@ function seatCapacityTone(item) {
 .lines-table th.col-app-type,
 .lines-table th.col-op,
 .lines-table td.col-op,
-.lines-table td.op-cell {
+.lines-table td.op-cell,
+.lines-table th.col-line-comment,
+.lines-table td.col-line-comment {
   overflow: visible;
   text-overflow: clip;
   white-space: nowrap;
+  /* 低于 sticky 学分条，避免滚动时操作钮透出 */
+  position: relative;
+  z-index: 0;
 }
 
 .lines-table th {
@@ -1061,6 +1574,8 @@ function seatCapacityTone(item) {
   font-weight: 600;
   color: #374151;
   white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .lines-table tbody tr:last-child td {
@@ -1075,25 +1590,40 @@ function seatCapacityTone(item) {
 }
 
 .col-index {
-  width: 2.6em;
+  width: 3.2em;
+  min-width: 3.2em;
   text-align: center;
   font-variant-numeric: tabular-nums;
   color: #6b7280;
 }
 
 .col-app-type {
-  width: 7.5em;
+  width: 5.5em;
+  min-width: 5em;
   white-space: nowrap;
 }
 
+/* 增量 bi：申请类型三色胶囊（与详情同源） */
+.type-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.type-add { background: #dbeafe; color: #1d4ed8; }
+.type-drop { background: #fee2e2; color: #b91c1c; }
+.type-retake { background: #fef3c7; color: #b45309; }
+
 .col-course-type {
-  width: 6.5em;
-  min-width: 5.5em;
+  width: 5em;
+  min-width: 4.5em;
   white-space: nowrap;
 }
 
 .col-code {
-  width: 6em;
+  width: 7em;
+  min-width: 6.5em;
   white-space: nowrap;
 }
 
@@ -1104,7 +1634,8 @@ function seatCapacityTone(item) {
 }
 
 .col-credits {
-  width: 3em;
+  width: 3.5em;
+  min-width: 3.5em;
   white-space: nowrap;
   text-align: center;
 }
@@ -1117,6 +1648,7 @@ function seatCapacityTone(item) {
 
 .col-week {
   width: 4.5em;
+  min-width: 4em;
   white-space: nowrap;
 }
 
@@ -1125,12 +1657,16 @@ function seatCapacityTone(item) {
   max-width: none;
 }
 
+/* 任课教师：加宽左移，尽量全文少缩写（与详情对齐） */
 .col-lecturer {
-  width: 9em;
+  width: 12em;
+  min-width: 10em;
   max-width: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  text-align: left;
+  word-break: break-word;
 }
 
 .col-seats {
@@ -1158,21 +1694,25 @@ function seatCapacityTone(item) {
 
 .col-op,
 .op-cell {
-  width: 22%;
-  min-width: 14em;
-  white-space: normal;
+  /* 增量 as：加宽操作列，容纳三 radio 单行 */
+  width: 18em;
+  min-width: 16em;
+  white-space: nowrap;
   vertical-align: middle;
   overflow: visible;
   text-overflow: clip;
-  padding-right: 8px;
+  padding-right: 16px;
 }
 
-.line-op-wrap {
-  display: inline-flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
+.col-line-comment {
+  width: 8em;
+  min-width: 7em;
+  white-space: nowrap;
+  vertical-align: middle;
+  overflow: visible;
+  text-overflow: clip;
+  /* 与操作列拉开间距 */
+  padding-left: 12px;
 }
 
 .line-comment-btn {
@@ -1211,10 +1751,12 @@ function seatCapacityTone(item) {
 }
 
 .radio-group.line-op-radios {
+  display: inline-flex;
   flex-direction: row;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  white-space: normal;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px 10px;
+  white-space: nowrap;
 }
 
 .radio-group.line-op-radios .radio-item {
@@ -1223,6 +1765,22 @@ function seatCapacityTone(item) {
   gap: 4px;
   white-space: nowrap;
 }
+
+.radio-group.line-op-radios .radio-item.is-locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.lines-table tbody tr.is-decision-locked td {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.lines-table tbody tr.is-decision-locked .line-comment-btn:disabled,
+.lines-table tbody tr.is-decision-locked input:disabled {
+  cursor: not-allowed;
+}
+
 
 .form-table {
   border: 1px solid #e5e7eb;
@@ -1343,6 +1901,61 @@ function seatCapacityTone(item) {
   color: #9ca3af;
 }
 
+.approval-attachments {
+  margin: 16px 0 8px;
+}
+
+.approval-attachments .section-bar {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.approval-attachments .attachment-panel {
+  padding: 0 4px;
+}
+
+.approval-attachments .attachment-label {
+  font-size: 13px;
+  color: #374151;
+}
+
+.approval-attachments .optional {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.approval-attachments .detail-attach-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.approval-attachments .detail-attach-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.approval-attachments .detail-attach-size {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.approval-attachments .attachment-file-row {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
 .form-error {
   margin: 12px 0 0;
   font-size: 13px;
@@ -1358,9 +1971,72 @@ function seatCapacityTone(item) {
   border-top: 1px solid #f0f0f0;
 }
 
+.approval-preview-btn {
+  flex-shrink: 0;
+}
+
+.modal-footer-hints {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.application-schedule-preview-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.application-schedule-preview-footer__tip {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #1e40af;
+  text-align: left;
+}
+
+.application-schedule-preview-footer__badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.application-schedule-preview-footer__text {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.credit-soft-hint {
+  margin: 0;
+  font-size: 13px;
+  color: #b45309;
+  line-height: 1.35;
+}
+
 .credit-gate-hint {
   margin: 0;
-  margin-right: auto;
   font-size: 13px;
   color: #dc2626;
   line-height: 1.35;

@@ -72,6 +72,19 @@ export function addDropTypeTagClass(type, app = null) {
 }
 
 /**
+ * 课程行申请类型（加课/退课/重修）→ 胶囊 class（增量 bi）
+ * @param {string} [action] Add|Drop|Retake
+ * @returns {string} type-add|type-drop|type-retake|''
+ */
+export function addDropLineActionTagClass(action) {
+  const raw = String(action || '').trim().toLowerCase()
+  if (raw === 'drop') return PRIMARY_TAG_CLASS.Drop
+  if (raw === 'retake') return PRIMARY_TAG_CLASS.Retake
+  if (raw === 'add') return PRIMARY_TAG_CLASS.Add
+  return ''
+}
+
+/**
  * 主类型三选一（Add/Drop/Retake）→ 筛选项/表单选项文案 key
  * @param {'Add'|'Drop'|'Retake'|string} [primary]
  */

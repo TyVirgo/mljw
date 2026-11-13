@@ -29,7 +29,8 @@ const DEMO_STUDENT_ID = DEFAULT_MOCK_CURRENT_STUDENT_ID
 
 /**
  * 轮次自选成功半池 — 按批次分档挂载，历轮按类型+roundKey 跨档同步
- * ME：R1 中签 COMP201+SE201+AI110（preselect/m1）+ R2 CST201（cst-i/main）+ R3 CYS201（cys-i/supplement）
+ * ME：R1 中签 COMP201+SE201（preselect/m1；3选2 组仅选 1 门便于加课组视图）+ R2 CST201（cst-i/main）+ R3 CYS201（cys-i/supplement）
+ * AI110 不进确认半池，留作加课 3选2 组未选成员
  * GE 学分累计（不含 admin）：R1=HUM201(2)；R2=+BUS301(2)→4；R3=+MPU401(2)→6（≤geMax；超则动态不加）
  * R1 本轮=pending；R2/R3 本轮=当前轮确认、历轮=更早轮确认；课表虚线≡本轮、实线≡历轮+必修
  * 另：GE 代选 BUS201 挂 g2（不进本轮选课/学分累计）
@@ -97,26 +98,11 @@ const DEMO_ROUND_CONFIRMED_COURSES = [
     roundKey: 'preselect',
     meetings: [{ time: 'Wed 14:00–16:00', room: 'D5-1-301', weekRange: '1-18' }],
   },
-  {
-    courseId: 'course-ai110',
-    courseCode: 'AI110',
-    courseName: 'Introduction to AI',
-    courseNameEn: 'Introduction to AI',
-    courseNameZh: '人工智能导论',
-    credits: 3,
-    type: 'ME',
-    sectionId: 'sec-ai110-1',
-    sectionCode: '01',
-    time: 'Fri 08:00–10:00',
-    weekRange: '1-18',
-    room: 'D5-4-101',
-    lecturer: 'Dr. Foo',
-    lecturerEn: 'Dr. Foo',
-    batchId: 'batch-2504-m1',
-    schoolElectiveCategory: 'science',
-    roundKey: 'preselect',
-    meetings: [{ time: 'Fri 08:00–10:00', room: 'D5-4-101', weekRange: '1-18' }],
-  },
+  /**
+   * AI110 原 R1 中签课：改为不加确认半池，供加课「3选2 已选 SE201、未选 AI110/WEB220」组视图
+   * （保留注释块便于对照，勿恢复进 DEMO_ROUND_CONFIRMED 除非同步改组 demo）
+   */
+  // course-ai110 已移出确认半池
   {
     courseId: 'course-cst-demo-1',
     courseCode: 'CST201',
@@ -442,7 +428,8 @@ function buildDemoAddDropApplications(credits, schedule) {
       billStatus: 'pending',
       billAmount: 320,
       reason: 'Need STAT201 for programme progression (over credit max)',
-      items: [{ action: 'Add', courseCode: 'STAT201', credits: 3, section: '01', time: 'Mon 14:00–16:00', fee: 320 }],
+      /** 增量 ax：与落课 STAT201 同档 Fri10–12，避免再写回 Mon14 */
+      items: [{ action: 'Add', courseCode: 'STAT201', credits: 3, section: '01', time: 'Fri 10:00–12:00', fee: 320 }],
       approvalLog: [],
     },
     {
@@ -455,8 +442,22 @@ function buildDemoAddDropApplications(credits, schedule) {
       submittedAt: '2026-07-08 14:20:00',
       billStatus: 'paid',
       billAmount: 480,
+      // 增量 bq：历史已缴样例保留，但不并入可退池（保持学分条/退课前=26）
+      scheduleApplied: false,
       reason: 'Complete GE writing requirement',
-      items: [{ action: 'Add', courseCode: 'ENGL201', credits: 3, section: '01', time: 'Wed 09:00–12:00', fee: 480 }],
+      /** 增量 aw：避开 MATH201 重修；改用课库 sec03 Thu14–16 */
+      items: [
+        {
+          action: 'Add',
+          courseCode: 'ENGL201',
+          credits: 3,
+          section: '03',
+          time: 'Thu 14:00–16:00',
+          room: 'A2-2-105',
+          weekRange: '1-18',
+          fee: 480,
+        },
+      ],
       approvalLog: [{ at: '2026-07-09 10:00', actor: 'AC SWE', action: 'Approved' }],
     },
     {
@@ -526,8 +527,22 @@ function buildDemoAddDropApplications(credits, schedule) {
       feeWaiver: false,
       reason: 'Schedule conflict after add/drop deadline',
       attachments: [{ name: 'conflict-proof.pdf' }],
-      items: [{ action: 'Drop', courseCode: 'MPU3183', credits: 3, section: '01', time: 'Tue 09:00–12:00' }],
-      approvalLog: [{ at: '2026-07-07 09:00', actor: 'AC SWE', action: 'Rejected', comment: 'Insufficient evidence' }],
+      // 已驳回：须至少一条驳回行（update_required）；课名/类型对齐课库
+      items: [
+        {
+          action: 'Drop',
+          courseCode: 'MPU3183',
+          courseName: 'Malaysian Studies',
+          type: 'GE',
+          schoolElectiveCategory: 'arts',
+          credits: 3,
+          section: '01',
+          time: 'Tue 09:00–12:00',
+          lineDecision: 'update_required',
+          lineComment: '证据不足，请补充后重提',
+        },
+      ],
+      approvalLog: [{ at: '2026-07-07 09:00', actor: 'AC SWE', action: 'Update Required', comment: 'Insufficient evidence' }],
     },
     {
       id: 'adr-xmum-07',
@@ -640,7 +655,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       previousCourseGradesText: '2024/09 42分',
       retakeType: 'failed',
       items: [
-        { action: 'Drop', courseCode: 'ENGL201', credits: 3, section: '01', time: 'Wed 09:00–12:00' },
+        { action: 'Drop', courseCode: 'ENGL201', credits: 3, section: '03', time: 'Thu 14:00–16:00' },
         {
           action: 'Retake',
           courseCode: 'COMP201',
@@ -666,6 +681,8 @@ function buildDemoAddDropApplications(credits, schedule) {
       submittedAt: '2026-07-10 09:30:00',
       billStatus: 'none',
       billAmount: 0,
+      // 增量 bq：不落 STAT201，避免可退池偏离 26
+      scheduleApplied: false,
       excessCredits: 0,
       dropChannel: 'self',
       teachingWeek: 2,
@@ -676,7 +693,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       previousCourseGradesText: '2024/09 60分',
       retakeType: 'improve_grade',
       items: [
-        { action: 'Drop', courseCode: 'HUM110', credits: 3, section: '01', time: 'Fri 09:00–12:00' },
+        { action: 'Drop', courseCode: 'HUM110', credits: 3, section: '01', time: 'Fri 16:00–18:00' },
         {
           action: 'Retake',
           courseCode: 'STAT201',
@@ -714,21 +731,37 @@ function buildDemoAddDropApplications(credits, schedule) {
       academicSessionTaken: '2023/09',
       previousCourseGradesText: '2023/09 45分',
       retakeType: 'failed',
+      // ADR2509032：退课驳回 + 重修通过 → 整单已驳回（可重新提交改退课）
       items: [
-        { action: 'Drop', courseCode: 'BUS201', credits: 3, section: '01', time: 'Tue 14:00–17:00' },
+        {
+          action: 'Drop',
+          courseCode: 'BUS201',
+          courseName: 'Business Ethics',
+          type: 'GE',
+          schoolElectiveCategory: 'business',
+          credits: 3,
+          section: '01',
+          time: 'Tue 14:00–17:00',
+          lineDecision: 'update_required',
+          lineComment: '退课理由不充分，请修改后重提',
+        },
         {
           action: 'Retake',
           courseCode: 'PHYS101',
+          courseName: 'Physics I',
+          type: 'CORE',
           credits: 4,
           section: '01',
           sectionName: '分组名称01',
           time: 'Tue 14:00–17:00',
           retakeGrade: 'F',
           fee: 2200,
+          lineDecision: 'approved',
+          lineComment: '',
         },
       ],
       approvalLog: [
-        { at: '2026-07-09 18:00', actor: 'AC SWE', action: 'Rejected', comment: 'Timetable clash' },
+        { at: '2026-07-09 18:00', actor: 'AC SWE', action: 'Update Required', comment: 'Timetable clash' },
       ],
     },
     {
@@ -792,7 +825,8 @@ function buildDemoAddDropApplications(credits, schedule) {
           credits: 3,
           section: '02',
           sectionName: '分组名称02',
-          time: 'Wed 09:00–12:00',
+          /** 增量 au：避开 MATH101/COMP201；亦避开同单拟退 SCI110 Fri14–16 */
+          time: 'Thu 14:00–16:00',
           room: 'C1-3-102',
           weekRange: '1-16',
           retakeGrade: 'D',
@@ -831,6 +865,8 @@ function buildDemoAddDropApplications(credits, schedule) {
       submittedAt: '2026-07-05 11:00:00',
       billStatus: 'paid',
       billAmount: 480,
+      // 增量 bq：不落 COMP3192
+      scheduleApplied: false,
       dropChannel: 'self',
       teachingWeek: 2,
       feeWaiver: false,
@@ -871,7 +907,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       reason: 'Drop COMP201 then add STAT201 (over credit — second over-limit sample)',
       items: [
         { action: 'Drop', courseCode: 'COMP201', credits: 4, section: '02', time: 'Wed 14:00–16:00' },
-        { action: 'Add', courseCode: 'STAT201', credits: 3, section: '01', time: 'Mon 14:00–16:00', fee: 320 },
+        { action: 'Add', courseCode: 'STAT201', credits: 3, section: '01', time: 'Fri 10:00–12:00', fee: 320 },
       ],
       approvalLog: [],
     },
@@ -903,7 +939,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       billStatus: 'pending',
       billAmount: 1500,
       reason: 'Add HUM110 GE overload sample',
-      items: [{ action: 'Add', courseCode: 'HUM110', credits: 3, section: '01', time: 'Fri 09:00–12:00', fee: 1500 }],
+      items: [{ action: 'Add', courseCode: 'HUM110', credits: 3, section: '01', time: 'Fri 16:00–18:00', fee: 1500 }],
       approvalLog: [],
     },
     {
@@ -916,8 +952,21 @@ function buildDemoAddDropApplications(credits, schedule) {
       billStatus: 'none',
       billAmount: 0,
       reason: 'Rejected overload request',
-      items: [{ action: 'Add', courseCode: 'COMP220', credits: 3, section: '01', time: 'Tue 10:00–12:00', fee: 1650 }],
-      approvalLog: [{ at: '2026-07-03 15:00', actor: 'AC SWE', action: 'Rejected', comment: 'Credit max' }],
+      items: [
+        {
+          action: 'Add',
+          courseCode: 'COMP220',
+          courseName: 'Discrete Mathematics',
+          type: 'ME',
+          credits: 3,
+          section: '01',
+          time: 'Tue 10:00–12:00',
+          fee: 1650,
+          lineDecision: 'update_required',
+          lineComment: '超学分，请调整课程后重提',
+        },
+      ],
+      approvalLog: [{ at: '2026-07-03 15:00', actor: 'AC SWE', action: 'Update Required', comment: 'Credit max' }],
     },
     {
       id: 'adr-xmum-15',
@@ -947,7 +996,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       feeWaiver: true,
       reason: 'Special drop awaiting Academic Coordinator review',
       attachments: [{ name: 'advisor-note.pdf' }],
-      items: [{ action: 'Drop', courseCode: 'ENGL201', credits: 3, section: '01', time: 'Wed 09:00–12:00' }],
+      items: [{ action: 'Drop', courseCode: 'ENGL201', credits: 3, section: '03', time: 'Thu 14:00–16:00' }],
       approvalLog: [],
     },
     {
@@ -963,8 +1012,20 @@ function buildDemoAddDropApplications(credits, schedule) {
       teachingWeek: 10,
       feeWaiver: false,
       reason: 'Second rejected special drop sample',
-      items: [{ action: 'Drop', courseCode: 'STAT201', credits: 3, section: '01', time: 'Mon 14:00–16:00' }],
-      approvalLog: [{ at: '2026-07-01 16:00', actor: 'AC SWE', action: 'Rejected', comment: 'Late evidence' }],
+      items: [
+        {
+          action: 'Drop',
+          courseCode: 'STAT201',
+          courseName: 'Probability & Statistics',
+          type: 'ME',
+          credits: 3,
+          section: '01',
+          time: 'Fri 10:00–12:00',
+          lineDecision: 'update_required',
+          lineComment: '证明材料过期，请更新后重提',
+        },
+      ],
+      approvalLog: [{ at: '2026-07-01 16:00', actor: 'AC SWE', action: 'Update Required', comment: 'Late evidence' }],
     },
     {
       id: 'adr-xmum-18',
@@ -976,14 +1037,17 @@ function buildDemoAddDropApplications(credits, schedule) {
       currentCredits: 22,
       billStatus: 'paid',
       billAmount: 2200,
+      // 增量 bq：不落 MATH201
+      scheduleApplied: false,
       reason: 'Approved retake MATH201',
+      /** 增量 aw：原 Fri14–16 撞 ENGL201 落课；改 Mon10–12 空档 */
       items: [
         {
           action: 'Retake',
           courseCode: 'MATH201',
           credits: 4,
           section: '02',
-          time: 'Fri 14:00–16:00',
+          time: 'Mon 10:00–12:00',
           room: 'D5-1-111',
           weekRange: '1-18',
           lecturer: 'Dr. Ng',
@@ -1008,15 +1072,19 @@ function buildDemoAddDropApplications(credits, schedule) {
         {
           action: 'Retake',
           courseCode: 'COMP101',
+          courseName: 'Introduction to Programming',
+          type: 'ME',
           credits: 4,
           section: '01',
           time: 'Mon 09:00–12:00',
           retakeGrade: 'C',
           fee: 2000,
+          lineDecision: 'update_required',
+          lineComment: '名额已满，请另选分组后重提',
         },
       ],
       retakeType: 'improve_grade',
-      approvalLog: [{ at: '2026-07-04 17:30', actor: 'AC SWE', action: 'Rejected', comment: 'Seat full' }],
+      approvalLog: [{ at: '2026-07-04 17:30', actor: 'AC SWE', action: 'Update Required', comment: 'Seat full' }],
     },
     {
       id: 'adr-xmum-20',
@@ -1048,19 +1116,46 @@ function buildDemoAddDropApplications(credits, schedule) {
       applicationNo: 'ADR2509026',
       ...baseStudent,
       type: 'AddDrop',
-      status: 'Rejected',
+      // 仅通过 + 不通过 → 已结束（无驳回行，不可重新提交）
+      status: 'PartiallyApproved',
       submittedAt: '2026-07-07 09:50:00',
       billStatus: 'none',
       billAmount: 0,
+      // 增量 bq：不落通过行 STAT201，避免可退池偏离 26
+      scheduleApplied: false,
       dropChannel: 'self',
       teachingWeek: 3,
       feeWaiver: false,
-      reason: 'Rejected linked swap',
+      reason: 'Partial linked swap ended',
       items: [
-        { action: 'Drop', courseCode: 'IT102', credits: 2, section: '01', time: 'Mon 09:00–11:00' },
-        { action: 'Add', courseCode: 'STAT201', credits: 3, section: '01', time: 'Mon 14:00–16:00', fee: 1650 },
+        {
+          action: 'Drop',
+          courseCode: 'IT102',
+          courseName: 'Digital Literacy Workshop',
+          type: 'ME',
+          credits: 2,
+          section: '01',
+          time: 'Mon 09:00–11:00',
+          lineDecision: 'rejected',
+          lineComment: '退课不通过：与培养方案冲突',
+        },
+        {
+          action: 'Add',
+          courseCode: 'STAT201',
+          courseName: 'Probability & Statistics',
+          type: 'ME',
+          credits: 3,
+          section: '01',
+          /** 增量 ax：原 Mon14–16 撞 CYS201；改周五上午空档 */
+          time: 'Fri 10:00–12:00',
+          room: 'D5-1-110',
+          weekRange: '1-18',
+          fee: 1650,
+          lineDecision: 'approved',
+          lineComment: '',
+        },
       ],
-      approvalLog: [{ at: '2026-07-07 14:00', actor: 'AC SWE', action: 'Rejected', comment: 'Clash unresolved' }],
+      approvalLog: [{ at: '2026-07-07 14:00', actor: 'AC SWE', action: 'PartiallyApproved', comment: 'Drop fail / Add pass' }],
     },
     {
       id: 'adr-xmum-22',
@@ -1078,7 +1173,7 @@ function buildDemoAddDropApplications(credits, schedule) {
       reason: 'Cancelled linked add/drop',
       items: [
         { action: 'Drop', courseCode: 'BUS201', credits: 3, section: '01', time: 'Tue 14:00–17:00' },
-        { action: 'Add', courseCode: 'HUM110', credits: 3, section: '01', time: 'Fri 09:00–12:00', fee: 1500 },
+        { action: 'Add', courseCode: 'HUM110', credits: 3, section: '01', time: 'Fri 16:00–18:00', fee: 1500 },
       ],
       approvalLog: [{ at: '2026-07-06 20:00', actor: 'Student', action: 'Cancelled' }],
     },
@@ -1132,7 +1227,8 @@ function buildDemoAddDropApplications(credits, schedule) {
           courseCode: 'STAT201',
           credits: 3,
           section: '01',
-          time: 'Mon 14:00–16:00',
+          /** 增量 ax：避开 CYS201 Mon14 */
+          time: 'Fri 10:00–12:00',
           fee: 1500,
         },
         {
@@ -1141,7 +1237,8 @@ function buildDemoAddDropApplications(credits, schedule) {
           credits: 4,
           section: '02',
           sectionName: '分组名称02',
-          time: 'Fri 14:00–16:00',
+          /** 增量 aw：与已落课重修同档 Mon10–12，避免再写回 Fri14 */
+          time: 'Mon 10:00–12:00',
           room: 'D5-1-111',
           weekRange: '1-18',
           lecturer: 'Dr. Ng',
@@ -1165,6 +1262,8 @@ function buildDemoAddDropApplications(credits, schedule) {
       submittedAt: '2026-07-10 14:00:00',
       billStatus: 'paid',
       billAmount: 2050,
+      // 增量 bq：不落 HUM110（PHYS101 本已在必修池，去重后仍会多 HUM110）
+      scheduleApplied: false,
       dropChannel: 'self',
       teachingWeek: 2,
       feeWaiver: true,
@@ -1180,7 +1279,8 @@ function buildDemoAddDropApplications(credits, schedule) {
           courseCode: 'HUM110',
           credits: 3,
           section: '01',
-          time: 'Fri 09:00–12:00',
+          /** 增量 au：避开上午冲突；落课后不与确认池撞 */
+          time: 'Fri 16:00–18:00',
           fee: 1500,
         },
         {
@@ -1299,12 +1399,31 @@ function syncDemoAddDropApplications(credits, schedule) {
       (i) => i.action === 'Retake' || i.reason === 'retake_full_credits',
     )
   })
+  // 增量 aa：已驳回（Rejected）须至少一条 update_required；否则为旧映射强制重种
+  const rejectedMissingUpdateRequired = studentApps.some(
+    (app) =>
+      app.status === 'Rejected' &&
+      !(app.items || []).some((line) => String(line?.lineDecision || '') === 'update_required'),
+  )
+  // 增量 ab：已驳回样例缺合理课名/类型（如 BUS201/PHYS101）→ 强制重种
+  const rejectedMissingCourseMeta = studentApps.some(
+    (app) =>
+      app.status === 'Rejected' &&
+      (app.items || []).some((line) => {
+        const name = String(line?.courseName || '').trim()
+        const type = String(line?.type || '').trim()
+        const code = String(line?.courseCode || '').trim()
+        return !type || !name || name === code
+      }),
+  )
   const needsReseed =
     studentApps.length < 16 ||
     !statusCoverageOk ||
     !typeCoverageOk ||
     retakeDropCount < 5 ||
     feeEstimateMissingRetake ||
+    rejectedMissingUpdateRequired ||
+    rejectedMissingCourseMeta ||
     studentApps.some((app) => !app.academicSession) ||
     studentApps.some((app) => !String(app.programme || '').trim()) ||
     studentApps.some((app) => app.type === 'Replace') ||
@@ -1327,6 +1446,58 @@ function syncDemoAddDropApplications(credits, schedule) {
         return time.includes('Wed 14:00') || time.includes('Thu 10:00')
       }),
     ) ||
+    // 增量 au：ENGL201 仍 Wed09–12 撞必修/确认池 → 强制重种
+    studentApps.some((app) =>
+      (app.items || []).some(
+        (line) =>
+          String(line.courseCode || '') === 'ENGL201' &&
+          String(line.time || '').includes('Wed 09:00'),
+      ),
+    ) ||
+    // 增量 aw：ENGL201 仍 Fri14–16（会撞 MATH201 重修）→ 强制重种为 Thu14–16
+    studentApps.some((app) =>
+      (app.items || []).some(
+        (line) =>
+          String(line.courseCode || '') === 'ENGL201' &&
+          String(line.time || '').includes('Fri 14:00'),
+      ),
+    ) ||
+    // 增量 aw：MATH201 仍 Fri14–16 → 强制重种为 Mon10–12
+    studentApps.some((app) =>
+      (app.items || []).some(
+        (line) =>
+          String(line.courseCode || '') === 'MATH201' &&
+          String(line.time || '').includes('Fri 14:00'),
+      ),
+    ) ||
+    // 增量 ax：STAT201 仍 Mon14–16 撞 CYS201 → 强制重种为 Fri10–12
+    studentApps.some((app) =>
+      (app.items || []).some(
+        (line) =>
+          String(line.courseCode || '') === 'STAT201' &&
+          String(line.time || '').includes('Mon 14:00'),
+      ),
+    ) ||
+    // 增量 au：HUM110 仍 Fri09–12 易撞 → 强制重种
+    studentApps.some((app) =>
+      (app.items || []).some(
+        (line) =>
+          String(line.courseCode || '') === 'HUM110' &&
+          String(line.time || '').includes('Fri 09:00'),
+      ),
+    ) ||
+    // 增量 bq：脏审结须显式 scheduleApplied:false，否则强制重种（退课池对齐 26）
+    studentApps.some((app) => {
+      const dirtyIds = new Set([
+        'adr-xmum-02',
+        'adr-xmum-10',
+        'adr-xmum-18',
+        'adr-xmum-21',
+        'adr-xmum-retakedrop-03',
+        'adr-xmum-adddropretake-01',
+      ])
+      return dirtyIds.has(String(app.id || '')) && app.scheduleApplied !== false
+    }) ||
     studentApps.some(
       (app) =>
         !app.weekRange ||
@@ -1520,6 +1691,17 @@ function syncDemoMonitor(courses) {
 let seeded = false
 
 export function seedStudentRegistrationDemo() {
+  /**
+   * 整页刷新：课表回到申请前默认底图（确认半池 + 必修底图）
+   * 会话内审批落课会改内存；刷新后重新灌 DEMO_*，便于演示「申请前 → 审批后」对比
+   */
+  if (!seeded) {
+    studentConfirmedCourses.value = DEMO_CONFIRMED_COURSES.map((item) => ({ ...item }))
+    studentRequiredCourses.value = DEMO_REQUIRED_COURSES.map((item) => ({ ...item }))
+    studentSchedule.value = buildDemoSchedule(studentConfirmedCourses.value)
+    studentPendingAssignCourses.value = []
+    seeded = true
+  }
   // 分批确认课：缺种子 / 校选类别 / 旧冲突时段则重灌
   const needsReseed =
     studentConfirmedCourses.value.some((item) => !item.selectedAt || !item.sourceType) ||
@@ -1537,7 +1719,8 @@ export function seedStudentRegistrationDemo() {
     !studentConfirmedCourses.value.some(
       (item) => item.courseCode === 'SE201' && item.roundKey === 'preselect',
     ) ||
-    !studentConfirmedCourses.value.some(
+    // 旧种子仍含 AI110 时重灌：加课 3选2 组视图需要 AI110 不在确认半池
+    studentConfirmedCourses.value.some(
       (item) => item.courseCode === 'AI110' && item.roundKey === 'preselect',
     ) ||
     studentConfirmedCourses.value.some((item) => item.courseCode === 'MPU402') ||
@@ -1546,6 +1729,17 @@ export function seedStudentRegistrationDemo() {
     studentConfirmedCourses.value.some(
       (item) =>
         item.courseCode === 'BUS301' && String(item.time || '').includes('Mon 14:00'),
+    ) ||
+    // 增量 aw：落课曾写入确认半池的 ENGL/MATH 仍占 Fri14 → 重灌半池，改由申请层带新时段
+    studentConfirmedCourses.value.some(
+      (item) =>
+        (item.courseCode === 'ENGL201' || item.courseCode === 'MATH201') &&
+        String(item.time || '').includes('Fri 14:00'),
+    ) ||
+    // 增量 ax：确认半池残留 STAT201 Mon14（撞 CYS201）→ 重灌
+    studentConfirmedCourses.value.some(
+      (item) =>
+        item.courseCode === 'STAT201' && String(item.time || '').includes('Mon 14:00'),
     ) ||
     studentConfirmedCourses.value.some(
       (item) =>

@@ -312,7 +312,7 @@ export function attachCourseLevelRowSpans(rows, firstCourseIndex = 0, opts = {})
 }
 
 /**
- * 结果页等「一门课一行」：按连续相同 selectionGroup.id 合并课程组列
+ * 课程组列合并：有组按组 id 跨课×分组行；无组按课合并为一格「—」（对齐在线选课孤立 ME）
  * @param {object[]} rows 单页内已按组排序的行
  * @returns {object[]}
  */
@@ -322,11 +322,25 @@ export function attachSelectionGroupColumnSpans(rows) {
   while (i < out.length) {
     const group = out[i].selectionGroup
     if (!group?.id) {
-      out[i]._span = {
-        ...out[i]._span,
-        selectionGroup: { show: true, rowspan: 1, dash: true },
+      // 孤立课：同课多分组行合并为一个「—」
+      const key = courseRowKey(out[i].course)
+      let j = i + 1
+      while (
+        j < out.length &&
+        !out[j].selectionGroup?.id &&
+        courseRowKey(out[j].course) === key
+      ) {
+        j += 1
       }
-      i += 1
+      const span = j - i
+      for (let k = i; k < j; k += 1) {
+        out[k]._span = {
+          ...out[k]._span,
+          selectionGroup:
+            k === i ? { show: true, rowspan: span, dash: true } : { show: false },
+        }
+      }
+      i = j
       continue
     }
     const gid = group.id

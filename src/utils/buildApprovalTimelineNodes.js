@@ -1,5 +1,6 @@
 import { getWorkflowStages, getParallelGroups } from '../data/movementApprovalWorkflows.js'
 import { inferStudentCategory } from '../data/movementApprovalEngine.js'
+import { resolveAddDropStudentListStatus } from '../data/courseRegistration/addDropStudentListStatus.js'
 
 export const SUBMISSION_ALIASES = new Set(['Submission', 'Applicant', 'Submitted'])
 
@@ -303,7 +304,26 @@ export function buildCourseTimelineNodes(item, workflowStages) {
   })
 }
 
-/** 加退课审批：固定两节点 — 学生发起 → 教务协调员 */
+/**
+ * 加退课终态时间线徽章：对齐列表四态（已驳回/已结束），不用「已拒绝」
+ * @param {object} application
+ * @returns {{ badgeKey: string, icon: string }}
+ */
+function resolveAddDropFacingReviewBadge(application) {
+  const facing = resolveAddDropStudentListStatus(application)
+  if (facing === 'Rejected') {
+    return { badgeKey: 'addDropRejected', icon: 'rejected' }
+  }
+  if (facing === 'Ended') {
+    return { badgeKey: 'addDropEnded', icon: 'completed' }
+  }
+  if (facing === 'Cancelled') {
+    return { badgeKey: 'cancelled', icon: 'rejected' }
+  }
+  return { badgeKey: 'approved', icon: 'completed' }
+}
+
+/** 加退课审批：固定两节点 — 学生发起 → 教务协调员；不展示汇总 comment 蓝底 */
 export function buildAddDropTimelineNodes(application) {
   if (!application) return []
   const status = String(application.status || '')
@@ -326,11 +346,15 @@ export function buildAddDropTimelineNodes(application) {
 
   const reviewLog = [...logs]
     .reverse()
-    .find((e) => ['Approved', 'Rejected', 'Update Required', 'Cancelled'].includes(e?.action))
+    .find((e) =>
+      ['Approved', 'Rejected', 'Update Required', 'Cancelled', 'PartiallyApproved'].includes(
+        e?.action,
+      ),
+    )
 
   const reviewTime = reviewLog?.dateTime || reviewLog?.at || ''
   const reviewActor = reviewLog?.actor || ''
-  const reviewComment = reviewLog?.comment || ''
+  // 加退详情不展示行意见汇总 comment（如 MATH101: aaa;…）
 
   if (status === 'Pending' || status === 'In Review') {
     nodes.push({
@@ -347,34 +371,6 @@ export function buildAddDropTimelineNodes(application) {
     return nodes
   }
 
-  if (status === 'Approved') {
-    nodes.push({
-      id: 'Academic Coordinator',
-      type: 'step',
-      stageLabel: 'Academic Coordinator',
-      actor: reviewActor,
-      badgeKey: 'approved',
-      dateTime: reviewTime,
-      comment: reviewComment,
-      icon: 'completed',
-    })
-    return nodes
-  }
-
-  if (status === 'Rejected') {
-    nodes.push({
-      id: 'Academic Coordinator',
-      type: 'step',
-      stageLabel: 'Academic Coordinator',
-      actor: reviewActor,
-      badgeKey: 'rejected',
-      dateTime: reviewTime,
-      comment: reviewComment,
-      icon: 'rejected',
-    })
-    return nodes
-  }
-
   if (status === 'Cancelled') {
     nodes.push({
       id: 'Academic Coordinator',
@@ -383,8 +379,28 @@ export function buildAddDropTimelineNodes(application) {
       actor: reviewActor,
       badgeKey: 'cancelled',
       dateTime: reviewTime,
-      comment: reviewComment,
+      comment: '',
       icon: 'rejected',
+    })
+    return nodes
+  }
+
+  if (
+    status === 'Approved' ||
+    status === 'Rejected' ||
+    status === 'PartiallyApproved' ||
+    status === 'Update Required'
+  ) {
+    const facing = resolveAddDropFacingReviewBadge(application)
+    nodes.push({
+      id: 'Academic Coordinator',
+      type: 'step',
+      stageLabel: 'Academic Coordinator',
+      actor: reviewActor,
+      badgeKey: facing.badgeKey,
+      dateTime: reviewTime,
+      comment: '',
+      icon: facing.icon,
     })
     return nodes
   }

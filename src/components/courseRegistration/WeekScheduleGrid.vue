@@ -14,13 +14,21 @@ const props = defineProps({
   /**
    * register：必修 / 已确认选修 / 本轮选择
    * myResult：必修课 / 选修课
+   * addDropPreview：必修/选修 + 加课申请/重修申请虚线（不画退课）
    */
   legendMode: { type: String, default: 'register' },
   /** 撑满父级高度，行高随可用空间放大 */
   stretch: { type: Boolean, default: false },
+  /**
+   * 图例上方浅蓝短 tip（申请课表预览等）；有值时在图例之前展示
+   */
+  bannerHint: { type: String, default: '' },
 })
 
-const isMyResultLegend = computed(() => props.legendMode === 'myResult')
+const isMyResultLegend = computed(
+  () => props.legendMode === 'myResult' || props.legendMode === 'addDropPreview',
+)
+const isAddDropPreviewLegend = computed(() => props.legendMode === 'addDropPreview')
 
 const { t, isZh } = useAppI18n()
 
@@ -103,17 +111,29 @@ function normalizeSlot(slot) {
   }
 }
 
-/** 同天并行 lane：支持不同起始时间重叠 */
-function placeSlotsForDay(day) {
-  const slots = (props.schedule || [])
-    .filter((s) => s.day === day)
-    .map(normalizeSlot)
-    .sort((a, b) => a.startH - b.startH || b.spanH - a.spanH)
+/**
+ * 是否为退课申请格（拟退幽灵；预览中不占冲突时段）
+ * @param {object} slot
+ */
+function isDropApplicationSlot(slot) {
+  return String(slot?.applicationOp || '').toLowerCase() === 'drop'
+}
 
+/**
+ * 同组内并行 lane + 可选冲突对
+ * @param {object[]} groupSlots 已 normalize、已按天过滤
+ * @param {{ computeConflicts?: boolean }} [opts]
+ * @returns {object[]}
+ */
+function placeSlotGroup(groupSlots, opts = {}) {
+  const computeConflicts = opts.computeConflicts !== false
+  const sorted = [...groupSlots].sort(
+    (a, b) => a.startH - b.startH || b.spanH - a.spanH,
+  )
   const laneEnds = []
   const placed = []
 
-  for (const slot of slots) {
+  for (const slot of sorted) {
     let lane = laneEnds.findIndex((end) => end <= slot.startH)
     if (lane === -1) {
       lane = laneEnds.length
@@ -128,6 +148,10 @@ function placeSlotsForDay(day) {
       (other) => other.startH < slot.endH && other.endH > slot.startH,
     )
     slot.laneCount = Math.max(...timePeers.map((p) => p.lane), 0) + 1
+    if (!computeConflicts) {
+      slot.conflictPeers = []
+      continue
+    }
     slot.conflictPeers = [
       ...new Set(
         timePeers
@@ -144,6 +168,28 @@ function placeSlotsForDay(day) {
   }
 
   return placed
+}
+
+/**
+ * 同天并行 lane：支持不同起始时间重叠
+ * addDropPreview：拟退视为已腾出，退课格不参与占用组冲突/lane（与选课基线一致）
+ */
+function placeSlotsForDay(day) {
+  const slots = (props.schedule || [])
+    .filter((s) => s.day === day)
+    .map(normalizeSlot)
+
+  // 加退预览：占用组=保留+加+重修；幽灵组=退课（可展示、不算冲突）
+  if (isAddDropPreviewLegend.value) {
+    const occupying = slots.filter((s) => !isDropApplicationSlot(s))
+    const dropGhosts = slots.filter((s) => isDropApplicationSlot(s))
+    return [
+      ...placeSlotGroup(occupying, { computeConflicts: true }),
+      ...placeSlotGroup(dropGhosts, { computeConflicts: false }),
+    ]
+  }
+
+  return placeSlotGroup(slots, { computeConflicts: true })
 }
 
 const placedByDay = computed(() => {
@@ -169,18 +215,34 @@ function blockStyle(slot) {
   }
 }
 
+/**
+ * 本单操作虚线 class：add | drop | retake
+ * @param {object} slot
+ */
+function applicationOpClass(slot) {
+  const op = String(slot?.applicationOp || '').toLowerCase()
+  if (op === 'add') return 'is-op-add'
+  if (op === 'drop') return 'is-op-drop'
+  if (op === 'retake') return 'is-op-retake'
+  return ''
+}
+
 function blockClass(slot) {
   const layer = slot.layer || (slot.preview ? 'preview' : 'confirmed')
-  const stroke = slot.stroke === 'dashed' || layer === 'preview' ? 'is-dashed' : 'is-solid'
+  const stroke =
+    slot.stroke === 'dashed' || layer === 'preview' || applicationOpClass(slot)
+      ? 'is-dashed'
+      : 'is-solid'
   const stacked = slot.laneCount > 1 ? 'is-narrow' : ''
-  if (layer === 'required') return ['cell-block', 'is-required', stroke, stacked]
-  if (layer === 'preview') return ['cell-block', 'is-preview', stroke, stacked]
+  const op = applicationOpClass(slot)
+  if (layer === 'required') return ['cell-block', 'is-required', stroke, stacked, op]
+  if (layer === 'preview') return ['cell-block', 'is-preview', stroke, stacked, op]
   // 旧 other/application/admin：我的课程并入选修色
   if (layer === 'other' || layer === 'application' || layer === 'admin') {
-    return ['cell-block', 'is-confirmed', stroke, stacked]
+    return ['cell-block', 'is-confirmed', stroke, stacked, op]
   }
-  if (layer === 'elective') return ['cell-block', 'is-confirmed', stroke, stacked]
-  return ['cell-block', 'is-confirmed', stroke, stacked]
+  if (layer === 'elective') return ['cell-block', 'is-confirmed', stroke, stacked, op]
+  return ['cell-block', 'is-confirmed', stroke, stacked, op]
 }
 
 function displayCourseCode(slot) {
@@ -223,6 +285,10 @@ function blockTitle(slot) {
 }
 
 function layerLabel(slot) {
+  const op = String(slot?.applicationOp || '').toLowerCase()
+  if (op === 'add') return t('courseRegistration.student.scheduleLegendAppAdd')
+  if (op === 'drop') return t('courseRegistration.student.scheduleLegendAppDrop')
+  if (op === 'retake') return t('courseRegistration.student.scheduleLegendAppRetake')
   const layer = slot.layer || (slot.preview ? 'preview' : 'confirmed')
   if (layer === 'required') return t('courseRegistration.student.scheduleLegendRequired')
   if (layer === 'preview') return t('courseRegistration.student.scheduleLegendPreview')
@@ -254,6 +320,8 @@ function isDashedSlot(slot) {
 }
 
 function showConflictMark(slot) {
+  // 退课申请格不打冲突（拟退已腾出；与选课允许加/重修一致）
+  if (isDropApplicationSlot(slot)) return false
   return isDashedSlot(slot) && Array.isArray(slot.conflictPeers) && slot.conflictPeers.length > 0
 }
 
@@ -278,13 +346,32 @@ function conflictTip(slot) {
       '--week-grid-stretch-h': stretch ? `${effectiveBodyH}px` : undefined,
     }"
   >
+    <!-- 浅蓝短 tip 在图例之上（申请预览；与 header 去重） -->
+    <p v-if="bannerHint" class="week-grid-banner-hint">{{ bannerHint }}</p>
     <ul v-if="showLegend" class="week-grid-legend" aria-label="schedule legend">
       <li>
         <span class="lg-swatch is-required is-solid" />{{
           t('courseRegistration.student.scheduleLegendRequired')
         }}
       </li>
-      <template v-if="isMyResultLegend">
+      <template v-if="isAddDropPreviewLegend">
+        <li>
+          <span class="lg-swatch is-confirmed is-solid" />{{
+            t('courseRegistration.student.scheduleLegendElective')
+          }}
+        </li>
+        <li>
+          <span class="lg-swatch is-op-add is-dashed" />{{
+            t('courseRegistration.student.scheduleLegendAppAdd')
+          }}
+        </li>
+        <li>
+          <span class="lg-swatch is-op-retake is-dashed" />{{
+            t('courseRegistration.student.scheduleLegendAppRetake')
+          }}
+        </li>
+      </template>
+      <template v-else-if="isMyResultLegend">
         <li>
           <span class="lg-swatch is-confirmed is-solid" />{{
             t('courseRegistration.student.scheduleLegendElective')
@@ -404,6 +491,22 @@ function conflictTip(slot) {
   list-style: none;
   font-size: 12px;
   color: #4b5563;
+}
+
+.week-grid-banner-hint {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #bfdbfe;
+  border-left: 3px solid #2563eb;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.week-grid-banner-hint + .week-grid-legend {
+  margin-top: 0;
 }
 
 .week-grid-legend li {
@@ -637,12 +740,75 @@ function conflictTip(slot) {
   color: #78350f;
 }
 
-.cell-block.is-preview.is-dashed,
-.cell-block.is-confirmed.is-dashed,
-.cell-block.is-required.is-dashed {
+/* 在线选课「本轮选择」：绿虚线（填充也偏绿） */
+.cell-block.is-preview.is-dashed {
   background: #ecfdf5;
   color: #065f46;
   border: 2px dashed #34d399;
+}
+
+/*
+ * 加退预览：虚线不改底色/字色，仅边框分色
+ * 无 applicationOp 时保持旧绿虚线兼容
+ */
+.cell-block.is-required.is-dashed:not(.is-op-add):not(.is-op-drop):not(.is-op-retake),
+.cell-block.is-confirmed.is-dashed:not(.is-op-add):not(.is-op-drop):not(.is-op-retake) {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 2px dashed #34d399;
+}
+
+.cell-block.is-required.is-dashed.is-op-add,
+.cell-block.is-required.is-dashed.is-op-drop,
+.cell-block.is-required.is-dashed.is-op-retake {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.cell-block.is-confirmed.is-dashed.is-op-add,
+.cell-block.is-confirmed.is-dashed.is-op-drop,
+.cell-block.is-confirmed.is-dashed.is-op-retake {
+  background: #bfdbfe;
+  color: #111827;
+}
+
+/*
+ * 增量 ag：加课绿 / 重修橙粗虚线描边，不铺申请色底；
+ * 课性底色仍由 is-required / is-confirmed 规则承担
+ */
+.cell-block.is-dashed.is-op-add {
+  z-index: 2;
+  border: 3px dashed #16a34a;
+  box-shadow: none;
+}
+
+/* 拟退幽灵压在占用组之下，避免盖住同档加课/重修 */
+.cell-block.is-dashed.is-op-drop {
+  z-index: 1;
+  border: 2px dashed #9ca3af;
+  opacity: 0.88;
+}
+
+.cell-block.is-dashed.is-op-retake {
+  z-index: 2;
+  border: 3px dashed #ea580c;
+  box-shadow: none;
+}
+
+/* 图例：透明底 + 粗虚线框，不做申请色填充 */
+.lg-swatch.is-op-add.is-dashed {
+  background: transparent;
+  border: 3px dashed #16a34a;
+}
+
+.lg-swatch.is-op-drop.is-dashed {
+  background: transparent;
+  border: 2px dashed #9ca3af;
+}
+
+.lg-swatch.is-op-retake.is-dashed {
+  background: transparent;
+  border: 3px dashed #ea580c;
 }
 
 .cell-code {

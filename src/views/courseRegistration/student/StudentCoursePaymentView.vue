@@ -67,12 +67,16 @@ function billTitleText(bill) {
 }
 
 /**
- * 整单右侧合计费用文案
- * @param {{ amount?: number }} bill
+ * 整单右侧合计费用文案（增量 bg：与行上课程费 feeAmount 同口径）
+ * @param {{ feeTotal?: number, amount?: number }} bill
  */
 function billTotalFeeText(bill) {
+  const fee =
+    bill?.feeTotal != null && bill.feeTotal !== ''
+      ? Number(bill.feeTotal) || 0
+      : Number(bill?.amount) || 0
   return t('courseRegistration.studentPayment.billTotalFee', {
-    amount: formatAmountRmb(bill?.amount),
+    amount: formatAmountRmb(fee),
   })
 }
 
@@ -412,6 +416,9 @@ function onModalClose() {
               </label>
               <div class="pay-bill-head-main pay-bill-head-inline">
                 <strong class="pay-bill-title">{{ billTitleText(bill) }}</strong>
+                <span v-if="bill.billGeneratedAt" class="pay-bill-generated">
+                  {{ t('courseRegistration.studentPayment.generatedAt') }}: {{ bill.billGeneratedAt }}
+                </span>
                 <span v-if="bill.paymentDueAt" class="pay-bill-due">
                   {{ t('courseRegistration.studentPayment.dueAt') }}: {{ bill.paymentDueAt }}
                 </span>
@@ -911,6 +918,7 @@ function onModalClose() {
   min-width: 0;
   flex: 0 1 auto;
 }
+.pay-bill-generated,
 .pay-bill-due {
   font-size: 12px;
   color: #6b7280;

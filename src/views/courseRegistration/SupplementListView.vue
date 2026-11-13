@@ -152,19 +152,36 @@ function handleRemove(row) {
   }
 }
 
-/** 发送通知次数 */
+/** 是否勾选延期开门（生效剩余 / 发送通知绑定此权限） */
+function hasExtensionDoor(row) {
+  return Boolean(row?.supplement)
+}
+
+/** 发送通知次数：有延期用邀请次数；无延期用告知次数 */
 function notifyCountText(row) {
+  if (!hasExtensionDoor(row)) {
+    const infoAttempt = Number(row.infoNotifyAttempt) || 0
+    if (infoAttempt <= 0) return t('courseRegistration.supplement.notifyCountZero')
+    return t('courseRegistration.supplement.notifyCountTimes', { n: infoAttempt })
+  }
   const attempt = Number(row.inviteAttempt) || 0
   if (attempt <= 0) return t('courseRegistration.supplement.notifyCountZero')
   return t('courseRegistration.supplement.notifyCountTimes', { n: attempt })
 }
 
 /**
- * 生效剩余时间展示（格式/色阶对齐缴费剩余）
+ * 延长申请剩余时间展示（格式/色阶对齐缴费剩余）
+ * 增量 bm：仅延期权限行展示倒计时；否则 NA
  * @returns {{ text: string, className: string }}
  */
 function remainTimeDisplay(row) {
   void nowTick.value
+  if (!hasExtensionDoor(row)) {
+    return {
+      text: t('courseRegistration.whitelist.remainNotApplicable'),
+      className: 'pay-remain is-na',
+    }
+  }
   const attempt = Number(row.inviteAttempt) || 0
   if (attempt <= 0) {
     return { text: t('courseRegistration.supplement.remainNotSent'), className: '' }
@@ -223,24 +240,32 @@ function handleNotifyConfirm(payload = {}) {
   emailMockBanner.value = t(
     mode === 'reopen'
       ? 'courseRegistration.supplement.emailMockReopened'
-      : 'courseRegistration.supplement.emailMockSent',
+      : result.infoOnly
+        ? 'courseRegistration.whitelist.emailMockInfoSent'
+        : 'courseRegistration.supplement.emailMockSent',
     {
       name: row.studentName,
-      deadline: result.item.deadlineAt,
+      deadline: result.item.deadlineAt || result.item.lastEmailMockAt || '—',
     },
   )
   closeNotifyModal()
 }
 
-/** 未发送，或已发送且仍在有效期内 → 发送通知（可多次） */
+/**
+ * 发送通知：
+ * - 无延期（NA）：始终可发告知
+ * - 有延期：未发送或有效期内可发；已逾期须再次开放
+ */
 function canSendInvite(row) {
+  if (!hasExtensionDoor(row)) return true
   const attempt = Number(row.inviteAttempt) || 0
   if (attempt <= 0) return true
   return getSupplementDoorStatus(row.studentId).ok
 }
 
-/** 已发送且已逾期 → 再次开放（与发送通知分开） */
+/** 再次开放：仅勾选延期且已逾期 */
 function canReopen(row) {
+  if (!hasExtensionDoor(row)) return false
   const attempt = Number(row.inviteAttempt) || 0
   if (attempt < 1) return false
   return !getSupplementDoorStatus(row.studentId).ok
@@ -311,6 +336,7 @@ function handleExportConfirm({ selectedFields }) {
                   <option value="notSent">{{ t('courseRegistration.whitelist.doorStatusNotSent') }}</option>
                   <option value="active">{{ t('courseRegistration.whitelist.doorStatusActive') }}</option>
                   <option value="expired">{{ t('courseRegistration.whitelist.doorStatusExpired') }}</option>
+                  <option value="na">{{ t('courseRegistration.whitelist.doorStatusNotApplicable') }}</option>
                 </select>
               </div>
             </template>
@@ -468,6 +494,11 @@ function handleExportConfirm({ selectedFields }) {
 .pay-remain.is-overdue {
   color: #b91c1c;
   font-weight: 600;
+}
+
+.pay-remain.is-na {
+  color: #94a3b8;
+  font-weight: 500;
 }
 
 .actions-cell {

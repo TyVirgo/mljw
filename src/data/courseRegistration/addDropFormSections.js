@@ -3,14 +3,51 @@
  */
 
 import { deriveClassTime, displayClassTimeVenue, getSectionMeetings } from './sectionScheduleFields.js'
-import { getPreviousAcademicSession } from '../intakeSets.js'
-import { isMandatoryAddDropCourse, sumLineCredits } from './addDropMultiItems.js'
+import { getPreviousAcademicSession, parseIntakeBatch, VALID_INTAKE_MONTHS } from '../intakeSets.js'
+import {
+  isMandatoryAddDropCourse,
+  sumLineCredits,
+  computeNetCreditsAfterLines,
+  wouldExceedAddDropElectiveTermCap,
+  addDropLineKey,
+} from './addDropMultiItems.js'
 import { getCourseByCode, getCourseById } from './selectableCourses.js'
 import {
   whitelistSectionListIncludes,
   normalizeWhitelistSectionRefs,
 } from './whitelistSectionRefs.js'
 import { resolveTermCreditMin } from './registrationRules.js'
+import { normalizeRegistrationType } from './registrationTypes.js'
+import {
+  buildBaselineSlotsFromCourseLike,
+  getSectionMeetingsConflictInfo,
+} from './addDropSectionConflict.js'
+
+/**
+ * 学年学期排序值（02/04/09）；无法解析返回 null
+ * @param {string} academicSession
+ * @returns {number|null}
+ */
+function academicSessionOrdinal(academicSession) {
+  const parsed = parseIntakeBatch(academicSession)
+  if (!parsed) return null
+  const monthIndex = VALID_INTAKE_MONTHS.indexOf(parsed.month)
+  if (monthIndex === -1) return null
+  return parseInt(parsed.year, 10) * VALID_INTAKE_MONTHS.length + monthIndex
+}
+
+/**
+ * 原上课学期是否严格早于当前申请学期（早先学期落下可自由换组）
+ * @param {string} originalSession 原上课学期
+ * @param {string} currentSession 当前申请学期
+ * @returns {boolean}
+ */
+export function isOriginalSessionBeforeCurrent(originalSession, currentSession) {
+  const originalOrdinal = academicSessionOrdinal(originalSession)
+  const currentOrdinal = academicSessionOrdinal(currentSession)
+  if (originalOrdinal == null || currentOrdinal == null) return false
+  return originalOrdinal < currentOrdinal
+}
 
 /** 学生可选主类型（三选一；关联由「是否退课」推导） */
 export const ADD_DROP_PRIMARY_TYPES = ['Add', 'Drop', 'Retake']
@@ -225,11 +262,12 @@ export function getVisibleAddDropSections(action, opts = {}) {
 }
 
 /**
- * 按表单可见顺序生成连续 SECTION 标题（与模板：学生 → 退课 → 加课 → 重修 → 声明 一致）
+ * 按表单可见顺序生成连续 SECTION 标题
+ * （学生 → 退课 → 加课 → 重修 → 附件材料 → 声明；增量 be）
  * @param {string} action
  * @param {(key: string, params?: object) => string} t
  * @param {{ needDrop?: string, needAdd?: string, needRetake?: string }} [flags]
- * @returns {{ student: string, drop: string, add: string, retake: string, declaration: string }}
+ * @returns {{ student: string, drop: string, add: string, retake: string, attachments: string, declaration: string }}
  */
 export function buildAddDropSectionBars(action, t, flags = {}) {
   const vis = getVisibleAddDropSections(action, flags)
@@ -247,6 +285,8 @@ export function buildAddDropSectionBars(action, t, flags = {}) {
     drop: vis.showIII ? bar('courseRegistration.student.sectionLabelDrop') : '',
     add: vis.showII ? bar('courseRegistration.student.sectionLabelAdd') : '',
     retake: vis.showIV ? bar('courseRegistration.student.sectionLabelRetake') : '',
+    // 整单共用，始终在声明前
+    attachments: bar('courseRegistration.student.sectionLabelAttachments'),
     declaration: vis.showV ? bar('courseRegistration.student.sectionLabelDeclaration') : '',
   }
 }
@@ -719,18 +759,21 @@ function lineIsCoreMandatory(line) {
 }
 
 /**
- * 本学期必修：相对原分组（退课/在读）是否禁止换到目标分组
- * 默认只许同组；白名单命中目标课+组时可换组；allowAllSwitch 时不拦异组
+ * 必修换组锁：相对原分组是否禁止换到目标分组
+ * 原上课学期均早于当前申请学期 → 不锁（无需白名单可换组）
+ * 含当前学期原组 → 默认同组；白名单命中目标组或 allowAllSwitch 可换组
  * @param {object} addLine
- * @param {object[]} originLines
+ * @param {object[]} originLines 须带 sectionCode；建议带 originalAcademicSession / academicSession
  * @param {import('./whitelistSectionRefs.js').WhitelistSectionRef[]} [allowedSwitchSections]
  * @param {boolean} [allowAllSwitch] 白名单换组空清单=全部
+ * @param {string} [currentAcademicSession] 当前申请学期（如 2026/09）
  */
 export function isCoreOtherSectionReaddBlocked(
   addLine,
   originLines = [],
   allowedSwitchSections = [],
   allowAllSwitch = false,
+  currentAcademicSession = '',
 ) {
   if (!addLine || !lineIsCoreMandatory(addLine)) return false
   const addCode = courseCodeMatchKey(addLine)
@@ -742,6 +785,18 @@ export function isCoreOtherSectionReaddBlocked(
     (d) => courseCodeMatchKey(d) === addCode && lineIsCoreMandatory(d),
   )
   if (!sameCourseOrigins.length) return false
+
+  // 早先学期落下：原上课学期均严格早于当前申请学期 → 不施加换组锁
+  const currentSession = String(currentAcademicSession || '').trim()
+  if (currentSession) {
+    const allOriginsFromPriorSessions = sameCourseOrigins.every((origin) => {
+      const originSession = String(
+        origin.originalAcademicSession || origin.academicSession || '',
+      ).trim()
+      return isOriginalSessionBeforeCurrent(originSession, currentSession)
+    })
+    if (allOriginsFromPriorSessions) return false
+  }
 
   const sameSectionOk = sameCourseOrigins.some((d) => {
     const sec = String(d.sectionCode || d.section?.code || '').trim()
@@ -763,15 +818,23 @@ export function isCoreOtherSectionReaddBlocked(
  * @param {object[]} addLines
  * @param {import('./whitelistSectionRefs.js').WhitelistSectionRef[]} [allowedSwitchSections]
  * @param {boolean} [allowAllSwitch]
+ * @param {string} [currentAcademicSession]
  */
 export function hasCoreOtherSectionReaddViolation(
   originLines = [],
   addLines = [],
   allowedSwitchSections = [],
   allowAllSwitch = false,
+  currentAcademicSession = '',
 ) {
   return (addLines || []).some((line) =>
-    isCoreOtherSectionReaddBlocked(line, originLines, allowedSwitchSections, allowAllSwitch),
+    isCoreOtherSectionReaddBlocked(
+      line,
+      originLines,
+      allowedSwitchSections,
+      allowAllSwitch,
+      currentAcademicSession,
+    ),
   )
 }
 
@@ -798,6 +861,143 @@ export function mergeCoreLockOriginLines(dropLines = [], seedLines = []) {
     result.push(seed)
   }
   return result
+}
+
+/**
+ * 拟退行 ↔ 加课/重修行是否时段冲突（依赖腾出时段）
+ * @param {object} dropLine
+ * @param {object} otherLine
+ * @returns {boolean}
+ */
+function dropLineConflictsWithOtherLine(dropLine, otherLine) {
+  const dropSlots = buildBaselineSlotsFromCourseLike(dropLine)
+  if (!dropSlots.length) return false
+  // 优先按对方行展开 slots；再回退 meetings 检测
+  const otherSlots = buildBaselineSlotsFromCourseLike(otherLine)
+  if (otherSlots.length) {
+    return otherSlots.some((slot) =>
+      Boolean(getSectionMeetingsConflictInfo({ time: slot.time }, dropSlots).conflict),
+    )
+  }
+  const section = {
+    time: otherLine?.time || otherLine?.classTime || '',
+    meetings: otherLine?.meetings || null,
+    weekRange: otherLine?.weekRange || '',
+    room: otherLine?.venue || otherLine?.room || '',
+  }
+  return Boolean(getSectionMeetingsConflictInfo(section, dropSlots).conflict)
+}
+
+/**
+ * 将加课/重修行收成 tooltip 阻塞项
+ * @param {'add'|'retake'} kind
+ * @param {object} line
+ */
+function toDropRemoveBlocker(kind, line) {
+  return {
+    kind,
+    courseCode: String(line?.courseCode || line?.code || '').trim(),
+    courseName: String(line?.courseName || line?.name || '').trim(),
+  }
+}
+
+/**
+ * 拟退「移除」是否被加课/重修依赖拦住（时段冲突或学分超限）
+ * 随表单勾选实时调用；blocked 时须先移 tip 中的加课/重修再移本拟退
+ * @param {object} dropLine 拟移除的拟退行
+ * @param {{
+ *   dropLines?: object[],
+ *   addLines?: object[],
+ *   retakeLines?: object[],
+ *   currentCredits?: number,
+ *   creditMax?: number,
+ *   bypassCreditMax?: boolean,
+ *   termCreditStripBaseline?: object|null,
+ *   electiveCatchUpCredits?: { ge?: number, me?: number }|null,
+ * }} [opts]
+ * @returns {{ blocked: boolean, blockers: { kind: 'add'|'retake', courseCode: string, courseName: string }[] }}
+ */
+export function getDropLineRemoveBlockInfo(dropLine, opts = {}) {
+  const blockers = []
+  const seen = new Set()
+  /** @param {{ kind: string, courseCode: string, courseName: string }} item */
+  function pushBlocker(item) {
+    if (!item?.courseCode) return
+    const key = `${item.kind}:${item.courseCode}`
+    if (seen.has(key)) return
+    seen.add(key)
+    blockers.push(item)
+  }
+
+  const addLines = opts.addLines || []
+  const retakeLines = opts.retakeLines || []
+  const dropLines = opts.dropLines || []
+  const dropKey = addDropLineKey(dropLine)
+
+  // 1) 时段：加课/重修占用本拟退腾出的时间
+  for (const line of addLines) {
+    if (dropLineConflictsWithOtherLine(dropLine, line)) {
+      pushBlocker(toDropRemoveBlocker('add', line))
+    }
+  }
+  for (const line of retakeLines) {
+    if (dropLineConflictsWithOtherLine(dropLine, line)) {
+      pushBlocker(toDropRemoveBlocker('retake', line))
+    }
+  }
+
+  // 2) 学期总学分：去掉本拟退后净学分超上限
+  const creditMax = Number(opts.creditMax)
+  const bypass = Boolean(opts.bypassCreditMax)
+  if (!bypass && Number.isFinite(creditMax) && creditMax > 0) {
+    const remainingDrops = (dropLines || []).filter(
+      (line) => addDropLineKey(line) !== dropKey,
+    )
+    const creditAddLines = [...addLines, ...retakeLines]
+    const netWithout = computeNetCreditsAfterLines(
+      opts.currentCredits,
+      remainingDrops,
+      creditAddLines,
+    )
+    if (netWithout > creditMax && creditAddLines.length) {
+      for (const line of addLines) pushBlocker(toDropRemoveBlocker('add', line))
+      for (const line of retakeLines) pushBlocker(toDropRemoveBlocker('retake', line))
+    }
+  }
+
+  // 3) GE/ME 学期合计帽：去掉本拟退后超限
+  const baseline = opts.termCreditStripBaseline
+  const catchUp = opts.electiveCatchUpCredits || {}
+  if (baseline) {
+    const remainingDrops = (dropLines || []).filter(
+      (line) => addDropLineKey(line) !== dropKey,
+    )
+    const creditAddLines = [...addLines, ...retakeLines]
+    for (const kind of ['GE', 'ME']) {
+      const deficit = kind === 'GE' ? Number(catchUp.ge) || 0 : Number(catchUp.me) || 0
+      if (
+        wouldExceedAddDropElectiveTermCap(baseline, {
+          dropCourses: remainingDrops,
+          addCourses: creditAddLines,
+          kind,
+          deficit,
+        })
+      ) {
+        for (const line of creditAddLines) {
+          const lineKindType = normalizeRegistrationType(line?.type || line?.course?.type)
+          if (lineKindType !== kind) continue
+          const lineKind = addLines.some(
+            (addLine) => addDropLineKey(addLine) === addDropLineKey(line),
+          )
+            ? 'add'
+            : 'retake'
+          pushBlocker(toDropRemoveBlocker(lineKind, line))
+        }
+      }
+    }
+  }
+
+  return { blocked: blockers.length > 0, blockers }
 }
 
 /**
@@ -936,12 +1136,14 @@ export function validateAddDropSectionForm(form) {
 
   if (showII) {
     // 含加课：相对资格种子原组拦截异组（重修行不走此校验）；空清单 allow-all 时不拦
+    // 早先学期原组不锁；当前学期原组默认同组
     if (
       hasCoreOtherSectionReaddViolation(
         originForCoreLock,
         addLines,
         switchSections,
         Boolean(form.coreSectionSwitchAllowAll),
+        String(form.academicSession || '').trim(),
       )
     ) {
       return { ok: false, errorKey: 'courseRegistration.student.coreMustSameSectionReadd' }

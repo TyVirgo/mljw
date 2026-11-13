@@ -17,6 +17,7 @@ export const courseRegistrationMenuItems = [
       { id: 'crs-result', labelKey: 'menu.crsResult', audience: 'student' },
       { id: 'crs-adddrop', labelKey: 'menu.crsAddDrop', audience: 'student' },
       { id: 'crs-payment', labelKey: 'menu.crsPayment', audience: 'student' },
+      { id: 'crs-study-plan', labelKey: 'menu.crsStudyPlan', audience: 'student' },
     ],
   },
   {
@@ -71,6 +72,7 @@ export const courseRegistrationDevelopedPages = new Set([
   'crs-adddrop',
   'crs-result',
   'crs-payment',
+  'crs-study-plan',
 ])
 
 export function findCourseRegistrationLabelKey(id) {

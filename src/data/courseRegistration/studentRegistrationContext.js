@@ -326,14 +326,15 @@ export function studentHasGeElectiveRequirement(programmeCode) {
 
 /**
  * Demo：入学以来、当前确认课之外的已修学分。
- * 与 DEMO_CONFIRMED（约 ME6 + GE3）合计后故意未满：
- * ME ≈14/24、GE ≈5/12、选修合计 ≈19/36，便于工具栏展示「还差」。
- * 必修 prior 33 + 本学期必修约 9 → 毕业累计未修 tip 约 30（72−42）。
+ * 目标蓝底 tip 落下约 必修4 / GE4 / ME3：
+ * - 必修：prior 59 + 本学期必修约 9 → 72−68=4
+ * - GE：prior 8 + 确认约 6 → 18−14=4
+ * - ME：prior 10 + 确认约 11（无 AI110）→ 24−21=3
  */
 export const DEMO_PRIOR_EARNED_CREDITS = {
-  mandatory: 33,
-  me: 8,
-  ge: 2,
+  mandatory: 59,
+  me: 10,
+  ge: 8,
 }
 
 export function creditBucketForType(type) {

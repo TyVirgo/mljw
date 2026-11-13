@@ -29,6 +29,7 @@ import {
 } from './courseSelectionGroups.js'
 import { selectionGroupToMeKey } from './studentRegistrationContext.js'
 import { normalizeRegistrationType } from './registrationTypes.js'
+import { studentConfirmedCourses } from './studentRegistrationStore.js'
 
 /**
  * 加课曾退必修与课表 DEMO_REQUIRED 错开（CHEM101 等）；
@@ -42,13 +43,20 @@ import { normalizeRegistrationType } from './registrationTypes.js'
  * }[]}
  */
 const ELIGIBLE_ADD_SEED = [
-  /** 必修：曾退 · 原组 01（02 无换组白名单时置灰） */
+  /**
+   * 增量 x：MATH101 在课表 DEMO_REQUIRED（当前学期在读），不再做「09 曾退」种子，
+   * 以免加课池与本单拟退原组/学期错位。当前学期拟退后由 mergeEligibleAddWithPendingDropCores
+   * 以 same_term_drop 并入，并锁其它分组。
+   * @deprecated 曾用 prior_drop + 2026/09 + 原组 01 演示换组锁；保留说明勿再恢复错位种子
+   */
+  /** 早先学期落下必修：无需白名单可换组（如 04 → 申请 09） */
   {
     courseId: 'course-chem101',
     source: 'prior_drop',
     originalAcademicSession: '2026/04',
     originalSectionCode: '01',
   },
+  /** 孤立 ME（非组展开依赖）；与下方 3选2 组视图并存 */
   {
     courseId: 'course-comp201',
     source: 'prior_drop',
@@ -57,6 +65,21 @@ const ELIGIBLE_ADD_SEED = [
   },
   {
     courseId: 'course-stat201',
+    source: 'deferment_gap',
+    originalAcademicSession: '2025/09',
+    originalSectionCode: '01',
+  },
+  /**
+   * 3选2（AI110/SE201/WEB220）未选成员：SE201 已在课表，组展开时置灰已选并露出本两门
+   */
+  {
+    courseId: 'course-ai110',
+    source: 'prior_drop',
+    originalAcademicSession: '2025/09',
+    originalSectionCode: '01',
+  },
+  {
+    courseId: 'course-web220',
     source: 'deferment_gap',
     originalAcademicSession: '2025/09',
     originalSectionCode: '01',
@@ -169,8 +192,74 @@ function matchesFutureElectiveConfig(course, config, studentCat) {
 }
 
 /**
+ * 加课 ME：未完成课程组展开（3选2 / 4选3 / 2选1 等）；已选置灰、未选可选；与孤立 ME 并存
+ * @param {object[]} eligibleRows
+ * @param {{ confirmedCourses?: object[], batch?: object }} [options]
+ * @returns {object[]}
+ */
+export function expandEligibleAddWithIncompleteMeGroups(eligibleRows = [], options = {}) {
+  const confirmed = options.confirmedCourses || studentConfirmedCourses.value || []
+  const takenCodes = new Set(
+    (confirmed || [])
+      .map((c) => String(c.courseCode || c.code || '').trim().toUpperCase())
+      .filter(Boolean),
+  )
+  const batch = options.batch || getActiveBatch()
+  const groups = getSelectionGroupsForBatch(batch)
+  const byCode = new Map()
+  for (const row of eligibleRows || []) {
+    if (!row) continue
+    const code = String(row.code || '').trim().toUpperCase()
+    if (code) byCode.set(code, { ...row })
+  }
+
+  for (const group of groups || []) {
+    const codes = (group.courseCodes || [])
+      .map((c) => String(c).trim().toUpperCase())
+      .filter(Boolean)
+    const minPick = Number(group.minPick) || 1
+    // 真实 n 选 m：组内至少 2 门；已选部分且未满 minPick 才展开
+    if (codes.length < 2 || minPick < 1) continue
+    const takenInGroup = codes.filter((c) => takenCodes.has(c))
+    if (!takenInGroup.length || takenInGroup.length >= minPick) continue
+
+    for (const code of codes) {
+      const course = getCourseByCode(code)
+      if (!course) continue
+      if (normalizeRegistrationType(course.type) !== 'ME') continue
+      const alreadyTaken = takenCodes.has(code)
+      const existing = byCode.get(code)
+      if (existing) {
+        byCode.set(code, {
+          ...existing,
+          selectionGroup: existing.selectionGroup || group,
+          groupMemberAlreadyTaken: alreadyTaken || Boolean(existing.groupMemberAlreadyTaken),
+        })
+        continue
+      }
+      byCode.set(
+        code,
+        {
+          ...mapSeedToRow(
+            {
+              courseId: course.id,
+              source: alreadyTaken ? 'group_taken' : 'group_gap',
+            },
+            course,
+          ),
+          selectionGroup: group,
+          groupMemberAlreadyTaken: alreadyTaken,
+          eligibilitySource: alreadyTaken ? 'group_taken' : 'group_gap',
+        },
+      )
+    }
+  }
+  return [...byCode.values()]
+}
+
+/**
  * @param {string} [_studentId]
- * @returns {object[]} 可选加课（含 eligibilitySource）
+ * @returns {object[]} 可选加课（含 eligibilitySource；ME 含未完成课程组展开）
  */
 export function getEligibleAddCoursesForStudent(_studentId) {
   const studentCat = resolveStudentSchoolElective(_studentId)
@@ -208,7 +297,7 @@ export function getEligibleAddCoursesForStudent(_studentId) {
     if (!courseMatchesStudentSchoolElective(course, studentCat)) continue
     rows.push(mapSeedToRow(seed, course))
   }
-  return rows
+  return expandEligibleAddWithIncompleteMeGroups(rows)
 }
 
 /** Notes / 空态用：列出被排除的后续学期样例（不进选择器） */
@@ -243,7 +332,7 @@ export function getEligibilitySourceLabelKey(source) {
 }
 
 /**
- * 解析拟退并入用的原上课学期
+ * 解析拟退并入用的原上课学期（本单拟退优先，避免沿用错位种子学期）
  * @param {object} line 拟退行
  * @param {object|null} existing 已有加课池行
  * @param {string} [fallbackAcademicSession] 当前申请学期兜底
@@ -254,15 +343,19 @@ function resolveOriginalAcademicSessionForDropMerge(
   existing,
   fallbackAcademicSession = '',
 ) {
+  // 增量 x：本单拟退学期优先；仅当拟退行无学期时才回退种子/申请学期
+  const fromDrop = String(
+    line?.originalAcademicSession || line?.academicSession || '',
+  ).trim()
+  if (fromDrop) return fromDrop
   return (
-    String(line?.academicSession || line?.originalAcademicSession || '').trim() ||
     String(existing?.originalAcademicSession || '').trim() ||
     String(fallbackAcademicSession || '').trim()
   )
 }
 
 /**
- * 将本单拟退必修并入加课池（同课号以拟退原组覆盖种子）
+ * 将本单拟退必修并入加课池（同课号以拟退原组/学期覆盖种子）
  * @param {object[]} eligibleRows 资格种子行
  * @param {object[]} dropLines 表单拟退行
  * @param {{ fallbackAcademicSession?: string }} [opts] 当前申请学期兜底
@@ -291,6 +384,7 @@ export function mergeEligibleAddWithPendingDropCores(
     const course =
       (line.courseId && getCourseById(line.courseId)) || getCourseByCode(code)
     if (!course) continue
+    // 拟退原组：必须取本单拟退行，禁止空值时回落错位种子组
     const originalSectionCode = String(
       line.sectionCode || line.section?.code || '',
     ).trim()
@@ -301,12 +395,14 @@ export function mergeEligibleAddWithPendingDropCores(
       fallbackAcademicSession,
     )
     if (existing) {
-      // 本单拟退原组优先于种子；学期空则保留种子或兜底
+      // 本单拟退原组/学期覆盖种子（same_term_drop）
       byCode.set(code, {
         ...existing,
         originalSectionCode: originalSectionCode || existing.originalSectionCode || '',
         originalAcademicSession:
           originalAcademicSession || existing.originalAcademicSession || '',
+        academicSession:
+          originalAcademicSession || existing.academicSession || '',
         eligibilitySource: 'same_term_drop',
         sections: course.sections || existing.sections || [],
       })

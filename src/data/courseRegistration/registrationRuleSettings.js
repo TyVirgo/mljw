@@ -2,11 +2,18 @@ import { ref } from 'vue'
 import { parseBatchDateTime } from './registrationBatchFormUtils.js'
 import { resolveEffectiveCrossReleaseAt } from './sessionRegistrationSchedules.js'
 
+/** 与白名单可超学分同构（避免与 addDropMultiItems 循环依赖，数值须保持一致） */
+const CREDIT_BYPASS_EXTRA_MIN = 1
+const CREDIT_BYPASS_EXTRA_MAX = 3
+const DEFAULT_CREDIT_BYPASS_EXTRA = 3
+
 /**
- * v4：v3 目录 + CR205 第三轮选课新老生名额互释（并入规则表，不再独立卡片）
- * 读库时按 DEFAULT_RULES 合并，缺省 id 用默认值
+ * v5：去 CR202；CR204 可超学分 count；CR107 缴费宽限改小时
+ * 读库时按 DEFAULT_RULES 合并，缺省 id 用默认值；兼容 v4 存档
  */
-const STORAGE_KEY = 'registration-rules-v4'
+const STORAGE_KEY = 'registration-rules-v5'
+/** @deprecated v4 键，仅迁移读取 */
+const LEGACY_STORAGE_KEY_V4 = 'registration-rules-v4'
 
 /**
  * @deprecated 旧版七条 ID；已由 CR201–CR204 + CR107 + CR205 替代，保留导出仅供对照
@@ -21,9 +28,14 @@ export const LEGACY_REGISTRATION_RULE_IDS = [
   'CR107',
 ]
 
+/**
+ * 现行校级规则 ID（增量 af：无 CR202）
+ * @deprecated CR202 已从目录移除（不及格可重修改由业务隐式/批次另议）
+ */
+export const REMOVED_REGISTRATION_RULE_IDS = ['CR202']
+
 export const REGISTRATION_RULE_IDS = [
   'CR201',
-  'CR202',
   'CR203',
   'CR204',
   'CR107',
@@ -34,17 +46,11 @@ export const REGISTRATION_RULE_IDS = [
 
 /**
  * 默认总规则（顺序与设置页展示一致）
- * CR201–CR204 对齐 batchLocalRules；CR107 延迟缴费；CR205 第三轮互释校级默认
+ * CR201 先修；CR203 退自选次数；CR204 可超学分；CR107 缴费小时；CR205 互释
  */
 const DEFAULT_RULES = [
   {
     id: 'CR201',
-    type: 'flag',
-    enabled: true,
-    params: { value: 1 },
-  },
-  {
-    id: 'CR202',
     type: 'flag',
     enabled: true,
     params: { value: 1 },
@@ -57,15 +63,15 @@ const DEFAULT_RULES = [
   },
   {
     id: 'CR204',
-    type: 'flag',
+    type: 'count',
     enabled: false,
-    params: { value: 0 },
+    params: { value: DEFAULT_CREDIT_BYPASS_EXTRA },
   },
   {
     id: 'CR107',
     type: 'count',
     enabled: true,
-    params: { value: 2 },
+    params: { value: 48 },
   },
   {
     id: 'CR205',
@@ -92,7 +98,39 @@ function parseNonNegInt(raw) {
   return Number.isFinite(n) && n >= 0 ? n : null
 }
 
-function normalizeParams(type, rawParams, fallback) {
+/**
+ * 钳制可超学分 1–3
+ * @param {unknown} raw
+ * @param {number} [fallback]
+ */
+function clampCreditBypassExtra(raw, fallback = DEFAULT_CREDIT_BYPASS_EXTRA) {
+  const n = parseNonNegInt(raw)
+  if (n == null || n < CREDIT_BYPASS_EXTRA_MIN) {
+    return Math.min(CREDIT_BYPASS_EXTRA_MAX, Math.max(CREDIT_BYPASS_EXTRA_MIN, fallback))
+  }
+  return Math.min(CREDIT_BYPASS_EXTRA_MAX, Math.max(CREDIT_BYPASS_EXTRA_MIN, n))
+}
+
+/**
+ * CR107：仅从 v4「天」存档迁移为小时（常见 1–14）
+ * @param {number|null} n
+ * @param {number} fallbackHours
+ * @param {boolean} fromLegacyDays
+ */
+function migratePaymentGraceHours(n, fallbackHours, fromLegacyDays) {
+  if (n == null) return fallbackHours
+  if (fromLegacyDays && n > 0 && n <= 14) return n * 24
+  return n
+}
+
+/**
+ * @param {'flag'|'count'} type
+ * @param {object} rawParams
+ * @param {object} fallback
+ * @param {string} ruleId
+ * @param {{ fromLegacyDays?: boolean }} [opts]
+ */
+function normalizeParams(type, rawParams, fallback, ruleId, opts = {}) {
   const src = rawParams && typeof rawParams === 'object' ? rawParams : {}
   const fb = fallback.params
   const n = parseNonNegInt(src.value)
@@ -102,28 +140,67 @@ function normalizeParams(type, rawParams, fallback) {
     return { value: n === 0 ? 0 : 1 }
   }
   if (type === 'count') {
+    if (ruleId === 'CR204') {
+      return { value: clampCreditBypassExtra(src.value, fb.value) }
+    }
+    if (ruleId === 'CR107') {
+      return {
+        value: migratePaymentGraceHours(n, fb.value, Boolean(opts.fromLegacyDays)),
+      }
+    }
     return { value: n ?? fb.value }
   }
   return { value: fb.value }
 }
 
-function normalizeRule(raw, fallback) {
+/**
+ * 单条规则归一；含 CR204 flag→count、CR107 天→小时迁移
+ * @param {object|undefined} raw
+ * @param {object} fallback
+ * @param {{ fromLegacyDays?: boolean }} [opts]
+ */
+function normalizeRule(raw, fallback, opts = {}) {
+  // CR204：旧版 flag 0/1 → count 可超分
+  if (fallback.id === 'CR204') {
+    const oldType = raw?.type
+    const oldVal = parseNonNegInt(raw?.params?.value)
+    const oldEnabled =
+      typeof raw?.enabled === 'boolean' ? raw.enabled : fallback.enabled
+    if (oldType === 'flag' || (oldType == null && (oldVal === 0 || oldVal === 1))) {
+      const on = Boolean(oldEnabled) && oldVal !== 0
+      return {
+        id: 'CR204',
+        type: 'count',
+        enabled: on,
+        params: { value: DEFAULT_CREDIT_BYPASS_EXTRA },
+      }
+    }
+  }
+
   return {
     id: fallback.id,
     type: fallback.type,
     enabled: typeof raw?.enabled === 'boolean' ? raw.enabled : fallback.enabled,
-    params: normalizeParams(fallback.type, raw?.params, fallback),
+    params: normalizeParams(fallback.type, raw?.params, fallback, fallback.id, opts),
   }
 }
 
+/**
+ * @returns {{ rows: object[]|null, fromLegacyDays: boolean }}
+ */
 function readStored() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : null
+    const v5 = localStorage.getItem(STORAGE_KEY)
+    if (v5) {
+      const parsed = JSON.parse(v5)
+      return { rows: Array.isArray(parsed) ? parsed : null, fromLegacyDays: false }
+    }
+    const v4 = localStorage.getItem(LEGACY_STORAGE_KEY_V4)
+    if (!v4) return { rows: null, fromLegacyDays: false }
+    const parsed = JSON.parse(v4)
+    return { rows: Array.isArray(parsed) ? parsed : null, fromLegacyDays: true }
   } catch {
-    return null
+    return { rows: null, fromLegacyDays: false }
   }
 }
 
@@ -136,10 +213,11 @@ export function getDefaultRegistrationRules() {
 
 export function loadRegistrationRules() {
   const defaults = getDefaultRegistrationRules()
-  const stored = readStored()
+  const { rows: stored, fromLegacyDays } = readStored()
   if (!stored) return defaults
   const byId = new Map(stored.map((row) => [row.id, row]))
-  return defaults.map((fb) => normalizeRule(byId.get(fb.id) ?? fb, fb))
+  const opts = { fromLegacyDays }
+  return defaults.map((fb) => normalizeRule(byId.get(fb.id) ?? fb, fb, opts))
 }
 
 export function saveRegistrationRules(rules) {
@@ -148,7 +226,7 @@ export function saveRegistrationRules(rules) {
 
 export const registrationRules = ref(loadRegistrationRules())
 
-export function validateRegistrationRuleParams(type, params) {
+export function validateRegistrationRuleParams(type, params, ruleId = '') {
   const n = parseNonNegInt(params?.value)
   if (type === 'flag') {
     if (n == null || (n !== 0 && n !== 1)) {
@@ -158,6 +236,11 @@ export function validateRegistrationRuleParams(type, params) {
   }
   if (type === 'count') {
     if (n == null) return 'registrationRules.validation.invalidCount'
+    if (ruleId === 'CR204') {
+      if (n < CREDIT_BYPASS_EXTRA_MIN || n > CREDIT_BYPASS_EXTRA_MAX) {
+        return 'registrationRules.validation.creditBypassExtra'
+      }
+    }
     return ''
   }
   return 'registrationRules.validation.notFound'
@@ -177,6 +260,10 @@ export function updateRegistrationRuleEnabled(id, enabled) {
         ? { value: on ? 1 : 0 }
         : { ...current.params },
   }
+  // CR204 开启且值为空/0 时回落默认可超
+  if (id === 'CR204' && on) {
+    next.params = { value: clampCreditBypassExtra(next.params?.value, DEFAULT_CREDIT_BYPASS_EXTRA) }
+  }
   registrationRules.value[index] = next
   saveRegistrationRules(registrationRules.value)
   return next
@@ -188,12 +275,12 @@ export function updateRegistrationRuleValue(id, value) {
 
   const current = registrationRules.value[index]
   const params = { value }
-  const errorKey = validateRegistrationRuleParams(current.type, params)
+  const errorKey = validateRegistrationRuleParams(current.type, params, id)
   if (errorKey) return { ok: false, errorKey }
 
   const next = {
     ...current,
-    params: normalizeParams(current.type, params, current),
+    params: normalizeParams(current.type, params, current, id, { fromLegacyDays: false }),
   }
   if (current.type === 'flag') {
     next.enabled = next.params.value === 1
@@ -208,12 +295,33 @@ export function updateRegistrationRuleParams(id, params) {
   return updateRegistrationRuleValue(id, params?.value)
 }
 
-/** 需缴费场景下允许的最大延迟缴费天数（规则关闭时回退默认 2） */
-export function getPaymentGraceDays() {
+/**
+ * 校级全局缴费宽限（小时）；规则关闭时回退默认 48
+ * @returns {number}
+ */
+export function getPaymentGraceHours() {
   const rule = registrationRules.value.find((row) => row.id === 'CR107')
-  if (!rule || rule.enabled === false) return 2
+  if (!rule || rule.enabled === false) return 48
   const n = Number.parseInt(String(rule.params?.value ?? ''), 10)
-  return Number.isFinite(n) && n >= 0 ? n : 2
+  return Number.isFinite(n) && n >= 0 ? n : 48
+}
+
+/**
+ * @deprecated 增量 af 起缴费按小时；保留仅作兼容，内部转小时/24 向下取整
+ * @returns {number}
+ */
+export function getPaymentGraceDays() {
+  return Math.max(0, Math.floor(getPaymentGraceHours() / 24))
+}
+
+/**
+ * 校级全局可超学期学分（1–3）；未启用返回 0
+ * @returns {number}
+ */
+export function getCampusCreditBypassExtra() {
+  const rule = registrationRules.value.find((row) => row.id === 'CR204')
+  if (!rule || rule.enabled === false) return 0
+  return clampCreditBypassExtra(rule.params?.value, DEFAULT_CREDIT_BYPASS_EXTRA)
 }
 
 /**

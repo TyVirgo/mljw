@@ -4,7 +4,11 @@
  */
 
 import { getCurrentStudentId } from '../mockCurrentStudent.js'
-import { addDropApprovalQueue } from './addDropApprovalQueue.js'
+import {
+  addDropApprovalQueue,
+  filterApprovedAddDropItems,
+  isAddDropScheduleEffective,
+} from './addDropApprovalQueue.js'
 import {
   studentConfirmedCourses,
   studentRequiredCourses,
@@ -69,26 +73,45 @@ export function classifyMyResultCourse(item) {
 }
 
 /**
- * 已批准申请中「加课/重修」明细 → 已选行；同课号若另有已批准退课则剔除
+ * 课表已生效的审结单（无应付即批完；有应付须缴完 / scheduleApplied）
  * @param {string} [studentId]
  */
-export function listApprovedApplicationCourses(studentId) {
+function listScheduleEffectiveApps(studentId) {
   const id = studentId || getCurrentStudentId() || ''
-  const apps = (addDropApprovalQueue.value || []).filter(
-    (app) => String(app.studentId || '') === String(id) && app.status === 'Approved',
+  return (addDropApprovalQueue.value || []).filter(
+    (app) =>
+      String(app.studentId || '') === String(id) && isAddDropScheduleEffective(app),
   )
+}
+
+/**
+ * 已生效审结单中的退课课号（用于从必修/确认池剔除）
+ * @param {string} [studentId]
+ */
+export function collectScheduleEffectiveDroppedCodes(studentId) {
   const dropped = new Set()
-  for (const app of apps) {
-    for (const line of app.items || []) {
+  for (const app of listScheduleEffectiveApps(studentId)) {
+    for (const line of filterApprovedAddDropItems(app)) {
       if (String(line.action || '') === 'Drop' && line.courseCode) {
         dropped.add(String(line.courseCode))
       }
     }
   }
+  return dropped
+}
+
+/**
+ * 已生效审结单中「加课/重修」→ 已选行；同课号若另有已生效退课则剔除
+ * 待缴未落课的申请 MUST NOT 进入我的课表
+ * @param {string} [studentId]
+ */
+export function listApprovedApplicationCourses(studentId) {
+  const apps = listScheduleEffectiveApps(studentId)
+  const dropped = collectScheduleEffectiveDroppedCodes(studentId)
   const out = []
   const seen = new Set()
   for (const app of apps) {
-    for (const line of app.items || []) {
+    for (const line of filterApprovedAddDropItems(app)) {
       const action = String(line.action || '')
       if (action !== 'Add' && action !== 'Retake') continue
       const code = String(line.courseCode || '')
@@ -146,12 +169,15 @@ function tagResultType(item, resultType) {
  * @param {string} [studentId]
  */
 export function listMyResultCourses(studentId) {
-  const required = (studentRequiredCourses.value || []).map((item) =>
-    tagResultType(item, 'required'),
-  )
+  // 已生效退课：从必修/确认池展示中剔除（落课函数也会改池；此处兜底待缴未落课不剔）
+  const dropped = collectScheduleEffectiveDroppedCodes(studentId)
+  const required = (studentRequiredCourses.value || [])
+    .filter((item) => !dropped.has(String(item.courseCode || '')))
+    .map((item) => tagResultType(item, 'required'))
   const fromConfirmed = []
   for (const item of studentConfirmedCourses.value || []) {
     if (item.intent === 'waitlist') continue
+    if (dropped.has(String(item.courseCode || ''))) continue
     const kind = resolveAcademicResultType(item) || 'elective'
     fromConfirmed.push(tagResultType(item, kind))
   }
@@ -281,6 +307,149 @@ export function resolveMyResultScheduleLayer(itemOrType) {
   if (s === 'required' || s === 'mandatory' || s === 'programme') return 'required'
   // 申请/管理员等渠道不再单独着色
   return 'elective'
+}
+
+/**
+ * 写入退课匹配键（原值 + 大写，兼容课号大小写不一致）
+ * @param {Set<string>} keys
+ * @param {unknown} value
+ */
+function addCourseMatchKey(keys, value) {
+  const s = String(value || '').trim()
+  if (!s) return
+  keys.add(s)
+  keys.add(s.toUpperCase())
+}
+
+/**
+ * 课号/课 id 键集合（退课匹配用）
+ * @param {object[]} lines
+ * @returns {Set<string>}
+ */
+function collectCourseMatchKeys(lines = []) {
+  const keys = new Set()
+  for (const line of lines || []) {
+    for (const v of [line?.courseId, line?.courseCode, line?.code, line?.id]) {
+      addCourseMatchKey(keys, v)
+    }
+  }
+  return keys
+}
+
+/**
+ * 合并额外拟退键（如 pendingDropCodes）
+ * @param {Set<string>} keys
+ * @param {Iterable<string>|string[]|null|undefined} extraKeys
+ */
+function mergeExtraDropKeys(keys, extraKeys) {
+  for (const v of extraKeys || []) {
+    addCourseMatchKey(keys, v)
+  }
+  return keys
+}
+
+/**
+ * 行是否命中退课键
+ * @param {object} item
+ * @param {Set<string>} dropKeys
+ */
+function courseMatchesDropKeys(item, dropKeys) {
+  if (!dropKeys?.size) return false
+  for (const v of [item?.courseId, item?.courseCode, item?.code, item?.id]) {
+    const s = String(v || '').trim()
+    if (!s) continue
+    if (dropKeys.has(s) || dropKeys.has(s.toUpperCase())) return true
+  }
+  return false
+}
+
+/**
+ * 将课程行转为课表格（填充层 + 可选本单虚线操作色）
+ * @param {object} item
+ * @param {{ locale?: string, stroke?: string, applicationOp?: string }} meta
+ */
+function slotsForPreviewCourse(item, meta = {}) {
+  if (!hasScheduleTime(item)) return []
+  const locale = meta.locale === 'en' ? 'en' : 'zh'
+  const hydrated = hydrateSelectedCourseDisplay(item, {
+    locale,
+    preserveSchedule: true,
+  })
+  const layer = resolveBinaryScheduleLayer(item)
+  return coursesToScheduleSlots(
+    [
+      {
+        ...item,
+        courseName: hydrated.courseName,
+        courseNameEn: hydrated.courseNameEn,
+        resultType: item.resultType || layer,
+      },
+    ],
+    {
+      layer,
+      kind: layer,
+      stroke: meta.stroke || 'solid',
+      preview: false,
+      applicationOp: meta.applicationOp || '',
+    },
+  )
+}
+
+/**
+ * 申请弹窗「课程预览」：拟退生效后课表（调用方勿传入历史未审单）
+ * 无三类行时调用方应直接用「我的课表」slots；有行时：保留实线 + 加课/重修虚线（不画退课格）
+ * @param {{
+ *   baseCourses?: object[],
+ *   dropCourses?: object[],
+ *   dropKeys?: string[],
+ *   addCourses?: object[],
+ *   retakeCourses?: object[],
+ *   locale?: 'zh'|'en'|boolean,
+ * }} [opts]
+ * @returns {object[]}
+ */
+export function buildAddDropApplicationSchedulePreview(opts = {}) {
+  const locale =
+    opts.locale === false || opts.locale === 'en' ? 'en' : 'zh'
+  const base = opts.baseCourses != null ? opts.baseCourses : listMyResultCourses()
+  const dropCourses = opts.dropCourses || []
+  const addCourses = opts.addCourses || []
+  const retakeCourses = opts.retakeCourses || []
+  // 拟退键：表单退课行 ∪ 调用方 pendingDropCodes（与选课基线同源）
+  const dropKeys = mergeExtraDropKeys(collectCourseMatchKeys(dropCourses), opts.dropKeys)
+  const slots = []
+
+  // 原课保留：去掉拟退（时段已腾出；退课格不再绘制）
+  const kept = dedupeMyResultCoursesByCode(
+    (base || []).filter((item) => !courseMatchesDropKeys(item, dropKeys)),
+  )
+  for (const item of kept) {
+    slots.push(...slotsForPreviewCourse(item, { locale, stroke: 'solid' }))
+  }
+
+  // 本单加课
+  for (const line of addCourses) {
+    slots.push(
+      ...slotsForPreviewCourse(line, {
+        locale,
+        stroke: 'dashed',
+        applicationOp: 'add',
+      }),
+    )
+  }
+
+  // 本单重修
+  for (const line of retakeCourses) {
+    slots.push(
+      ...slotsForPreviewCourse(line, {
+        locale,
+        stroke: 'dashed',
+        applicationOp: 'retake',
+      }),
+    )
+  }
+
+  return slots
 }
 
 /**

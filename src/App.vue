@@ -44,6 +44,7 @@ import StudentRegisterView from './views/courseRegistration/student/StudentRegis
 import StudentAddDropView from './views/courseRegistration/student/StudentAddDropView.vue'
 import StudentMyResultView from './views/courseRegistration/student/StudentMyResultView.vue'
 import StudentCoursePaymentView from './views/courseRegistration/student/StudentCoursePaymentView.vue'
+import StudentStudyPlanView from './views/courseRegistration/student/StudentStudyPlanView.vue'
 import RegistrationQueueOverlay from './components/courseRegistration/RegistrationQueueOverlay.vue'
 import ModuleBriefPanel from './components/courseRegistration/ModuleBriefPanel.vue'
 import UnderConstructionView from './views/UnderConstructionView.vue'
@@ -131,6 +132,7 @@ const isCrsRegister = computed(() => currentPageId.value === 'crs-register')
 const isCrsAddDrop = computed(() => currentPageId.value === 'crs-adddrop')
 const isCrsResult = computed(() => currentPageId.value === 'crs-result')
 const isCrsPayment = computed(() => currentPageId.value === 'crs-payment')
+const isCrsStudyPlan = computed(() => currentPageId.value === 'crs-study-plan')
 const isCrUnderConstruction = computed(() => !courseRegistrationDevelopedPages.has(currentPageId.value))
 
 const headerModuleKey = computed(() => {
@@ -310,6 +312,7 @@ function openStudentPreviewPortal() {
             <StudentAddDropView v-else-if="isCrsAddDrop" @navigate="handleCrNavigate" />
             <StudentMyResultView v-else-if="isCrsResult" @navigate="handleCrNavigate" />
             <StudentCoursePaymentView v-else-if="isCrsPayment" />
+            <StudentStudyPlanView v-else-if="isCrsStudyPlan" />
             <UnderConstructionView v-else-if="isCrUnderConstruction" @back="handleCrBack" />
           </template>
 

@@ -102,9 +102,7 @@ const finalScheduleSlots = computed(() =>
 
 const scheduleSlotCount = computed(() => finalScheduleSlots.value.length)
 const scheduleToolbarLabel = computed(() => t('courseRegistration.student.scheduleToolbarButton'))
-const schedulePreviewSubtitle = computed(() =>
-  t('courseRegistration.student.schedulePreviewFinalHintAll'),
-)
+// 增量 ax：我的课表预览不再传 subtitle（原 schedulePreviewFinalHintAll 已弃用）
 
 /** 课表表头：学号 + 姓名 */
 const schedulePersonLine = computed(() => {
@@ -610,7 +608,6 @@ function selectTypeTab(key) {
       :visible="scheduleDrawerVisible"
       :title="t('courseRegistration.student.schedulePreviewTitle')"
       :person-line="schedulePersonLine"
-      :subtitle="schedulePreviewSubtitle"
       @close="scheduleDrawerVisible = false"
     >
       <StudentSchedulePreviewPanel

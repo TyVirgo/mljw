@@ -17,7 +17,10 @@ import {
   resolveAppNeedDrop,
 } from '../../data/courseRegistration/addDropTypeDisplay.js'
 import { getAddDropDeclarationExtraKey } from '../../data/courseRegistration/addDropListColumns.js'
-import { addDropStatusBadgeClass } from '../../data/courseRegistration/addDropStatusBadge.js'
+import {
+  resolveAddDropStudentListStatus,
+  addDropStudentListStatusBadgeClass,
+} from '../../data/courseRegistration/addDropStudentListStatus.js'
 import { formatCourseSectionName } from '../../utils/courseSectionDisplay.js'
 import { displayClassTimeVenueFromFields } from '../../data/courseRegistration/sectionScheduleFields.js'
 import {
@@ -38,6 +41,7 @@ import { getCourseById, getCourseByCode } from '../../data/courseRegistration/se
 import {
   addDropLineKey,
   buildDropCreditBreakdown,
+  buildFixedSituationCatchUpFromApplication,
 } from '../../data/courseRegistration/addDropMultiItems.js'
 import {
   resolveRetakeStudyModeKey,
@@ -100,6 +104,10 @@ function snapTimeVenue(kind) {
 const app = computed(() => ensureApplicationDetailCredits(props.application))
 const termCreditStrip = computed(() => app.value?.termCreditStrip || null)
 const showCreditOverview = computed(() => Boolean(termCreditStrip.value))
+/** 蓝底 tip：申请基线固定落下（增量 ah：矩阵未修行跟 live strip） */
+const situationCatchUpDisplay = computed(() =>
+  app.value ? buildFixedSituationCatchUpFromApplication(app.value) : null,
+)
 const courseCols = computed(() => getAddDropCourseColumnTexts(app.value))
 const detailIntentFlags = computed(() => ({
   needDrop: app.value?.needDrop,
@@ -146,21 +154,18 @@ function formatAttachSize(bytes) {
   return `${(n / (1024 * 1024)).toFixed(2)} MB`
 }
 
-const showDropAttachmentBlock = computed(() => {
-  if (!app.value || !sections.value.showIII) return false
-  return (
-    attachmentFiles.value.length > 0 ||
-    app.value.dropChannel === 'special' ||
-    app.value.type === 'Drop' ||
-    app.value.type === 'AddDrop' ||
-    app.value.type === 'RetakeDrop'
-  )
-})
+/**
+ * @deprecated 增量 be：附件已改整单「附件材料」节；保留计算属性以免旧模板引用报错
+ */
+const showDropAttachmentBlock = computed(() => false)
 
-const showStandaloneAttachments = computed(() => {
-  if (!app.value || showDropAttachmentBlock.value) return false
-  return attachmentFiles.value.length > 0 || app.value.dropChannel === 'special'
-})
+/**
+ * @deprecated 增量 be：声明后独立附件块已并入声明前「附件材料」；恒 false
+ */
+const showStandaloneAttachments = computed(() => false)
+
+/** 详情始终展示附件材料节（空则显示无） */
+const showAttachmentsSection = computed(() => Boolean(app.value))
 
 const termExcessCreditsDisplay = computed(() => {
   const a = app.value
@@ -291,8 +296,13 @@ function typeClass(appOrType) {
   return addDropTypeTagClass(appOrType)
 }
 
-function statusLabel(status) {
-  return resolveI18nLabel(`courseRegistration.approval.appStatus.${status}`, status)
+/**
+ * 详情状态与列表四态同步（增量 z/aa：按行决策判定已驳回/已结束）
+ * @param {string|object} statusOrApp 内部 status 或申请对象
+ */
+function statusLabel(statusOrApp) {
+  const key = resolveAddDropStudentListStatus(statusOrApp)
+  return resolveI18nLabel(`courseRegistration.student.listStatus.${key}`, key)
 }
 
 function dash(v) {
@@ -502,6 +512,21 @@ function lineDecisionLabel(item) {
     return t('courseRegistration.approval.linePending')
   }
   return '—'
+}
+
+/**
+ * 行决策彩色胶囊 class（通过绿 / 不通过红 / 驳回橙）
+ * @param {object|null|undefined} item
+ */
+function lineDecisionCapsuleClass(item) {
+  const d = resolveLineDecision(item)
+  if (d === 'approved') return 'decision-capsule--approved'
+  if (d === 'rejected') return 'decision-capsule--rejected'
+  if (d === 'update_required') return 'decision-capsule--update-required'
+  if (!isTerminalApprovalStatus.value && showLineDecisionColumn.value) {
+    return 'decision-capsule--pending'
+  }
+  return ''
 }
 
 /** @type {import('vue').Ref<string>} */
@@ -887,8 +912,11 @@ function retakeRowPreviousGrades(item) {
         <div class="field-item">
           <div class="field-label">{{ t('courseRegistration.approval.status') }}</div>
           <div class="field-value">
-            <span class="status-badge" :class="addDropStatusBadgeClass(app.status)">
-              {{ statusLabel(app.status) }}
+            <span
+              class="status-badge"
+              :class="addDropStudentListStatusBadgeClass(app)"
+            >
+              {{ statusLabel(app) }}
             </span>
           </div>
         </div>
@@ -926,6 +954,7 @@ function retakeRowPreviousGrades(item) {
       <div class="detail-credit-strip detail-credit-strip--compact">
         <AddDropTermCreditStrip
           :strip="termCreditStrip"
+          :term-catch-up-credits="situationCatchUpDisplay"
           :application-type="app.type"
         />
       </div>
@@ -948,6 +977,9 @@ function retakeRowPreviousGrades(item) {
               <th class="col-lecturer">{{ t('courseRegistration.student.fieldLecturers') }}</th>
               <th v-if="showLineDecisionColumn" class="col-decision">
                 {{ t('courseRegistration.approval.lineDecision') }}
+              </th>
+              <th v-if="showLineDecisionColumn" class="col-line-comment">
+                {{ t('courseRegistration.approval.lineCommentColumn') }}
               </th>
             </tr>
           </thead>
@@ -975,20 +1007,22 @@ function retakeRowPreviousGrades(item) {
               </td>
               <td class="col-lecturer" :title="dropRowLecturer(item)">{{ dropRowLecturer(item) }}</td>
               <td v-if="showLineDecisionColumn" class="col-decision">
-                <div class="decision-cell">
-                  <span>{{ lineDecisionLabel(item) }}</span>
-                  <button
-                    v-if="lineCommentText(item)"
-                    type="button"
-                    class="link-btn"
-                    @click="openLineCommentViewer(item)"
-                  >
-                    {{ t('courseRegistration.approval.lineCommentDetail') }}
-                  </button>
-                  <span v-else class="decision-comment-empty">{{
-                    t('courseRegistration.approval.lineCommentEmpty')
-                  }}</span>
-                </div>
+                <span class="decision-capsule" :class="lineDecisionCapsuleClass(item)">{{
+                  lineDecisionLabel(item)
+                }}</span>
+              </td>
+              <td v-if="showLineDecisionColumn" class="col-line-comment">
+                <button
+                  v-if="lineCommentText(item)"
+                  type="button"
+                  class="link-btn"
+                  @click="openLineCommentViewer(item)"
+                >
+                  {{ t('courseRegistration.approval.lineCommentDetail') }}
+                </button>
+                <span v-else class="decision-comment-empty">{{
+                  t('courseRegistration.approval.lineCommentEmpty')
+                }}</span>
               </td>
             </tr>
           </tbody>
@@ -1017,29 +1051,6 @@ function retakeRowPreviousGrades(item) {
           <div class="field-label">{{ t('courseRegistration.student.dropReason') }}</div>
           <div class="field-value">{{ dash(app.dropReason || app.reason) }}</div>
         </div>
-        <div v-if="showDropAttachmentBlock" class="field-item field-item--full">
-          <div class="field-label">{{ t('courseRegistration.student.dropAttachment') }}</div>
-          <div class="field-value">
-            <ul v-if="attachmentFiles.length" class="detail-attach-list">
-              <li
-                v-for="(file, idx) in attachmentFiles"
-                :key="`${file.fileName}-${idx}`"
-                class="detail-attach-item"
-              >
-                <AttachmentPreviewTrigger
-                  :file-name="file.fileName"
-                  :file-meta="file"
-                  :download-label="file.fileName"
-                  :show-download="true"
-                />
-                <span v-if="formatAttachSize(file.size)" class="detail-attach-size">
-                  {{ formatAttachSize(file.size) }}
-                </span>
-              </li>
-            </ul>
-            <span v-else>{{ t('courseRegistration.approval.attachmentNone') }}</span>
-          </div>
-        </div>
       </div>
     </section>
 
@@ -1060,6 +1071,9 @@ function retakeRowPreviousGrades(item) {
               <th class="col-lecturer">{{ t('courseRegistration.student.fieldLecturers') }}</th>
               <th v-if="showLineDecisionColumn" class="col-decision">
                 {{ t('courseRegistration.approval.lineDecision') }}
+              </th>
+              <th v-if="showLineDecisionColumn" class="col-line-comment">
+                {{ t('courseRegistration.approval.lineCommentColumn') }}
               </th>
             </tr>
           </thead>
@@ -1087,20 +1101,22 @@ function retakeRowPreviousGrades(item) {
               </td>
               <td class="col-lecturer" :title="addRowLecturer(item)">{{ addRowLecturer(item) }}</td>
               <td v-if="showLineDecisionColumn" class="col-decision">
-                <div class="decision-cell">
-                  <span>{{ lineDecisionLabel(item) }}</span>
-                  <button
-                    v-if="lineCommentText(item)"
-                    type="button"
-                    class="link-btn"
-                    @click="openLineCommentViewer(item)"
-                  >
-                    {{ t('courseRegistration.approval.lineCommentDetail') }}
-                  </button>
-                  <span v-else class="decision-comment-empty">{{
-                    t('courseRegistration.approval.lineCommentEmpty')
-                  }}</span>
-                </div>
+                <span class="decision-capsule" :class="lineDecisionCapsuleClass(item)">{{
+                  lineDecisionLabel(item)
+                }}</span>
+              </td>
+              <td v-if="showLineDecisionColumn" class="col-line-comment">
+                <button
+                  v-if="lineCommentText(item)"
+                  type="button"
+                  class="link-btn"
+                  @click="openLineCommentViewer(item)"
+                >
+                  {{ t('courseRegistration.approval.lineCommentDetail') }}
+                </button>
+                <span v-else class="decision-comment-empty">{{
+                  t('courseRegistration.approval.lineCommentEmpty')
+                }}</span>
               </td>
             </tr>
           </tbody>
@@ -1146,6 +1162,9 @@ function retakeRowPreviousGrades(item) {
               <th v-if="showLineDecisionColumn" class="col-decision">
                 {{ t('courseRegistration.approval.lineDecision') }}
               </th>
+              <th v-if="showLineDecisionColumn" class="col-line-comment">
+                {{ t('courseRegistration.approval.lineCommentColumn') }}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -1179,33 +1198,32 @@ function retakeRowPreviousGrades(item) {
               <td class="col-retake-same" :title="retakeRowStudyModeLabel(item)">
                 {{ retakeRowStudyModeLabel(item) }}
               </td>
-              <td class="col-prev-grades">
-                <template v-if="retakeRowPreviousGrades(item)">
-                  <div
-                    v-for="(gl, gi) in retakeRowPreviousGrades(item).split('\n')"
-                    :key="gi"
-                    class="prev-grade-line"
-                  >
-                    {{ gl }}
-                  </div>
-                </template>
+              <td
+                class="col-prev-grades"
+                :title="retakeRowPreviousGrades(item) || ''"
+              >
+                <span v-if="retakeRowPreviousGrades(item)" class="prev-grades-ellipsis">
+                  {{ retakeRowPreviousGrades(item).replace(/\n/g, ' · ') }}
+                </span>
                 <template v-else>—</template>
               </td>
               <td v-if="showLineDecisionColumn" class="col-decision">
-                <div class="decision-cell">
-                  <span>{{ lineDecisionLabel(item) }}</span>
-                  <button
-                    v-if="lineCommentText(item)"
-                    type="button"
-                    class="link-btn"
-                    @click="openLineCommentViewer(item)"
-                  >
-                    {{ t('courseRegistration.approval.lineCommentDetail') }}
-                  </button>
-                  <span v-else class="decision-comment-empty">{{
-                    t('courseRegistration.approval.lineCommentEmpty')
-                  }}</span>
-                </div>
+                <span class="decision-capsule" :class="lineDecisionCapsuleClass(item)">{{
+                  lineDecisionLabel(item)
+                }}</span>
+              </td>
+              <td v-if="showLineDecisionColumn" class="col-line-comment">
+                <button
+                  v-if="lineCommentText(item)"
+                  type="button"
+                  class="link-btn"
+                  @click="openLineCommentViewer(item)"
+                >
+                  {{ t('courseRegistration.approval.lineCommentDetail') }}
+                </button>
+                <span v-else class="decision-comment-empty">{{
+                  t('courseRegistration.approval.lineCommentEmpty')
+                }}</span>
               </td>
             </tr>
           </tbody>
@@ -1290,32 +1308,21 @@ function retakeRowPreviousGrades(item) {
 
     <!-- 重修说明已并入 SECTION IV；此处不再单独挂「加课说明」到重修单 -->
 
-    <section class="detail-section">
-      <div class="section-bar">{{ sectionBars.declaration }}</div>
-      <div class="declaration-box">
-        <p class="declaration-extra">{{ t(declarationExtraKey) }}</p>
-        <p class="declaration-text">{{ t('courseRegistration.student.declarationText') }}</p>
-        <label class="checkbox-row">
-          <input type="checkbox" :checked="app.declarationAgreed !== false" disabled />
-          <span>{{ t('courseRegistration.student.declarationAgree') }}</span>
-        </label>
-      </div>
-    </section>
-
-    <section v-if="showStandaloneAttachments" class="detail-section">
-      <div class="section-bar">{{ t('courseRegistration.student.detailAttachments') }}</div>
+    <!-- 增量 be/bg：整单附件材料（声明前；空也展示；标题无 SECTION 前缀） -->
+    <section v-if="showAttachmentsSection" class="detail-section">
+      <div class="section-bar">{{ t('courseRegistration.student.sectionLabelAttachments') }}</div>
       <div class="attachment-panel">
         <div class="attachment-header">
           <label class="attachment-label">
             {{ t('courseRegistration.student.dropAttachment') }}
+            <span class="optional">（{{ t('courseRegistration.student.dropAttachmentOptional') }}）</span>
             <span v-if="app.dropChannel === 'special'" class="required">*</span>
-            :
           </label>
         </div>
         <ul v-if="attachmentFiles.length" class="detail-attach-list">
           <li
             v-for="(file, idx) in attachmentFiles"
-            :key="`standalone-${file.fileName}-${idx}`"
+            :key="`attachments-${file.fileName}-${idx}`"
             class="detail-attach-item"
           >
             <AttachmentPreviewTrigger
@@ -1332,6 +1339,18 @@ function retakeRowPreviousGrades(item) {
         <div v-else class="attachment-file-row">
           <span>{{ t('courseRegistration.approval.attachmentNone') }}</span>
         </div>
+      </div>
+    </section>
+
+    <section class="detail-section">
+      <div class="section-bar">{{ sectionBars.declaration }}</div>
+      <div class="declaration-box">
+        <p class="declaration-extra">{{ t(declarationExtraKey) }}</p>
+        <p class="declaration-text">{{ t('courseRegistration.student.declarationText') }}</p>
+        <label class="checkbox-row">
+          <input type="checkbox" :checked="app.declarationAgreed !== false" disabled />
+          <span>{{ t('courseRegistration.student.declarationAgree') }}</span>
+        </label>
       </div>
     </section>
   </div>
@@ -1519,10 +1538,14 @@ function retakeRowPreviousGrades(item) {
   width: 9%;
 }
 
+/* 修读方式：全文展示，禁 ellipsis */
 .lines-table .col-retake-same {
-  width: 8%;
+  width: 12%;
+  min-width: 7.5em;
   white-space: nowrap;
   text-align: center;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .lines-table .col-name {
@@ -1561,35 +1584,86 @@ function retakeRowPreviousGrades(item) {
 }
 
 .lines-table .col-prev-grades {
-  width: 14%;
-  white-space: normal;
+  width: 9em;
+  min-width: 8em;
+  max-width: 11em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.35;
   font-size: 12px;
   color: #374151;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
-.lines-table .prev-grade-line + .prev-grade-line {
-  margin-top: 2px;
+.lines-table .prev-grades-ellipsis {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+/* 任课教师：加宽左移，尽量全文少缩写 */
 .lines-table .col-lecturer {
-  width: 11%;
-}
-
-.lines-table .col-decision {
-  width: 9.5em;
-  min-width: 8.5em;
+  width: 16%;
+  min-width: 9em;
+  max-width: none;
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
+  text-align: left;
+  word-break: break-word;
 }
 
-.decision-cell {
+.lines-table .col-decision {
+  width: 7em;
+  min-width: 6em;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  padding-right: 14px;
+}
+
+.lines-table .col-line-comment {
+  width: 7em;
+  min-width: 6em;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  /* 与决策列拉开间距 */
+  padding-left: 12px;
+}
+
+/* 详情操作列：通过/不通过/驳回彩色胶囊 */
+.decision-capsule {
   display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  line-height: 1.35;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.decision-capsule--approved {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.decision-capsule--rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.decision-capsule--update-required {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.decision-capsule--pending {
+  background: #fef3c7;
+  color: #b45309;
 }
 
 .decision-comment-empty {

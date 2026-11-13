@@ -16,7 +16,7 @@ import {
   appendFeeRosterFromApproval,
   cancelFeeRosterRowsForApplication,
 } from './feeRosterQueue.js'
-import { getPaymentGraceDays } from './registrationRuleSettings.js'
+import { getPaymentGraceHours } from './registrationRuleSettings.js'
 import {
   getSupplementEntry,
   getSupplementDoorStatus,
@@ -25,7 +25,6 @@ import {
 import { isWithinAddDropApplicationWindow } from './addDropApplicationWindow.js'
 import { getActiveBatch } from './registrationBatches.js'
 import {
-  addDaysToDateTime,
   addHoursToDateTime,
   nowDateTimeWithSeconds,
 } from './registrationBatchFormUtils.js'
@@ -41,6 +40,7 @@ import {
   buildApprovalDecisionTermCreditStrip,
   buildLiveConfirmedTermCreditStrip,
 } from './addDropMultiItems.js'
+import { matchesAddDropStudentListStatusFilter } from './addDropStudentListStatus.js'
 import {
   buildFeeEstimateFromApplicationItems,
   sumAddGraduationExcessBillable,
@@ -65,6 +65,25 @@ export function filterApprovedAddDropItems(app) {
     return items.filter((item) => isApprovedLineDecision(item, status))
   }
   return items
+}
+
+/**
+ * 课表是否已对该审结单生效（无应付即批完生效；有应付须缴完或已标记 scheduleApplied）
+ * 增量 bq：显式 `scheduleApplied === false` 禁止落课（即使已缴/无账）
+ * @param {object|null|undefined} app
+ */
+export function isAddDropScheduleEffective(app) {
+  if (!app) return false
+  const status = String(app.status || '')
+  if (status !== 'Approved' && status !== 'PartiallyApproved') return false
+  // 演示/业务可显式禁止并入我的选课
+  if (app.scheduleApplied === false) return false
+  if (app.scheduleApplied) return true
+  if (String(app.billStatus || '') === 'paid') return true
+  // 待缴：尚未落课
+  if (String(app.billStatus || '') === 'pending') return false
+  // 无待缴账单：审批结束即视为可进课表
+  return true
 }
 
 /**
@@ -469,14 +488,18 @@ const initialQueue = [
         action: 'Add',
         courseCode: 'MATH201',
         courseName: 'Linear Algebra',
+        type: 'CORE',
         credits: 4,
         section: '01',
         time: 'Fri 14:00–16:00',
         fee: 320,
+        // 已驳回样例：行操作驳回（可重新提交）
+        lineDecision: 'update_required',
+        lineComment: '学分超限，请调整后重提',
       },
     ],
     schedule: [{ day: 'Tue', start: 9, end: 12, course: 'MPU3183' }],
-    approvalLog: [{ at: '2026-07-05 09:00', actor: 'AC DSA', action: 'Rejected', comment: 'Credit max exceeded' }],
+    approvalLog: [{ at: '2026-07-05 09:00', actor: 'AC DSA', action: 'Update Required', comment: 'Credit max exceeded' }],
   },
   {
     id: 'adr-007',
@@ -721,7 +744,12 @@ export function filterAddDropQueue(rows, tab, filters = {}) {
     list = list.filter((r) => matchesPrimaryTypeFilter(r.type, filters.type, r))
   }
   if (filters.status) {
-    list = list.filter((r) => r.status === filters.status)
+    // 增量 z：历史筛选项可为四态键（已驳回/已结束/已取消），亦兼容内部码
+    list = list.filter(
+      (r) =>
+        matchesAddDropStudentListStatusFilter(r, filters.status) ||
+        r.status === filters.status,
+    )
   }
   if (filters.billStatus) {
     list = list.filter((r) => normalizeBillStatus(r.billStatus) === filters.billStatus)
@@ -840,6 +868,23 @@ export function approveAddDropApplication(id, comment = '', generateBill = true,
 
   const lineDecisions = options.lineDecisions || null
   const lineComments = options.lineComments || null
+  // 增量 aa：行决策含驳回时改走 requestAddDropUpdate（整单已驳回，不落课/不生账单）
+  const mappedPreview = (app.items || []).map((item, idx) => {
+    const bareKey = addDropLineKey(item)
+    const approvalKey = addDropApprovalLineKey(item, idx)
+    const fromMap =
+      lineDecisions?.[idx] ??
+      lineDecisions?.[approvalKey] ??
+      lineDecisions?.[bareKey] ??
+      lineDecisions?.[item.courseCode]
+    return String(fromMap || item.lineDecision || 'approved')
+  })
+  if (mappedPreview.some((d) => d === 'update_required')) {
+    return requestAddDropUpdate(id, comment, {
+      lineDecisions,
+      lineComments,
+    })
+  }
   const items = (app.items || []).map((item, idx) => {
     const bareKey = addDropLineKey(item)
     const approvalKey = addDropApprovalLineKey(item, idx)
@@ -851,6 +896,7 @@ export function approveAddDropApplication(id, comment = '', generateBill = true,
     const decision = fromMap || item.lineDecision || 'approved'
     return {
       ...item,
+      // 仅通过 / 不通过（无驳回）→ 展示已结束
       lineDecision: decision === 'rejected' ? 'rejected' : 'approved',
       // 行级评价意见写入课行
       lineComment: resolveLineCommentFromOptions(lineComments, item, idx),
@@ -886,16 +932,19 @@ export function approveAddDropApplication(id, comment = '', generateBill = true,
       String(app.type || '') === 'Retake' ||
       String(app.type || '') === 'RetakeDrop'
     patch.billStatus = 'pending'
+    // 增量 ay：账单生成时间（与缴费待收费展示同源）
+    patch.billGeneratedAt = nowDateTimeWithSeconds()
     if (hasRetake) {
       // 重修通过后付费默认 72 小时
       patch.paymentGraceDays = null
       patch.paymentGraceHours = 72
       patch.paymentDueAt = addHoursToDateTime(72)
     } else {
-      const graceDays = getPaymentGraceDays()
-      patch.paymentGraceDays = graceDays
-      patch.paymentGraceHours = null
-      patch.paymentDueAt = addDaysToDateTime(graceDays)
+      // CR107：校级全局缴费宽限（小时）
+      const graceHours = getPaymentGraceHours()
+      patch.paymentGraceDays = null
+      patch.paymentGraceHours = graceHours
+      patch.paymentDueAt = addHoursToDateTime(graceHours)
     }
     // 通过后催缴次数从 0 起；仅点击「发送邮件提醒」后累计
     patch.paymentRemindCount = 0
@@ -903,6 +952,7 @@ export function approveAddDropApplication(id, comment = '', generateBill = true,
     patch.billStatus = app.billStatus === 'paid' ? app.billStatus : ''
     patch.billAmount = 0
     patch.paymentDueAt = ''
+    patch.billGeneratedAt = ''
   }
   const needsPayment = Boolean(generateBill && fee > 0 && status !== 'Rejected')
   addDropApprovalQueue.value[index] = { ...app, ...patch }
@@ -1055,24 +1105,36 @@ export function ensureApplicationDetailCredits(app) {
           drop: Number(base.applicationCredits.drop) || 0,
         }
       : sumApplicationActionCredits(items)
-  // 当前生已落课/已付款/已拒绝：详情与二次申请顶栏均用课表确认态
+  // 当前生已落课/已付款：详情用课表确认态
+  // 增量 bk：Rejected 待重提 MUST NOT 用纯 live——按行决策投影（已通过计入；不通过/驳回不计），与重提主界面同源
   const currentId = getStudentProfileFields().studentId
   const isCurrentStudent = String(base.studentId || '') === String(currentId || '')
   const billPending = String(base.billStatus || '') === 'pending'
   const useLiveStrip =
     settled &&
     isCurrentStudent &&
-    (base.scheduleApplied ||
-      base.billStatus === 'paid' ||
-      status === 'Rejected' ||
-      !billPending)
+    status !== 'Rejected' &&
+    (base.scheduleApplied || base.billStatus === 'paid' || !billPending)
 
-  const termCreditStrip = useLiveStrip
-    ? buildLiveConfirmedTermCreditStrip()
-    : items.length
-      ? buildApprovalDecisionTermCreditStrip(base, {})
-      : base.termCreditStrip || null
-
+  let termCreditStrip = null
+  if (useLiveStrip) {
+    termCreditStrip = buildLiveConfirmedTermCreditStrip()
+  } else if (items.length) {
+    // 用 items 上 lineDecision 建 map，与重提/审批投影口径一致
+    /** @type {Record<string, string>} */
+    const decisionsByKey = {}
+    items.forEach((item, idx) => {
+      const decision = String(item?.lineDecision || 'pending').trim() || 'pending'
+      const approvalKey = addDropApprovalLineKey(item, idx)
+      const bareKey = addDropLineKey(item)
+      decisionsByKey[approvalKey] = decision
+      if (bareKey) decisionsByKey[bareKey] = decision
+      decisionsByKey[idx] = decision
+    })
+    termCreditStrip = buildApprovalDecisionTermCreditStrip(base, decisionsByKey)
+  } else {
+    termCreditStrip = base.termCreditStrip || null
+  }
   let feeEstimate = base.feeEstimate
   if (settled) {
     feeEstimate = buildFeeEstimateFromApplicationItems(
@@ -1141,26 +1203,53 @@ export function rejectAddDropApplication(id, comment = '', options = {}) {
 }
 
 /**
- * Update Required：记日志，保持 Pending；可选写入各行 lineComment
+ * Update Required / 含驳回行：整单已驳回，写回各行决策
+ * @deprecated 旧行为曾保持 Pending 且不写 lineDecision；增量 aa 改为 status=Rejected 并保留通过/不通过/驳回行
  * @param {string} id
  * @param {string} [comment]
- * @param {{ lineComments?: object }} [options]
+ * @param {{ lineComments?: object, lineDecisions?: object }} [options]
  */
 export function requestAddDropUpdate(id, comment = '', options = {}) {
   const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
   if (index === -1) return { ok: false }
   const app = addDropApprovalQueue.value[index]
   const lineComments = options.lineComments || null
-  const items = lineComments
-    ? (app.items || []).map((item, idx) => ({
-        ...item,
-        lineComment: resolveLineCommentFromOptions(lineComments, item, idx),
-      }))
-    : app.items
+  const lineDecisions = options.lineDecisions || null
+  const items = (app.items || []).map((item, idx) => {
+    const bareKey = addDropLineKey(item)
+    const approvalKey = addDropApprovalLineKey(item, idx)
+    const fromMap =
+      lineDecisions?.[idx] ??
+      lineDecisions?.[approvalKey] ??
+      lineDecisions?.[bareKey] ??
+      lineDecisions?.[item.courseCode]
+    const raw = String(fromMap || item.lineDecision || 'update_required')
+    // 允许通过 / 不通过 / 驳回；未知值按驳回
+    const decision =
+      raw === 'approved' || raw === 'rejected' || raw === 'update_required'
+        ? raw
+        : 'update_required'
+    return {
+      ...item,
+      lineDecision: decision,
+      lineComment: resolveLineCommentFromOptions(lineComments, item, idx),
+    }
+  })
+  // 无驳回行时不应走本函数；兜底仍标 Rejected 展示层会按行再判
+  const hasUpdate = items.some((i) => i.lineDecision === 'update_required')
+  const status = hasUpdate ? 'Rejected' : summarizeLineDecisions(items)
+  const draft = { ...app, items, status }
+  const termCreditStrip = buildApprovalDecisionTermCreditStrip(draft, {})
+  const feePatch = buildPostDecisionFeePatch(draft, [])
   addDropApprovalQueue.value[index] = {
     ...app,
     items,
-    status: 'Pending',
+    status,
+    termCreditStrip,
+    ...feePatch,
+    billStatus: '',
+    billAmount: 0,
+    paymentDueAt: '',
     approvalLog: [
       ...app.approvalLog,
       {
@@ -1193,7 +1282,10 @@ export function decideAddDropApplication(id, action, comment = '', options = {})
     return rejectAddDropApplication(id, comment, { lineComments: options.lineComments })
   }
   if (action === 'Update Required') {
-    return requestAddDropUpdate(id, comment, { lineComments: options.lineComments })
+    return requestAddDropUpdate(id, comment, {
+      lineComments: options.lineComments,
+      lineDecisions: options.lineDecisions,
+    })
   }
   return { ok: false, errorKey: 'courseRegistration.approval.invalidAction' }
 }
@@ -1216,6 +1308,54 @@ export function setAddDropLineDecision(id, itemKeyOrIndex, decision) {
   })
   addDropApprovalQueue.value[index] = { ...app, items }
   return { ok: true, items }
+}
+
+/**
+ * 审批取消存草稿：写回各行 lineDecision / lineComment，状态仍待审
+ * 再次打开审批弹窗时由 initLineDecisions 回显
+ * @param {string} id 申请 id
+ * @param {{ lineDecisions?: Record<string, string>, lineComments?: Record<string, string> }} [options]
+ */
+export function saveAddDropApprovalDraft(id, options = {}) {
+  const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
+  if (index === -1) return { ok: false, errorKey: 'common.notFound' }
+  const app = addDropApprovalQueue.value[index]
+  const status = String(app.status || '')
+  // 仅待审/审批中可存草稿
+  if (status !== 'Pending' && status !== 'In Review') {
+    return { ok: false, errorKey: 'courseRegistration.approval.invalidAction' }
+  }
+  const lineDecisions = options.lineDecisions || null
+  const lineComments = options.lineComments || null
+  const items = (app.items || []).map((item, idx) => {
+    const bareKey = addDropLineKey(item)
+    const approvalKey = addDropApprovalLineKey(item, idx)
+    const decision =
+      (lineDecisions &&
+        (lineDecisions[approvalKey] ??
+          lineDecisions[bareKey] ??
+          lineDecisions[idx] ??
+          lineDecisions[item.courseCode])) ||
+      item.lineDecision ||
+      'pending'
+    const comment = resolveLineCommentFromOptions(lineComments, item, idx)
+    return {
+      ...item,
+      lineDecision:
+        decision === 'approved' ||
+        decision === 'rejected' ||
+        decision === 'update_required'
+          ? decision
+          : item.lineDecision || 'pending',
+      lineComment: comment,
+    }
+  })
+  addDropApprovalQueue.value[index] = {
+    ...app,
+    items,
+    approvalDraftSavedAt: new Date().toISOString(),
+  }
+  return { ok: true, application: addDropApprovalQueue.value[index] }
 }
 
 /** 本期申请类型（筛选/展示用主类型三选一；关联归入加课/重修） */
@@ -1364,29 +1504,146 @@ function releaseSeatsForApplication(app) {
   for (const hold of holds) releaseAddDropSectionSeat(hold)
 }
 
-export function submitStudentAddDropApplication(studentFields, items, options = {}) {
-  if (!items?.length) return { ok: false, errorKey: 'courseRegistration.student.addDropEmpty' }
-
-  // 无显式 type 时按 items 反推（与三是否合并类型对齐，避免多课误判为 AddDrop）
+/**
+ * 从 items 推断申请类型（加/退/重修组合）
+ * @param {object[]} items
+ * @param {string} [explicitType]
+ */
+function inferAddDropTypeFromItems(items = [], explicitType = '') {
+  if (explicitType) return explicitType
   const hasAddItem = items.some((i) => i.action === 'Add')
   const hasDropItem = items.some((i) => i.action === 'Drop')
   const hasRetakeItem = items.some((i) => i.action === 'Retake')
-  let inferredFromItems = items[0]?.action || ''
-  if (hasAddItem && hasRetakeItem && hasDropItem) inferredFromItems = 'AddDropRetake'
-  else if (hasAddItem && hasRetakeItem) inferredFromItems = 'AddRetake'
-  else if (hasAddItem && hasDropItem) inferredFromItems = 'AddDrop'
-  else if (hasRetakeItem && hasDropItem) inferredFromItems = 'RetakeDrop'
-  else if (hasAddItem) inferredFromItems = 'Add'
-  else if (hasRetakeItem) inferredFromItems = 'Retake'
-  else if (hasDropItem) inferredFromItems = 'Drop'
+  if (hasAddItem && hasRetakeItem && hasDropItem) return 'AddDropRetake'
+  if (hasAddItem && hasRetakeItem) return 'AddRetake'
+  if (hasAddItem && hasDropItem) return 'AddDrop'
+  if (hasRetakeItem && hasDropItem) return 'RetakeDrop'
+  if (hasAddItem) return 'Add'
+  if (hasRetakeItem) return 'Retake'
+  if (hasDropItem) return 'Drop'
+  return items[0]?.action || ''
+}
 
-  const inferredType = options.type || inferredFromItems
+/**
+ * 移除草稿行（提交转正或覆盖前）
+ * @param {string} draftId
+ */
+function removeAddDropDraftById(draftId) {
+  const id = String(draftId || '').trim()
+  if (!id) return
+  const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
+  if (index === -1) return
+  const app = addDropApprovalQueue.value[index]
+  if (String(app?.status || '') !== 'Draft') return
+  addDropApprovalQueue.value.splice(index, 1)
+}
+
+/**
+ * 学生取消申请窗：存入草稿（不占座、不进审批、不挡二次申请）
+ * @param {object} studentFields
+ * @param {object[]} items
+ * @param {object} [options]
+ */
+export function saveStudentAddDropDraft(studentFields, items = [], options = {}) {
+  const inferredType = inferAddDropTypeFromItems(items, options.type)
+  const normalizedItems = (items || []).map((item) => ({
+    ...item,
+    lineDecision: item.lineDecision || 'pending',
+  }))
+  const draftId = String(options.draftId || '').trim()
+  const existingIndex = draftId
+    ? addDropApprovalQueue.value.findIndex((item) => item.id === draftId)
+    : -1
+  const existing =
+    existingIndex >= 0 && String(addDropApprovalQueue.value[existingIndex]?.status || '') === 'Draft'
+      ? addDropApprovalQueue.value[existingIndex]
+      : null
+
+  const id = existing?.id || (() => {
+    studentAdrSeq += 1
+    return `adr-stu-${studentAdrSeq}`
+  })()
+  const applicationNo =
+    existing?.applicationNo ||
+    `ADR${new Date().getFullYear()}${String(studentAdrSeq).slice(-4)}`
+
+  const app = {
+    id,
+    applicationNo,
+    studentId: studentFields.studentId,
+    studentName: studentFields.studentName,
+    programme: studentFields.programme || studentFields.programmeCode || '',
+    programmeName: studentFields.programmeName || studentFields.programme || '',
+    intake: studentFields.intake,
+    type: inferredType || existing?.type || '',
+    status: 'Draft',
+    submittedAt: existing?.submittedAt || nowDateTimeWithSeconds(),
+    updatedAt: nowDateTimeWithSeconds(),
+    academicSession: options.academicSession || existing?.academicSession || '',
+    currentCredits: options.currentCredits ?? existing?.currentCredits ?? 0,
+    creditMax: options.creditMax ?? existing?.creditMax ?? resolveTermCreditMax(options.academicSession),
+    creditMaxBypass: Boolean(options.creditMaxBypass),
+    termCreditOver: Boolean(options.termCreditOver),
+    billStatus: 'none',
+    billAmount: options.billAmount ?? options.feeEstimate?.total ?? 0,
+    items: normalizedItems,
+    schedule: options.schedule || existing?.schedule || [],
+    reason: options.reason || '',
+    feeWaiver: options.feeWaiver ?? null,
+    attachments: options.attachments || [],
+    teachingWeek: options.teachingWeek,
+    contactPhone: options.contactPhone || '',
+    primaryType: options.primaryType || '',
+    needDrop: options.needDrop === 'yes' || options.needDrop === 'no' ? options.needDrop : '',
+    needAdd: options.needAdd === 'yes' || options.needAdd === 'no' ? options.needAdd : '',
+    needRetake:
+      options.needRetake === 'yes' || options.needRetake === 'no' ? options.needRetake : '',
+    addType: options.addType || '',
+    addNotes: options.addNotes || '',
+    retakeNotes: options.retakeNotes || '',
+    dropReason: options.dropReason || options.reason || '',
+    previouslyTakenCourse: options.previouslyTakenCourse || '',
+    gradeEarned: options.gradeEarned || '',
+    academicSessionTaken: options.academicSessionTaken || '',
+    previousCourseGradesText: options.previousCourseGradesText || '',
+    retakeType: options.retakeType || '',
+    declarationAgreed: Boolean(options.declarationAgreed),
+    courseSnapshots: options.courseSnapshots || null,
+    feeEstimate: options.feeEstimate || null,
+    billableCredits: options.billableCredits ?? options.feeEstimate?.billableCredits ?? 0,
+    termCreditExcess: Math.max(0, Number(options.termCreditExcess) || 0),
+    excessCredits: options.excessCredits ?? 0,
+    termCreditStrip: options.termCreditStrip || null,
+    termCreditStripBaseline: options.termCreditStripBaseline || null,
+    applicationCredits:
+      options.applicationCredits || sumApplicationActionCredits(normalizedItems),
+    seatHolds: [],
+    sstAmount: options.sstAmount ?? options.feeEstimate?.sstAmount ?? 0,
+    approvalLog: existing?.approvalLog || [],
+    formSnapshot: options.formSnapshot || null,
+  }
+  const enriched = enrichAddDropApplicationSchedule(app, studentAdrSeq)
+  if (existingIndex >= 0) {
+    addDropApprovalQueue.value[existingIndex] = enriched
+  } else {
+    addDropApprovalQueue.value.unshift(enriched)
+  }
+  return { ok: true, application: enriched }
+}
+
+export function submitStudentAddDropApplication(studentFields, items, options = {}) {
+  if (!items?.length) return { ok: false, errorKey: 'courseRegistration.student.addDropEmpty' }
+
+  const inferredType = inferAddDropTypeFromItems(items, options.type)
 
   const gate = canStudentSubmitAddDrop(studentFields.studentId, getActiveBatch(), inferredType)
   if (!gate.ok) return gate
 
   const seatResult = holdSeatsForAddDropItems(items)
   if (!seatResult.ok) return seatResult
+
+  // 草稿转正：先移除草稿再写入待审批
+  removeAddDropDraftById(options.draftId)
 
   const normalizedItems = items.map((item) => ({
     ...item,
@@ -1477,7 +1734,9 @@ export function submitStudentAddDropApplication(studentFields, items, options = 
       options.applicationCredits || sumApplicationActionCredits(normalizedItems),
     seatHolds: seatResult.holds || [],
     paymentDueAt: '',
-    paymentGraceDays: getPaymentGraceDays(),
+    /** @deprecated 增量 af 起改用 paymentGraceHours */
+    paymentGraceDays: null,
+    paymentGraceHours: getPaymentGraceHours(),
     paymentRemindCount: 0,
     sstAmount: options.sstAmount ?? options.feeEstimate?.sstAmount ?? 0,
     approvalLog: autoApproveSelfDrop
@@ -1545,15 +1804,20 @@ export function cancelStudentAddDropApplication(id, actor = 'Student') {
   return { ok: true, application: addDropApprovalQueue.value[index] }
 }
 
-/** 已通过且待付款：审批人可中止申请并取消账单 */
+/**
+ * 历史可终止：已通过/部分通过且待付款，或已驳回
+ * 增量 bo：文案「终止申请」；驳回亦可关单
+ * @param {object} app
+ */
 export function canAbortApprovedAddDropBill(app) {
   if (!app) return false
+  if (app.status === 'Rejected') return true
   if (app.status !== 'Approved' && app.status !== 'PartiallyApproved') return false
   return normalizeBillStatus(app.billStatus) === 'pending'
 }
 
 /**
- * 中止已通过待付款申请（学生中途取消重修等）
+ * 终止申请（已通过待付取消账单；已驳回关闭重提）
  * @param {string} id
  * @param {string} [actor]
  */
@@ -1565,27 +1829,117 @@ export function abortApprovedAddDropApplication(id, actor = 'AC Demo') {
     return { ok: false, errorKey: 'courseRegistration.approval.abortNotAllowed' }
   }
   const at = nowDateTimeWithSeconds()
+  const wasRejected = app.status === 'Rejected'
   const next = {
     ...app,
     status: 'Cancelled',
-    billStatus: 'cancelled',
-    paymentDueAt: '',
+    billStatus: wasRejected
+      ? app.billStatus || 'none'
+      : 'cancelled',
+    paymentDueAt: wasRejected ? app.paymentDueAt || '' : '',
     approvalLog: [
       ...(app.approvalLog || []),
       {
         at,
         actor,
         action: 'Aborted',
-        comment: 'Application and pending bill aborted by approver',
+        comment: wasRejected
+          ? 'Rejected application terminated by approver'
+          : 'Application and pending bill aborted by approver',
         stage: 'Academic Coordinator',
       },
     ],
   }
   addDropApprovalQueue.value[index] = next
-  try {
-    cancelFeeRosterRowsForApplication(next)
-  } catch {
-    /* demo */
+  if (!wasRejected) {
+    try {
+      cancelFeeRosterRowsForApplication(next)
+    } catch {
+      /* demo */
+    }
   }
-  return { ok: true, application: next }
+  return { ok: true, application: next, abortedRejected: wasRejected }
+}
+
+/**
+ * 学生已驳回申请：以全部最新 items 整单重新提交为待审批
+ * @param {string} id 原申请 id
+ * @param {object[]} items 全部最新数据行（含已通过与已换课）
+ * @param {object} [options]
+ */
+export function resubmitStudentAddDropApplication(id, items = [], options = {}) {
+  const index = addDropApprovalQueue.value.findIndex((item) => item.id === id)
+  if (index === -1) return { ok: false, errorKey: 'courseRegistration.student.addDropEmpty' }
+  const app = addDropApprovalQueue.value[index]
+  // 增量 aa：仅存在驳回行（update_required）的申请可重提；仅通过/不通过属已结束不可重提
+  const hasUpdateRequired = (app.items || []).some(
+    (item) => String(item?.lineDecision || '').trim() === 'update_required',
+  )
+  if (!hasUpdateRequired) {
+    return { ok: false, errorKey: 'courseRegistration.student.resubmitNotAllowed' }
+  }
+  // 增量 bf：已取消行不写入本单（弹窗侧应已过滤；此处再兜底）
+  const activeItems = (items || []).filter(
+    (item) => String(item?.lineDecision || '').trim() !== 'cancelled',
+  )
+  if (!activeItems.length) return { ok: false, errorKey: 'courseRegistration.student.addDropEmpty' }
+
+  const seatResult = holdSeatsForAddDropItems(activeItems)
+  if (!seatResult.ok) return seatResult
+
+  // 增量 at/av/br：通过/不通过原样；未改驳回保留 update_required；已换课→pending；意见保留
+  const normalizedItems = activeItems.map((item) => {
+    const decision = String(item?.lineDecision || '').trim()
+    const comment = String(item?.lineComment || '').trim()
+    if (decision === 'approved' || decision === 'rejected' || decision === 'update_required') {
+      return {
+        ...item,
+        lineDecision: decision,
+        lineComment: comment,
+        // 换课标记仅学生重提窗使用，提交后清掉
+        resubmitLineModified: undefined,
+      }
+    }
+    return {
+      ...item,
+      lineDecision: 'pending',
+      lineComment: comment,
+      resubmitLineModified: undefined,
+    }
+  })
+  const at = nowDateTimeWithSeconds()
+  // 增量 bf：附件随重提写回（未传则保留原附件）
+  const nextAttachments = Array.isArray(options.attachments)
+    ? options.attachments
+        .filter((f) => f?.name)
+        .map((f) => ({ name: f.name, size: Number(f.size) || 0 }))
+    : app.attachments
+  const next = {
+    ...app,
+    ...options,
+    type: inferAddDropTypeFromItems(normalizedItems, options.type || app.type),
+    status: 'Pending',
+    submittedAt: at,
+    updatedAt: at,
+    items: normalizedItems,
+    attachments: nextAttachments,
+    seatHolds: seatResult.holds || [],
+    billStatus: 'none',
+    billAmount: options.billAmount ?? options.feeEstimate?.total ?? app.billAmount ?? 0,
+    feeEstimate: options.feeEstimate || app.feeEstimate || null,
+    applicationCredits:
+      options.applicationCredits || sumApplicationActionCredits(normalizedItems),
+    approvalLog: [
+      ...(app.approvalLog || []),
+      {
+        at,
+        actor: 'Student',
+        action: 'Resubmitted',
+        comment: 'Student adjusted rejected lines and resubmitted',
+      },
+    ],
+  }
+  const enriched = enrichAddDropApplicationSchedule(next, studentAdrSeq)
+  addDropApprovalQueue.value[index] = enriched
+  return { ok: true, application: enriched }
 }

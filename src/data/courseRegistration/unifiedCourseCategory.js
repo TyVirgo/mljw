@@ -84,6 +84,64 @@ export function formatUnifiedCourseCategoryLabel(courseOrItem, t) {
 }
 
 /**
+ * 加退课行 ∪ 课库合并（展示与学分分桶共用）
+ * @param {object|null|undefined} item 申请行
+ * @param {{
+ *   getCourseById?: (id: string) => object|null|undefined,
+ *   getCourseByCode?: (code: string) => object|null|undefined,
+ *   fallback?: object|null,
+ * }} [opts]
+ * @returns {object|null}
+ */
+export function mergeAddDropLineWithCatalog(item, opts = {}) {
+  if (!item) return null
+  const catalog =
+    (item.courseId && opts.getCourseById?.(item.courseId)) ||
+    opts.getCourseByCode?.(item.courseCode || item.code) ||
+    null
+  const fallback = opts.fallback || null
+  const nested = item.course && typeof item.course === 'object' ? item.course : null
+  return {
+    ...(catalog || {}),
+    ...(fallback || {}),
+    ...(nested || {}),
+    ...item,
+    type: item.type || fallback?.type || nested?.type || catalog?.type || '',
+    schoolElectiveCategory:
+      item.schoolElectiveCategory ||
+      fallback?.schoolElectiveCategory ||
+      nested?.schoolElectiveCategory ||
+      catalog?.schoolElectiveCategory ||
+      '',
+    sourceType:
+      item.sourceType || fallback?.sourceType || nested?.sourceType || catalog?.sourceType || '',
+    credits: Number(item.credits ?? nested?.credits ?? catalog?.credits) || 0,
+  }
+}
+
+/**
+ * 统一类别码 → 学分条分桶（与表头必修/GE/ME 列对齐）
+ * @param {object|null|undefined} courseOrItem 已合并或原始行
+ * @returns {''|'mandatory'|'GE'|'ME'}
+ */
+export function resolveCreditStripBucketFromCategory(courseOrItem) {
+  const code = resolveUnifiedCourseCategoryCode(courseOrItem)
+  if (code === 'required') return 'mandatory'
+  if (/^GE/i.test(code)) return 'GE'
+  if (/^ME/i.test(code)) return 'ME'
+  const raw = String(courseOrItem?.type || '')
+    .trim()
+    .toUpperCase()
+  if (raw.startsWith('GE')) return 'GE'
+  if (raw.startsWith('ME')) return 'ME'
+  if (raw === 'CORE' || raw === 'MANDATORY' || raw === 'REQUIRED') return 'mandatory'
+  const kind = normalizeRegistrationType(courseOrItem?.type)
+  if (kind === 'GE' || kind === 'ME') return kind
+  if (kind === 'Mandatory') return 'mandatory'
+  return ''
+}
+
+/**
  * 加退课行 ∪ 课库后格式化统一类别（详情/表单/审批明细）
  * @param {object|null|undefined} item 申请行
  * @param {(key: string) => string} t
@@ -95,22 +153,7 @@ export function formatUnifiedCourseCategoryLabel(courseOrItem, t) {
  * @returns {string}
  */
 export function formatUnifiedCourseCategoryFromLine(item, t, opts = {}) {
-  const catalog =
-    (item?.courseId && opts.getCourseById?.(item.courseId)) ||
-    opts.getCourseByCode?.(item?.courseCode || item?.code) ||
-    null
-  const fallback = opts.fallback || null
-  const merged = {
-    ...(catalog || {}),
-    ...(fallback || {}),
-    ...(item || {}),
-    type: item?.type || fallback?.type || catalog?.type,
-    schoolElectiveCategory:
-      item?.schoolElectiveCategory ||
-      fallback?.schoolElectiveCategory ||
-      catalog?.schoolElectiveCategory,
-    sourceType: item?.sourceType || fallback?.sourceType || catalog?.sourceType,
-  }
+  const merged = mergeAddDropLineWithCatalog(item, opts)
   return formatUnifiedCourseCategoryLabel(merged, t)
 }
 

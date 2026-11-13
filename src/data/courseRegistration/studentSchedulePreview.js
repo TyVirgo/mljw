@@ -89,7 +89,13 @@ export function isEarlierRoundConfirmedForSchedule(course, currentRound) {
 /**
  * @param {string} time
  * @param {object} course
- * @param {{ layer?: string, preview?: boolean, kind?: string, stroke?: string }} [meta]
+ * @param {{
+ *   layer?: string,
+ *   preview?: boolean,
+ *   kind?: string,
+ *   stroke?: string,
+ *   applicationOp?: 'add'|'drop'|'retake'|'',
+ * }} [meta]
  */
 export function parseTimeToScheduleSlot(time, course = {}, meta = {}) {
   const match = String(time || '').match(/^(\w+)\s+(\d+):(\d+)[–-](\d+):(\d+)/)
@@ -99,6 +105,7 @@ export function parseTimeToScheduleSlot(time, course = {}, meta = {}) {
   const layer = meta.layer || meta.kind || 'confirmed'
   const preview = Boolean(meta.preview) || layer === 'preview'
   const roundKey = course.roundKey || meta.roundKey || ''
+  const applicationOp = String(meta.applicationOp || '').trim().toLowerCase()
   return {
     day: match[1],
     start: Number(match[2]),
@@ -116,16 +123,28 @@ export function parseTimeToScheduleSlot(time, course = {}, meta = {}) {
     roundKey,
     roundBadge: scheduleRoundBadge(roundKey),
     preview,
-    /** solid=已确认/必修；dashed=本轮选择中 */
+    /** solid=已确认/必修；dashed=本轮选择或本单变更 */
     stroke: meta.stroke || (preview ? 'dashed' : 'solid'),
     kind: meta.kind || layer,
-    layer: preview ? 'preview' : layer,
+    // 加退预览：虚线仍保留 required/elective 填充，不强制改成 preview 层
+    layer: preview && !applicationOp ? 'preview' : layer,
+    /** 本单操作：add | drop | retake；仅虚线分色用 */
+    applicationOp:
+      applicationOp === 'add' || applicationOp === 'drop' || applicationOp === 'retake'
+        ? applicationOp
+        : '',
   }
 }
 
 /**
  * @param {Array<object>} courses
- * @param {{ layer?: string, preview?: boolean, kind?: string, stroke?: string }} [meta]
+ * @param {{
+ *   layer?: string,
+ *   preview?: boolean,
+ *   kind?: string,
+ *   stroke?: string,
+ *   applicationOp?: 'add'|'drop'|'retake'|'',
+ * }} [meta]
  */
 export function coursesToScheduleSlots(courses = [], meta = {}) {
   const slots = []

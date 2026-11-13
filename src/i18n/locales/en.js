@@ -100,6 +100,7 @@ export default {
     crsAddDrop: 'Add/Drop/Retake Application',
     crsWaitlist: 'Waitlist Result',
     crsPayment: 'Course Payment',
+    crsStudyPlan: 'Study Plan',
     crsResult: 'My Courses',
   },
   studentSelect: {
@@ -196,6 +197,9 @@ export default {
       rejected: 'Rejected',
       updateRequired: 'Update Required',
       cancelled: 'Cancelled',
+      /** Align with add/drop list four-state labels */
+      addDropRejected: 'Returned',
+      addDropEnded: 'Ended',
     },
     branchStart: 'Branch start, parallel approval',
     branchJoinWaiting: 'Branch merge: waiting for all branches',
@@ -205,7 +209,8 @@ export default {
     action: {
       approved: 'Pass',
       rejected: 'Not Pass',
-      updateRequired: 'Return',
+      /** Increment bj: align with detail capsule Rejected */
+      updateRequired: 'Rejected',
     },
   },
   modal: {
@@ -922,10 +927,11 @@ export default {
     validation: {
       booleanValue: 'Rule value must be 0 or 1.',
       invalidCount: 'Count must be a non-negative integer.',
+      creditBypassExtra: 'Over-credit allowance must be an integer from 1 to 3.',
       notFound: 'Rule not found.',
     },
     items: {
-      // Legacy v2 labels deprecated; catalog is CR201–CR204 + CR107 (aligned with batch rules)
+      // Legacy v2 labels deprecated; catalog is CR201/CR203/CR204 + CR107 + CR205（af 去掉 CR202）
       // CR101: { name: 'Allow unselect' },
       // CR102: { name: 'Allow schedule conflict' },
       // CR103: { name: 'Unselect limit' },
@@ -933,10 +939,11 @@ export default {
       // CR105: { name: 'Unregistered students cannot register' },
       // CR106: { name: 'Study target selectable' },
       CR201: { name: 'Link prerequisite courses' },
+      /** @deprecated Removed from campus catalog (increment af) */
       CR202: { name: 'Allow retake when failed' },
       CR203: { name: 'Drop self-selected courses, max per round' },
-      CR204: { name: 'Allow exceeding credit max' },
-      CR107: { name: 'Payment grace days' },
+      CR204: { name: 'Allow exceeding term credit requirement, up to (credits)' },
+      CR107: { name: 'Payment duration not exceeding (hours)' },
       CR205: { name: 'Round 3 senior/freshman quota mutual release' },
     },
     preselectWeightTitle: 'Round 1 weighted draw parameters',
@@ -1606,7 +1613,7 @@ export default {
       sectionCredit: 'Credit Rules',
       creditMin: 'Min Credits',
       creditMax: 'Max Credits',
-      billHours: 'Payment grace days (see registration rules)',
+      billHours: 'Payment duration in hours (see registration rules)',
       rosterAction: 'Student Roster',
       rosterTitle: 'Student Course Selection Roster',
       rosterTabSpecial: 'Special Students',
@@ -2144,7 +2151,8 @@ export default {
         'Unpaid total: course fee {fee}, SST {sst}, amount due {payable}',
       billPaidTotalPlain: 'Paid total: {payable}',
       billPaidTotalWithSst: 'Paid total: course fee {fee}, SST {sst}, amount due {payable}',
-      sendPaymentRemind: 'Send email reminder',
+      /** List action short label */
+      sendPaymentRemind: 'Send email',
       paymentRemindModalTitle: 'Edit payment reminder',
       paymentRemindSent: 'Payment reminder sent to {name} (demo)',
       paymentRemindDraft: {
@@ -2156,12 +2164,16 @@ export default {
           'Please complete payment in Course Payment soon. Overdue unpaid courses will not count as registered.',
         signoff: 'Academic Affairs (demo)',
       },
-      regenOrder: 'Regenerate order',
-      abortApplication: 'Abort application',
+      /** List action short label; modal title stays regenOrderTitle */
+      regenOrder: 'Generate order',
+      abortApplication: 'Terminate application',
       abortConfirm:
-        'Abort application for {name} and cancel the pending bill? This cannot be undone (demo).',
-      abortSuccess: 'Aborted application and bill for {name}',
-      abortNotAllowed: 'Cannot abort (only approved with pending payment)',
+        'Terminate application for {name} and cancel the pending bill? This cannot be undone (demo).',
+      abortConfirmRejected:
+        'Terminate rejected application for {name}? The student will no longer be able to resubmit (demo).',
+      abortSuccess: 'Terminated application and bill for {name}',
+      abortSuccessRejected: 'Terminated application for {name}',
+      abortNotAllowed: 'Cannot terminate (only approved+pending payment, or rejected)',
       regenOrderTitle: 'Regenerate order (extend due)',
       regenOrderHint:
         'Sets one new payment due time for all unpaid courses under this application (demo).',
@@ -2196,9 +2208,34 @@ export default {
       creditOverRequirementHint: 'Exceeds {labels} credit requirement',
       creditLabelGeTerm: 'GE term credits',
       creditLabelMeTerm: 'ME term credits',
+      /** Soft tip when Fail/Return Drop pushes selected over term+catch-up */
+      dropRejectAffectsAddRetakeHint:
+        'Disagreeing with this drop makes selected credits exceed term requirement plus unfinished catch-up, which will affect Add and Retake.',
+      /** Increment bd: disagree drop restores slot that conflicts with Add/Retake */
+      dropRejectScheduleConflictHint:
+        'Disagreeing drop “{dropCourse}” restores a time that conflicts with Add/Retake “{course}” ({time}). Adjust line decisions before confirm.',
+      /** Increment bj: locked Fail-drop — blame Add/Retake */
+      addRetakeConflictsRetainedDropHint:
+        'Add/Retake “{course}” conflicts with retained course “{dropCourse}” ({time}). Adjust that Add/Retake line before confirm.',
+      /** Standalone comment column header */
+      lineCommentColumn: 'Comments',
+      /** Approval cancel → save draft (dirty check, same idea as student apply) */
+      draftSaveConfirmTitle: 'Save as draft?',
+      draftSaveConfirmMessage:
+        'Your approval decisions are not confirmed yet. Save as draft to continue later; discard to lose this session’s changes.',
+      draftSaveConfirmYes: 'Save draft',
+      draftSaveConfirmNo: 'Discard',
+      draftSaveSuccess: 'Approval draft saved',
+      /**
+       * Rejecting a Drop would leave approved Add/Retake over term GE/ME
+       * @param {string} labels GE term credits, ME term credits, etc.
+       */
+      dropRejectBlockedByAddCredit:
+        'Cannot Fail/Return this Drop: approved Add/Retake would then exceed {labels}. Change those Add/Retake lines to Fail or Return first.',
+      lineDecisionBlockedHint: 'That action would exceed credit limits and was blocked.',
       invalidAction: 'Invalid approval result',
       addDropNoQueueHint:
-        'Add/retake applications do not enter the online registration queue. A seat is locked on submit; after approval, pay within the payment grace days.',
+        'Add/retake applications do not enter the online registration queue. A seat is locked on submit; after approval, pay within the campus payment duration (hours).',
       batchPartialFail: '{count} application(s) could not be decided',
       itemsSection: 'Course lines',
       lineDecision: 'Operation',
@@ -2212,10 +2249,11 @@ export default {
       lineSelectAll: 'Select all courses',
       lineSelectRequired: 'Please select course(s) first',
       lineDecisionRequired: 'Please choose Pass, Fail, or Return for every line',
-      lineUpdateMixed: 'Return cannot be mixed with Pass/Fail; return all lines or none',
-      lineCommentRequired:
-        'Please enter evaluation comments for each failed or returned course line',
-      lineCommentPlaceholder: 'Enter evaluation comments',
+      // Increment aa: mixed return+pass/fail allowed; key kept for compatibility
+      lineUpdateMixed: '(Deprecated) Return may be mixed with Pass/Fail',
+      // Deprecated: comments are optional; key kept for compatibility
+      lineCommentRequired: '(Deprecated) Evaluation comments are optional',
+      lineCommentPlaceholder: 'Enter evaluation comments (optional)',
       addLineComment: 'Add comment',
       editLineComment: 'Edit comment',
       lineCommentModalTitle: 'Evaluation comments',
@@ -2223,7 +2261,8 @@ export default {
       lineCommentEmpty: '—',
       lineApproved: 'Passed',
       lineRejected: 'Failed',
-      lineUpdateRequired: 'Returned',
+      /** Increment bj: align with list Rejected */
+      lineUpdateRequired: 'Rejected',
       linePending: 'Pending',
       attachmentNone: 'None',
       itemsSummary: 'Application course summary',
@@ -2285,7 +2324,7 @@ export default {
         'Invite gate defaults to 48h and can be customized. Send notification starts the clock. Resend is allowed while active; use Reopen after expiry (no max attempt cap).',
       inviteStatus: 'Invite Status',
       notifyCount: 'Notifications sent',
-      remainTime: 'Time remaining',
+      remainTime: 'Extension time remaining',
       notifyCountZero: '0',
       notifyCountTimes: '{n}',
       remainNotSent: 'Not sent',
@@ -2335,12 +2374,20 @@ export default {
       permissionAnyRequired: 'Select at least one permission',
       sendInviteOnSave: 'Send notification after save',
       doorHint:
-        'Whitelist grants exception access for add/drop/retake, prereq waiver, and credit exceptions. The clock starts after notification; after expiry use Reopen to extend the window so students can apply again.',
+        'Whitelist can grant out-of-window extension access (clock starts after notification; use Reopen after expiry) and in-window exceptions (section switch / prereq / credits). Without extension, Extension time remaining shows NA; info notifications are still allowed, Reopen is not.',
       inviteHint: '',
       filterDoorStatus: 'Invite status',
       doorStatusNotSent: 'Not sent',
       doorStatusActive: 'Active',
       doorStatusExpired: 'Expired',
+      doorStatusNotApplicable: 'N/A',
+      remainNotApplicable: 'NA',
+      applicationWindowLabel: 'Application window',
+      applicationWindowUnset: 'Not configured',
+      applicationWindowHint:
+        'Left-column permissions apply within this window by default; extension hours are separate.',
+      emailMockInfoSent:
+        'Mock info notification sent to {name} (no extension clock started)',
       creditBypassInlineSep: ', ',
       creditBypassExtraLabel: 'up to',
       creditBypassExtraUnit: 'credits',
@@ -2352,7 +2399,7 @@ export default {
       dropBelowMinInlineSep: ', ',
       capacityHint: 'Add applications cannot exceed original section capacity; whitelist does not auto-approve or skip fees.',
       formHint:
-        '① Create flow: select student(s) first, then configure permissions.\n② “Allow Add/Drop/Retake applications” is a top-level permission (inline duration in hours); its only second-level options are Can Add / Can Drop / Can Retake.\n③ “Same-term CORE section switching”, “Course prereq waiver”, “Exceed term credits”, “Drop below 12”, and “Future-term mandatory/elective” are also top-level and shown in an aligned two-column grid; section switching may leave the picker empty (all for the student) or pick exact pairs.\n④ “Course prereq waiver” selects the target course whose prerequisites are waived (not the prerequisite courses themselves); applies only to add applications; online registration still checks prerequisites.\n⑤ “Allow exceeding term credit requirements” lets you set over-credit allowance (1–3).\n⑥ “Allow add application for future-term mandatory courses” requires selecting course+section pairs in the block below; only listed sections enter the add pool.\n⑦ “Allow add application for future-term elective courses” requires GE and ME credit amounts and at least one ME course-group category.\n⑧ “Allow Drop below 12-credit minimum” applies to Drop-only applications; when enabled, set a credit floor X and post-drop credits must be ≥ X.',
+        '① Create flow: select student(s) first, then configure permissions.\n② Left column shows the application window and in-window exceptions (section switch, prereq waiver, over-credit, drop below 12, future mandatory/elective)—no extension hours.\n③ Right column “Allow Add/Drop/Retake applications” is out-of-window extension access (unchecked by default; set extension duration when enabled); its only second-level options are Can Add / Can Drop / Can Retake.\n④ “Course prereq waiver” selects the target course whose prerequisites are waived (not the prerequisite courses themselves); applies only to add applications; online registration still checks prerequisites.\n⑤ “Allow exceeding term credit requirements” lets you set over-credit allowance (1–3).\n⑥ “Allow add application for future-term mandatory courses” requires selecting course+section pairs in the block below; only listed sections enter the add pool.\n⑦ “Allow add application for future-term elective courses” requires GE and ME credit amounts and at least one ME course-group category.\n⑧ “Allow Drop below 12-credit minimum” applies to Drop-only applications; when enabled, set a credit floor X and post-drop credits must be ≥ X.',
       futureElectiveConfigLabel: 'Future-term elective allowance',
       futureElectiveGeGroupHint:
         'GE: all general electives in the student’s selectable scope form one large group; enter credits only.',
@@ -2369,7 +2416,7 @@ export default {
         ordinary: 'Ordinary ME',
       },
       hoursInlineSep: ', ',
-      inviteHoursPrefix: 'application duration ',
+      inviteHoursPrefix: 'extension duration ',
       sectionPickEmpty:
         'Leave empty to allow all sections in the picker for the selected student(s)',
       sectionPickHint:
@@ -3065,7 +3112,10 @@ export default {
       audienceSenior: 'Audience: Existing students (already in 2nd semester)',
       audienceSemesterIndex: 'Registration semester index {index}',
       termCreditCapHint: 'Term credit caps GE≤{ge} · ME≤{me}',
-      termCreditCapExceeded: '{type} term credits would be {used}, over cap {max}',
+      termCreditCapExceeded:
+        '{type} credits would reach {used}, over the catch-up + term allowance {max} (catch-up {deficit} + term {termMax}); cannot select',
+      /** @deprecated prefer termCreditCapExceeded with deficit/termMax */
+      termCreditCapExceededLegacy: '{type} term credits would be {used}, over cap {max}',
       graduationGeCapExceeded: 'GE graduation credits would be {used}, over cap {max}',
       categoryCreditCapExceeded: 'Credits exceed the upper limit; submission is not allowed',
       categoryCreditCapExceededMeOrdinary:
@@ -3451,6 +3501,52 @@ export default {
         /** @deprecated tab removed; key kept for old refs */
         other: 'Elective courses',
       },
+      /** Academic Status (Study Plan) */
+      studyPlan: {
+        academicStatusTitle: 'Academic Status',
+        summaryHint:
+          'Credits by category: completed vs catch-up (deficit). Required / GE / ME catch-up match the add/drop “through current term” baseline (fixed when this page opens); other columns are demo data for now.',
+        colStatus: 'Status',
+        colMandatory: 'Mandatory',
+        colGe: 'General Education',
+        colGeTotal: 'Total',
+        colGeBusiness: 'Business',
+        colGeArts: 'Arts',
+        colCommonCore: 'Common Core',
+        colMajorCore: 'Major Core',
+        colMe: 'Major Elective',
+        colIndustrial: 'Industrial Training & Internship',
+        colAttempted: 'Credits Attempted',
+        colMinRequired: 'Min. Credits Required',
+        colTotalEarned: 'Total Credits Earned',
+        colCompletionRate: 'Completion Rate',
+        colDetail: 'Detail',
+        rowCompleted: 'Completed',
+        rowPending: 'Catch-up credits',
+        detailAction: 'Detail',
+        backToSummary: 'Back to Academic Status',
+        detailTitle: 'Academic Status Detail (Study Plan)',
+        hdrStudentId: 'Student ID',
+        hdrName: 'Name',
+        hdrProgramme: 'Programme',
+        hdrAdmission: 'Admission',
+        hdrCgpa: 'Latest CGPA',
+        hdrCreditsEarned: 'Credits Earned',
+        dColYear: 'Year',
+        dColSession: 'Session',
+        dColCode: 'Course Code',
+        dColName: 'Course Title',
+        dColCredits: 'Credits',
+        dColGrade: 'Grade',
+        dColGp: 'GP',
+        dColStatus: 'Status',
+        dColAttempt: 'Attempt',
+        dColRemark: 'Remark',
+        dColGpa: 'GPA',
+        sessionCredits: 'Session credits total: {n}',
+        statusPass: 'Pass',
+        statusFail: 'Fail',
+      },
       unselect: 'Unselect',
       unselectConfirm: 'Unselect "{code} {name}"? This releases the group seat.',
       unselectSuccess: 'Unselected {code}; seat released',
@@ -3492,10 +3588,13 @@ export default {
       coursePickerTitle: 'Select course',
       coursePickerSubtitle: 'Application type: {type}',
       coursePickerSelected: '{count} course(s) selected',
-      /** Drop picker: before drop (baseline term total) → drop sum → remaining */
+      /** Drop picker: before drop (drop-pool credit sum) → drop sum (selected) → remaining */
       coursePickerSelectedDropCredits:
         '{count} course(s) selected; credits before drop are {original}; drop credits total {credits}; remaining credits are {remain}',
       coursePickerNone: 'No course selected',
+      /** Drop picker: elective drop rule tip only (demo still allows selecting electives) */
+      coursePickerDropElectiveTip:
+        'While registration is open, drop electives on the registration page (no application). Elective rows should be visible but disabled. After the window closes, elective drop applications are allowed.',
       pickerStatusOpen: 'Seats available',
       pickerSeatCapacityHeader: 'Avail./Total',
       pickerOriginalSessionHeader: 'Original Class Session',
@@ -3523,37 +3622,70 @@ export default {
         gradTitleGe: 'GE Graduation Credits',
         gradTitleMe: 'ME Graduation Credits',
         selectedRequiredSuffix: 'Selected/Required',
-        electiveSelected: 'Term Elective Credits Selected',
+        /** Credit-requirement matrix column/row headers */
+        matrixColMandatory: 'Compulsory',
+        matrixColGe: 'General Elective',
+        matrixColMe: 'Major Elective',
+        matrixColElectiveSum: 'Elective Subtotal',
+        matrixColGrandTotal: 'Grand Total',
+        matrixRowTerm: 'Term',
+        matrixRowGrad: 'Graduation',
+        matrixRowSelectedRequired: 'Selected/Required',
+        matrixRowUnfinishedDue: 'Unfinished/Due',
+        /** @deprecated Matrix uses split headers */
+        termSelectedTotalRequired:
+          'Term Credits Selected/Total Required (Required+Catch-up)',
+        /** Term elective: selected/required (GE+ME term max, no catch-up) */
+        electiveSelected: 'Term Elective Credits Selected/Required',
+        /** @deprecated Term compulsory cell uses termSelectedTotalRequired */
         mandatorySelected: 'Term Required Credits Selected',
         gradElectiveSelected: 'Graduation Elective Credits Selected',
         gradMandatorySelected: 'Graduation Required Credits Selected',
         /** @deprecated Split into termTotalSelected / gradTotalSelected */
         totalSelected: 'Total Credits Selected',
-        termTotalSelected: 'Term Total Credits Selected',
+        /** Term total: selected/total required (elective+compulsory term max, no catch-up) */
+        termTotalSelected: 'Term Total Credits Selected/Total Required',
         gradTotalSelected: 'Graduation Total Credits Selected',
         situationFull:
-          'According to the programme study plan, you have fulfilled all credit requirements and have no courses available to add.',
+          'According to the programme study plan, there are no fallen-behind credits as of the current term.',
         situationDeficit:
-          'According to the programme study plan, outstanding graduation credits are: Compulsory: {mandatory}; GE: {ge}; ME: {me}.',
+          'According to the programme study plan, fallen-behind credits as of the current term are: Compulsory: {mandatory}; GE: {ge}; ME: {me}.',
         /** Failed transcript pool, deduped by course, summed by category */
         failedCourseCredits:
           'Cumulative failed-course credits: Compulsory: {mandatory}; GE: {ge}; ME: {me}',
-        /** Pending apps: credits/courses are estimates */
+        /** Increment br: Round 3 online window (elective add/drop hint; display only) */
+        round3ElectiveWindow:
+          'Elective add/drop is allowed only after Round 3 online registration opens (Round 3: {start} – {end}).',
+        round3ElectiveWindowUnset:
+          'Elective add/drop is allowed only after Round 3 online registration opens; Round 3 times are not configured.',
+        /**
+         * @deprecated Merged into second-application red tip; no longer shown in blue tip
+         */
         pendingEstimateTip:
           'Displayed credits and courses are estimated from your submitted application(s); the actual result is confirmed after approval.',
       },
-      /** Same primary type already pending */
-      /** Whole-application second-submit gate (any pending self-submit) */
+      /** Whole-application second-submit gate (merged estimate + pending block) */
       primaryTypePendingBlocked:
-        'You already have an application awaiting review and cannot submit again. Cancel it to start a new one.',
+        'An application is pending review. Credits and courses shown are estimates from your submitted application and will be confirmed after approval. Cancel it before starting another.',
       secondApplicationBlocked:
-        'You already have an application awaiting review and cannot submit again. Cancel it to start a new one.',
+        'An application is pending review. Credits and courses shown are estimates from your submitted application and will be confirmed after approval. Cancel it before starting another.',
+      /** Returned (has update_required lines): block new apply; use Resubmit */
+      secondApplicationRejectedBlocked:
+        'You have a returned application and cannot start a new one. Use Resubmit on that row to revise and submit again.',
       secondApplicationUnpaidBlocked:
         'You have an unpaid add/drop/retake bill. Complete course payment before starting another application.',
       /** Add/Retake CORE tab: selectable column */
       pickerSelectableHeader: 'Selectable',
       pickerSelectableYes: 'Yes',
       pickerStatusEnrolled: 'Enrolled',
+      /** Increment bk: course already taken in group */
+      pickerStatusGroupAlreadyTaken:
+        'Already selected in this group; cannot choose another section',
+      /** Increment bk: group minPick filled */
+      pickerStatusGroupPickCapFull:
+        'Group quota full ({total} choose {min}); cannot select other courses in group',
+      /** Resubmit picker: same-action approved/rejected sibling occupies course */
+      pickerStatusResubmitSiblingLocked: 'Occupied by another line in this application (same course)',
       pickerStatusOverCredit: 'Exceeds semester credit max; cannot select',
       pickerStatusOverCreditTip:
         'Credits would reach {net}, over the term credit cap {max}; cannot select',
@@ -3605,6 +3737,7 @@ export default {
       sectionLabelAdd: 'Course Add',
       sectionLabelDrop: 'Course Drop',
       sectionLabelRetake: 'Course Retake',
+      sectionLabelAttachments: 'Attachments',
       sectionLabelDeclaration: 'Declaration by the Student',
       sectionI: 'SECTION I : Student Details',
       sectionII: 'SECTION II : Course Add',
@@ -3627,9 +3760,9 @@ export default {
       fieldCredits: 'Credits',
       fieldAddTotalCredits: 'Total add credits',
       fieldDropTotalCredits: 'Total drop credits',
-      fieldDropMandatoryCredits: 'Drop required-course credits',
-      fieldDropMeCredits: 'Drop ME credits',
-      fieldDropGeCredits: 'Drop GE credits',
+      fieldDropMandatoryCredits: 'Drop required-course credits (cr)',
+      fieldDropMeCredits: 'Drop ME credits (cr)',
+      fieldDropGeCredits: 'Drop GE credits (cr)',
       fieldRetakeTotalCredits: 'Total retake credits',
       fieldRetakeTotalCreditsBillable: 'Total retake credits (billable)',
       fieldCourseName: 'Course name',
@@ -3692,7 +3825,12 @@ export default {
       retakeOriginalListTitle: 'Original courses to retake',
       retakeOriginalListTitleFailed: 'Failed courses',
       retakeOriginalListTitleImprove: 'Courses allowed for retake',
+      retakeOriginalTabCourseCount: ' ({count} courses)',
       retakeOriginalSessionGrade: 'Session / grade',
+      meGroupPickCapReached:
+        'This group is {total} choose {min}; {min} already selected, cannot select other courses in the group',
+      fieldTermExcessCreditsTip:
+        'This field is shown only for students on the whitelist who may exceed term credit limits; otherwise students cannot exceed term credits and the field is hidden',
       retakeOriginalListHint:
         'Confirm failed/improve originals first, then choose this-term offerings via Select retake course.',
       retakeOriginalEmpty: 'No matching transcript originals for this retake type',
@@ -3813,6 +3951,44 @@ export default {
       cancelConfirmTitle: 'Confirm Cancel',
       cancelConfirmMessage:
         'Cancel this application? It will be archived and cannot be edited or resubmitted.',
+      /** Modal cancel: save as draft? */
+      draftSaveConfirmTitle: 'Save as draft?',
+      draftSaveConfirmMessage:
+        'Your changes are not submitted. Save as draft to continue editing from the list, or discard.',
+      draftSaveConfirmYes: 'Save draft',
+      draftSaveConfirmNo: 'Discard',
+      draftSaveSuccess: 'Draft saved',
+      editDraftAction: 'Edit',
+      resubmitAction: 'Resubmit',
+      resubmitModalTitle: 'Resubmit application',
+      resubmitModalHint:
+        'Passed and failed lines are read-only. Only returned lines can be Modified (replace) or Cancel application (removed). Unchanged returned lines stay Returned after submit. New lines cannot be added. Submit sends all latest course lines.',
+      resubmitModifyLine: 'Modify',
+      /** Returned line: remove from this application (not replace) */
+      resubmitCancelLine: 'Cancel application',
+      resubmitCancelLineTitle: 'Cancel application',
+      resubmitCancelLineMessage:
+        'Cancel this line? Its status will become Cancelled. You can still modify it before confirming resubmit.',
+      resubmitConfirm: 'Confirm resubmit',
+      resubmitConfirmTitle: 'Confirm resubmit',
+      resubmitConfirmMessage:
+        'Resubmit this application? It will return to pending approval for staff review.',
+      /** @deprecated Increment bc: footer red hint removed; keep key for old refs */
+      resubmitNeedHandleRejects:
+        'Modify every returned line to pending, or cancel those lines, before resubmitting',
+      resubmitSuccess: 'Resubmitted; pending approval',
+      resubmitNotAllowed: 'Cannot resubmit in the current status',
+      resubmitPickerSubtitle: 'Replace this returned line (one course only) · {type}',
+      resubmitPickRequired: 'Please select one course to replace',
+      resubmitDuplicateCourse: 'Conflicts with another line in this application (same course code)',
+      resubmitModifyFailed: 'Replacement failed validation; please adjust',
+      listStatus: {
+        Draft: 'Draft',
+        Pending: 'Pending approval',
+        Rejected: 'Rejected',
+        Ended: 'Completed',
+        Cancelled: 'Cancelled',
+      },
       cancelSuccess: 'Application cancelled',
       cancelNotAllowed: 'Cannot cancel (review started or terminal status)',
       addDropSearchKeyword: 'Course',
@@ -3851,17 +4027,36 @@ export default {
       goOnlineRegister: 'Go to Online Registration',
       addDropActionNotAllowed: 'Current whitelist permissions do not allow this application type',
       schedulePreviewTitle: 'My Timetable Preview',
+      /** @deprecated Increment v: empty preview still shows the week grid */
       schedulePreviewEmpty: 'No timetable slots yet',
-      schedulePreviewAddDropHint:
-        'All enrolled courses (required / elective / application / admin-added); courses listed to drop are omitted from the preview.',
+      /** Application form: post-approval timetable preview */
+      applicationSchedulePreviewButton: 'Course Preview',
+      applicationSchedulePreviewTitle: 'Course Preview',
+      /** Drop remove blocked when add/retake depends on the freed slot/credits */
+      dropRemoveBlockedTip: 'Remove {courses} first, then remove this drop',
+      dropRemoveDependsAdd: 'add',
+      dropRemoveDependsRetake: 'retake',
+      /**
+       * @deprecated Increment t: preview drawer no longer shows the blue tip; key kept for old refs
+       */
+      applicationSchedulePreviewHint:
+        'With no courses selected, the preview matches My Timetable. After you select add/drop/retake, it shows the projected timetable for those applications—for reference only, not the final result.',
+      /** Increment ag: disclaimer on application course-preview drawer footer (left) */
+      applicationSchedulePreviewFooterHint:
+        'This preview shows the expected result of this application only; the actual timetable follows the approval outcome.',
+      scheduleLegendAppAdd: 'Add Application (dashed)',
+      scheduleLegendAppDrop: 'Drop Application (dashed)',
+      scheduleLegendAppRetake: 'Retake Application (dashed)',
+      /** @deprecated aw: add/drop My Schedule drawer no longer shows this; keep empty */
+      schedulePreviewAddDropHint: '',
       schedulePreviewPreselectHint:
         'Before / Round 1: required + current picks (dashed); confirmed electives from Round 2 onward.',
       schedulePreviewRegisterHint:
         'Current round: required and earlier confirmed (solid) + current picks (dashed).',
       schedulePreviewFinalHint:
         'Filtered by the active type tab; only courses with class times are plotted (e.g. internship rows stay list-only).',
-      schedulePreviewFinalHintAll:
-        'Includes elective and required courses with class times (applied/admin-added included by course nature); legend uses Required / Elective. Internship rows without timetable stay list-only.',
+      /** @deprecated ax: My Schedule drawer no longer shows this; keep empty */
+      schedulePreviewFinalHintAll: '',
       scheduleUntimedTipBadge: 'Note',
       scheduleUntimedCoursesTip:
         '{courses} has no scheduled class time and will not appear on this timetable, but remains visible in My Courses. Please contact the instructor to confirm the arrangement.',
@@ -3902,7 +4097,9 @@ export default {
       r1Credit: {
         termRequiredMe: 'ME Term Credit Requirement',
         termRequiredGe: 'GE Term Credit Requirement',
+        /** @deprecated Add-drop term cells use addDropTermCredit.termSelectedTotalRequired */
         termSelectedRequiredMe: 'ME Term Credits Selected/Required',
+        /** @deprecated Add-drop term cells use addDropTermCredit.termSelectedTotalRequired */
         termSelectedRequiredGe: 'GE Term Credits Selected/Required',
         gradSelectedRequiredMe: 'ME Graduation Credits Selected/Required',
         gradSelectedRequiredGe: 'GE Graduation Credits Selected/Required',
@@ -4036,6 +4233,7 @@ export default {
       billCourseCount: '{n} courses',
       billTitle: 'Application no. {no} {n} courses',
       billTotalFee: 'Total due: {amount}',
+      generatedAt: 'Generated at',
       dueAt: 'Payment deadline',
       lockedInOrder: 'Locked in order',
       paidBadge: 'Paid',

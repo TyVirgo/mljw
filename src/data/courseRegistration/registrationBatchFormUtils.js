@@ -181,7 +181,8 @@ export function nowDateTimeWithSeconds() {
 }
 
 /**
- * 相对某时刻增加日历天数（用于 CR107 缴费截止）
+ * 相对某时刻增加日历天数
+ * @deprecated 增量 af 起 CR107 缴费宽限改用 {@link addHoursToDateTime}；本函数仍供延期演示等使用
  * @param {number} days
  * @param {Date} [from]
  */
